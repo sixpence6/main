@@ -203,8 +203,16 @@ async def test_transient_poll_provider_error_retries_without_resubmitting(full_s
 @pytest.mark.asyncio
 async def test_total_wait_poll_exhaustion_is_unknown_with_remote_identity(full_settings):
     settings = full_settings.model_copy(update={"visual_timeout_seconds": 1})
+    locator = "https://cdn.example/late.png?signature=private"
     visual = VisualStub(
         submit_outcome=ProviderOutcome(state="pending", remote_task_id="task-timeout"),
+        poll_outcomes=[
+            ProviderOutcome(
+                state="pending",
+                result_locator=locator,
+                result_expires_at="2099-01-01T00:00:00Z",
+            )
+        ],
         poll_delay_seconds=0.2,
     )
     async with environment(settings, visual=visual) as (client, _registry, _llm, _visual):
@@ -220,6 +228,10 @@ async def test_total_wait_poll_exhaustion_is_unknown_with_remote_identity(full_s
         row = generation_row(settings, created["id"])
         assert row[0] == "task-timeout"
         assert row[4] == "unknown"
+        assert json.loads(row[1]) == {
+            "locator": locator,
+            "expires_at": "2099-01-01T00:00:00Z",
+        }
 
 
 @pytest.mark.asyncio
@@ -280,6 +292,42 @@ async def test_submit_provider_error_evidence_controls_status(
         assert finished["result_asset_id"] is None
         assert len(visual.submit_calls) == 1
         assert visual.poll_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state", ["failed", "unknown"])
+async def test_result_available_evidence_is_a_retrievable_fetch_failure(
+    full_settings, state
+):
+    locator = "https://cdn.example/ready.png?signature=private"
+    visual = VisualStub(
+        submit_outcome=ProviderOutcome(
+            state=state,
+            evidence="result_available",
+            remote_task_id="task-result-ready",
+            result_locator=locator,
+            result_expires_at="2099-01-01T00:00:00Z",
+        )
+    )
+    async with environment(full_settings, visual=visual) as (client, _registry, _llm, _visual):
+        project = await create_confirmed_project(client)
+        created = await submit(client, project)
+        finished = await wait_status(client, created["id"], {"failed"})
+        assert finished["stage"] == "waiting_remote"
+        assert finished["error"]["code"] == "RESULT_FETCH_FAILED"
+        assert finished["remote_task_id"] == "task-result-ready"
+        assert finished["result_asset_id"] is None
+        assert finished["can_retrieve_result"] is True
+        assert finished["retrieval_unavailable_reason"] is None
+        assert visual.poll_calls == []
+        assert len(visual.submit_calls) == 1
+
+        row = generation_row(full_settings, created["id"])
+        assert row[0] == "task-result-ready"
+        assert json.loads(row[1]) == {
+            "locator": locator,
+            "expires_at": "2099-01-01T00:00:00Z",
+        }
 
 
 @pytest.mark.asyncio

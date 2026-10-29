@@ -235,6 +235,24 @@ async def test_same_request_with_different_original_params_conflicts(full_settin
 
 
 @pytest.mark.asyncio
+async def test_new_request_with_stale_confirmed_revision_is_rejected(full_settings):
+    visual = VisualStub(
+        submit_outcome=ProviderOutcome(state="succeeded", image_bytes=png_bytes())
+    )
+    async with environment(full_settings, visual=visual) as (client, _registry, _llm, _visual):
+        project = await create_confirmed_project(client)
+        response = await client.post(
+            f"/api/projects/{project['id']}/generations",
+            json=generation_payload(
+                project, confirmed_revision=project["revision"] - 1
+            ),
+        )
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "REVISION_CONFLICT"
+        assert visual.submit_calls == []
+
+
+@pytest.mark.asyncio
 async def test_active_generation_blocks_new_submission_but_not_same_request(full_settings):
     visual = VisualStub(
         submit_outcome=ProviderOutcome(state="succeeded", image_bytes=png_bytes()),

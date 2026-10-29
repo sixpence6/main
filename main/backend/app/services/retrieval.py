@@ -150,6 +150,33 @@ def evaluate_retrieval(
     return RetrievalInfo(can_retrieve=True, locator=locator, expires_at=expires_at)
 
 
+def evaluate_generations_retrieval(
+    generations: list[Generation],
+    *,
+    settings: Settings,
+    registry: AdapterRegistry,
+    project: Project,
+) -> dict[str, RetrievalInfo]:
+    active_generation_id = next(
+        (
+            generation.id
+            for generation in generations
+            if generation.status in ("queued", "running")
+        ),
+        None,
+    )
+    return {
+        generation.id: evaluate_retrieval(
+            generation,
+            settings=settings,
+            registry=registry,
+            project=project,
+            active_generation_id=active_generation_id,
+        )
+        for generation in generations
+    }
+
+
 async def load_retrieval_info(
     session_factory: async_sessionmaker[AsyncSession],
     settings: Settings,

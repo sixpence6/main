@@ -3,9 +3,10 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.config import Settings
+from app.config import BACKEND_DIR, REPO_ROOT, Settings
 from app.errors import StartupError
 from app.main import create_app
+from app.services.config_status import build_config_status
 
 
 async def test_health_reports_ok(client):
@@ -44,6 +45,7 @@ async def test_config_status_never_leaks_credentials(settings, registry):
         visual_base_url="https://visual.internal.example/v1",
         visual_api_key="sk-test-super-secret-value",
         visual_model="visual-model-x",
+        visual_image_size="1024x1024",
     )
     application = create_app(settings=secret_settings, registry=registry)
     from tests.conftest import migrate
@@ -62,6 +64,64 @@ async def test_config_status_never_leaks_credentials(settings, registry):
         assert status["ready"] is True
         assert status["verification"] == "not_checked"
         assert status["model"] in {"llm-model-x", "visual-model-x"}
+
+
+def test_relative_configuration_resolves_from_project_locations(monkeypatch):
+    monkeypatch.delenv("DATA_DIR", raising=False)
+    monkeypatch.setenv("APP_DATA_DIR", "env-data")
+    monkeypatch.setenv("VISUAL_TASK_TIMEOUT_SECONDS", "37")
+    settings = Settings(
+        _env_file=None,
+        database_url="sqlite+aiosqlite:///relative/db.sqlite3",
+        web_dist_dir="main/dist",
+    )
+    assert settings.resolved_data_dir() == BACKEND_DIR / "env-data"
+    assert settings.database_path == BACKEND_DIR / "relative" / "db.sqlite3"
+    assert settings.database_dsn.startswith("sqlite+aiosqlite:///")
+    assert settings.resolved_web_dist_dir() == REPO_ROOT / "main" / "dist"
+    assert settings.visual_timeout_seconds == 37
+
+
+@pytest.mark.parametrize(
+    ("image_size", "expected_issue"),
+    [
+        (None, "IMAGE_SIZE_NOT_CONFIGURED"),
+        ("512x512", "IMAGE_SIZE_NOT_SUPPORTED"),
+    ],
+)
+def test_visual_config_is_not_ready_without_a_verified_usable_size(
+    full_settings, registry, image_size, expected_issue
+):
+    settings = full_settings.model_copy(update={"visual_image_size": image_size})
+    status = build_config_status(settings, registry)
+    assert status.visual.ready is False
+    assert expected_issue in {issue.code for issue in status.visual.issues}
+
+
+def test_schema_enforces_relationship_and_status_constraints(settings):
+    import sqlite3
+
+    from tests.conftest import migrate
+
+    migrate(settings)
+    with sqlite3.connect(settings.database_path) as connection:
+        referenced_tables = {
+            row[2] for row in connection.execute("PRAGMA foreign_key_list('generations')")
+        }
+        ddl = " ".join(
+            row[0]
+            for row in connection.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'table'"
+            )
+        )
+    assert {"projects", "assets"} <= referenced_tables
+    for constraint in (
+        "ck_projects_brief_status",
+        "ck_messages_role",
+        "ck_assets_kind",
+        "ck_generations_stage",
+    ):
+        assert constraint in ddl
 
 
 async def test_unknown_api_route_returns_json_404(client):

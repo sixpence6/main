@@ -3,14 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from pydantic import SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 APP_DIR = Path(__file__).resolve().parent
 MAIN_DIR = APP_DIR.parent.parent
 REPO_ROOT = MAIN_DIR.parent
 
-DEFAULT_DATA_DIR = REPO_ROOT / "backend" / "data"
+BACKEND_DIR = REPO_ROOT / "backend"
+DEFAULT_DATA_DIR = BACKEND_DIR / "data"
 DEFAULT_WEB_DIST_DIR = MAIN_DIR / "dist"
 DEFAULT_ENV_FILE = REPO_ROOT / "backend" / ".env"
 
@@ -25,6 +27,11 @@ REFERENCE_MULTIPART_OVERHEAD_BYTES = 64 * 1024
 LOCAL_RESULT_MAX_BYTES = 64 * 1024 * 1024
 
 REQUIRED_ROLE_FIELDS = ("adapter", "base_url", "api_key", "model")
+
+
+def _resolve_backend_path(value: str | Path) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else BACKEND_DIR / path
 
 
 def _blank(value: str | None) -> str | None:
@@ -42,9 +49,13 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
+        populate_by_name=True,
     )
 
-    data_dir: Path = DEFAULT_DATA_DIR
+    data_dir: Path = Field(
+        default=DEFAULT_DATA_DIR,
+        validation_alias=AliasChoices("APP_DATA_DIR", "DATA_DIR"),
+    )
     database_url: str | None = None
     web_dist_dir: Path = DEFAULT_WEB_DIST_DIR
     host: str = "127.0.0.1"
@@ -61,7 +72,12 @@ class Settings(BaseSettings):
     visual_api_key: SecretStr | None = None
     visual_model: str | None = None
     visual_image_size: str | None = None
-    visual_timeout_seconds: int = 300
+    visual_timeout_seconds: int = Field(
+        default=300,
+        validation_alias=AliasChoices(
+            "VISUAL_TASK_TIMEOUT_SECONDS", "VISUAL_TIMEOUT_SECONDS"
+        ),
+    )
 
     @field_validator("data_dir", "web_dist_dir", mode="before")
     @classmethod
@@ -73,29 +89,47 @@ class Settings(BaseSettings):
     @property
     def database_path(self) -> Path:
         if self.database_url:
-            return Path(self.database_url.rsplit("/", 1)[-1])
-        return self.data_dir / "app.db"
+            url = make_url(self.database_url)
+            database = url.database
+            if database and database != ":memory:":
+                return _resolve_backend_path(database)
+            return Path(database or "")
+        return self.resolved_data_dir() / "app.db"
 
     @property
     def database_dsn(self) -> str:
         if self.database_url:
-            return self.database_url
+            url = make_url(self.database_url)
+            database = url.database
+            if (
+                url.get_backend_name() == "sqlite"
+                and database
+                and database != ":memory:"
+            ):
+                path = Path(database)
+                if not path.is_absolute():
+                    url = url.set(database=str(_resolve_backend_path(path)))
+            return url.render_as_string(hide_password=False)
         return "sqlite+aiosqlite:///" + self.database_path.as_posix()
 
     @property
-    def assets_dir(self) -> Path:
-        return self.data_dir / "assets"
+    def references_dir(self) -> Path:
+        return self.resolved_data_dir() / "references"
+
+    @property
+    def generated_dir(self) -> Path:
+        return self.resolved_data_dir() / "generated"
 
     @property
     def temp_dir(self) -> Path:
-        return self.data_dir / "tmp"
+        return self.resolved_data_dir() / "tmp"
 
     def resolved_data_dir(self) -> Path:
-        return self.data_dir if self.data_dir.is_absolute() else REPO_ROOT / self.data_dir
+        return _resolve_backend_path(self.data_dir)
 
     def resolved_web_dist_dir(self) -> Path:
         path = self.web_dist_dir
-        return path if path.is_absolute() else MAIN_DIR / path
+        return path if path.is_absolute() else REPO_ROOT / path
 
     def llm(self) -> RoleConfig:
         return RoleConfig(

@@ -64,7 +64,10 @@ def build_config_status(settings: Settings, registry: AdapterRegistry) -> Config
     caps = registry.visual_capabilities(visual_role.adapter_id or "") if adapter_known else None
     if caps is not None:
         effective = LOCAL_REFERENCE_MAX_BYTES
-        if caps.provider_max_reference_bytes is not None:
+        if (
+            caps.provider_max_reference_bytes is not None
+            and caps.provider_max_reference_bytes > 0
+        ):
             effective = min(effective, caps.provider_max_reference_bytes)
         capabilities = VisualCapabilities(
             text_to_image=caps.text_to_image,
@@ -80,17 +83,41 @@ def build_config_status(settings: Settings, registry: AdapterRegistry) -> Config
             provider_max_reference_bytes=caps.provider_max_reference_bytes,
             effective_reference_max_bytes=effective,
         )
-        if (
-            visual_role.image_size
-            and caps.supported_image_sizes is not None
-            and visual_role.image_size not in caps.supported_image_sizes
-        ):
+        if caps.text_to_image is not True:
+            extra_issues.append(
+                ConfigIssue(
+                    code="TEXT_TO_IMAGE_UNAVAILABLE",
+                    message="适配器未核实支持文生图",
+                )
+            )
+        if caps.supported_image_sizes is None:
+            extra_issues.append(
+                ConfigIssue(
+                    code="IMAGE_SIZE_UNVERIFIED",
+                    message="适配器未核实支持的图片尺寸",
+                )
+            )
+        elif not visual_role.image_size:
+            extra_issues.append(
+                ConfigIssue(
+                    code="IMAGE_SIZE_NOT_CONFIGURED",
+                    message="尚未配置生图尺寸",
+                )
+            )
+        elif visual_role.image_size not in caps.supported_image_sizes:
             extra_issues.append(
                 ConfigIssue(
                     code="IMAGE_SIZE_NOT_SUPPORTED",
                     message="当前尺寸不在适配器核实支持的尺寸内",
                 )
             )
+    elif visual_role.configured and adapter_known:
+        extra_issues.append(
+            ConfigIssue(
+                code="CAPABILITIES_UNKNOWN",
+                message="适配器能力未知",
+            )
+        )
 
     visual_status = VisualConfigStatus(
         **_base_status(visual_role, adapter_known, extra_issues),

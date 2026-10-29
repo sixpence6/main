@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -54,12 +55,14 @@ class ClaimedGeneration:
     id: str
     project_id: str
     version_no: int
+    request_id: str
     prompt: str
     brief_snapshot_json: str
     image_size: str | None
     reference_asset_id: str | None
     adapter_id: str
     model: str
+    started_monotonic: float
 
 
 class ResultValidationError(Exception):
@@ -291,6 +294,10 @@ async def submit_generation(
                     or not project.prompt.strip()
                 ):
                     raise conflict("BRIEF_NOT_READY", "需求尚未整理并确认，无法生成")
+                if confirmed_revision != project.confirmed_revision:
+                    raise conflict(
+                        "REVISION_CONFLICT", "项目修订已变化，请刷新后重试"
+                    )
 
                 visual, capabilities = _require_visual_ready(settings, registry)
                 if (
@@ -331,6 +338,7 @@ async def submit_generation(
                     provider_limit = capabilities.provider_max_reference_bytes
                     if (
                         provider_limit is not None
+                        and provider_limit > 0
                         and reference_asset.byte_size > provider_limit
                     ):
                         raise ApiError(
@@ -462,12 +470,14 @@ def _claim_generation(
                 id=generation.id,
                 project_id=generation.project_id,
                 version_no=generation.version_no,
+                request_id=generation.request_id,
                 prompt=generation.prompt,
                 brief_snapshot_json=generation.brief_snapshot_json,
                 image_size=generation.image_size,
                 reference_asset_id=generation.reference_asset_id,
                 adapter_id=generation.adapter_id,
                 model=generation.model,
+                started_monotonic=time.monotonic(),
             )
 
     return claim()
@@ -481,6 +491,9 @@ async def _set_stage(
         if generation is None or generation.status != "running":
             return
         generation.stage = stage
+        project = await session.get(Project, generation.project_id)
+        if project is not None:
+            project.updated_at = format_timestamp(utc_now())
         await session.flush()
 
 
@@ -557,6 +570,8 @@ async def _finish_generation(
 
 
 def _outcome_terminal_status(outcome: ProviderOutcome) -> str | None:
+    if outcome.evidence == "result_available":
+        return "failed"
     if outcome.state == "failed":
         return "unknown" if outcome.evidence == "uncertain" else "failed"
     if outcome.state == "unknown":
@@ -570,6 +585,27 @@ def _provider_error_status(error: ProviderError) -> str:
     if error.evidence in ("not_submitted", "rejected", "result_available"):
         return "failed"
     return "unknown"
+
+
+def _log_generation_problem(
+    claimed: ClaimedGeneration,
+    *,
+    stage: str,
+    error_code: str,
+    exc: BaseException,
+) -> None:
+    elapsed_ms = int((time.monotonic() - claimed.started_monotonic) * 1000)
+    logger.warning(
+        "generation problem project_id=%s generation_id=%s request_id=%s "
+        "stage=%s elapsed_ms=%d error_code=%s exception_type=%s",
+        claimed.project_id,
+        claimed.id,
+        claimed.request_id,
+        stage,
+        elapsed_ms,
+        error_code,
+        type(exc).__name__,
+    )
 
 
 async def _finish_provider_error(
@@ -614,7 +650,10 @@ async def _finish_outcome(
     if status is None:
         return
     if status == "failed":
-        if outcome.evidence == "not_submitted":
+        if outcome.evidence == "result_available":
+            code = "RESULT_FETCH_FAILED"
+            message = outcome.error_message or "生图结果获取失败"
+        elif outcome.evidence == "not_submitted":
             code = outcome.error_code or "VISUAL_NOT_SUBMITTED"
             message = outcome.error_message or "生成任务未提交"
         else:
@@ -764,10 +803,11 @@ async def _deliver_result(
         try:
             fetched = await adapter.fetch_result(locator)
         except Exception as exc:
-            logger.warning(
-                "fetching result for generation %s failed with %s",
-                claimed.id,
-                type(exc).__name__,
+            _log_generation_problem(
+                claimed,
+                stage="fetching_result",
+                error_code="RESULT_FETCH_FAILED",
+                exc=exc,
             )
             await fail("生图结果下载失败")
             return
@@ -860,15 +900,24 @@ async def _poll_until_result(
             await asyncio.sleep(interval)
             continue
         except Exception as exc:
-            logger.warning(
-                "polling generation %s failed with %s",
-                claimed.id,
-                type(exc).__name__,
+            _log_generation_problem(
+                claimed,
+                stage="waiting_remote",
+                error_code="VISUAL_OUTCOME_UNKNOWN",
+                exc=exc,
             )
             await asyncio.sleep(interval)
             continue
+        previous_locator = result_locator
         result_locator = outcome.result_locator or result_locator
         result_expires_at = outcome.result_expires_at or result_expires_at
+        if outcome.result_locator is not None and outcome.result_locator != previous_locator:
+            await _record_remote_task(
+                session_factory,
+                claimed.id,
+                result_locator=outcome.result_locator,
+                result_expires_at=outcome.result_expires_at,
+            )
         if outcome.state == "succeeded":
             await _deliver_result(
                 app,
@@ -959,10 +1008,11 @@ async def _execute_claimed(app: FastAPI, claimed: ClaimedGeneration) -> None:
         await _finish_provider_error(session_factory, claimed.id, exc)
         return
     except Exception as exc:
-        logger.warning(
-            "submit for generation %s failed with %s",
-            claimed.id,
-            type(exc).__name__,
+        _log_generation_problem(
+            claimed,
+            stage="submitting",
+            error_code="VISUAL_OUTCOME_UNKNOWN",
+            exc=exc,
         )
         await _finish_generation(
             session_factory,
@@ -1024,7 +1074,15 @@ async def _execute_claimed(app: FastAPI, claimed: ClaimedGeneration) -> None:
         )
         return
 
-    await _deliver_result(app, claimed, adapter, outcome)
+    await _deliver_result(
+        app,
+        claimed,
+        adapter,
+        outcome,
+        fallback_locator=outcome.result_locator,
+        fallback_result_expires_at=outcome.result_expires_at,
+        fallback_remote_task_id=outcome.remote_task_id,
+    )
 
 
 async def execute_generation(app: FastAPI, generation_id: str) -> None:
@@ -1047,10 +1105,11 @@ async def execute_generation(app: FastAPI, generation_id: str) -> None:
                 error_message="生图等待超时，结果未确认",
             )
         except Exception as exc:
-            logger.warning(
-                "generation %s failed or became uncertain with %s",
-                generation_id,
-                type(exc).__name__,
+            _log_generation_problem(
+                claimed,
+                stage="unknown",
+                error_code="VISUAL_OUTCOME_UNKNOWN",
+                exc=exc,
             )
             await _finish_generation(
                 session_factory,
@@ -1077,6 +1136,41 @@ async def mark_scheduling_failed(
         if project is not None:
             project.updated_at = now
         await session.flush()
+
+
+async def submit_generation_and_schedule(
+    app: FastAPI,
+    *,
+    project_id: str,
+    request_id: str,
+    confirmed_revision: int,
+    acknowledge_present: bool,
+    acknowledge_unknown: bool,
+) -> SubmissionResult:
+    state = app.state
+    result = await submit_generation(
+        state.session_factory,
+        state.locks,
+        state.registry,
+        state.settings,
+        project_id=project_id,
+        request_id=request_id,
+        confirmed_revision=confirmed_revision,
+        acknowledge_present=acknowledge_present,
+        acknowledge_unknown=acknowledge_unknown,
+    )
+    if not result.created:
+        return result
+    try:
+        schedule_generation(app, result.generation.id)
+    except Exception:
+        logger.exception("could not schedule generation %s", result.generation.id)
+        await mark_scheduling_failed(state.session_factory, result.generation.id)
+        generation, asset = await load_generation(
+            state.session_factory, result.generation.id
+        )
+        return SubmissionResult(generation=generation, result_asset=asset, created=True)
+    return result
 
 
 def schedule_generation(app: FastAPI, generation_id: str) -> None:

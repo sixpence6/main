@@ -148,7 +148,7 @@ async def attach_reference(
     async with locks.hold(project_id):
         asset_id = str(uuid4())
         extension = MIME_EXTENSIONS[image.mime_type]
-        relative_path = f"assets/{asset_id}.{extension}"
+        relative_path = f"references/{asset_id}.{extension}"
         await asyncio.to_thread(write_asset_file, settings, relative_path, data)
         try:
             async with write_transaction(session_factory) as session:

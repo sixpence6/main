@@ -1,21 +1,14 @@
 from __future__ import annotations
 
-import logging
-
 from fastapi import APIRouter, Request, Response
 
 from app.presenters import generation_view
 from app.schemas import CreateGenerationRequest, EmptyBody, GenerationResponse, GenerationView
 from app.services.generations import (
-    SubmissionResult,
     load_generation,
-    mark_scheduling_failed,
-    schedule_generation,
-    submit_generation,
+    submit_generation_and_schedule,
 )
 from app.services.retrieval import load_retrieval_info, retrieve_result
-
-logger = logging.getLogger("app.generations")
 
 router = APIRouter(tags=["generations"])
 
@@ -32,27 +25,15 @@ async def submit_generation_endpoint(
     response: Response,
 ) -> GenerationResponse:
     state = request.app.state
-    request_id = str(payload.request_id)
-    result = await submit_generation(
-        state.session_factory,
-        state.locks,
-        state.registry,
-        state.settings,
+    result = await submit_generation_and_schedule(
+        request.app,
         project_id=project_id,
-        request_id=request_id,
+        request_id=str(payload.request_id),
         confirmed_revision=payload.confirmed_revision,
         acknowledge_present="acknowledge_unknown" in payload.model_fields_set,
         acknowledge_unknown=payload.acknowledge_unknown,
     )
-    if result.created:
-        try:
-            schedule_generation(request.app, result.generation.id)
-        except Exception:  # noqa: BLE001 - scheduling failure must be observable
-            logger.exception("could not schedule generation %s", result.generation.id)
-            await mark_scheduling_failed(state.session_factory, result.generation.id)
-            generation, asset = await load_generation(state.session_factory, result.generation.id)
-            result = SubmissionResult(generation=generation, result_asset=asset, created=True)
-    else:
+    if not result.created:
         response.status_code = 200
     return GenerationResponse(
         generation=generation_view(

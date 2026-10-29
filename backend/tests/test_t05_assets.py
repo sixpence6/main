@@ -206,7 +206,7 @@ async def test_stale_revision_does_not_replace_reference(full_settings):
         assert response.json()["error"]["code"] == "REVISION_CONFLICT"
         detail = (await client.get(f"/api/projects/{project['id']}")).json()
         assert detail["project"]["reference_asset"]["id"] == first_id
-        files = list((full_settings.resolved_data_dir() / "assets").glob("*"))
+        files = list((full_settings.resolved_data_dir() / "references").glob("*"))
         assert len(files) == 1
 
 
@@ -376,7 +376,7 @@ async def test_missing_asset_file_keeps_metadata_and_reports_missing(full_settin
         data = png_bytes()
         uploaded = await upload_ok(client, project["id"], 0, data)
         asset_id = uploaded["reference_asset"]["id"]
-        path = full_settings.resolved_data_dir() / "assets" / f"{asset_id}.png"
+        path = full_settings.resolved_data_dir() / "references" / f"{asset_id}.png"
         assert path.is_file()
         path.unlink()
 

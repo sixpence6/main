@@ -35,7 +35,9 @@ class Project(Base):
     image_size: Mapped[str | None] = mapped_column(String(32), nullable=True)
     prompt: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
-    reference_asset_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    reference_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL"), nullable=True
+    )
     organize_operation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     brief_error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     brief_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -45,6 +47,18 @@ class Project(Base):
 
     __table_args__ = (
         CheckConstraint("revision >= 0", name="ck_projects_revision_non_negative"),
+        CheckConstraint(
+            "brief_status IN ('draft','organizing','needs_input','review','confirmed')",
+            name="ck_projects_brief_status",
+        ),
+        CheckConstraint(
+            "prompt_revision IS NULL OR prompt_revision <= revision",
+            name="ck_projects_prompt_revision",
+        ),
+        CheckConstraint(
+            "confirmed_revision IS NULL OR confirmed_revision <= revision",
+            name="ck_projects_confirmed_revision",
+        ),
         Index("ix_projects_updated_id", "updated_at", "id"),
         Index("ix_projects_reference_asset", "reference_asset_id"),
     )
@@ -66,6 +80,10 @@ class Message(Base):
     created_at: Mapped[str] = mapped_column(String(32), nullable=False)
 
     __table_args__ = (
+        CheckConstraint("role IN ('user','assistant','system')", name="ck_messages_role"),
+        CheckConstraint(
+            "project_revision >= 0", name="ck_messages_project_revision_non_negative"
+        ),
         UniqueConstraint("project_id", "sequence_no", name="uq_messages_project_sequence"),
         Index("ix_messages_project_sequence", "project_id", "sequence_no"),
     )
@@ -87,6 +105,8 @@ class Asset(Base):
     created_at: Mapped[str] = mapped_column(String(32), nullable=False)
 
     __table_args__ = (
+        CheckConstraint("kind IN ('reference','generated')", name="ck_assets_kind"),
+        CheckConstraint("width > 0 AND height > 0", name="ck_assets_dimensions_positive"),
         CheckConstraint("byte_size >= 0", name="ck_assets_byte_size_non_negative"),
         Index("ix_assets_project_kind", "project_id", "kind"),
     )
@@ -110,14 +130,18 @@ class Generation(Base):
     brief_snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     image_size: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    reference_asset_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    reference_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL"), nullable=True
+    )
     adapter_id: Mapped[str] = mapped_column(String(64), nullable=False)
     model: Mapped[str] = mapped_column(String(120), nullable=False)
     service_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
 
     remote_task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     result_locator_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    result_asset_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    result_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL"), nullable=True
+    )
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     submit_attempted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -134,6 +158,13 @@ class Generation(Base):
             name="ck_generations_status",
         ),
         CheckConstraint("version_no >= 1", name="ck_generations_version_positive"),
+        CheckConstraint(
+            "confirmed_revision >= 0", name="ck_generations_confirmed_revision_non_negative"
+        ),
+        CheckConstraint(
+            "stage IN ('waiting_slot','submitting','waiting_remote','fetching_result','done')",
+            name="ck_generations_stage",
+        ),
         Index(
             "uq_generations_active_project",
             "project_id",
@@ -142,6 +173,3 @@ class Generation(Base):
         ),
         Index("ix_generations_project_created", "project_id", "created_at"),
     )
-
-
-PROJECT_COLUMN_NAMES = tuple(column.name for column in Project.__table__.columns)

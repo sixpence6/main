@@ -24,5 +24,5 @@ migrations, the SQLite database, runtime image data and tests.
 - pyproject.toml / uv.lock: dependencies and lock
 - .env.example: empty configuration sample (no credentials)
 - alembic.ini / migrations: schema migrations
-- data/: runtime data dir (SQLite db + assets), created on boot
+- data/: runtime data dir (SQLite db + references/generated/tmp), created on boot
 - tests/: full HTTP test suite against a migrated temporary SQLite + image dir

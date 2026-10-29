@@ -27,7 +27,8 @@ def ensure_data_dir(settings: Settings) -> None:
     data_dir = settings.resolved_data_dir()
     try:
         data_dir.mkdir(parents=True, exist_ok=True)
-        settings.assets_dir.mkdir(parents=True, exist_ok=True)
+        settings.references_dir.mkdir(parents=True, exist_ok=True)
+        settings.generated_dir.mkdir(parents=True, exist_ok=True)
         settings.temp_dir.mkdir(parents=True, exist_ok=True)
         probe = settings.temp_dir / ".write-probe"
         probe.write_bytes(b"ok")

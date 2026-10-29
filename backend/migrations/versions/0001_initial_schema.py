@@ -41,6 +41,10 @@ def upgrade() -> None:
     sa.Column('created_at', sa.String(length=32), nullable=False),
     sa.Column('updated_at', sa.String(length=32), nullable=False),
     sa.CheckConstraint('revision >= 0', name='ck_projects_revision_non_negative'),
+    sa.CheckConstraint("brief_status IN ('draft','organizing','needs_input','review','confirmed')", name='ck_projects_brief_status'),
+    sa.CheckConstraint('prompt_revision IS NULL OR prompt_revision <= revision', name='ck_projects_prompt_revision'),
+    sa.CheckConstraint('confirmed_revision IS NULL OR confirmed_revision <= revision', name='ck_projects_confirmed_revision'),
+    sa.ForeignKeyConstraint(['reference_asset_id'], ['assets.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('projects', schema=None) as batch_op:
@@ -57,6 +61,8 @@ def upgrade() -> None:
     sa.Column('height', sa.Integer(), nullable=False),
     sa.Column('byte_size', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.String(length=32), nullable=False),
+    sa.CheckConstraint("kind IN ('reference','generated')", name='ck_assets_kind'),
+    sa.CheckConstraint('width > 0 AND height > 0', name='ck_assets_dimensions_positive'),
     sa.CheckConstraint('byte_size >= 0', name='ck_assets_byte_size_non_negative'),
     sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
@@ -92,6 +98,10 @@ def upgrade() -> None:
     sa.Column('completed_at', sa.String(length=32), nullable=True),
     sa.CheckConstraint("status IN ('queued','running','succeeded','failed','unknown')", name='ck_generations_status'),
     sa.CheckConstraint('version_no >= 1', name='ck_generations_version_positive'),
+    sa.CheckConstraint('confirmed_revision >= 0', name='ck_generations_confirmed_revision_non_negative'),
+    sa.CheckConstraint("stage IN ('waiting_slot','submitting','waiting_remote','fetching_result','done')", name='ck_generations_stage'),
+    sa.ForeignKeyConstraint(['reference_asset_id'], ['assets.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['result_asset_id'], ['assets.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('project_id', 'request_id', name='uq_generations_project_request'),
@@ -111,6 +121,8 @@ def upgrade() -> None:
     sa.Column('brief_snapshot_json', sa.Text(), nullable=True),
     sa.Column('operation_id', sa.String(length=36), nullable=True),
     sa.Column('created_at', sa.String(length=32), nullable=False),
+    sa.CheckConstraint("role IN ('user','assistant','system')", name='ck_messages_role'),
+    sa.CheckConstraint('project_revision >= 0', name='ck_messages_project_revision_non_negative'),
     sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('project_id', 'sequence_no', name='uq_messages_project_sequence')
