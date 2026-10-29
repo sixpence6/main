@@ -5,6 +5,7 @@ from collections.abc import Callable
 import httpx
 
 from app.adapters.base import ImageAdapter, ImageCapabilities, LLMAdapter
+from app.adapters.openai_images import OPENAI_IMAGES_CAPABILITIES, OpenAIImagesAdapter
 from app.config import RoleConfig
 
 LLMFactory = Callable[[RoleConfig, httpx.AsyncClient], LLMAdapter]
@@ -50,10 +51,16 @@ class AdapterRegistry:
 
 
 def build_default_registry() -> AdapterRegistry:
-    """Production registry.
+    """Production registry with the built-in OpenAI-compatible image adapter.
 
-    Real vendor adapters are added once OPEN-01 selects the providers (BE-T13/T14).
-    Until then this table is intentionally empty: an adapter id in configuration is
-    reported as not ready instead of silently resolving to a fake implementation.
+    The adapter is configuration-driven: base URL, key, model, and image size live
+    in the environment. Unknown adapter ids still resolve to nothing and are
+    reported as not ready rather than falling back to a fake implementation.
     """
-    return AdapterRegistry()
+    registry = AdapterRegistry()
+    registry.register_visual(
+        OpenAIImagesAdapter.adapter_id,
+        OpenAIImagesAdapter,
+        capabilities=OPENAI_IMAGES_CAPABILITIES,
+    )
+    return registry
