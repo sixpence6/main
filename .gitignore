@@ -22,3 +22,11 @@ playwright-report/
 Thumbs.db
 .DS_Store
 *.log
+
+# python
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+backend/data/
