@@ -15,6 +15,7 @@ import { ApiError, api, isAbortError } from '@/api/client'
 import type {
   ConfigStatus,
   GenerationView,
+  MessageCreateResponse,
   MessageView,
   ProjectSummary,
   ProjectView,
@@ -59,6 +60,13 @@ export interface WorkspaceStore {
   projectLoading: Ref<boolean>
   projectError: Ref<string>
   projectErrorKind: Ref<ProjectErrorKind | null>
+  sendBusy: Ref<boolean>
+  sendError: Ref<string>
+  creationUnknown: Ref<boolean>
+  organizing: ComputedRef<boolean>
+  sendDisabledReason: ComputedRef<string>
+  send: () => Promise<void>
+  retryOrganize: () => Promise<void>
   toggleSidebar: () => void
   openSideDrawer: () => void
   closeSideDrawer: () => void
@@ -132,6 +140,22 @@ function createWorkspace(): WorkspaceStore {
   let detailController: AbortController | null = null
   let detailToken = 0
 
+  const sendBusy = ref(false)
+  const sendError = ref('')
+  const creationUnknown = ref(false)
+  const organizing = computed(() => currentProject.value?.brief_status === 'organizing')
+  const sendDisabledReason = computed(() => {
+    if (sendBusy.value) return '正在发送消息，请稍候。'
+    if (organizing.value) return '正在整理需求，完成前不能发送新消息。'
+    if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
+    const llm = configStatus.value?.llm
+    if (!llm) return '正在读取模型配置，请稍候。'
+    if (!llm.configured) return 'LLM 尚未配置，当前无法整理需求；输入内容会保留。'
+    if (!llm.ready) return 'LLM 当前不可用，当前无法整理需求；输入内容会保留。'
+    if (!draft.value.trim()) return '请输入商品与图片需求。'
+    return ''
+  })
+
   const stages = computed<StageView[]>(() => {
     const project = currentProject.value
     const hasProject = Boolean(projectParam.value)
@@ -199,6 +223,8 @@ function createWorkspace(): WorkspaceStore {
   }
 
   function createNewProject(): void {
+    creationUnknown.value = false
+    sendError.value = ''
     clearProjectDetail()
     projectParam.value = null
     draft.value = ''
@@ -334,6 +360,7 @@ function createWorkspace(): WorkspaceStore {
       currentProject.value = response.project
       projectMessages.value = response.messages
       projectGenerations.value = response.generations
+      creationUnknown.value = false
     } catch (error) {
       if (isAbortError(error) || controller.signal.aborted || token !== detailToken) return
       if (error instanceof ApiError) {
@@ -359,7 +386,126 @@ function createWorkspace(): WorkspaceStore {
     }
   }
 
+  function modelConfigReason(): string {
+    const llm = configStatus.value?.llm
+    if (!llm) return '正在读取模型配置，请稍候。'
+    if (!llm.configured) return 'LLM 尚未配置，当前无法整理需求；输入内容会保留。'
+    if (!llm.ready) return 'LLM 当前不可用，当前无法整理需求；输入内容会保留。'
+    return ''
+  }
+
+  function errorMessage(error: unknown, fallback: string): string {
+    return error instanceof ApiError ? error.message : fallback
+  }
+
+  function writeErrorMessage(error: unknown, fallback: string): string {
+    if (!(error instanceof ApiError)) return fallback
+    if (error.status === 401 || error.status === 403) {
+      return '认证失败或没有权限，请检查模型配置后重试；输入内容已保留。'
+    }
+    if (error.status === 409) {
+      return '需求已在别处更新，请重新读取最新内容后再发送；输入内容已保留。'
+    }
+    if (error.status === 429) {
+      return '请求过于频繁或额度不足，请稍后再试；输入内容已保留。'
+    }
+    if (error.status === 503) {
+      return 'LLM 尚未配置或当前不可用，请检查模型状态；输入内容已保留。'
+    }
+    return error.message || fallback
+  }
+
+  function isUnconfirmedWrite(error: unknown): boolean {
+    return error instanceof ApiError && (error.status === 0 || error.status >= 500)
+  }
+
+  function applyMessageResponse(response: MessageCreateResponse): void {
+    currentProject.value = response.project
+    projectMessages.value = [
+      ...projectMessages.value,
+      response.user_message,
+      response.assistant_message,
+    ]
+  }
+
+  async function send(): Promise<void> {
+    if (sendBusy.value) return
+    const reason = sendDisabledReason.value
+    if (reason) {
+      sendError.value = reason
+      return
+    }
+    const content = draft.value
+    const originalProject = currentProject.value
+    sendBusy.value = true
+    sendError.value = ''
+    try {
+      let project = originalProject
+      if (!project) {
+        try {
+          project = await api.createProject()
+        } catch (error) {
+          if (isUnconfirmedWrite(error)) {
+            creationUnknown.value = true
+            sendError.value =
+              '项目创建结果未确认。请打开已有项目核实是否已创建；确认前不会再次创建项目。'
+          } else {
+            sendError.value = errorMessage(error, '项目创建失败，请稍后重试。')
+          }
+          return
+        }
+        currentProject.value = project
+        projectParam.value = project.id
+        updateProjectUrl(project.id, 'push')
+      }
+      if (!project) return
+
+      const response = await api.sendMessage(project.id, {
+        content,
+        expected_revision: project.revision,
+      })
+      if (projectParam.value !== project.id) return
+      applyMessageResponse(response)
+      creationUnknown.value = false
+      draft.value = ''
+      sendError.value = ''
+      announce('需求整理完成，已显示最新回复。')
+    } catch (error) {
+      sendError.value = writeErrorMessage(error, '消息发送失败，输入内容已保留，请稍后重试。')
+    } finally {
+      sendBusy.value = false
+    }
+  }
+
+  async function retryOrganize(): Promise<void> {
+    if (sendBusy.value) return
+    const project = currentProject.value
+    if (!project) return
+    const reason = modelConfigReason()
+    if (reason) {
+      sendError.value = reason
+      return
+    }
+    sendBusy.value = true
+    sendError.value = ''
+    try {
+      const response = await api.sendMessage(project.id, {
+        content: '请按当前已保存的需求重新整理。',
+        expected_revision: project.revision,
+      })
+      if (projectParam.value !== project.id) return
+      applyMessageResponse(response)
+      announce('已重新请求整理当前需求。')
+    } catch (error) {
+      sendError.value = writeErrorMessage(error, '重新整理失败，已保存的卡片内容仍会保留。')
+    } finally {
+      sendBusy.value = false
+    }
+  }
+
   function selectProject(id: string): void {
+    creationUnknown.value = false
+    sendError.value = ''
     closeProjectDrawer()
     projectParam.value = id
     updateProjectUrl(id, 'push')
@@ -471,6 +617,13 @@ function createWorkspace(): WorkspaceStore {
     projectLoading,
     projectError,
     projectErrorKind,
+    sendBusy,
+    sendError,
+    creationUnknown,
+    organizing,
+    sendDisabledReason,
+    send,
+    retryOrganize,
     toggleSidebar,
     openSideDrawer,
     closeSideDrawer,
