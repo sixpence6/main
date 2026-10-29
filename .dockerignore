@@ -1,0 +1,13 @@
+.git
+.gitignore
+node_modules
+dist
+.scratch
+.local
+.worktrees
+tests
+docs
+skills
+vesion
+AGENTS.md
+*.md
