@@ -22,16 +22,20 @@ migrations, the SQLite database, runtime image data and tests.
 3. Run `uv run alembic upgrade head`.
 4. Start the server with the command above.
 
-The production registry already contains the `openai-images` visual adapter.
-Point `VISUAL_BASE_URL` at an OpenAI-compatible API root ending in `/v1`, set
-`VISUAL_MODEL`, and choose a supported `VISUAL_IMAGE_SIZE` (currently
-`1024x1024`). No code edits or per-machine adapter registration are required.
-The adapter supports text-to-image and one reference image, and requests
-base64 image data so result download never depends on a signed CDN URL.
+The production registry already contains the `openai-chat` language-model
+adapter and the `openai-images` visual adapter. Point both base URLs at
+OpenAI-compatible API roots ending in `/v1`, set the model names, and choose a
+supported `VISUAL_IMAGE_SIZE` (currently `1024x1024`). No code edits or
+per-machine adapter registration are required.
 
-`LLM_ADAPTER` remains unset until a language-model adapter is registered; the
-rest of the app (history, configuration diagnostics, and visual generation)
-still boots and reports that state explicitly.
+The chat adapter handles requirement organization through `POST /chat/completions`
+with JSON-object responses; it returns either a clarifying
+question (`needs_input`) or a final review with a non-empty prompt. The image
+adapter supports text-to-image and one reference image, and requests base64
+image data so result download never depends on a signed CDN URL.
+
+If either provider is left blank, the app still boots and reports that role as
+not ready through configuration diagnostics.
 
 ## Checks
 

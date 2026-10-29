@@ -5,6 +5,7 @@ from collections.abc import Callable
 import httpx
 
 from app.adapters.base import ImageAdapter, ImageCapabilities, LLMAdapter
+from app.adapters.openai_chat import OpenAIChatAdapter
 from app.adapters.openai_images import OPENAI_IMAGES_CAPABILITIES, OpenAIImagesAdapter
 from app.config import RoleConfig
 
@@ -51,13 +52,14 @@ class AdapterRegistry:
 
 
 def build_default_registry() -> AdapterRegistry:
-    """Production registry with the built-in OpenAI-compatible image adapter.
+    """Production registry with the built-in OpenAI-compatible adapters.
 
-    The adapter is configuration-driven: base URL, key, model, and image size live
-    in the environment. Unknown adapter ids still resolve to nothing and are
+    Both adapters are configuration-driven: base URL, key, model, and image size
+    live in the environment. Unknown adapter ids still resolve to nothing and are
     reported as not ready rather than falling back to a fake implementation.
     """
     registry = AdapterRegistry()
+    registry.register_llm(OpenAIChatAdapter.adapter_id, OpenAIChatAdapter)
     registry.register_visual(
         OpenAIImagesAdapter.adapter_id,
         OpenAIImagesAdapter,
