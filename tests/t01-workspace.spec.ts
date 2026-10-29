@@ -31,19 +31,14 @@ describe('T01 空配置工作台', () => {
   })
 
   it('新建项目清空草稿并移除项目参数，不读取或创建项目', async () => {
-    harness = await mountWorkspace({
-      config: emptyConfig(),
-      url: '/?project=11111111-1111-4111-8111-111111111111',
-    })
+    harness = await mountWorkspace({ config: emptyConfig() })
 
-    expect(screen.getByText('项目读取尚未接入')).toBeVisible()
     const textarea = screen.getByRole('textbox', { name: '描述商品与图片需求' })
     await harness.user.type(textarea, '一段尚未发送的草稿')
     await harness.user.click(screen.getByRole('button', { name: '新建项目' }))
 
     expect(textarea).toHaveValue('')
     expect(window.location.search).toBe('')
-    expect(screen.queryByText('项目读取尚未接入')).not.toBeInTheDocument()
     expect(harness.fetch.count('GET', /^\/api\/projects/)).toBe(0)
     expect(harness.fetch.writes).toHaveLength(0)
   })

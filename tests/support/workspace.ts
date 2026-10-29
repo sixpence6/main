@@ -14,6 +14,10 @@ import { VisibilityController } from './visibility'
 export interface MountWorkspaceOptions {
   config?: ConfigStatus
   configResponses?: MockStep[]
+  /** 挂载前注册的 HTTP 路由；首屏即读取详情时使用。 */
+  routes?: Array<{ method: string; url: string | RegExp; responses: MockStep[] }>
+  /** 挂载前对 HTTP 边界做任意设置；首屏请求必须先注册路由时使用。 */
+  setup?: (fetch: FetchController) => void
   fakeClock?: boolean
   /** 视口宽度（px），在挂载前设置，用于断点相关行为。 */
   viewportWidth?: number
@@ -48,6 +52,10 @@ export async function mountWorkspace(options: MountWorkspaceOptions = {}) {
 
   const steps = options.configResponses ?? [{ body: options.config ?? emptyConfig() }]
   fetchController.sequence('GET', '/api/config/status', steps)
+  for (const route of options.routes ?? []) {
+    fetchController.sequence(route.method, route.url, route.responses)
+  }
+  options.setup?.(fetchController)
 
   const user = userEvent.setup(
     options.fakeClock ? { advanceTimers: vi.advanceTimersByTime } : undefined,

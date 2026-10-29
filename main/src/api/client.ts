@@ -2,6 +2,8 @@ import type {
   ApiErrorBody,
   ConfigStatus,
   HealthStatus,
+  ProjectDetailResponse,
+  ProjectListResponse,
 } from './types'
 
 const JSON_HEADERS = { Accept: 'application/json' }
@@ -104,11 +106,32 @@ export async function requestJson<T>(path: string, init: RequestInit = {}): Prom
   return (await response.json()) as T
 }
 
+export interface ListProjectsParams {
+  limit?: number
+  cursor?: string | null
+}
+
+export function assetUrl(id: string): string {
+  return `/api/assets/${encodeURIComponent(id)}`
+}
+
 export const api = {
   getHealth(signal?: AbortSignal): Promise<HealthStatus> {
     return requestJson<HealthStatus>('/api/health', { signal })
   },
   getConfigStatus(signal?: AbortSignal): Promise<ConfigStatus> {
     return requestJson<ConfigStatus>('/api/config/status', { signal })
+  },
+  listProjects(
+    params: ListProjectsParams = {},
+    signal?: AbortSignal,
+  ): Promise<ProjectListResponse> {
+    const query = new URLSearchParams()
+    query.set('limit', String(params.limit ?? 20))
+    if (params.cursor) query.set('cursor', params.cursor)
+    return requestJson<ProjectListResponse>(`/api/projects?${query.toString()}`, { signal })
+  },
+  getProject(id: string, signal?: AbortSignal): Promise<ProjectDetailResponse> {
+    return requestJson<ProjectDetailResponse>(`/api/projects/${encodeURIComponent(id)}`, { signal })
   },
 }
