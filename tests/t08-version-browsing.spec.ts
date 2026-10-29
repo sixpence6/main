@@ -97,10 +97,20 @@ async function mountResults(
       ...(options.extraRoutes ?? []),
     ],
   })
-  await screen.findByRole('heading', { name: project.title })
-  await harness.user.click(screen.getByRole('button', { name: /查看结果/ }))
+  const nav = await screen.findByRole('navigation', { name: '工作阶段' })
+  const results = within(nav).getByRole('button', { name: /查看结果/ })
+  await waitFor(() => expect(results).not.toHaveAttribute('aria-disabled', 'true'))
+  await harness.user.click(results)
   await screen.findByRole('heading', { name: '查看结果' })
   return harness
+}
+
+async function openConversation(title = '春季托特包主图') {
+  const nav = await screen.findByRole('navigation', { name: '工作阶段' })
+  const describe = within(nav).getByRole('button', { name: '描述需求' })
+  await waitFor(() => expect(describe).not.toHaveAttribute('aria-disabled', 'true'))
+  await harness!.user.click(describe)
+  await screen.findByRole('heading', { name: title })
 }
 
 function selectedVersionButton(version: number): HTMLElement {
@@ -272,7 +282,7 @@ describe('T08 版本浏览与反馈重生', () => {
       url: '/?project=' + PROJECT_A,
       routes: [{ method: 'GET', url: detailPathA, responses: [{ body: detail(currentProject(), [oldVersion]) }] }],
     })
-    await screen.findByRole('heading', { name: '春季托特包主图' })
+    await openConversation()
 
     const queued = sampleGeneration({
       id: 'generation-2',
@@ -334,7 +344,7 @@ describe('T08 版本浏览与反馈重生', () => {
         },
       ],
     })
-    await screen.findByRole('heading', { name: '春季托特包主图' })
+    await openConversation()
     const queued = sampleGeneration({
       id: 'generation-2',
       version_no: 2,
@@ -423,7 +433,7 @@ describe('T08 版本浏览与反馈重生', () => {
       url: '/?project=' + PROJECT_A,
       routes: [{ method: 'GET', url: detailPathA, responses: [{ body: detail(initial, [oldVersion]) }] }],
     })
-    await screen.findByRole('heading', { name: '春季托特包主图' })
+    await openConversation()
 
     let messageCalls = 0
     harness.fetch.route('POST', messagesPathA, (request) => {

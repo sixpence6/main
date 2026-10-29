@@ -770,6 +770,16 @@ body,
   font-size: 12px;
 }
 
+.health-note {
+  flex-basis: 100%;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.health-note.is-warning {
+  color: var(--color-danger);
+}
+
 .config-error {
   display: flex;
   gap: var(--space-3);
@@ -2082,4 +2092,40 @@ body,
   .risk-actions button {
     flex: 1 1 140px;
   }
+}
+
+
+.composer-conflict {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid #d9c39a;
+  border-radius: var(--radius-control);
+  background: #fdf8ee;
+}
+
+.composer-conflict p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.composer-conflict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.composer-local-copy {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  resize: vertical;
 }

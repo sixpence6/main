@@ -214,3 +214,17 @@
 - **FE-AC-01–22 / SRS AC-01、02、03、07、10–12**：全部记为“未验证”；逐项表、阻塞证据、受控测试参考与前提具备后的待办见 `docs/acceptance/t12-real-api-browser-acceptance.md`。
 - **证据**：`docs/acceptance/evidence/typecheck.txt`、`test.log`、`build.log`。不含 Key 或供应商敏感原响应。
 - **结论**：T12 不能以替身通过或关闭为完成；等待具备真实后端/OpenAPI/两类模型配置/Chrome 后人工继续。
+
+
+## Code review 修复核验（T01–T11 回归）
+
+- **状态**：前端回归通过；真实 OpenAPI/供应商/持久化仍未核验。
+- **默认视图**：项目打开后，整理中、生成中、最近失败/未知或提交待核实进入对话；否则 `latestSucceededGeneration` 存在时进入结果视图，否则进入对话。该选择只依据项目与生成记录响应，不触发任何写请求。
+- **阶段解锁**：生成阶段在“已确认需求或已有生成记录”时解锁，仍受参考图阻塞限制；结果阶段只由真实 `succeeded` 记录解锁。导航不生成、不整理。
+- **参考图校验**：本地完整读取文件并校验 PNG 块边界/CRC/IHDR/IDAT/IEND 或 JPEG SOF/SOS/EOI，支持时再经 `createImageBitmap` 解码；CRC 损坏、截断、非 PNG/JPEG 或无法解码的文件在发送前拒绝，不创建项目、不调用模型、不替换当前参考图。
+- **非法 2xx 回执**：`requestJson` 对无法解析的 2xx JSON 抛出 `ApiError(status, INVALID_RESPONSE, "服务返回的数据无法识别，请核实操作结果。")`；生成/参考图写路径按回执不明处理，保留恢复凭据并阻止重复提交。
+- **凭据隔离**：`sessionStorage` 使用 `ecommerce-generation-pending:<projectId>`，读取时兼容旧全局键；清理只删除对应项目键（无参清理会删除全部项目键），不同项目的未确认提交可同时保留。
+- **参考图 MIME**：只接受 `reference_mime_types` 中声明且本地支持的 `image/png`/`image/jpeg`，不做默认回退；交集为空时禁用上传并说明模型未声明支持 PNG 或 JPEG。
+- **消息冲突**：消息或重新整理遇到 `409` 时保留原输入，显示冲突提示、加载最新需求与只读本地副本；加载最新只 GET 项目详情，不自动重发。
+- **健康检查**：启动时 GET `/api/health`，模型状态抽屉只显示“正常/不可用/尚未完成”，不推断认证或模型可用性。
+- **证据**：`tests/code-review-regressions.spec.ts` 的 10 个完整工作台回归测试通过；全量 13 个测试文件、158 个测试、`npm run typecheck`、`npm run build` 通过。

@@ -4,7 +4,7 @@ import { useWorkspace } from '@/composables/useWorkspace'
 import type { ApiIssue, ModelConfigStatus, VisualConfigStatus } from '@/api/types'
 
 const workspace = useWorkspace()
-const { modelDrawerOpen, closeModelDrawer, configStatus, configError, configLoading, refreshConfig } = workspace
+const { modelDrawerOpen, closeModelDrawer, configStatus, configError, configLoading, healthStatus, refreshConfig } = workspace
 
 const UNSAFE_ISSUE = /(sk-[a-z0-9]|bearer\s|api[_-]?key\s*[:=]|https?:\/\/|traceback|\.py\b|\bat\s+\S+\s*\(|<script)/i
 
@@ -57,6 +57,9 @@ function visualCapabilities(visual: VisualConfigStatus) {
         刷新配置状态
       </button>
       <span v-if="configLoading" class="loading-note" aria-live="off">正在读取配置状态…</span>
+      <span class="health-note" :class="healthStatus === 'error' ? 'is-warning' : ''">
+        服务健康检查：{{ healthStatus === 'ok' ? '正常' : healthStatus === 'error' ? '不可用' : '尚未完成' }}
+      </span>
     </div>
 
     <div v-if="configError" class="config-error" role="alert">

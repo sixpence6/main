@@ -18,7 +18,7 @@ afterEach(() => {
   harness = undefined
 })
 
-const CREDENTIAL_KEY = 'ecommerce-generation-pending'
+const CREDENTIAL_KEY = 'ecommerce-generation-pending:' + PROJECT_A
 const detailPath = '/api/projects/' + PROJECT_A
 const generationsPath = '/api/projects/' + PROJECT_A + '/generations'
 const requestId = 'request-restored-1'

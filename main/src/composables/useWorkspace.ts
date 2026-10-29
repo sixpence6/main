@@ -80,6 +80,7 @@ export interface WorkspaceStore {
   configStatus: Ref<ConfigStatus | null>
   configError: Ref<string>
   configLoading: Ref<boolean>
+  healthStatus: Ref<'ok' | 'error' | null>
   sidebarExpanded: Ref<boolean>
   sideDrawerOpen: Ref<boolean>
   modelDrawerOpen: Ref<boolean>
@@ -101,6 +102,11 @@ export interface WorkspaceStore {
   projectErrorKind: Ref<ProjectErrorKind | null>
   sendBusy: Ref<boolean>
   sendError: Ref<string>
+  messageConflict: Ref<boolean>
+  messageConflictText: Ref<string>
+  messageLocalCopy: Ref<boolean>
+  showMessageLocalCopy: () => void
+  loadLatestAfterMessageConflict: () => Promise<void>
   creationUnknown: Ref<boolean>
   organizing: ComputedRef<boolean>
   sendDisabledReason: ComputedRef<string>
@@ -238,6 +244,7 @@ function createWorkspace(): WorkspaceStore {
   const configStatus = ref<ConfigStatus | null>(null)
   const configError = ref('')
   const configLoading = ref(false)
+  const healthStatus = ref<'ok' | 'error' | null>(null)
   let configController: AbortController | null = null
   let lastAnnouncement = ''
 
@@ -262,6 +269,9 @@ function createWorkspace(): WorkspaceStore {
 
   const sendBusy = ref(false)
   const sendError = ref('')
+  const messageConflict = ref(false)
+  const messageConflictText = ref('')
+  const messageLocalCopy = ref(false)
   const creationUnknown = ref(false)
   const organizing = computed(() => currentProject.value?.brief_status === 'organizing')
 
@@ -444,7 +454,7 @@ function createWorkspace(): WorkspaceStore {
       .map((value) => value.trim().toLowerCase())
       .map((value) => (value === 'image/jpg' ? 'image/jpeg' : value))
       .filter((value) => value === 'image/png' || value === 'image/jpeg')
-    return normalized.length ? [...new Set(normalized)] : ['image/png', 'image/jpeg']
+    return [...new Set(normalized)]
   })
   const referenceGenerationBlockedReason = computed(() => {
     const project = currentProject.value
@@ -467,6 +477,7 @@ function createWorkspace(): WorkspaceStore {
     if (referenceConflict.value) return '参考图已在别处更新，请先加载最新项目。'
     if (!configStatus.value) return '正在读取模型配置，请稍候。'
     if (referenceCapability.value === false) return '当前模型明确不支持参考图。'
+    if (!referenceMimeTypes.value.length) return '当前模型未声明支持 PNG 或 JPEG 参考图。'
     return ''
   })
   const referenceRemoveDisabledReason = computed(() => {
@@ -518,6 +529,7 @@ function createWorkspace(): WorkspaceStore {
     if (organizing.value) return '正在整理需求，完成前不能发送新消息。'
     if (briefConflict.value) return '需求已在别处更新，请先加载最新需求，再发送消息。'
     if (briefLocalCopy.value) return '正在查看未保存的本地副本，请先加载最新需求，再发送消息。'
+    if (messageConflict.value) return '消息发送遇到版本冲突，请先加载最新需求或查看本地副本。'
     if (briefDirty.value) return '有未保存的需求修改，请先保存或取消修改，再发送消息。'
     if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
     const llm = configStatus.value?.llm
@@ -636,6 +648,7 @@ function createWorkspace(): WorkspaceStore {
       project && (project.brief_status === 'review' || project.brief_status === 'confirmed'),
     )
     const hasConfirmedBrief = project?.brief_status === 'confirmed'
+    const hasGenerationRecords = projectGenerations.value.length > 0
     const hasGeneration = projectGenerations.value.some((item) => item.status === 'succeeded')
     const referenceBlocked = referenceGenerationBlockedReason.value
     return [
@@ -651,7 +664,7 @@ function createWorkspace(): WorkspaceStore {
       {
         id: 'generate',
         label: '生成图片',
-        locked: !hasConfirmedBrief || Boolean(referenceBlocked),
+        locked: !(hasConfirmedBrief || hasGenerationRecords) || Boolean(referenceBlocked),
         reason: referenceBlocked || (hasProject
           ? '需求尚未确认，确认后才能生成图片。'
           : '尚未选择项目，生成图片将在需求确认后解锁。'),
@@ -715,6 +728,7 @@ function createWorkspace(): WorkspaceStore {
   }
 
   function clearProjectDetail(): void {
+    resetMessageConflict()
     detailController?.abort()
     detailController = null
     detailToken += 1
@@ -873,6 +887,7 @@ function createWorkspace(): WorkspaceStore {
     const token = ++detailToken
     projectContextToken += 1
     resetGenerationState()
+    resetMessageConflict()
     stage.value = 'describe'
     projectLoading.value = true
     projectError.value = ''
@@ -899,11 +914,14 @@ function createWorkspace(): WorkspaceStore {
       creationUnknown.value = false
       await restoreGenerationCredential(restoredCredential, response.generations, controller.signal)
       if (
-        !controller.signal.aborted &&
-        token === detailToken &&
-        currentProject.value?.id === response.project.id &&
-        (organizing.value || activeGeneration.value)
+        controller.signal.aborted ||
+        token !== detailToken ||
+        currentProject.value?.id !== response.project.id
       ) {
+        return
+      }
+      chooseDefaultStage()
+      if (organizing.value || activeGeneration.value) {
         scheduleStatusQuery()
       }
     } catch (error) {
@@ -929,6 +947,27 @@ function createWorkspace(): WorkspaceStore {
         if (detailController === controller) detailController = null
       }
     }
+  }
+
+  function chooseDefaultStage(): void {
+    const project = currentProject.value
+    if (!project) {
+      stage.value = 'describe'
+      return
+    }
+    const latest = latestGenerationView.value
+    if (
+      project.brief_status === 'organizing' ||
+      organizing.value ||
+      activeGeneration.value ||
+      generationUncertain.value ||
+      latest?.status === 'failed' ||
+      latest?.status === 'unknown'
+    ) {
+      stage.value = 'describe'
+      return
+    }
+    stage.value = latestSucceededGeneration.value ? 'results' : 'describe'
   }
 
   async function findKnownGeneration(
@@ -969,7 +1008,7 @@ function createWorkspace(): WorkspaceStore {
     pendingGenerationRequest = null
     generationUncertain.value = false
     generationPendingRestored.value = false
-    clearGenerationCredential()
+    clearGenerationCredential(credential.projectId)
     if (match.status === 'queued' || match.status === 'running') {
       generationSubmitNotice.value = '已恢复上次生成提交，正在继续读取任务状态。'
       scheduleStatusQuery()
@@ -1017,11 +1056,24 @@ function createWorkspace(): WorkspaceStore {
     return error.message || fallback
   }
 
+  function resetMessageConflict(): void {
+    messageConflict.value = false
+    messageConflictText.value = ''
+    messageLocalCopy.value = false
+  }
+
   function isUnconfirmedWrite(error: unknown): boolean {
-    return error instanceof ApiError && (error.status === 0 || error.status >= 500)
+    return (
+      error instanceof ApiError &&
+      (error.status === 0 || error.status >= 500 || error.code === 'INVALID_RESPONSE')
+    )
   }
 
   const GENERATION_CREDENTIAL_KEY = 'ecommerce-generation-pending'
+
+  function generationCredentialKey(projectId: string): string {
+    return `${GENERATION_CREDENTIAL_KEY}:${projectId}`
+  }
 
   function createGenerationRequestId(): string {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -1079,7 +1131,9 @@ function createWorkspace(): WorkspaceStore {
   function readGenerationCredential(projectId: string): PendingGenerationRequest | null {
     if (typeof window === 'undefined') return null
     try {
-      const raw = window.sessionStorage.getItem(GENERATION_CREDENTIAL_KEY)
+      const projectRaw = window.sessionStorage.getItem(generationCredentialKey(projectId))
+      const legacyRaw = projectRaw ? null : window.sessionStorage.getItem(GENERATION_CREDENTIAL_KEY)
+      const raw = projectRaw ?? legacyRaw
       if (!raw) return null
       return normalizeGenerationCredential(JSON.parse(raw) as unknown, projectId)
     } catch {
@@ -1092,7 +1146,7 @@ function createWorkspace(): WorkspaceStore {
     if (typeof window === 'undefined') return false
     try {
       window.sessionStorage.setItem(
-        GENERATION_CREDENTIAL_KEY,
+        generationCredentialKey(request.projectId),
         JSON.stringify({
           projectId: request.projectId,
           requestId: request.requestId,
@@ -1109,9 +1163,20 @@ function createWorkspace(): WorkspaceStore {
     }
   }
 
-  function clearGenerationCredential(): void {
+  function clearGenerationCredential(projectId?: string): void {
     if (typeof window === 'undefined') return
     try {
+      if (projectId) {
+        window.sessionStorage.removeItem(generationCredentialKey(projectId))
+        window.sessionStorage.removeItem(GENERATION_CREDENTIAL_KEY)
+        return
+      }
+      const keys: string[] = []
+      for (let index = 0; index < window.sessionStorage.length; index += 1) {
+        const key = window.sessionStorage.key(index)
+        if (key?.startsWith(`${GENERATION_CREDENTIAL_KEY}:`)) keys.push(key)
+      }
+      for (const key of keys) window.sessionStorage.removeItem(key)
       window.sessionStorage.removeItem(GENERATION_CREDENTIAL_KEY)
     } catch {
       // 清理失败不影响主流程。
@@ -1126,7 +1191,7 @@ function createWorkspace(): WorkspaceStore {
     generationUncertain.value = false
     generationPendingRestored.value = false
     generationCredentialWarning.value = ''
-    clearGenerationCredential()
+    clearGenerationCredential(generation.project_id)
   }
 
   function clearGenerationPoll(): void {
@@ -1484,7 +1549,7 @@ function createWorkspace(): WorkspaceStore {
       if (response.generation.status === 'queued' || response.generation.status === 'running') {
         pendingGenerationRequest = null
         generationCredentialWarning.value = ''
-        clearGenerationCredential()
+        clearGenerationCredential(project.id)
       }
       generationSubmitNotice.value = '生成请求已提交，正在等待模型处理。'
       announce('生成请求已提交，正在等待模型处理。')
@@ -1503,7 +1568,7 @@ function createWorkspace(): WorkspaceStore {
         pendingGenerationRequest = null
         generationPendingRestored.value = false
         generationCredentialWarning.value = ''
-        clearGenerationCredential()
+        clearGenerationCredential(request.projectId)
         generationSubmitError.value = writeGenerationErrorMessage(error)
       }
     } finally {
@@ -1543,7 +1608,7 @@ function createWorkspace(): WorkspaceStore {
       generationPendingRestored.value = false
       generationCredentialWarning.value = ''
       pendingGenerationRequest = null
-      clearGenerationCredential()
+      clearGenerationCredential(request.projectId)
       generationSubmitNotice.value = '已核实生成提交，生成记录已恢复。'
       announce('已核实生成提交，生成记录已恢复。')
       if (match.status === 'queued' || match.status === 'running') {
@@ -1589,7 +1654,7 @@ function createWorkspace(): WorkspaceStore {
       generationUncertain.value = false
       generationPendingRestored.value = false
       generationCredentialWarning.value = ''
-      clearGenerationCredential()
+      clearGenerationCredential(request.projectId)
       generationSubmitNotice.value = '已恢复本次提交，生成记录已恢复。'
       announce(generationSubmitNotice.value)
       if (response.generation.status === 'queued' || response.generation.status === 'running') {
@@ -1818,40 +1883,105 @@ function createWorkspace(): WorkspaceStore {
     })
   }
 
+  let pngCrcTable: Uint32Array | null = null
+
+  function pngCrc32(bytes: Uint8Array, start: number, end: number): number {
+    if (!pngCrcTable) {
+      const table = new Uint32Array(256)
+      for (let n = 0; n < 256; n += 1) {
+        let value = n
+        for (let bit = 0; bit < 8; bit += 1) {
+          value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1
+        }
+        table[n] = value >>> 0
+      }
+      pngCrcTable = table
+    }
+    let crc = 0xffffffff
+    for (let index = start; index < end; index += 1) {
+      crc = pngCrcTable[(crc ^ bytes[index]) & 0xff] ^ (crc >>> 8)
+    }
+    return (crc ^ 0xffffffff) >>> 0
+  }
+
   function parsePng(bytes: Uint8Array): { width: number; height: number } | null {
-    if (bytes.length < 24) return null
+    if (bytes.length < 8) return null
     const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
     if (!signature.every((value, index) => bytes[index] === value)) return null
-    const chunkType = String.fromCharCode(bytes[12], bytes[13], bytes[14], bytes[15])
-    if (chunkType !== 'IHDR') return null
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-    const width = view.getUint32(16)
-    const height = view.getUint32(20)
-    if (!width || !height) return null
-    return { width, height }
+    let position = 8
+    let width = 0
+    let height = 0
+    let sawHeader = false
+    let sawData = false
+    let sawEnd = false
+    while (position + 12 <= bytes.length) {
+      const length = view.getUint32(position)
+      const dataStart = position + 8
+      const dataEnd = dataStart + length
+      const chunkEnd = dataEnd + 4
+      if (dataEnd < dataStart || chunkEnd > bytes.length) return null
+      const type = String.fromCharCode(
+        bytes[position + 4],
+        bytes[position + 5],
+        bytes[position + 6],
+        bytes[position + 7],
+      )
+      if (!sawHeader) {
+        if (type !== 'IHDR' || length !== 13) return null
+        width = view.getUint32(dataStart)
+        height = view.getUint32(dataStart + 4)
+        const bitDepth = bytes[dataStart + 8]
+        const colorType = bytes[dataStart + 9]
+        const validDepth = [1, 2, 4, 8, 16].includes(bitDepth)
+        const validColor = [0, 2, 3, 4, 6].includes(colorType)
+        if (!width || !height || !validDepth || !validColor) return null
+        if (bytes[dataStart + 10] !== 0 || bytes[dataStart + 11] !== 0) return null
+        if (bytes[dataStart + 12] !== 0 && bytes[dataStart + 12] !== 1) return null
+        sawHeader = true
+      } else if (type === 'IHDR') {
+        return null
+      }
+      if (type === 'IDAT') sawData = true
+      const expectedCrc = view.getUint32(dataEnd)
+      if (pngCrc32(bytes, position + 4, dataEnd) !== expectedCrc) return null
+      position = chunkEnd
+      if (type === 'IEND') {
+        if (length !== 0) return null
+        sawEnd = true
+        break
+      }
+    }
+    return sawHeader && sawData && sawEnd ? { width, height } : null
   }
 
   function parseJpeg(bytes: Uint8Array): { width: number; height: number } | null {
     if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null
-    let index = 2
-    while (index + 3 < bytes.length) {
-      if (bytes[index] !== 0xff) {
-        index += 1
+    let position = 2
+    let width = 0
+    let height = 0
+    let sawFrame = false
+    let sawScan = false
+    while (position + 1 < bytes.length) {
+      if (bytes[position] !== 0xff) {
+        position += 1
         continue
       }
-      let marker = bytes[index + 1]
-      while (marker === 0xff && index + 2 < bytes.length) {
-        index += 1
-        marker = bytes[index + 1]
+      let marker = bytes[position + 1]
+      while (marker === 0xff && position + 2 < bytes.length) {
+        position += 1
+        marker = bytes[position + 1]
       }
-      if (marker === 0xd8 || marker === 0xd9 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
-        index += 2
+      if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+        position += 2
         continue
       }
-      if (marker === 0xda) return null
-      if (index + 3 >= bytes.length) return null
-      const segmentLength = (bytes[index + 2] << 8) | bytes[index + 3]
-      if (segmentLength < 2 || index + 2 + segmentLength > bytes.length) return null
+      if (marker === 0xd9) {
+        return sawFrame && sawScan && width > 0 && height > 0 ? { width, height } : null
+      }
+      if (position + 3 >= bytes.length) return null
+      const segmentLength = (bytes[position + 2] << 8) | bytes[position + 3]
+      if (segmentLength < 2 || position + 2 + segmentLength > bytes.length) return null
       const isStartOfFrame =
         marker >= 0xc0 &&
         marker <= 0xcf &&
@@ -1859,28 +1989,64 @@ function createWorkspace(): WorkspaceStore {
         marker !== 0xc8 &&
         marker !== 0xcc
       if (isStartOfFrame) {
-        if (index + 8 >= bytes.length) return null
-        const height = (bytes[index + 5] << 8) | bytes[index + 6]
-        const width = (bytes[index + 7] << 8) | bytes[index + 8]
-        return width && height ? { width, height } : null
+        if (segmentLength < 7 || position + 8 >= bytes.length) return null
+        height = (bytes[position + 5] << 8) | bytes[position + 6]
+        width = (bytes[position + 7] << 8) | bytes[position + 8]
+        if (!width || !height) return null
+        sawFrame = true
       }
-      index += 2 + segmentLength
+      position += 2 + segmentLength
+      if (marker === 0xda) {
+        sawScan = true
+        while (position + 1 < bytes.length) {
+          if (bytes[position] !== 0xff) {
+            position += 1
+            continue
+          }
+          const next = bytes[position + 1]
+          if (next === 0x00 || (next >= 0xd0 && next <= 0xd7)) {
+            position += 2
+            continue
+          }
+          if (next === 0xd9) {
+            return sawFrame && width > 0 && height > 0 ? { width, height } : null
+          }
+          break
+        }
+      }
     }
     return null
   }
 
   async function inspectImage(file: File): Promise<ImageInfo | null> {
-    const bytes = new Uint8Array(await readBlob(file.slice(0, 512 * 1024)))
+    let bytes: Uint8Array
+    try {
+      bytes = new Uint8Array(await readBlob(file))
+    } catch {
+      return null
+    }
     const png = parsePng(bytes)
-    if (png) return { mimeType: 'image/png', ...png }
-    const jpeg = parseJpeg(bytes)
-    if (jpeg) return { mimeType: 'image/jpeg', ...jpeg }
-    return null
+    const parsed = png ? { mimeType: 'image/png' as const, ...png } : null
+    const jpeg = parsed ? null : parseJpeg(bytes)
+    const info = parsed ?? (jpeg ? { mimeType: 'image/jpeg' as const, ...jpeg } : null)
+    if (!info) return null
+    if (typeof createImageBitmap === 'function') {
+      let bitmap: ImageBitmap | null = null
+      try {
+        bitmap = await createImageBitmap(file)
+        if (!bitmap.width || !bitmap.height) return null
+      } catch {
+        return null
+      } finally {
+        bitmap?.close()
+      }
+    }
+    return info
   }
 
   function referenceFormatLabel(): string {
     return referenceMimeTypes.value
-      .map((mime) => (mime === 'image/png' ? 'PNG' : 'JPEG'))
+      .map((mime) => (mime === 'image/png' ? 'PNG' : mime === 'image/jpeg' ? 'JPEG' : mime))
       .join(' 或 ')
   }
 
@@ -2165,6 +2331,7 @@ function createWorkspace(): WorkspaceStore {
   }
 
   function applyMessageResponse(response: MessageCreateResponse): void {
+    resetMessageConflict()
     currentProject.value = response.project
     resetBriefDraft(response.project)
     briefEditing.value = false
@@ -2228,7 +2395,15 @@ function createWorkspace(): WorkspaceStore {
       announce('需求整理完成，已显示最新回复。')
     } catch (error) {
       if (projectContextToken !== contextToken) return
-      sendError.value = writeErrorMessage(error, '消息发送失败，输入内容已保留，请稍后重试。')
+      if (error instanceof ApiError && error.status === 409) {
+        messageConflict.value = true
+        messageConflictText.value = content
+        messageLocalCopy.value = false
+        sendError.value = ''
+        announce('消息发送遇到版本冲突，请加载最新需求或查看本地副本。')
+      } else {
+        sendError.value = writeErrorMessage(error, '消息发送失败，输入内容已保留，请稍后重试。')
+      }
     } finally {
       sendBusy.value = false
     }
@@ -2268,9 +2443,43 @@ function createWorkspace(): WorkspaceStore {
       announce('已重新请求整理当前需求。')
     } catch (error) {
       if (projectContextToken !== contextToken) return
-      sendError.value = writeErrorMessage(error, '重新整理失败，已保存的卡片内容仍会保留。')
+      if (error instanceof ApiError && error.status === 409) {
+        messageConflict.value = true
+        messageConflictText.value = '请按当前已保存的需求重新整理。'
+        messageLocalCopy.value = false
+        sendError.value = ''
+        announce('重新整理遇到版本冲突，请加载最新需求或查看本地副本。')
+      } else {
+        sendError.value = writeErrorMessage(error, '重新整理失败，已保存的卡片内容仍会保留。')
+      }
     } finally {
       briefAction.value = null
+    }
+  }
+
+  function showMessageLocalCopy(): void {
+    if (!messageConflict.value) return
+    messageLocalCopy.value = true
+    void nextTick(() => {
+      document.getElementById('message-local-copy')?.focus()
+    })
+    announce('正在查看未发送文字的只读本地副本。')
+  }
+
+  async function loadLatestAfterMessageConflict(): Promise<void> {
+    if (sendBusy.value) return
+    const id = projectParam.value ?? currentProject.value?.id
+    if (!id) return
+    const contextToken = projectContextToken
+    sendError.value = ''
+    try {
+      const response = await api.getProject(id)
+      if (projectContextToken !== contextToken || projectParam.value !== id) return
+      adoptProjectDetail(response)
+      resetMessageConflict()
+      announce('已加载最新项目；未发送的文字仍保留。')
+    } catch (error) {
+      sendError.value = errorMessage(error, '加载最新需求失败，请稍后重试。')
     }
   }
 
@@ -2537,6 +2746,26 @@ function createWorkspace(): WorkspaceStore {
       return
     }
     stage.value = id
+    if (id === 'generate') {
+      void nextTick(() => {
+        const summary = document.getElementById('generation-summary')
+        const heading = document.getElementById('generation-title')
+        const focusTarget = (summary ?? heading) as HTMLElement | null
+        if (!focusTarget) return
+        focusTarget.setAttribute('tabindex', '-1')
+        focusTarget.focus()
+        focusTarget.scrollIntoView?.({ block: 'start' })
+      })
+    }
+  }
+
+  async function checkHealth(): Promise<void> {
+    try {
+      const status = await api.getHealth()
+      healthStatus.value = status.status === 'ok' ? 'ok' : 'error'
+    } catch {
+      healthStatus.value = 'error'
+    }
   }
 
   async function refreshConfig(): Promise<void> {
@@ -2598,6 +2827,7 @@ function createWorkspace(): WorkspaceStore {
   )
 
   onMounted(() => {
+    void checkHealth()
     void refreshConfig()
     if (hasUnsavedChanges.value) window.addEventListener('beforeunload', handleBeforeUnload)
     if (projectParam.value !== null) {
@@ -2637,6 +2867,7 @@ function createWorkspace(): WorkspaceStore {
     configStatus,
     configError,
     configLoading,
+    healthStatus,
     sidebarExpanded,
     sideDrawerOpen,
     modelDrawerOpen,
@@ -2658,6 +2889,11 @@ function createWorkspace(): WorkspaceStore {
     projectErrorKind,
     sendBusy,
     sendError,
+    messageConflict,
+    messageConflictText,
+    messageLocalCopy,
+    showMessageLocalCopy,
+    loadLatestAfterMessageConflict,
     creationUnknown,
     organizing,
     sendDisabledReason,

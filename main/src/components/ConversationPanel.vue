@@ -28,6 +28,11 @@ const {
   createNewProject,
   sendBusy,
   sendError,
+  messageConflict,
+  messageConflictText,
+  messageLocalCopy,
+  showMessageLocalCopy,
+  loadLatestAfterMessageConflict,
   organizing,
   sendDisabledReason,
   briefDraft,
@@ -386,7 +391,27 @@ watch(
     <ReferenceUploader v-if="showComposer" />
 
     <form v-if="showComposer" class="composer" @submit.prevent="onSubmit">
-      <p v-if="sendError" class="composer-error" role="alert">{{ sendError }}</p>
+      <div v-if="messageConflict" class="composer-conflict" role="alert">
+        <p>
+          <strong>需求已在别处更新，这条消息未发送。</strong>
+          输入内容已保留；加载最新需求，或只读查看本地内容后再决定。
+        </p>
+        <div class="composer-conflict-actions">
+          <button type="button" class="secondary-button" @click="loadLatestAfterMessageConflict">加载最新需求</button>
+          <button type="button" class="secondary-button" @click="showMessageLocalCopy">只读查看本地内容</button>
+        </div>
+        <label class="sr-only" for="message-local-copy">未发送文字的只读本地副本</label>
+        <textarea
+          v-if="messageLocalCopy"
+          id="message-local-copy"
+          class="composer-local-copy"
+          :value="messageConflictText"
+          readonly
+          rows="4"
+          aria-label="未发送文字的只读本地副本"
+        />
+      </div>
+      <p v-if="sendError && !messageConflict" class="composer-error" role="alert">{{ sendError }}</p>
       <label class="sr-only" for="workspace-prompt">描述商品与图片需求</label>
       <textarea
         id="workspace-prompt"

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, waitFor } from '@testing-library/vue'
+import { fireEvent, screen, waitFor, within } from '@testing-library/vue'
 import { mountWorkspace, type WorkspaceHarness } from './support/workspace'
 import {
   PROJECT_A,
@@ -69,6 +69,8 @@ async function mountProject(project: ProjectView, responses = [{ body: detailRes
     url: `/?project=${PROJECT_A}`,
     routes: [{ method: 'GET', url: detailPath, responses }],
   })
+  const nav = await screen.findByRole('navigation', { name: '工作阶段' })
+  await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
   await screen.findByRole('heading', { name: '春季托特包主图' })
   return harness
 }

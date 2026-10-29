@@ -110,7 +110,16 @@ export async function requestJson<T>(path: string, init: RequestInit = {}): Prom
     return undefined as T
   }
 
-  return (await response.json()) as T
+  try {
+    return (await response.json()) as T
+  } catch (error) {
+    if (isAbortError(error)) throw error
+    throw new ApiError(
+      response.status,
+      'INVALID_RESPONSE',
+      '服务返回的数据无法识别，请核实操作结果。',
+    )
+  }
 }
 
 export interface ListProjectsParams {

@@ -126,6 +126,8 @@ async function mountProject(
       },
     ],
   })
+  const nav = await screen.findByRole('navigation', { name: '工作阶段' })
+  await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
   await screen.findByRole('heading', { name: '春季托特包主图' })
   return harness
 }

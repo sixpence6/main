@@ -6,6 +6,7 @@ import {
   PROJECT_B,
   PROJECT_C,
   emptyConfig,
+  sampleAsset,
   sampleBrief,
   sampleGeneration,
   sampleMessage,
@@ -212,7 +213,14 @@ describe('T02 只读恢复项目详情', () => {
         }),
         sampleMessage({ id: 'm3', sequence_no: 3, role: 'assistant', content: '这是普通补充说明。', brief_snapshot: null }),
       ], [
-        sampleGeneration({ id: 'g1', project_id: PROJECT_A, version_no: 1, status: 'succeeded' }),
+        sampleGeneration({
+          id: 'g1',
+          project_id: PROJECT_A,
+          version_no: 1,
+          status: 'succeeded',
+          result_asset_id: 'asset-1',
+          result_asset: sampleAsset({ id: 'asset-1', kind: 'generated' }),
+        }),
       ]),
     )
 
@@ -221,6 +229,10 @@ describe('T02 只读恢复项目详情', () => {
     await harness.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 
     expect(window.location.search).toBe(`?project=${PROJECT_A}`)
+    expect(await screen.findByRole('heading', { name: '查看结果' })).toBeVisible()
+    expect(screen.getByRole('img', { name: '生成结果图' })).toBeVisible()
+    const nav = screen.getByRole('navigation', { name: '工作阶段' })
+    await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
     expect(await screen.findByRole('heading', { name: '春季托特包主图' })).toBeVisible()
     expect(harness.fetch.last('GET', detailPath)?.path).toBe(`/api/projects/${PROJECT_A}`)
 
@@ -244,7 +256,6 @@ describe('T02 只读恢复项目详情', () => {
     expect(harness.fetch.count('POST', /\/messages$/)).toBe(0)
     expect(harness.fetch.count('POST', /\/generations$/)).toBe(0)
 
-    const nav = screen.getByRole('navigation', { name: '工作阶段' })
     const results = within(nav).getByRole('button', { name: '查看结果' })
     expect(results).not.toHaveAttribute('aria-disabled', 'true')
     await harness.user.click(results)

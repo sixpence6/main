@@ -76,6 +76,8 @@ async function mountProject(
     url: '/?project=' + PROJECT_A,
     routes: [{ method: 'GET', url: detailPath, responses: detailResponses }],
   })
+  const nav = await screen.findByRole('navigation', { name: '工作阶段' })
+  await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
   await screen.findByRole('heading', { name: '春季托特包主图' })
   return harness
 }
@@ -245,12 +247,10 @@ describe('T06 生成首图与结果', () => {
       url: '/?project=' + PROJECT_A,
       routes: [{ method: 'GET', url: detailPath, responses: [{ body: detail(confirmedProject(), [succeededGeneration()]) }] }],
     })
-    await screen.findByRole('heading', { name: '春季托特包主图' })
+    expect(await screen.findByRole('heading', { name: '查看结果' })).toBeVisible()
+    expect(await screen.findByRole('img', { name: '生成结果图' })).toBeVisible()
     expect(harness.fetch.count('POST', generationsPath)).toBe(0)
     expect(harness.fetch.count('GET', generationPath)).toBe(0)
-
-    await harness.user.click(screen.getByRole('button', { name: /查看结果/ }))
-    await screen.findByRole('img', { name: '生成结果图' })
     expect(harness.fetch.count('POST', generationsPath)).toBe(0)
     expect(harness.fetch.requests.some((item) => item.path.endsWith('/messages'))).toBe(false)
   })
