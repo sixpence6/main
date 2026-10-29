@@ -60,14 +60,12 @@ const {
   generationRecoveryAvailable,
   generationCredentialWarning,
   generationRecoveryAction,
-  generationQueryError,
   generationDisabledReason,
   activeGeneration,
   latestGenerationError,
   submitGeneration,
   verifyGenerationSubmission,
   resumeGenerationSubmission,
-  retryGenerationQuery,
 } = workspace
 const input = ref<HTMLTextAreaElement | null>(null)
 const historyScroll = ref<HTMLElement | null>(null)
@@ -359,15 +357,6 @@ watch(
           </div>
 
           <p v-if="generationSubmitError" class="generation-error" role="alert">{{ generationSubmitError }}</p>
-          <p v-if="generationQueryError" class="generation-error" role="alert">{{ generationQueryError }}</p>
-          <button
-            v-if="generationQueryError"
-            type="button"
-            class="secondary-button"
-            @click="retryGenerationQuery"
-          >
-            重新查询状态
-          </button>
         </section>
       </template>
     </template>

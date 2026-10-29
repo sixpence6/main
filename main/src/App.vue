@@ -24,6 +24,10 @@ const {
   briefDirty,
   confirmNavigation,
   cancelNavigation,
+  generationQueryError,
+  statusQueryInterruptionTitle,
+  generationQuerying,
+  retryGenerationQuery,
 } = workspace
 const showResults = computed(
   () => workspace.stage.value === 'results' && Boolean(workspace.currentProject.value),
@@ -47,6 +51,19 @@ const showResults = computed(
               菜单
             </button>
           </div>
+
+          <section v-if="generationQueryError" class="status-query-alert" role="alert" aria-labelledby="status-query-title">
+            <strong id="status-query-title">{{ statusQueryInterruptionTitle }}</strong>
+            <p>{{ generationQueryError }}</p>
+            <button
+              type="button"
+              class="secondary-button"
+              :disabled="generationQuerying"
+              @click="retryGenerationQuery"
+            >
+              {{ generationQuerying ? '正在查询…' : '重新查询状态' }}
+            </button>
+          </section>
 
           <StageNav />
           <ResultPanel v-if="showResults" />

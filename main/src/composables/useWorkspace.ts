@@ -140,6 +140,7 @@ export interface WorkspaceStore {
   generationRecoveryAction: Ref<'verify' | 'resume' | null>
   generationQuerying: Ref<boolean>
   generationQueryError: Ref<string>
+  statusQueryInterruptionTitle: ComputedRef<string>
   generationDisabledReason: ComputedRef<string>
   latestGenerationView: ComputedRef<GenerationView | null>
   latestSucceededGeneration: ComputedRef<GenerationView | null>
@@ -268,6 +269,17 @@ function createWorkspace(): WorkspaceStore {
   const generationRecoveryAction = ref<'verify' | 'resume' | null>(null)
   const generationQuerying = ref(false)
   const generationQueryError = ref('')
+  const statusQueryTarget = ref<'project' | 'generation' | null>(null)
+  const statusQueryFailureKind = ref<'connection' | 'resource' | null>(null)
+  const statusQueryInterruptionTitle = computed(() => {
+    if (!generationQueryError.value) return ''
+    if (statusQueryFailureKind.value === 'resource') {
+      return statusQueryTarget.value === 'project' ? '资源不存在：项目不可用。' : '资源不存在：生成记录不可用。'
+    }
+    return statusQueryTarget.value === 'project'
+      ? '连接中断，项目状态暂不可知。'
+      : '连接中断，生成状态暂不可知。'
+  })
   let generationToken = 0
   let generationPollTimer: ReturnType<typeof setTimeout> | null = null
   let generationQueryController: AbortController | null = null
@@ -833,6 +845,14 @@ function createWorkspace(): WorkspaceStore {
       briefConflict.value = false
       creationUnknown.value = false
       await restoreGenerationCredential(restoredCredential, response.generations, controller.signal)
+      if (
+        !controller.signal.aborted &&
+        token === detailToken &&
+        currentProject.value?.id === response.project.id &&
+        (organizing.value || activeGeneration.value)
+      ) {
+        scheduleStatusQuery()
+      }
     } catch (error) {
       if (isAbortError(error) || controller.signal.aborted || token !== detailToken) return
       if (error instanceof ApiError) {
@@ -899,7 +919,7 @@ function createWorkspace(): WorkspaceStore {
     clearGenerationCredential()
     if (match.status === 'queued' || match.status === 'running') {
       generationSubmitNotice.value = '已恢复上次生成提交，正在继续读取任务状态。'
-      scheduleGenerationPoll(match.id)
+      scheduleStatusQuery()
       announce(generationSubmitNotice.value)
       return
     }
@@ -1063,6 +1083,32 @@ function createWorkspace(): WorkspaceStore {
     }
   }
 
+  function pageIsHidden(): boolean {
+    return typeof document !== 'undefined' && document.visibilityState === 'hidden'
+  }
+
+  function clearStatusQueryError(): void {
+    generationQueryError.value = ''
+    statusQueryTarget.value = null
+    statusQueryFailureKind.value = null
+  }
+
+  function setStatusQueryFailure(
+    kind: 'connection' | 'resource',
+    target: 'project' | 'generation',
+    message: string,
+  ): void {
+    generationQueryError.value = message
+    statusQueryFailureKind.value = kind
+    statusQueryTarget.value = target
+  }
+
+  function pauseStatusQueriesForHiddenPage(): void {
+    clearGenerationPoll()
+    generationQueryController?.abort()
+    generationRefreshController?.abort()
+  }
+
   function resetGenerationState(): void {
     generationToken += 1
     clearGenerationPoll()
@@ -1079,6 +1125,8 @@ function createWorkspace(): WorkspaceStore {
     generationCredentialWarning.value = ''
     generationRecoveryAction.value = null
     generationQueryError.value = ''
+    statusQueryTarget.value = null
+    statusQueryFailureKind.value = null
     generationQueryFailures = 0
     pendingGenerationRequest = null
     selectedResultGenerationId.value = null
@@ -1130,16 +1178,89 @@ function createWorkspace(): WorkspaceStore {
     return error.message || '生成请求提交失败，请稍后重试。'
   }
 
-  function scheduleGenerationPoll(generationId: string): void {
+  function scheduleStatusQuery(delay = 2000): void {
     clearGenerationPoll()
     const project = currentProject.value
-    if (!project) return
+    if (!project || pageIsHidden()) return
+    if (!organizing.value && !activeGeneration.value) return
     const token = generationToken
+    const projectId = project.id
     generationPollTimer = setTimeout(() => {
       generationPollTimer = null
-      if (token !== generationToken || projectParam.value !== project.id) return
-      void queryGeneration(generationId)
-    }, 2000)
+      if (token !== generationToken || projectParam.value !== projectId) return
+      if (pageIsHidden()) return
+      void runStatusQuery()
+    }, delay)
+  }
+
+  /**
+   * 工作台唯一的自动状态查询入口。每个时刻只查询一个对象：
+   * 需求整理中读取项目，存在排队/运行中的生成时读取该生成记录。
+   */
+  async function runStatusQuery(manual = false): Promise<void> {
+    if (generationQuerying.value) return
+    const project = currentProject.value
+    if (!project) return
+    if (organizing.value) {
+      await queryProjectStatus(manual)
+      return
+    }
+    const active = activeGeneration.value
+    if (active) await queryGeneration(active.id, manual)
+  }
+
+  async function queryProjectStatus(manual = false): Promise<void> {
+    if (generationQuerying.value) return
+    const project = currentProject.value
+    if (!project) return
+    clearGenerationPoll()
+    const token = generationToken
+    const projectId = project.id
+    const controller = new AbortController()
+    generationQueryController = controller
+    generationQuerying.value = true
+    if (manual) statusQueryTarget.value = 'project'
+    try {
+      const response = await api.getProject(projectId, controller.signal)
+      if (token !== generationToken || controller.signal.aborted || projectParam.value !== projectId) return
+      adoptProjectDetail(response)
+      generationQueryFailures = 0
+      clearStatusQueryError()
+      if (response.project.brief_status === 'organizing') {
+        scheduleStatusQuery()
+        return
+      }
+      if (activeGeneration.value) {
+        scheduleStatusQuery()
+      } else if (response.project.brief_error) {
+        announce('需求整理已中断，请查看最新错误信息。')
+      } else {
+        announce('需求整理已完成，已读取最新状态。')
+      }
+    } catch (error) {
+      if (isAbortError(error) || controller.signal.aborted || token !== generationToken) return
+      if (error instanceof ApiError && error.status === 404) {
+        setStatusQueryFailure(
+          'resource',
+          'project',
+          '资源不存在：项目不存在或已被删除，无法继续读取状态。',
+        )
+        return
+      }
+      generationQueryFailures += 1
+      if (generationQueryFailures >= 3 || manual) {
+        setStatusQueryFailure(
+          'connection',
+          'project',
+          '暂时无法读取项目状态。已停止自动查询，请重新查询。',
+        )
+      } else {
+        scheduleStatusQuery()
+      }
+    } finally {
+      if (token === generationToken) generationQuerying.value = false
+      if (generationQueryController === controller) generationQueryController = null
+    }
   }
 
   async function queryGeneration(generationId: string, manual = false): Promise<void> {
@@ -1151,26 +1272,38 @@ function createWorkspace(): WorkspaceStore {
     const controller = new AbortController()
     generationQueryController = controller
     generationQuerying.value = true
-    if (manual) generationQueryError.value = ''
+    if (manual) statusQueryTarget.value = 'generation'
     try {
       const generation = await api.getGeneration(generationId, controller.signal)
       if (token !== generationToken || controller.signal.aborted || projectParam.value !== project.id) return
       upsertGeneration(generation)
       clearSettledGenerationCredential(generation)
       generationQueryFailures = 0
-      generationQueryError.value = ''
+      clearStatusQueryError()
       if (generation.status === 'queued' || generation.status === 'running') {
-        scheduleGenerationPoll(generation.id)
+        scheduleStatusQuery()
       } else if (generation.status === 'succeeded') {
         await refreshGenerationProject(generation, token)
       }
     } catch (error) {
       if (isAbortError(error) || controller.signal.aborted || token !== generationToken) return
+      if (error instanceof ApiError && error.status === 404) {
+        setStatusQueryFailure(
+          'resource',
+          'generation',
+          '资源不存在：生成记录不存在或已被删除，无法继续读取状态。',
+        )
+        return
+      }
       generationQueryFailures += 1
-      if (generationQueryFailures >= 3) {
-        generationQueryError.value = '暂时无法读取生成状态。已停止自动查询，请手动重试。'
+      if (generationQueryFailures >= 3 || manual) {
+        setStatusQueryFailure(
+          'connection',
+          'generation',
+          '暂时无法读取生成状态。已停止自动查询，请手动重试。',
+        )
       } else {
-        scheduleGenerationPoll(generationId)
+        scheduleStatusQuery()
       }
     } finally {
       if (token === generationToken) generationQuerying.value = false
@@ -1198,6 +1331,7 @@ function createWorkspace(): WorkspaceStore {
       }
       stage.value = 'results'
       announce(generationSubmitNotice.value)
+      if (activeGeneration.value && activeGeneration.value.id !== generation.id) scheduleStatusQuery()
     } catch (error) {
       if (isAbortError(error) || controller.signal.aborted || token !== generationToken) return
       if (followLatest) {
@@ -1241,7 +1375,7 @@ function createWorkspace(): WorkspaceStore {
     generationRecoveryAction.value = null
     generationSubmitError.value = ''
     generationSubmitNotice.value = ''
-    generationQueryError.value = ''
+    clearStatusQueryError()
     generationQueryFailures = 0
     generationPendingRestored.value = false
     pendingGenerationRequest = request
@@ -1262,7 +1396,7 @@ function createWorkspace(): WorkspaceStore {
       generationSubmitNotice.value = '生成请求已提交，正在等待模型处理。'
       announce('生成请求已提交，正在等待模型处理。')
       if (response.generation.status === 'queued' || response.generation.status === 'running') {
-        scheduleGenerationPoll(response.generation.id)
+        scheduleStatusQuery()
       } else if (response.generation.status === 'succeeded') {
         await refreshGenerationProject(response.generation, token)
       }
@@ -1293,6 +1427,8 @@ function createWorkspace(): WorkspaceStore {
     generationSubmitBusy.value = true
     generationRecoveryAction.value = 'verify'
     generationSubmitError.value = ''
+    clearStatusQueryError()
+    generationQueryFailures = 0
     try {
       const response = await api.getProject(request.projectId)
       if (token !== generationToken || projectParam.value !== request.projectId) return
@@ -1318,7 +1454,7 @@ function createWorkspace(): WorkspaceStore {
       generationSubmitNotice.value = '已核实生成提交，生成记录已恢复。'
       announce('已核实生成提交，生成记录已恢复。')
       if (match.status === 'queued' || match.status === 'running') {
-        scheduleGenerationPoll(match.id)
+        scheduleStatusQuery()
       } else if (match.status === 'succeeded') {
         await refreshGenerationProject(match, token)
       }
@@ -1347,6 +1483,8 @@ function createWorkspace(): WorkspaceStore {
     generationRecoveryAction.value = 'resume'
     generationSubmitError.value = ''
     generationSubmitNotice.value = ''
+    clearStatusQueryError()
+    generationQueryFailures = 0
     try {
       const response = await api.submitGeneration(
         request.projectId,
@@ -1362,7 +1500,7 @@ function createWorkspace(): WorkspaceStore {
       generationSubmitNotice.value = '已恢复本次提交，生成记录已恢复。'
       announce(generationSubmitNotice.value)
       if (response.generation.status === 'queued' || response.generation.status === 'running') {
-        scheduleGenerationPoll(response.generation.id)
+        scheduleStatusQuery()
       } else if (response.generation.status === 'succeeded') {
         await refreshGenerationProject(response.generation, token)
       }
@@ -1386,10 +1524,14 @@ function createWorkspace(): WorkspaceStore {
 
   function retryGenerationQuery(): void {
     if (generationQuerying.value || generationSubmitBusy.value) return
+    if (organizing.value) {
+      generationQueryFailures = 0
+      void queryProjectStatus(true)
+      return
+    }
     const target = activeGeneration.value ?? latestGenerationView.value
     if (!target) return
     generationQueryFailures = 0
-    generationQueryError.value = ''
     void queryGeneration(target.id, true)
   }
 
@@ -1806,6 +1948,9 @@ function createWorkspace(): WorkspaceStore {
       response.user_message,
       response.assistant_message,
     ]
+    if (response.project.brief_status === 'organizing' || activeGeneration.value) {
+      scheduleStatusQuery()
+    }
   }
 
   async function send(): Promise<void> {
@@ -2203,6 +2348,15 @@ function createWorkspace(): WorkspaceStore {
     event.returnValue = ''
   }
 
+  function handleVisibilityChange(): void {
+    if (pageIsHidden()) {
+      pauseStatusQueriesForHiddenPage()
+      return
+    }
+    if (generationQueryError.value) return
+    if (organizing.value || activeGeneration.value) scheduleStatusQuery(0)
+  }
+
   watch(
     hasUnsavedChanges,
     (dirty) => {
@@ -2220,6 +2374,7 @@ function createWorkspace(): WorkspaceStore {
       void loadProject(projectParam.value)
     }
     window.addEventListener('popstate', syncProjectFromUrl)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
   })
 
   onBeforeUnmount(() => {
@@ -2235,6 +2390,7 @@ function createWorkspace(): WorkspaceStore {
     clearReferenceState()
     window.removeEventListener('popstate', syncProjectFromUrl)
     window.removeEventListener('beforeunload', handleBeforeUnload)
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
   })
 
   return {
@@ -2308,6 +2464,7 @@ function createWorkspace(): WorkspaceStore {
     generationRecoveryAction,
     generationQuerying,
     generationQueryError,
+    statusQueryInterruptionTitle,
     generationDisabledReason,
     latestGenerationView,
     latestSucceededGeneration,
