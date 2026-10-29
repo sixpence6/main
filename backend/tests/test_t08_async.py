@@ -253,6 +253,29 @@ async def test_total_wait_covers_slow_submit(full_settings):
 
 
 @pytest.mark.asyncio
+async def test_synchronous_success_outcome_is_delivered(full_settings):
+    image = png_bytes()
+    visual = VisualStub(
+        submit_outcome=ProviderOutcome(
+            state="succeeded",
+            image_bytes=image,
+            image_count=1,
+            evidence="result_available",
+        )
+    )
+    async with environment(full_settings, visual=visual) as (client, _registry, _llm, _visual):
+        project = await create_confirmed_project(client)
+        created = await submit(client, project)
+        done = await wait_status(client, created["id"], {"succeeded"})
+        assert done["stage"] == "done"
+        assert done["result_asset"]["kind"] == "generated"
+        assert done["result_asset"]["byte_size"] == len(image)
+        assert done["can_retrieve_result"] is False
+        assert visual.poll_calls == []
+        assert len(visual.submit_calls) == 1
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("error", "expected_status", "expected_code", "expected_remote"),
     [

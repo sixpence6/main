@@ -36,6 +36,15 @@ class ErrorView(BaseModel):
     message: str
 
 
+class ErrorResponse(BaseModel):
+    """Public error envelope returned by every API exception."""
+
+    error: ErrorView
+
+
+ERROR_RESPONSE = {"model": ErrorResponse, "description": "公开错误"}
+
+
 class ProjectView(BaseModel):
     id: str
     title: str

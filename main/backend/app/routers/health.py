@@ -4,12 +4,12 @@ from fastapi import APIRouter, Request
 
 from app.db import check_database_readable
 from app.errors import ApiError
-from app.schemas import HealthResponse
+from app.schemas import ERROR_RESPONSE, HealthResponse
 
 router = APIRouter()
 
 
-@router.get("/api/health", response_model=HealthResponse)
+@router.get("/api/health", response_model=HealthResponse, responses={503: ERROR_RESPONSE})
 async def health(request: Request) -> HealthResponse:
     try:
         await check_database_readable(request.app.state.engine)

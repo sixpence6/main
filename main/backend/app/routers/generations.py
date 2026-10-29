@@ -3,7 +3,13 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response
 
 from app.presenters import generation_view
-from app.schemas import CreateGenerationRequest, EmptyBody, GenerationResponse, GenerationView
+from app.schemas import (
+    ERROR_RESPONSE,
+    CreateGenerationRequest,
+    EmptyBody,
+    GenerationResponse,
+    GenerationView,
+)
 from app.services.generations import (
     load_generation,
     submit_generation_and_schedule,
@@ -17,6 +23,13 @@ router = APIRouter(tags=["generations"])
     "/api/projects/{project_id}/generations",
     response_model=GenerationResponse,
     status_code=202,
+    responses={
+        200: {"model": GenerationResponse, "description": "幂等重放，返回原生成记录"},
+        404: ERROR_RESPONSE,
+        409: ERROR_RESPONSE,
+        422: ERROR_RESPONSE,
+        503: ERROR_RESPONSE,
+    },
 )
 async def submit_generation_endpoint(
     request: Request,
@@ -44,7 +57,11 @@ async def submit_generation_endpoint(
     )
 
 
-@router.get("/api/generations/{generation_id}", response_model=GenerationView)
+@router.get(
+    "/api/generations/{generation_id}",
+    response_model=GenerationView,
+    responses={404: ERROR_RESPONSE, 422: ERROR_RESPONSE},
+)
 async def get_generation_endpoint(request: Request, generation_id: str) -> GenerationView:
     state = request.app.state
     generation, result_asset = await load_generation(state.session_factory, generation_id)
@@ -63,6 +80,12 @@ async def get_generation_endpoint(request: Request, generation_id: str) -> Gener
 @router.post(
     "/api/generations/{generation_id}/retrieve-result",
     response_model=GenerationView,
+    responses={
+        404: ERROR_RESPONSE,
+        409: ERROR_RESPONSE,
+        422: ERROR_RESPONSE,
+        503: ERROR_RESPONSE,
+    },
 )
 async def retrieve_generation_result_endpoint(
     request: Request, generation_id: str, _payload: EmptyBody

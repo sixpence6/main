@@ -570,6 +570,8 @@ async def _finish_generation(
 
 
 def _outcome_terminal_status(outcome: ProviderOutcome) -> str | None:
+    if outcome.state == "succeeded":
+        return None
     if outcome.evidence == "result_available":
         return "failed"
     if outcome.state == "failed":

@@ -203,6 +203,48 @@ async def test_http_rejection_is_classified_without_leaking_credentials():
     assert "https://" not in raised.value.args[0]
 
 
+@pytest.mark.parametrize(
+    ("status_code", "error_code"),
+    [
+        (400, "LLM_REQUEST_REJECTED"),
+        (413, "LLM_REQUEST_REJECTED"),
+        (429, "LLM_RATE_LIMITED"),
+    ],
+)
+async def test_status_codes_are_classified_as_safe_provider_errors(
+    status_code: int, error_code: str
+):
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status_code, text="context or quota rejected")
+
+    adapter, client = _adapter(handler)
+    try:
+        with pytest.raises(ProviderError) as raised:
+            await adapter.organize(_request())
+    finally:
+        await client.aclose()
+
+    assert raised.value.evidence == "rejected"
+    assert raised.value.error_code == error_code
+    assert "Authorization" not in raised.value.args[0]
+    assert "sk-test-secret" not in raised.value.args[0]
+
+
+async def test_network_error_leaves_acceptance_uncertain():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused")
+
+    adapter, client = _adapter(handler)
+    try:
+        with pytest.raises(ProviderError) as raised:
+            await adapter.organize(_request())
+    finally:
+        await client.aclose()
+
+    assert raised.value.evidence == "uncertain"
+    assert raised.value.error_code == "LLM_NETWORK_ERROR"
+
+
 async def test_invalid_content_is_rejected_without_treating_it_as_a_brief():
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=_completion("not json"))
@@ -410,4 +452,4 @@ def test_adapter_requires_configured_role():
         timeout_seconds=30,
     )
     with pytest.raises(ValueError):
-        OpenAIChatAdapter(role, httpx.AsyncClient())
+        OpenAIChatAdapter(role, httpx.AsyncClient(trust_env=False))

@@ -273,4 +273,4 @@ def test_adapter_requires_configured_role():
         timeout_seconds=30,
     )
     with pytest.raises(ValueError):
-        OpenAIImagesAdapter(role, httpx.AsyncClient())
+        OpenAIImagesAdapter(role, httpx.AsyncClient(trust_env=False))

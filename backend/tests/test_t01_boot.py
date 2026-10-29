@@ -5,8 +5,18 @@ from httpx import ASGITransport, AsyncClient
 
 from app.config import BACKEND_DIR, REPO_ROOT, Settings
 from app.errors import StartupError
-from app.main import create_app
+from app.main import build_http_client, create_app
 from app.services.config_status import build_config_status
+
+
+async def test_shared_http_client_ignores_unparsable_proxy_environment(monkeypatch):
+    monkeypatch.setenv("NO_PROXY", "[::1]")
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:7897")
+    client = build_http_client()
+    try:
+        assert client.trust_env is False
+    finally:
+        await client.aclose()
 
 
 async def test_health_reports_ok(client):

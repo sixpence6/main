@@ -31,6 +31,17 @@ from app.startup import ensure_data_dir, prepare_database
 logger = logging.getLogger("app")
 
 
+def build_http_client() -> httpx.AsyncClient:
+    """Shared outbound client for model providers.
+
+    Ambient proxy configuration is ignored on purpose: environments that export
+    bracketed IPv6 entries in NO_PROXY make httpx 0.28 abort while building a
+    client, which would prevent the backend from starting at all. Provider
+    reachability must be decided by explicit configuration, not by the shell.
+    """
+    return httpx.AsyncClient(timeout=None, trust_env=False)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
@@ -43,7 +54,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.locks = ProjectLocks()
         app.state.generation_slots = asyncio.Semaphore(1)
         app.state.generation_tasks = set()
-        app.state.http = httpx.AsyncClient(timeout=None)
+        app.state.http = build_http_client()
         await repair_leftover_state(app)
         logger.info("backend ready on data dir %s", settings.resolved_data_dir())
         yield

@@ -3,13 +3,24 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from app.presenters import message_view, project_view
-from app.schemas import MessageExchangeResponse, SendMessageRequest
+from app.schemas import ERROR_RESPONSE, MessageExchangeResponse, SendMessageRequest
 from app.services.messages import send_message
 
 router = APIRouter(prefix="/api/projects", tags=["messages"])
 
 
-@router.post("/{project_id}/messages", response_model=MessageExchangeResponse)
+@router.post(
+    "/{project_id}/messages",
+    response_model=MessageExchangeResponse,
+    responses={
+        404: ERROR_RESPONSE,
+        409: ERROR_RESPONSE,
+        422: ERROR_RESPONSE,
+        502: ERROR_RESPONSE,
+        503: ERROR_RESPONSE,
+        504: ERROR_RESPONSE,
+    },
+)
 async def send_message_endpoint(
     request: Request, project_id: str, payload: SendMessageRequest
 ) -> MessageExchangeResponse:

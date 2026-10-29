@@ -12,7 +12,7 @@ from app.config import REFERENCE_MULTIPART_OVERHEAD_BYTES
 from app.errors import ApiError, validation_error
 from app.models import Asset
 from app.presenters import project_view
-from app.schemas import ProjectView
+from app.schemas import ERROR_RESPONSE, ProjectView
 from app.services.assets import (
     ImageValidationError,
     attach_reference,
@@ -57,7 +57,16 @@ async def _parse_multipart(request: Request, limit: int):
         raise ApiError(422, "INVALID_REFERENCE_IMAGE", "参考图上传格式不正确") from None
 
 
-@router.post("/api/projects/{project_id}/reference", response_model=ProjectView)
+@router.post(
+    "/api/projects/{project_id}/reference",
+    response_model=ProjectView,
+    responses={
+        404: ERROR_RESPONSE,
+        409: ERROR_RESPONSE,
+        413: ERROR_RESPONSE,
+        422: ERROR_RESPONSE,
+    },
+)
 async def upload_reference(project_id: str, request: Request) -> ProjectView:
     state = request.app.state
     settings = state.settings
@@ -104,7 +113,11 @@ async def upload_reference(project_id: str, request: Request) -> ProjectView:
     return project_view(result.project, result.asset, settings.resolved_data_dir())
 
 
-@router.delete("/api/projects/{project_id}/reference", response_model=ProjectView)
+@router.delete(
+    "/api/projects/{project_id}/reference",
+    response_model=ProjectView,
+    responses={404: ERROR_RESPONSE, 409: ERROR_RESPONSE, 422: ERROR_RESPONSE},
+)
 async def delete_reference(
     project_id: str,
     request: Request,
@@ -120,7 +133,18 @@ async def delete_reference(
     return project_view(result.project, result.asset, state.settings.resolved_data_dir())
 
 
-@router.get("/api/assets/{asset_id}")
+@router.get(
+    "/api/assets/{asset_id}",
+    response_class=FileResponse,
+    responses={
+        200: {
+            "description": "图片文件",
+            "content": {"image/png": {}, "image/jpeg": {}},
+        },
+        404: ERROR_RESPONSE,
+        422: ERROR_RESPONSE,
+    },
+)
 async def read_asset(
     asset_id: str,
     request: Request,

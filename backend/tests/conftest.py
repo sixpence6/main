@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -12,16 +11,6 @@ from httpx import ASGITransport, AsyncClient
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
-# httpx 0.28 cannot parse bracketed IPv6 entries in NO_PROXY (for example "[::1]").
-# Normalize the test process environment before the app builds its shared client.
-for _proxy_key in ("NO_PROXY", "no_proxy"):
-    _proxy_value = os.environ.get(_proxy_key)
-    if _proxy_value:
-        os.environ[_proxy_key] = ",".join(
-            part
-            for part in _proxy_value.split(",")
-            if not (part.startswith("[") and part.endswith("]"))
-        )
 MAIN_BACKEND_DIR = BACKEND_DIR.parent / "main" / "backend"
 if str(MAIN_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(MAIN_BACKEND_DIR))
