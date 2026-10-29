@@ -57,11 +57,17 @@ class VisualStub:
             supported_image_sizes=("1024x1024",),
             reference_mime_types=("image/png", "image/jpeg"),
             provider_max_reference_bytes=5_000_000,
+            poll_interval_seconds=0.01,
         )
     )
     submit_outcome: ProviderOutcome | None = None
+    submit_error: BaseException | None = None
     poll_outcomes: list[ProviderOutcome] = field(default_factory=list)
     fetch_outcome: ProviderOutcome | None = None
+    fetch_error: BaseException | None = None
+    poll_errors: list[BaseException | None] = field(default_factory=list)
+    poll_gate: asyncio.Event | None = None
+    poll_delay_seconds: float = 0.0
     submit_calls: list[GenerationRequest] = field(default_factory=list)
     poll_calls: list[str] = field(default_factory=list)
     fetch_calls: list[str] = field(default_factory=list)
@@ -80,6 +86,8 @@ class VisualStub:
                 await self.gate.wait()
             if self.delay_seconds:
                 await asyncio.sleep(self.delay_seconds)
+            if self.submit_error is not None:
+                raise self.submit_error
             if self.submit_outcome is None:
                 raise AssertionError("submit_outcome must be configured by the test")
             return self.submit_outcome
@@ -88,12 +96,22 @@ class VisualStub:
 
     async def poll(self, remote_task_id: str) -> ProviderOutcome:
         self.poll_calls.append(remote_task_id)
+        if self.poll_gate is not None:
+            await self.poll_gate.wait()
+        if self.poll_delay_seconds:
+            await asyncio.sleep(self.poll_delay_seconds)
+        if self.poll_errors:
+            error = self.poll_errors.pop(0)
+            if error is not None:
+                raise error
         if not self.poll_outcomes:
             return ProviderOutcome(state="pending")
         return self.poll_outcomes.pop(0) if len(self.poll_outcomes) > 1 else self.poll_outcomes[0]
 
     async def fetch_result(self, locator: str) -> ProviderOutcome:
         self.fetch_calls.append(locator)
+        if self.fetch_error is not None:
+            raise self.fetch_error
         if self.fetch_outcome is None:
             raise AssertionError("fetch_outcome must be configured by the test")
         return self.fetch_outcome

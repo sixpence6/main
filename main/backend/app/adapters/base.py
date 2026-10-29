@@ -6,6 +6,9 @@ from typing import Literal, Protocol
 
 OrganizeOutcomeKind = Literal["needs_input", "review"]
 ProviderState = Literal["succeeded", "pending", "failed", "unknown"]
+ProviderEvidence = Literal[
+    "not_submitted", "rejected", "uncertain", "result_available"
+]
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,7 @@ class ImageCapabilities:
     supported_image_sizes: tuple[str, ...] | None = None
     reference_mime_types: tuple[str, ...] | None = None
     provider_max_reference_bytes: int | None = None
+    poll_interval_seconds: float | None = None
 
 
 @dataclass(frozen=True)
@@ -89,6 +93,35 @@ class ProviderOutcome:
     error_code: str | None = None
     error_message: str | None = None
     extra: dict[str, object] = field(default_factory=dict)
+    evidence: ProviderEvidence | None = None
+    image_count: int | None = None
+    result_expires_at: str | None = None
+
+
+class ProviderError(Exception):
+    """A provider failure carrying the evidence needed to classify its outcome.
+
+    Adapters translate vendor responses and transport errors into this exception.
+    ``message`` must be safe to show to a local user; credentials and signed URLs
+    never belong in it.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        evidence: ProviderEvidence,
+        error_code: str | None = None,
+        remote_task_id: str | None = None,
+        result_locator: str | None = None,
+        result_expires_at: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.evidence = evidence
+        self.error_code = error_code
+        self.remote_task_id = remote_task_id
+        self.result_locator = result_locator
+        self.result_expires_at = result_expires_at
 
 
 class ImageAdapter(Protocol):
@@ -96,8 +129,33 @@ class ImageAdapter(Protocol):
     model: str
     capabilities: ImageCapabilities
 
-    async def submit(self, request: GenerationRequest) -> ProviderOutcome: ...
+    async def submit(self, request: GenerationRequest) -> ProviderOutcome:
+        """Submit exactly one generation request to the provider.
 
-    async def poll(self, remote_task_id: str) -> ProviderOutcome: ...
+        A transport-level exception leaves acceptance uncertain; adapters must
+        not retry the submission themselves. Return ``pending`` with a task id
+        once acceptance is confirmed, or a terminal outcome when the provider
+        already produced a result.
+        """
+        ...
 
-    async def fetch_result(self, locator: str) -> ProviderOutcome: ...
+    async def poll(self, remote_task_id: str) -> ProviderOutcome:
+        """Read the current state of the original remote task.
+
+        Polling must be read-only and use only the supplied task id. Return
+        ``pending`` while the provider is still working. Provider errors must
+        state their evidence so the service can distinguish a failed task from
+        an unknown outcome; adapters must not submit a replacement task.
+        """
+        ...
+
+    async def fetch_result(self, locator: str) -> ProviderOutcome:
+        """Download the one result image behind a previously issued locator.
+
+        This is the only download path the service uses. The adapter must
+        enforce the provider-approved host and redirect policy hop by hop,
+        must not send model authentication headers to CDN hosts, and must never
+        follow a URL supplied by a client. The locator and signed URL stay
+        private and must not appear in public DTOs or logs.
+        """
+        ...

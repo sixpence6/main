@@ -124,7 +124,7 @@ async def test_confirmed_project_generates_real_local_result(full_settings):
         assert generation["adapter_id"] == "stub-visual"
         assert generation["model"] == "stub-model"
         assert generation["result_asset_id"]
-        assert generation["result_asset"]["kind"] == "result"
+        assert generation["result_asset"]["kind"] == "generated"
         assert generation["result_asset"]["availability"] == "available"
         assert generation["result_asset"]["mime_type"] == "image/png"
         assert generation["result_asset"]["width"] == 1024

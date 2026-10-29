@@ -22,7 +22,7 @@ class Brief(BaseModel):
 
 class AssetView(BaseModel):
     id: str
-    kind: Literal["reference", "result"]
+    kind: Literal["reference", "generated"]
     mime_type: str
     width: int
     height: int

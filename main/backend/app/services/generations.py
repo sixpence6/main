@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.adapters.base import BriefData, GenerationRequest, ProviderOutcome
+from app.adapters.base import BriefData, GenerationRequest, ProviderError, ProviderOutcome
 from app.adapters.registry import AdapterRegistry
 from app.config import LOCAL_RESULT_MAX_BYTES, RoleConfig, Settings
 from app.db import ProjectLocks, read_session, write_transaction
@@ -39,6 +39,7 @@ from app.timeutil import format_timestamp, utc_now
 logger = logging.getLogger("app.generations")
 
 _IMAGE_SIZE_PATTERN = re.compile(r"^(\d+)x(\d+)$")
+_DEFAULT_POLL_INTERVAL_SECONDS = 1.0
 
 
 @dataclass
@@ -483,6 +484,39 @@ async def _set_stage(
         await session.flush()
 
 
+def _encode_result_locator(locator: str, expires_at: str | None) -> str:
+    if expires_at is None:
+        return dumps_json(locator)
+    return dumps_json({"locator": locator, "expires_at": expires_at})
+
+
+async def _record_remote_task(
+    session_factory: async_sessionmaker[AsyncSession],
+    generation_id: str,
+    *,
+    remote_task_id: str | None = None,
+    result_locator: str | None = None,
+    result_expires_at: str | None = None,
+) -> None:
+    if remote_task_id is None and result_locator is None:
+        return
+    async with write_transaction(session_factory) as session:
+        generation = await session.get(Generation, generation_id)
+        if generation is None or generation.status != "running":
+            return
+        if remote_task_id is not None:
+            generation.remote_task_id = remote_task_id
+            generation.stage = "waiting_remote"
+        if result_locator is not None:
+            generation.result_locator_json = _encode_result_locator(
+                result_locator, result_expires_at
+            )
+        project = await session.get(Project, generation.project_id)
+        if project is not None:
+            project.updated_at = format_timestamp(utc_now())
+        await session.flush()
+
+
 async def _finish_generation(
     session_factory: async_sessionmaker[AsyncSession],
     generation_id: str,
@@ -493,6 +527,7 @@ async def _finish_generation(
     error_message: str | None = None,
     remote_task_id: str | None = None,
     result_locator: str | None = None,
+    result_expires_at: str | None = None,
     result_asset_id: str | None = None,
 ) -> bool:
     async with write_transaction(session_factory) as session:
@@ -508,7 +543,9 @@ async def _finish_generation(
         if remote_task_id is not None:
             generation.remote_task_id = remote_task_id
         if result_locator is not None:
-            generation.result_locator_json = dumps_json(result_locator)
+            generation.result_locator_json = _encode_result_locator(
+                result_locator, result_expires_at
+            )
         if result_asset_id is not None:
             generation.result_asset_id = result_asset_id
         generation.completed_at = now
@@ -519,16 +556,150 @@ async def _finish_generation(
         return True
 
 
-def _decode_outcome_image(outcome: ProviderOutcome) -> bytes | None:
-    if isinstance(outcome.image_bytes, bytes):
-        return outcome.image_bytes
-    encoded = outcome.extra.get("image_base64")
-    if isinstance(encoded, str):
+def _outcome_terminal_status(outcome: ProviderOutcome) -> str | None:
+    if outcome.state == "failed":
+        return "unknown" if outcome.evidence == "uncertain" else "failed"
+    if outcome.state == "unknown":
+        if outcome.evidence in ("not_submitted", "rejected"):
+            return "failed"
+        return "unknown"
+    return None
+
+
+def _provider_error_status(error: ProviderError) -> str:
+    if error.evidence in ("not_submitted", "rejected", "result_available"):
+        return "failed"
+    return "unknown"
+
+
+async def _finish_provider_error(
+    session_factory: async_sessionmaker[AsyncSession],
+    generation_id: str,
+    error: ProviderError,
+) -> None:
+    status = _provider_error_status(error)
+    if error.evidence == "result_available":
+        code = "RESULT_FETCH_FAILED"
+        default_message = "生图结果获取失败"
+    elif status == "failed":
+        code = error.error_code or (
+            "VISUAL_NOT_SUBMITTED"
+            if error.evidence == "not_submitted"
+            else "VISUAL_TASK_FAILED"
+        )
+        default_message = (
+            "生成任务未提交" if error.evidence == "not_submitted" else "生成任务失败"
+        )
+    else:
+        code = error.error_code or "VISUAL_OUTCOME_UNKNOWN"
+        default_message = "生图结果未确认"
+    await _finish_generation(
+        session_factory,
+        generation_id,
+        status=status,
+        error_code=code,
+        error_message=str(error) or default_message,
+        remote_task_id=error.remote_task_id,
+        result_locator=error.result_locator,
+        result_expires_at=error.result_expires_at,
+    )
+
+
+async def _finish_outcome(
+    session_factory: async_sessionmaker[AsyncSession],
+    generation_id: str,
+    outcome: ProviderOutcome,
+) -> None:
+    status = _outcome_terminal_status(outcome)
+    if status is None:
+        return
+    if status == "failed":
+        if outcome.evidence == "not_submitted":
+            code = outcome.error_code or "VISUAL_NOT_SUBMITTED"
+            message = outcome.error_message or "生成任务未提交"
+        else:
+            code = outcome.error_code or "VISUAL_TASK_FAILED"
+            message = outcome.error_message or "生成任务失败"
+    else:
+        code = outcome.error_code or "VISUAL_OUTCOME_UNKNOWN"
+        message = outcome.error_message or "生图结果未确认"
+    await _finish_generation(
+        session_factory,
+        generation_id,
+        status=status,
+        error_code=code,
+        error_message=message,
+        remote_task_id=outcome.remote_task_id,
+        result_locator=outcome.result_locator,
+        result_expires_at=outcome.result_expires_at,
+    )
+
+
+def _decode_image_value(value: object) -> bytes:
+    if isinstance(value, bytes):
+        return value
+    if isinstance(value, (bytearray, memoryview)):
+        return bytes(value)
+    if isinstance(value, str):
         try:
-            return base64.b64decode(encoded, validate=True)
+            return base64.b64decode(value, validate=True)
         except (binascii.Error, ValueError):
             raise ResultValidationError("结果图片内容无法解码") from None
+    raise ResultValidationError("结果图片内容无法解码")
+
+
+def _outcome_image_count(outcome: ProviderOutcome) -> int:
+    images = outcome.extra.get("images")
+    if images is not None:
+        if not isinstance(images, (list, tuple)):
+            raise ResultValidationError("结果图片数量无法确认")
+        return len(images)
+    extra_count = outcome.extra.get("image_count")
+    if extra_count is not None:
+        if isinstance(extra_count, bool) or not isinstance(extra_count, int):
+            raise ResultValidationError("结果图片数量无法确认")
+        return extra_count
+    if outcome.image_count is not None:
+        if isinstance(outcome.image_count, bool) or not isinstance(
+            outcome.image_count, int
+        ):
+            raise ResultValidationError("结果图片数量无法确认")
+        return outcome.image_count
+    if isinstance(outcome.image_bytes, (bytes, bytearray, memoryview)):
+        return 1
+    if isinstance(outcome.extra.get("image_base64"), str):
+        return 1
+    return 0
+
+
+def _decode_outcome_image(outcome: ProviderOutcome) -> bytes | None:
+    count = _outcome_image_count(outcome)
+    if count < 0:
+        raise ResultValidationError("结果图片数量无法确认")
+    if count > 1:
+        raise ResultValidationError("生图返回了多张结果图片")
+    if count == 0:
+        return None
+    images = outcome.extra.get("images")
+    if images is not None:
+        if not isinstance(images, (list, tuple)) or len(images) != 1:
+            raise ResultValidationError("生图返回了多张结果图片")
+        return _decode_image_value(images[0])
+    if outcome.image_bytes is not None:
+        return _decode_image_value(outcome.image_bytes)
+    encoded = outcome.extra.get("image_base64")
+    if isinstance(encoded, str):
+        return _decode_image_value(encoded)
     return None
+
+
+def _poll_interval_seconds(adapter: Any) -> float:
+    value = getattr(adapter.capabilities, "poll_interval_seconds", None)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return _DEFAULT_POLL_INTERVAL_SECONDS
+    if value <= 0:
+        return _DEFAULT_POLL_INTERVAL_SECONDS
+    return max(float(value), 0.01)
 
 
 def _validate_result_bytes(
@@ -559,113 +730,66 @@ async def _deliver_result(
     claimed: ClaimedGeneration,
     adapter: Any,
     outcome: ProviderOutcome,
+    *,
+    fallback_locator: str | None = None,
+    fallback_result_expires_at: str | None = None,
+    fallback_remote_task_id: str | None = None,
 ) -> None:
     settings: Settings = app.state.settings
     session_factory = app.state.session_factory
-    locator = outcome.result_locator
-    remote_task_id = outcome.remote_task_id
-    try:
-        data = _decode_outcome_image(outcome)
-    except ResultValidationError as exc:
+    locator = outcome.result_locator or fallback_locator
+    result_expires_at = outcome.result_expires_at or fallback_result_expires_at
+    remote_task_id = outcome.remote_task_id or fallback_remote_task_id
+
+    async def fail(message: str, code: str = "RESULT_FETCH_FAILED") -> None:
         await _finish_generation(
             session_factory,
             claimed.id,
             status="failed",
-            error_code="RESULT_FETCH_FAILED",
-            error_message=str(exc),
+            error_code=code,
+            error_message=message,
             remote_task_id=remote_task_id,
             result_locator=locator,
+            result_expires_at=result_expires_at,
         )
+
+    try:
+        data = _decode_outcome_image(outcome)
+    except ResultValidationError as exc:
+        await fail(str(exc))
         return
 
     if data is None and locator:
         await _set_stage(session_factory, claimed.id, "fetching_result")
         try:
             fetched = await adapter.fetch_result(locator)
-        except Exception:
-            logger.exception("fetching result for generation %s failed", claimed.id)
-            await _finish_generation(
-                session_factory,
+        except Exception as exc:
+            logger.warning(
+                "fetching result for generation %s failed with %s",
                 claimed.id,
-                status="failed",
-                error_code="RESULT_FETCH_FAILED",
-                error_message="生图结果下载失败",
-                remote_task_id=remote_task_id,
-                result_locator=locator,
+                type(exc).__name__,
             )
+            await fail("生图结果下载失败")
             return
         remote_task_id = fetched.remote_task_id or remote_task_id
         locator = fetched.result_locator or locator
-        if fetched.state == "failed":
-            await _finish_generation(
-                session_factory,
-                claimed.id,
-                status="failed",
-                error_code=fetched.error_code or "VISUAL_TASK_FAILED",
-                error_message=fetched.error_message or "生成任务失败",
-                remote_task_id=remote_task_id,
-                result_locator=locator,
-            )
-            return
-        if fetched.state == "unknown":
-            await _finish_generation(
-                session_factory,
-                claimed.id,
-                status="unknown",
-                error_code=fetched.error_code or "VISUAL_OUTCOME_UNKNOWN",
-                error_message=fetched.error_message or "生图结果未确认",
-                remote_task_id=remote_task_id,
-                result_locator=locator,
-            )
-            return
+        result_expires_at = fetched.result_expires_at or result_expires_at
         if fetched.state != "succeeded":
-            await _finish_generation(
-                session_factory,
-                claimed.id,
-                status="failed",
-                error_code="RESULT_FETCH_FAILED",
-                error_message="生图结果尚未可用",
-                remote_task_id=remote_task_id,
-                result_locator=locator,
-            )
+            await fail("生图结果下载失败")
             return
         try:
             data = _decode_outcome_image(fetched)
         except ResultValidationError as exc:
-            await _finish_generation(
-                session_factory,
-                claimed.id,
-                status="failed",
-                error_code="RESULT_FETCH_FAILED",
-                error_message=str(exc),
-                remote_task_id=remote_task_id,
-                result_locator=locator,
-            )
+            await fail(str(exc))
             return
 
     if data is None:
-        await _finish_generation(
-            session_factory,
-            claimed.id,
-            status="failed",
-            error_code="RESULT_FETCH_FAILED",
-            error_message="生图结果不可用",
-            remote_task_id=remote_task_id,
-            result_locator=locator,
-        )
+        await fail("生图结果不可用")
         return
 
     expected = parse_image_size(claimed.image_size)
     if expected is None:
-        await _finish_generation(
-            session_factory,
-            claimed.id,
-            status="failed",
-            error_code="RESULT_FETCH_FAILED",
-            error_message="提交快照尺寸无效",
-            remote_task_id=remote_task_id,
-            result_locator=locator,
-        )
+        await fail("提交快照尺寸无效")
         return
 
     try:
@@ -673,15 +797,7 @@ async def _deliver_result(
             _validate_result_bytes, settings, data, expected
         )
     except ResultValidationError as exc:
-        await _finish_generation(
-            session_factory,
-            claimed.id,
-            status="failed",
-            error_code="RESULT_FETCH_FAILED",
-            error_message=str(exc),
-            remote_task_id=remote_task_id,
-            result_locator=locator,
-        )
+        await fail(str(exc))
         return
 
     try:
@@ -693,7 +809,7 @@ async def _deliver_result(
             asset = Asset(
                 id=asset_id,
                 project_id=claimed.project_id,
-                kind="result",
+                kind="generated",
                 relative_path=relative_path,
                 mime_type=info.mime_type,
                 width=info.width,
@@ -711,7 +827,9 @@ async def _deliver_result(
             if remote_task_id is not None:
                 generation.remote_task_id = remote_task_id
             if locator is not None:
-                generation.result_locator_json = dumps_json(locator)
+                generation.result_locator_json = _encode_result_locator(
+                    locator, result_expires_at
+                )
             project = await session.get(Project, claimed.project_id)
             if project is not None:
                 project.updated_at = now
@@ -719,6 +837,53 @@ async def _deliver_result(
     except BaseException:
         await asyncio.to_thread(delete_asset_file, settings, relative_path)
         raise
+
+
+async def _poll_until_result(
+    app: FastAPI,
+    claimed: ClaimedGeneration,
+    adapter: Any,
+    remote_task_id: str,
+    *,
+    result_locator: str | None = None,
+    result_expires_at: str | None = None,
+) -> None:
+    session_factory = app.state.session_factory
+    interval = _poll_interval_seconds(adapter)
+    while True:
+        try:
+            outcome = await adapter.poll(remote_task_id)
+        except ProviderError as exc:
+            if exc.evidence in ("not_submitted", "rejected", "result_available"):
+                await _finish_provider_error(session_factory, claimed.id, exc)
+                return
+            await asyncio.sleep(interval)
+            continue
+        except Exception as exc:
+            logger.warning(
+                "polling generation %s failed with %s",
+                claimed.id,
+                type(exc).__name__,
+            )
+            await asyncio.sleep(interval)
+            continue
+        result_locator = outcome.result_locator or result_locator
+        result_expires_at = outcome.result_expires_at or result_expires_at
+        if outcome.state == "succeeded":
+            await _deliver_result(
+                app,
+                claimed,
+                adapter,
+                outcome,
+                fallback_locator=result_locator,
+                fallback_result_expires_at=result_expires_at,
+                fallback_remote_task_id=remote_task_id,
+            )
+            return
+        if _outcome_terminal_status(outcome) is not None:
+            await _finish_outcome(session_factory, claimed.id, outcome)
+            return
+        await asyncio.sleep(interval)
 
 
 async def _execute_claimed(app: FastAPI, claimed: ClaimedGeneration) -> None:
@@ -788,40 +953,77 @@ async def _execute_claimed(app: FastAPI, claimed: ClaimedGeneration) -> None:
         reference_path=reference_path,
         reference_mime_type=reference_mime_type,
     )
-    outcome = await adapter.submit(request)
-    if outcome.state == "failed":
-        await _finish_generation(
-            session_factory,
-            claimed.id,
-            status="failed",
-            error_code=outcome.error_code or "VISUAL_TASK_FAILED",
-            error_message=outcome.error_message or "生成任务失败",
-            remote_task_id=outcome.remote_task_id,
-            result_locator=outcome.result_locator,
-        )
+    try:
+        outcome = await adapter.submit(request)
+    except ProviderError as exc:
+        await _finish_provider_error(session_factory, claimed.id, exc)
         return
-    if outcome.state == "unknown":
-        await _finish_generation(
-            session_factory,
+    except Exception as exc:
+        logger.warning(
+            "submit for generation %s failed with %s",
             claimed.id,
-            status="unknown",
-            error_code=outcome.error_code or "VISUAL_OUTCOME_UNKNOWN",
-            error_message=outcome.error_message or "生图结果未确认",
-            remote_task_id=outcome.remote_task_id,
-            result_locator=outcome.result_locator,
+            type(exc).__name__,
         )
-        return
-    if outcome.state == "pending":
         await _finish_generation(
             session_factory,
             claimed.id,
             status="unknown",
             error_code="VISUAL_OUTCOME_UNKNOWN",
-            error_message="生图结果尚未确认",
-            remote_task_id=outcome.remote_task_id,
-            result_locator=outcome.result_locator,
+            error_message="生图结果未确认",
         )
         return
+
+    if outcome.remote_task_id or outcome.result_locator:
+        await _record_remote_task(
+            session_factory,
+            claimed.id,
+            remote_task_id=outcome.remote_task_id,
+            result_locator=outcome.result_locator,
+            result_expires_at=outcome.result_expires_at,
+        )
+
+    if _outcome_terminal_status(outcome) is not None:
+        await _finish_outcome(session_factory, claimed.id, outcome)
+        return
+
+    if outcome.state == "pending":
+        if not outcome.remote_task_id:
+            if outcome.evidence in ("not_submitted", "rejected"):
+                status = "failed"
+                code = outcome.error_code or (
+                    "VISUAL_NOT_SUBMITTED"
+                    if outcome.evidence == "not_submitted"
+                    else "VISUAL_TASK_FAILED"
+                )
+                message = outcome.error_message or (
+                    "生成任务未提交"
+                    if outcome.evidence == "not_submitted"
+                    else "生成任务失败"
+                )
+            else:
+                status = "unknown"
+                code = outcome.error_code or "VISUAL_OUTCOME_UNKNOWN"
+                message = outcome.error_message or "生图结果未确认"
+            await _finish_generation(
+                session_factory,
+                claimed.id,
+                status=status,
+                error_code=code,
+                error_message=message,
+                result_locator=outcome.result_locator,
+                result_expires_at=outcome.result_expires_at,
+            )
+            return
+        await _poll_until_result(
+            app,
+            claimed,
+            adapter,
+            outcome.remote_task_id,
+            result_locator=outcome.result_locator,
+            result_expires_at=outcome.result_expires_at,
+        )
+        return
+
     await _deliver_result(app, claimed, adapter, outcome)
 
 
@@ -844,8 +1046,12 @@ async def execute_generation(app: FastAPI, generation_id: str) -> None:
                 error_code="VISUAL_OUTCOME_UNKNOWN",
                 error_message="生图等待超时，结果未确认",
             )
-        except Exception:
-            logger.exception("generation %s failed or became uncertain", generation_id)
+        except Exception as exc:
+            logger.warning(
+                "generation %s failed or became uncertain with %s",
+                generation_id,
+                type(exc).__name__,
+            )
             await _finish_generation(
                 session_factory,
                 generation_id,
@@ -886,7 +1092,11 @@ def schedule_generation(app: FastAPI, generation_id: str) -> None:
             return
         try:
             finished.result()
-        except Exception:
-            logger.exception("background generation task %s crashed", generation_id)
+        except Exception as exc:
+            logger.warning(
+                "background generation task %s crashed with %s",
+                generation_id,
+                type(exc).__name__,
+            )
 
     task.add_done_callback(_done)
