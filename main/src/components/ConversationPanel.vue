@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import BriefCard from './BriefCard.vue'
+import ReferenceUploader from './ReferenceUploader.vue'
 import { useWorkspace } from '@/composables/useWorkspace'
 import {
   briefStatusLabel,
@@ -275,6 +276,8 @@ watch(
       </div>
     </template>
 
+    <ReferenceUploader v-if="showComposer" />
+
     <form v-if="showComposer" class="composer" @submit.prevent="onSubmit">
       <p v-if="sendError" class="composer-error" role="alert">{{ sendError }}</p>
       <label class="sr-only" for="workspace-prompt">描述商品与图片需求</label>
@@ -294,9 +297,6 @@ watch(
       <div class="composer-actions">
         <p class="composer-hint">Enter 换行；Ctrl/⌘ + Enter 发送。</p>
         <div class="composer-buttons">
-          <button type="button" class="secondary-button" disabled aria-describedby="reference-reason" title="添加参考图将在后续版本接入">
-            添加参考图
-          </button>
           <button type="submit" class="primary-button" :disabled="Boolean(sendDisabledReason)">
             发送
           </button>
@@ -305,7 +305,6 @@ watch(
       <p v-if="composerReason" id="send-reason" class="control-reason">
         {{ composerReason }}
       </p>
-      <p id="reference-reason" class="control-reason">添加参考图将在后续版本接入，当前不可用。</p>
     </form>
   </section>
 </template>

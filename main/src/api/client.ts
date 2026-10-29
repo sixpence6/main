@@ -163,4 +163,20 @@ export const api = {
       { method: 'POST', body: JSON.stringify(body) },
     )
   },
+  uploadReference(projectId: string, file: File, expectedRevision: number): Promise<ProjectView> {
+    const body = new FormData()
+    body.append('file', file)
+    body.append('expected_revision', String(expectedRevision))
+    return requestJson<ProjectView>(
+      `/api/projects/${encodeURIComponent(projectId)}/reference`,
+      { method: 'POST', body },
+    )
+  },
+  removeReference(projectId: string, expectedRevision: number): Promise<ProjectView> {
+    const query = new URLSearchParams({ expected_revision: String(expectedRevision) })
+    return requestJson<ProjectView>(
+      `/api/projects/${encodeURIComponent(projectId)}/reference?${query.toString()}`,
+      { method: 'DELETE' },
+    )
+  },
 }

@@ -73,6 +73,30 @@
 - **状态**：未核验（字段与空值语义待真实 OpenAPI 核验）。
 - **未明确时 UI 行为**：只展示真实字段状态，不推算修订号、不把待响应操作显示为成功；空值不猜测像素、提示词或参考图内容；错误沿用统一安全错误映射，不输出供应商原始响应、Key、URL 或堆栈。
 
+## T05 核验记录：参考图上传、替换、移除与资源引用
+
+- **状态**：未核验（仅后端设计草案、`contracts.md` 与受控测试响应；没有真实 OpenAPI 或可连接运行服务）。
+- **接口映射（FE-DEP-01 / FE-DEP-05）**：
+  - `POST /api/projects/{id}/reference` → `multipart/form-data`，字段 `file` 与 `expected_revision`（当前项目响应中的 `project.revision` 字符串）。成功按 `200 ProjectView` 整包替换当前项目；服务端增加 `revision`、清空 `prompt_revision / confirmed_revision`、把 `brief_status` 置为 `draft`，并在 `brief.reference_asset_id` 写入 `reference_asset.id`。前端不在本地递增修订号。
+  - `DELETE /api/projects/{id}/reference?expected_revision=N` → 成功 `200 ProjectView`；无参考图时按 no-op 处理，不改变修订号。实际移除参考图时同样使提示词/确认失效并要求重新整理、确认。
+  - 首次有效上传且尚无项目时，先复用 `POST /api/projects` 的惰性创建，再上传参考图；不发送消息、不调用 LLM、不创建生成记录。上传失败保留已知项目，重试复用同一项目和当前修订。
+- **精确大小与格式映射（FE-DEP-01）**：
+  - SRS 硬上限 `10,000,000` 字节；有效上限取 `min(10,000,000, provider_max_reference_bytes, effective_reference_max_bytes)`，仅把有限且 `>= 0` 的服务端值纳入，最低为 0。
+  - 默认接受 `image/png`、`image/jpeg`；服务端 `reference_mime_types` 仅接受 PNG/JPEG 子集，`image/jpg` 归一为 `image/jpeg`，去重；配置为空或过滤后为空时回退到 PNG/JPEG。
+  - 只接受单张文件；多文件整批拒绝。选择/拖放后先在浏览器读取文件签名并实际解码为图片，再按有效上限校验字节数；不把扩展名或 `File.type` 当作唯一证据。取消选择、无效类型、超限、损坏、多文件均不创建项目、不写请求、不替换当前参考图。不支持粘贴上传。
+- **能力语义**：
+  - `reference_image === true` → 允许上传；`false` → 明确说明当前模型不支持参考图，并保留“移除参考图”入口，移除后可继续纯文字流程；`null/unknown` → 显示“参考图能力待核实”，带参考图时锁定“生成图片”阶段并说明原因。
+  - 前端不根据模型名推断能力，不捏造供应商限制；只有服务端配置字段或真实响应能改变状态。
+- **待上传、失败与回执**：
+  - 选择有效文件后先显示临时预览并标记“待上传”，成功响应前不把它当作当前参考图；成功后才采用服务端 `ProjectView`，失败保留旧参考图和当前项目修订。
+  - 上传/移除请求返回网络错误、超时、`0` 或 `5xx` 等回执不明时，先 `GET /api/projects/{id}` 核实：上传以“参考图 ID 变化或 revision 增加”为成功证据，移除以“参考图变为 null”为成功证据；只有核实成功才更新界面，否则显示安全失败说明并要求用户主动重试。
+  - `409 REVISION_CONFLICT / PROJECT_BUSY` 显示“参考图已在别处更新，请加载最新项目后再操作。”并保留当前旧图；由用户主动加载最新项目，不自动合并或重试。`404`、`413 UPLOAD_TOO_LARGE`、`422 INVALID_REFERENCE_IMAGE / UNSUPPORTED_REFERENCE_FORMAT / REFERENCE_NOT_SUPPORTED / VALIDATION_ERROR`、`503 LOCAL_STORAGE_UNAVAILABLE` 使用集中安全文案，不输出供应商原始响应。
+- **资源引用与对象 URL**：
+  - 参考图始终按 `AssetView.id` 通过 `GET /api/assets/{id}?download=false` 读取；不保存本地路径、blob URL 或供应商 URL 到项目数据，历史只引用原始资源 ID。生成成功记录即使有结果图，也不得替换或改写参考图关联。
+  - 上传选择产生的临时 object URL 在替换、成功、失败后重新选择以及组件卸载时释放；`availability === "missing"` 时明确显示“参考图文件缺失”，不渲染伪造图片，并仍允许移除。
+- **T05 证据**：`tests/t05-reference-upload.spec.ts` 的 20 个测试全部通过，覆盖首次惰性创建、拖放、取消、无效/超限/损坏/多文件、失败重试复用项目与修订、替换失败保留旧图、替换成功失效提示词和确认、键盘移除、回执不明 GET 核实、能力 false/unknown、待上传预览、防重入、卸载 object URL 释放及生成记录不改写参考图。测试响应均为受控测试替身，不代表真实服务已按此返回。
+- **风险**：真实 OpenAPI 的 multipart 字段名、`expected_revision` 位置、错误码及 `effective_reference_max_bytes` 语义尚未核验；上传能力与图片格式支持必须以后端实际契约为准，未核验前不得宣称真实上传链路已完成。
+
 ## 后续接入约定
 
 - 等真实 OpenAPI 或运行服务可用后，必须重新核验上述字段，并更新本文件的“状态”和“证据”。

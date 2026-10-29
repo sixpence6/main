@@ -6,6 +6,7 @@ import {
   onMounted,
   provide,
   ref,
+  shallowRef,
   watch,
   type ComputedRef,
   type InjectionKey,
@@ -20,6 +21,7 @@ import type {
   MessageCreateResponse,
   MessageView,
   PatchBriefRequest,
+  ProjectDetailResponse,
   ProjectSummary,
   ProjectView,
 } from '@/api/types'
@@ -28,7 +30,19 @@ import { useViewport } from './useViewport'
 
 export type StageId = 'describe' | 'confirm' | 'generate' | 'results'
 export type BriefAction = 'save' | 'confirm' | 'organize' | 'reload'
+export type ReferenceAction = 'upload' | 'remove' | 'reload'
 export type ProjectErrorKind = 'invalid' | 'not-found' | 'network' | 'generic'
+
+export interface PendingReference {
+  file: File
+  name: string
+  previewUrl: string
+  mimeType: string
+  byteSize: number
+  width: number
+  height: number
+  status: 'uploading' | 'failed'
+}
 
 export interface StageView {
   id: StageId
@@ -82,6 +96,22 @@ export interface WorkspaceStore {
   promptStale: ComputedRef<boolean>
   saveDisabledReason: ComputedRef<string>
   confirmDisabledReason: ComputedRef<string>
+  referencePending: Ref<PendingReference | null>
+  referenceError: Ref<string>
+  referenceNotice: Ref<string>
+  referenceAction: Ref<ReferenceAction | null>
+  referenceBusy: ComputedRef<boolean>
+  referenceConflict: Ref<boolean>
+  referenceCapability: ComputedRef<boolean | null>
+  referenceLimitBytes: ComputedRef<number>
+  referenceMimeTypes: ComputedRef<string[]>
+  referenceGenerationBlockedReason: ComputedRef<string>
+  referenceUploadDisabledReason: ComputedRef<string>
+  referenceRemoveDisabledReason: ComputedRef<string>
+  chooseReferenceFiles: (files: File[]) => Promise<void>
+  retryReferenceUpload: () => Promise<void>
+  removeReference: () => Promise<void>
+  reloadLatestReference: () => Promise<void>
   startBriefEdit: () => void
   cancelBriefEdit: () => void
   setBriefField: (key: EditableBriefKey, value: string) => void
@@ -176,6 +206,68 @@ function createWorkspace(): WorkspaceStore {
   const briefConfirmError = ref('')
   const briefSaveNotice = ref('')
   const briefConflict = ref(false)
+
+  const referencePending = shallowRef<PendingReference | null>(null)
+  const referenceError = ref('')
+  const referenceNotice = ref('')
+  const referenceAction = ref<ReferenceAction | null>(null)
+  const referenceChecking = ref(false)
+  const referenceConflict = ref(false)
+  let referenceToken = 0
+  const referenceCapability = computed<boolean | null>(
+    () => configStatus.value?.visual.capabilities?.reference_image ?? null,
+  )
+  const referenceBusy = computed(
+    () => referenceChecking.value || referenceAction.value !== null,
+  )
+  const referenceLimitBytes = computed(() => {
+    const caps = configStatus.value?.visual.capabilities
+    let limit = 10_000_000
+    for (const value of [caps?.provider_max_reference_bytes, caps?.effective_reference_max_bytes]) {
+      if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+        limit = Math.min(limit, value)
+      }
+    }
+    return Math.max(0, limit)
+  })
+  const referenceMimeTypes = computed<string[]>(() => {
+    const configured = configStatus.value?.visual.capabilities?.reference_mime_types
+    if (!configured?.length) return ['image/png', 'image/jpeg']
+    const normalized = configured
+      .map((value) => value.trim().toLowerCase())
+      .map((value) => (value === 'image/jpg' ? 'image/jpeg' : value))
+      .filter((value) => value === 'image/png' || value === 'image/jpeg')
+    return normalized.length ? [...new Set(normalized)] : ['image/png', 'image/jpeg']
+  })
+  const referenceGenerationBlockedReason = computed(() => {
+    const project = currentProject.value
+    if (!project?.reference_asset) return ''
+    if (project.reference_asset.availability === 'missing') {
+      return '参考图文件缺失；请重新上传或移除参考图后再生成图片。'
+    }
+    if (referenceCapability.value === false) {
+      return '当前模型明确不支持参考图；请先移除参考图再生成图片。'
+    }
+    if (referenceCapability.value !== true) {
+      return '参考图能力尚未核实；带参考图时不能生成图片。'
+    }
+    return ''
+  })
+  const referenceUploadDisabledReason = computed(() => {
+    if (referenceBusy.value) return '正在处理参考图，请稍候。'
+    if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
+    if (referenceConflict.value) return '参考图已在别处更新，请先加载最新项目。'
+    if (!configStatus.value) return '正在读取模型配置，请稍候。'
+    if (referenceCapability.value === false) return '当前模型明确不支持参考图。'
+    return ''
+  })
+  const referenceRemoveDisabledReason = computed(() => {
+    if (referenceBusy.value) return '正在处理参考图，请稍候。'
+    if (!currentProject.value) return '尚未选择项目。'
+    if (!currentProject.value.reference_asset) return '当前没有参考图。'
+    if (referenceConflict.value) return '参考图已在别处更新，请先加载最新项目。'
+    return ''
+  })
   const briefBusy = computed(() => briefAction.value !== null)
   const briefDirty = computed(() => {
     const project = currentProject.value
@@ -206,6 +298,7 @@ function createWorkspace(): WorkspaceStore {
 
   const sendDisabledReason = computed(() => {
     if (sendBusy.value) return '正在发送消息，请稍候。'
+    if (referenceBusy.value) return '正在处理参考图，完成前不能发送消息。'
     if (briefBusy.value) return '正在处理需求卡片，完成前不能发送新消息。'
     if (organizing.value) return '正在整理需求，完成前不能发送新消息。'
     if (briefDirty.value) return '有未保存的需求修改，请先保存或取消修改。'
@@ -220,6 +313,7 @@ function createWorkspace(): WorkspaceStore {
 
   const saveDisabledReason = computed(() => {
     if (briefBusy.value) return '正在处理需求操作，请稍候。'
+    if (referenceBusy.value) return '正在处理参考图，完成前不能保存需求。'
     if (sendBusy.value) return '正在发送消息，完成前不能保存需求。'
     if (!currentProject.value) return '尚未选择项目。'
     if (briefConflict.value) return '需求已在别处更新，请先加载最新需求。'
@@ -230,6 +324,7 @@ function createWorkspace(): WorkspaceStore {
 
   const confirmDisabledReason = computed(() => {
     if (sendBusy.value) return '正在发送消息，完成前不能确认需求。'
+    if (referenceBusy.value) return '正在处理参考图，完成前不能确认需求。'
     if (briefBusy.value) return '正在处理需求操作，请稍候。'
     const project = currentProject.value
     if (!project) return '尚未选择项目。'
@@ -257,6 +352,7 @@ function createWorkspace(): WorkspaceStore {
     )
     const hasConfirmedBrief = project?.brief_status === 'confirmed'
     const hasGeneration = projectGenerations.value.some((item) => item.status === 'succeeded')
+    const referenceBlocked = referenceGenerationBlockedReason.value
     return [
       { id: 'describe', label: '描述需求', locked: false, reason: '' },
       {
@@ -270,10 +366,10 @@ function createWorkspace(): WorkspaceStore {
       {
         id: 'generate',
         label: '生成图片',
-        locked: !hasConfirmedBrief,
-        reason: hasProject
+        locked: !hasConfirmedBrief || Boolean(referenceBlocked),
+        reason: referenceBlocked || (hasProject
           ? '需求尚未确认，确认后才能生成图片。'
-          : '尚未选择项目，生成图片将在需求确认后解锁。',
+          : '尚未选择项目，生成图片将在需求确认后解锁。'),
       },
       {
         id: 'results',
@@ -316,6 +412,7 @@ function createWorkspace(): WorkspaceStore {
     briefConfirmError.value = ''
     briefSaveNotice.value = ''
     briefConflict.value = false
+    clearReferenceState()
     projectLoading.value = false
     projectError.value = ''
     projectErrorKind.value = null
@@ -456,6 +553,7 @@ function createWorkspace(): WorkspaceStore {
     projectGenerations.value = []
     resetBriefDraft(null)
     briefEditing.value = false
+    clearReferenceState()
     try {
       const response = await api.getProject(id, controller.signal)
       if (controller.signal.aborted || token !== detailToken) return
@@ -526,6 +624,402 @@ function createWorkspace(): WorkspaceStore {
     return error instanceof ApiError && (error.status === 0 || error.status >= 500)
   }
 
+
+  function createPreviewUrl(file: File): string {
+    if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return ''
+    try {
+      return URL.createObjectURL(file)
+    } catch {
+      return ''
+    }
+  }
+
+  function releasePreview(url: string): void {
+    if (!url || typeof URL === 'undefined' || typeof URL.revokeObjectURL !== 'function') return
+    try {
+      URL.revokeObjectURL(url)
+    } catch {
+      // 预览 URL 释放失败不影响上传流程。
+    }
+  }
+
+  function clearReferencePending(): void {
+    const pending = referencePending.value
+    if (pending) releasePreview(pending.previewUrl)
+    referencePending.value = null
+  }
+
+  function clearReferenceState(): void {
+    referenceToken += 1
+    clearReferencePending()
+    referenceError.value = ''
+    referenceNotice.value = ''
+    referenceAction.value = null
+    referenceChecking.value = false
+    referenceConflict.value = false
+  }
+
+  interface ImageInfo {
+    mimeType: 'image/png' | 'image/jpeg'
+    width: number
+    height: number
+  }
+
+  function readBlob(blob: Blob): Promise<ArrayBuffer> {
+    if (typeof blob.arrayBuffer === 'function') return blob.arrayBuffer()
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (reader.result instanceof ArrayBuffer) resolve(reader.result)
+        else reject(new Error('无法读取图片数据'))
+      }
+      reader.onerror = () => reject(reader.error ?? new Error('无法读取图片数据'))
+      reader.readAsArrayBuffer(blob)
+    })
+  }
+
+  function parsePng(bytes: Uint8Array): { width: number; height: number } | null {
+    if (bytes.length < 24) return null
+    const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+    if (!signature.every((value, index) => bytes[index] === value)) return null
+    const chunkType = String.fromCharCode(bytes[12], bytes[13], bytes[14], bytes[15])
+    if (chunkType !== 'IHDR') return null
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    const width = view.getUint32(16)
+    const height = view.getUint32(20)
+    if (!width || !height) return null
+    return { width, height }
+  }
+
+  function parseJpeg(bytes: Uint8Array): { width: number; height: number } | null {
+    if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null
+    let index = 2
+    while (index + 3 < bytes.length) {
+      if (bytes[index] !== 0xff) {
+        index += 1
+        continue
+      }
+      let marker = bytes[index + 1]
+      while (marker === 0xff && index + 2 < bytes.length) {
+        index += 1
+        marker = bytes[index + 1]
+      }
+      if (marker === 0xd8 || marker === 0xd9 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+        index += 2
+        continue
+      }
+      if (marker === 0xda) return null
+      if (index + 3 >= bytes.length) return null
+      const segmentLength = (bytes[index + 2] << 8) | bytes[index + 3]
+      if (segmentLength < 2 || index + 2 + segmentLength > bytes.length) return null
+      const isStartOfFrame =
+        marker >= 0xc0 &&
+        marker <= 0xcf &&
+        marker !== 0xc4 &&
+        marker !== 0xc8 &&
+        marker !== 0xcc
+      if (isStartOfFrame) {
+        if (index + 8 >= bytes.length) return null
+        const height = (bytes[index + 5] << 8) | bytes[index + 6]
+        const width = (bytes[index + 7] << 8) | bytes[index + 8]
+        return width && height ? { width, height } : null
+      }
+      index += 2 + segmentLength
+    }
+    return null
+  }
+
+  async function inspectImage(file: File): Promise<ImageInfo | null> {
+    const bytes = new Uint8Array(await readBlob(file.slice(0, 512 * 1024)))
+    const png = parsePng(bytes)
+    if (png) return { mimeType: 'image/png', ...png }
+    const jpeg = parseJpeg(bytes)
+    if (jpeg) return { mimeType: 'image/jpeg', ...jpeg }
+    return null
+  }
+
+  function referenceFormatLabel(): string {
+    return referenceMimeTypes.value
+      .map((mime) => (mime === 'image/png' ? 'PNG' : 'JPEG'))
+      .join(' 或 ')
+  }
+
+  function referenceWriteErrorMessage(error: unknown): string {
+    if (!(error instanceof ApiError)) return '参考图操作失败，请稍后重试。'
+    if (error.status === 413 || error.code === 'UPLOAD_TOO_LARGE') {
+      return '参考图超过允许大小，已保留当前参考图。'
+    }
+    if (error.status === 409) {
+      referenceConflict.value = true
+      return '参考图已在别处更新，请加载最新项目后再操作。'
+    }
+    if (error.status === 404) return '项目不存在或已被删除，请刷新项目列表。'
+    if (error.status === 503) return '本地文件存储暂时不可用，已保留当前参考图，请稍后重试。'
+    if (error.code === 'REFERENCE_NOT_SUPPORTED') return '当前模型不支持参考图，已保留当前参考图。'
+    if (error.code === 'UNSUPPORTED_REFERENCE_FORMAT') {
+      return '该参考图格式不受当前模型支持，已保留当前参考图。'
+    }
+    if (error.code === 'INVALID_REFERENCE_IMAGE') {
+      return '图片无法解码或已损坏，已保留当前参考图。'
+    }
+    return error.message || '参考图操作失败，已保留当前参考图，请稍后重试。'
+  }
+
+  function adoptProjectDetail(response: ProjectDetailResponse): void {
+    currentProject.value = response.project
+    projectMessages.value = response.messages
+    projectGenerations.value = response.generations
+    resetBriefDraft(response.project)
+    briefEditing.value = false
+    briefSaveError.value = ''
+    briefConfirmError.value = ''
+    briefSaveNotice.value = ''
+    briefConflict.value = false
+  }
+
+  function applyReferenceProject(project: ProjectView, notice: string): void {
+    currentProject.value = project
+    resetBriefDraft(project)
+    briefEditing.value = false
+    briefSaveError.value = ''
+    briefConfirmError.value = ''
+    briefSaveNotice.value = ''
+    briefConflict.value = false
+    referenceConflict.value = false
+    referenceNotice.value = notice
+    announce(notice)
+  }
+
+  async function verifyReferenceOutcome(
+    projectId: string,
+    kind: 'upload' | 'remove',
+    previousId: string | null,
+    previousRevision: number,
+  ): Promise<boolean> {
+    try {
+      const response = await api.getProject(projectId)
+      if (projectParam.value !== projectId) return true
+      const nextId = response.project.reference_asset?.id ?? null
+      const changedReference =
+        kind === 'upload' &&
+        (Boolean(nextId) && (nextId !== previousId || response.project.revision > previousRevision))
+      const removedReference = kind === 'remove' && previousId !== null && nextId === null
+      if (!changedReference && !removedReference) return false
+      adoptProjectDetail(response)
+      clearReferencePending()
+      referenceConflict.value = false
+      const notice =
+        kind === 'upload'
+          ? '已核实参考图上传成功。旧提示词与确认已失效，请重新整理并确认需求。'
+          : '已核实参考图已移除。旧提示词与确认已失效，请重新整理并确认需求。'
+      referenceNotice.value = notice
+      announce(notice)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async function uploadPendingReference(): Promise<void> {
+    const pending = referencePending.value
+    if (!pending) return
+    const token = ++referenceToken
+    referenceAction.value = 'upload'
+    referenceError.value = ''
+    referenceNotice.value = ''
+    let project = currentProject.value
+    if (!project) {
+      try {
+        project = await api.createProject()
+      } catch (error) {
+        if (isUnconfirmedWrite(error)) {
+          creationUnknown.value = true
+          referenceError.value =
+            '项目创建结果未确认。请打开已有项目核实是否已创建；确认前不会再次创建项目。'
+        } else {
+          referenceError.value = errorMessage(error, '项目创建失败，请稍后重试。')
+        }
+        referencePending.value = { ...pending, status: 'failed' }
+        return
+      }
+      currentProject.value = project
+      projectParam.value = project.id
+      updateProjectUrl(project.id, 'push')
+    }
+    if (!project) return
+    const previousId = project.reference_asset?.id ?? null
+    const previousRevision = project.revision
+    try {
+      const updated = await api.uploadReference(project.id, pending.file, project.revision)
+      if (token !== referenceToken || projectParam.value !== project.id) return
+      applyReferenceProject(
+        updated,
+        '参考图已上传。旧提示词与确认已失效，请重新整理并确认需求。',
+      )
+      clearReferencePending()
+      creationUnknown.value = false
+    } catch (error) {
+      if (token !== referenceToken || projectParam.value !== project.id) return
+      if (isUnconfirmedWrite(error)) {
+        const resolved = await verifyReferenceOutcome(
+          project.id,
+          'upload',
+          previousId,
+          previousRevision,
+        )
+        if (resolved) return
+        referenceError.value =
+          '参考图上传结果未确认。请加载最新项目核实；当前仍保留原参考图。'
+      } else {
+        referenceError.value = referenceWriteErrorMessage(error)
+      }
+      referencePending.value = { ...pending, status: 'failed' }
+    } finally {
+      if (token === referenceToken) referenceAction.value = null
+    }
+  }
+
+  async function chooseReferenceFiles(files: File[]): Promise<void> {
+    if (referenceBusy.value) return
+    if (!files.length) return
+    referenceError.value = ''
+    referenceNotice.value = ''
+    if (files.length !== 1) {
+      referenceError.value = '一次只能上传 1 张参考图，请重新选择。'
+      return
+    }
+    if (referenceCapability.value === false) {
+      referenceError.value = '当前模型明确不支持参考图。'
+      return
+    }
+    if (!configStatus.value) {
+      referenceError.value = '正在读取模型配置，请稍候。'
+      return
+    }
+    const file = files[0]
+    if (file.size === 0) {
+      referenceError.value = '图片文件为空，请选择有效的 PNG 或 JPEG 文件。'
+      return
+    }
+    if (file.size > referenceLimitBytes.value) {
+      referenceError.value =
+        '参考图超过允许大小（最多 ' +
+        referenceLimitBytes.value.toLocaleString() +
+        ' 字节），已保留当前参考图。'
+      return
+    }
+    referenceChecking.value = true
+    try {
+      const info = await inspectImage(file)
+      if (!info) {
+        referenceError.value = '无法读取这张图片，请选择未损坏的 PNG 或 JPEG 文件。'
+        return
+      }
+      if (!referenceMimeTypes.value.includes(info.mimeType)) {
+        referenceError.value = '当前模型不支持该参考图格式；可选用 ' + referenceFormatLabel() + '。'
+        return
+      }
+      clearReferencePending()
+      referencePending.value = {
+        file,
+        name: file.name || '参考图',
+        previewUrl: createPreviewUrl(file),
+        mimeType: info.mimeType,
+        byteSize: file.size,
+        width: info.width,
+        height: info.height,
+        status: 'uploading',
+      }
+      referenceChecking.value = false
+      await uploadPendingReference()
+    } catch {
+      referenceError.value = '无法读取这张图片，请选择未损坏的 PNG 或 JPEG 文件。'
+    } finally {
+      referenceChecking.value = false
+    }
+  }
+
+  async function retryReferenceUpload(): Promise<void> {
+    if (referenceBusy.value || !referencePending.value) return
+    const reason = referenceUploadDisabledReason.value
+    if (reason) {
+      referenceError.value = reason
+      return
+    }
+    referenceError.value = ''
+    await uploadPendingReference()
+  }
+
+  async function removeReference(): Promise<void> {
+    if (referenceBusy.value) return
+    const project = currentProject.value
+    if (!project?.reference_asset) return
+    const reason = referenceRemoveDisabledReason.value
+    if (reason) {
+      referenceError.value = reason
+      return
+    }
+    const token = ++referenceToken
+    referenceAction.value = 'remove'
+    referenceError.value = ''
+    referenceNotice.value = ''
+    const previousId = project.reference_asset.id
+    const previousRevision = project.revision
+    try {
+      const updated = await api.removeReference(project.id, project.revision)
+      if (token !== referenceToken || projectParam.value !== project.id) return
+      if (updated.reference_asset) {
+        referenceError.value = '参考图移除失败，服务仍返回参考图记录，请重试。'
+        return
+      }
+      applyReferenceProject(
+        updated,
+        '参考图已移除。旧提示词与确认已失效，请重新整理并确认需求。',
+      )
+      clearReferencePending()
+    } catch (error) {
+      if (token !== referenceToken || projectParam.value !== project.id) return
+      if (isUnconfirmedWrite(error)) {
+        const resolved = await verifyReferenceOutcome(
+          project.id,
+          'remove',
+          previousId,
+          previousRevision,
+        )
+        if (resolved) return
+        referenceError.value =
+          '参考图移除结果未确认。请加载最新项目核实；当前仍保留原参考图。'
+      } else {
+        referenceError.value = referenceWriteErrorMessage(error)
+      }
+    } finally {
+      if (token === referenceToken) referenceAction.value = null
+    }
+  }
+
+  async function reloadLatestReference(): Promise<void> {
+    if (referenceBusy.value) return
+    const id = projectParam.value ?? currentProject.value?.id
+    if (!id) return
+    const token = ++referenceToken
+    referenceAction.value = 'reload'
+    referenceError.value = ''
+    referenceNotice.value = ''
+    try {
+      const response = await api.getProject(id)
+      if (token !== referenceToken || projectParam.value !== id) return
+      adoptProjectDetail(response)
+      clearReferencePending()
+      referenceConflict.value = false
+      referenceNotice.value = '已加载最新项目。'
+      announce('已加载最新项目。')
+    } catch (error) {
+      referenceError.value = writeErrorMessage(error, '最新项目加载失败，请稍后重试。')
+    } finally {
+      if (token === referenceToken) referenceAction.value = null
+    }
+  }
+
   function applyMessageResponse(response: MessageCreateResponse): void {
     currentProject.value = response.project
     resetBriefDraft(response.project)
@@ -591,7 +1085,7 @@ function createWorkspace(): WorkspaceStore {
   }
 
   async function retryOrganize(): Promise<void> {
-    if (sendBusy.value || briefBusy.value) return
+    if (sendBusy.value || briefBusy.value || referenceBusy.value) return
     const project = currentProject.value
     if (!project) return
     if (briefDirty.value) {
@@ -622,7 +1116,14 @@ function createWorkspace(): WorkspaceStore {
 
   function startBriefEdit(): void {
     const project = currentProject.value
-    if (!project || sendBusy.value || briefBusy.value || project.brief_status === 'organizing') return
+    if (
+      !project ||
+      sendBusy.value ||
+      briefBusy.value ||
+      referenceBusy.value ||
+      project.brief_status === 'organizing'
+    )
+      return
     if (briefConflict.value) {
       briefSaveError.value = '需求已在别处更新，请先加载最新需求后再编辑。'
       return
@@ -683,7 +1184,7 @@ function createWorkspace(): WorkspaceStore {
   }
 
   async function saveBrief(): Promise<void> {
-    if (sendBusy.value || briefBusy.value) return
+    if (sendBusy.value || briefBusy.value || referenceBusy.value) return
     const project = currentProject.value
     const fields = briefDraft.value
     if (!project || !fields || !briefEditing.value || !briefDirty.value) return
@@ -727,7 +1228,7 @@ function createWorkspace(): WorkspaceStore {
   }
 
   async function confirmBrief(): Promise<void> {
-    if (sendBusy.value || briefBusy.value) return
+    if (sendBusy.value || briefBusy.value || referenceBusy.value) return
     const reason = confirmDisabledReason.value
     if (reason) {
       briefConfirmError.value = reason
@@ -760,7 +1261,7 @@ function createWorkspace(): WorkspaceStore {
   }
 
   async function reloadLatestBrief(): Promise<void> {
-    if (sendBusy.value || briefBusy.value) return
+    if (sendBusy.value || briefBusy.value || referenceBusy.value) return
     const id = projectParam.value ?? currentProject.value?.id
     if (!id) return
     briefAction.value = 'reload'
@@ -868,6 +1369,7 @@ function createWorkspace(): WorkspaceStore {
     moreController = null
     detailController?.abort()
     detailController = null
+    clearReferenceState()
     window.removeEventListener('popstate', syncProjectFromUrl)
   })
 
@@ -913,6 +1415,22 @@ function createWorkspace(): WorkspaceStore {
     briefConfirmError,
     briefSaveNotice,
     briefConflict,
+    referencePending,
+    referenceError,
+    referenceNotice,
+    referenceAction,
+    referenceBusy,
+    referenceConflict,
+    referenceCapability,
+    referenceLimitBytes,
+    referenceMimeTypes,
+    referenceGenerationBlockedReason,
+    referenceUploadDisabledReason,
+    referenceRemoveDisabledReason,
+    chooseReferenceFiles,
+    retryReferenceUpload,
+    removeReference,
+    reloadLatestReference,
     promptStale,
     saveDisabledReason,
     confirmDisabledReason,
