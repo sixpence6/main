@@ -14,7 +14,7 @@ from app.adapters.registry import AdapterRegistry, build_default_registry
 from app.config import Settings
 from app.db import ProjectLocks, build_session_factory, create_engine
 from app.errors import ApiError, StartupError
-from app.routers import config_status, health, projects, web
+from app.routers import config_status, health, messages, projects, web
 from app.services.recovery import repair_leftover_state
 from app.startup import ensure_data_dir, prepare_database
 
@@ -93,6 +93,7 @@ def create_app(settings: Settings | None = None, registry: AdapterRegistry | Non
     app.include_router(health.router)
     app.include_router(config_status.router)
     app.include_router(projects.router)
+    app.include_router(messages.router)
 
     @app.api_route(
         "/api/{rest:path}",

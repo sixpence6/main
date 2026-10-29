@@ -70,21 +70,18 @@ class ProjectLocks:
     """In-process, non-blocking per-project lock used to reject concurrent writes early."""
 
     def __init__(self) -> None:
-        self._locks: dict[str, asyncio.Lock] = {}
+        self._owners: set[str] = set()
         self._guard = asyncio.Lock()
 
     async def acquire(self, project_id: str) -> bool:
         async with self._guard:
-            lock = self._locks.setdefault(project_id, asyncio.Lock())
-        if lock.locked():
-            return False
-        await lock.acquire()
-        return True
+            if project_id in self._owners:
+                return False
+            self._owners.add(project_id)
+            return True
 
     def release(self, project_id: str) -> None:
-        lock = self._locks.get(project_id)
-        if lock is not None and lock.locked():
-            lock.release()
+        self._owners.discard(project_id)
 
     @asynccontextmanager
     async def hold(self, project_id: str):

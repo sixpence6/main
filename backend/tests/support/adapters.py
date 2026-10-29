@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -25,11 +26,12 @@ class LLMStub:
     responder: Callable[[OrganizeRequest], OrganizeResult] | None = None
     calls: list[OrganizeRequest] = field(default_factory=list)
     delay_seconds: float = 0.0
+    gate: asyncio.Event | None = None
 
     async def organize(self, request: OrganizeRequest) -> OrganizeResult:
-        import asyncio
-
         self.calls.append(request)
+        if self.gate is not None:
+            await self.gate.wait()
         if self.delay_seconds:
             await asyncio.sleep(self.delay_seconds)
         if self.responder is None:

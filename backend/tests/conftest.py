@@ -52,6 +52,42 @@ def registry() -> AdapterRegistry:
     return build_test_registry()
 
 
+@pytest.fixture
+def llm_settings(settings: Settings) -> Settings:
+    return Settings(
+        _env_file=None,
+        data_dir=settings.data_dir,
+        web_dist_dir=settings.web_dist_dir,
+        llm_adapter="stub-llm",
+        llm_base_url="https://llm.invalid",
+        llm_api_key="sk-test-llm",
+        llm_model="stub-model",
+        llm_timeout_seconds=5,
+        visual_adapter=None,
+        visual_base_url=None,
+        visual_api_key=None,
+        visual_model=None,
+        visual_image_size=None,
+    )
+
+
+@pytest_asyncio.fixture
+async def llm_app(llm_settings: Settings):
+    from tests.support.adapters import build_test_registry
+
+    migrate(llm_settings)
+    application = create_app(settings=llm_settings, registry=build_test_registry())
+    async with application.router.lifespan_context(application):
+        yield application
+
+
+@pytest_asyncio.fixture
+async def llm_client(llm_app):
+    transport = ASGITransport(app=llm_app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as http_client:
+        yield http_client
+
+
 @pytest_asyncio.fixture
 async def app(settings: Settings, registry: AdapterRegistry):
     migrate(settings)
