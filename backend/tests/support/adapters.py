@@ -66,12 +66,25 @@ class VisualStub:
     poll_calls: list[str] = field(default_factory=list)
     fetch_calls: list[str] = field(default_factory=list)
     fail_after_submit: bool = False
+    gate: asyncio.Event | None = None
+    delay_seconds: float = 0.0
+    active_count: int = 0
+    max_active_count: int = 0
 
     async def submit(self, request: GenerationRequest) -> ProviderOutcome:
         self.submit_calls.append(request)
-        if self.submit_outcome is None:
-            raise AssertionError("submit_outcome must be configured by the test")
-        return self.submit_outcome
+        self.active_count += 1
+        self.max_active_count = max(self.max_active_count, self.active_count)
+        try:
+            if self.gate is not None:
+                await self.gate.wait()
+            if self.delay_seconds:
+                await asyncio.sleep(self.delay_seconds)
+            if self.submit_outcome is None:
+                raise AssertionError("submit_outcome must be configured by the test")
+            return self.submit_outcome
+        finally:
+            self.active_count -= 1
 
     async def poll(self, remote_task_id: str) -> ProviderOutcome:
         self.poll_calls.append(remote_task_id)

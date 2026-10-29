@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import io
 import warnings
 from dataclasses import dataclass
@@ -47,7 +48,9 @@ class ReferenceMutation:
 
 def effective_reference_max_bytes(settings: Settings, registry: AdapterRegistry) -> int:
     visual = settings.visual()
-    capabilities = registry.visual_capabilities(visual.adapter_id or "") if visual.configured else None
+    capabilities = (
+        registry.visual_capabilities(visual.adapter_id or "") if visual.configured else None
+    )
     provider_limit = capabilities.provider_max_reference_bytes if capabilities else None
     if provider_limit is not None and provider_limit > 0:
         return min(LOCAL_REFERENCE_MAX_BYTES, provider_limit)
@@ -87,7 +90,7 @@ def inspect_image(data: bytes) -> ImageInfo:
     return ImageInfo(mime_type=mime_type, width=width, height=height)
 
 
-def _write_file(settings: Settings, relative_path: str, data: bytes) -> None:
+def write_asset_file(settings: Settings, relative_path: str, data: bytes) -> None:
     destination = settings.resolved_data_dir() / relative_path
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = settings.temp_dir / f"{uuid4()}.part"
@@ -95,11 +98,9 @@ def _write_file(settings: Settings, relative_path: str, data: bytes) -> None:
     temporary.replace(destination)
 
 
-def _delete_file(settings: Settings, relative_path: str) -> None:
-    try:
+def delete_asset_file(settings: Settings, relative_path: str) -> None:
+    with contextlib.suppress(OSError):
         (settings.resolved_data_dir() / relative_path).unlink()
-    except OSError:
-        pass
 
 
 def resolve_asset_file(settings: Settings, asset: Asset) -> Path | None:
@@ -148,7 +149,7 @@ async def attach_reference(
         asset_id = str(uuid4())
         extension = MIME_EXTENSIONS[image.mime_type]
         relative_path = f"assets/{asset_id}.{extension}"
-        await asyncio.to_thread(_write_file, settings, relative_path, data)
+        await asyncio.to_thread(write_asset_file, settings, relative_path, data)
         try:
             async with write_transaction(session_factory) as session:
                 project = await require_project(session, project_id)
@@ -177,7 +178,7 @@ async def attach_reference(
                 await session.flush()
                 return ReferenceMutation(project, asset)
         except BaseException:
-            await asyncio.to_thread(_delete_file, settings, relative_path)
+            await asyncio.to_thread(delete_asset_file, settings, relative_path)
             raise
 
 

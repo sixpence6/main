@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -14,7 +15,16 @@ from app.adapters.registry import AdapterRegistry, build_default_registry
 from app.config import Settings
 from app.db import ProjectLocks, build_session_factory, create_engine
 from app.errors import ApiError, StartupError
-from app.routers import assets, briefs, config_status, health, messages, projects, web
+from app.routers import (
+    assets,
+    briefs,
+    config_status,
+    generations,
+    health,
+    messages,
+    projects,
+    web,
+)
 from app.services.recovery import repair_leftover_state
 from app.startup import ensure_data_dir, prepare_database
 
@@ -31,6 +41,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await prepare_database(engine)
         app.state.session_factory = build_session_factory(engine)
         app.state.locks = ProjectLocks()
+        app.state.generation_slots = asyncio.Semaphore(1)
+        app.state.generation_tasks = set()
         app.state.http = httpx.AsyncClient(timeout=None)
         await repair_leftover_state(app)
         logger.info("backend ready on data dir %s", settings.resolved_data_dir())
@@ -39,13 +51,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.error("startup aborted: %s", "see previous log entry")
         raise
     finally:
+        tasks = getattr(app.state, "generation_tasks", set())
+        for task in list(tasks):
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
         client = getattr(app.state, "http", None)
         if client is not None:
             await client.aclose()
         await engine.dispose()
 
 
-def create_app(settings: Settings | None = None, registry: AdapterRegistry | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, registry: AdapterRegistry | None = None
+) -> FastAPI:
     resolved = settings or Settings()
     app = FastAPI(
         title="电商生图智能体后端",
@@ -67,7 +86,10 @@ def create_app(settings: Settings | None = None, registry: AdapterRegistry | Non
         errors = exc.errors()
         if errors:
             location = [part for part in errors[0].get("loc", ()) if isinstance(part, str)]
-            field = next((part for part in reversed(location) if part not in {"body", "query", "path"}), None)
+            field = next(
+                (part for part in reversed(location) if part not in {"body", "query", "path"}),
+                None,
+            )
             if field:
                 message = f"字段 {field} 不合法"
         return JSONResponse(
@@ -81,7 +103,9 @@ def create_app(settings: Settings | None = None, registry: AdapterRegistry | Non
                 {"error": {"code": "ROUTE_NOT_FOUND", "message": "接口不存在"}}, status_code=404
             )
         detail = exc.detail if isinstance(exc.detail, str) else "请求失败"
-        return JSONResponse({"error": {"code": "HTTP_ERROR", "message": detail}}, status_code=exc.status_code)
+        return JSONResponse(
+            {"error": {"code": "HTTP_ERROR", "message": detail}}, status_code=exc.status_code
+        )
 
     @app.exception_handler(Exception)
     async def _unexpected(_request: Request, exc: Exception) -> JSONResponse:
@@ -96,6 +120,7 @@ def create_app(settings: Settings | None = None, registry: AdapterRegistry | Non
     app.include_router(messages.router)
     app.include_router(briefs.router)
     app.include_router(assets.router)
+    app.include_router(generations.router)
 
     @app.api_route(
         "/api/{rest:path}",
