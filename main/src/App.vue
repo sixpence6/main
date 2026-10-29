@@ -10,11 +10,21 @@ import ResultPlaceholder from './components/ResultPlaceholder.vue'
 import SideDrawer from './components/SideDrawer.vue'
 import StageNav from './components/StageNav.vue'
 import StatusAnnouncer from './components/StatusAnnouncer.vue'
+import UnsavedChangesDialog from './components/UnsavedChangesDialog.vue'
 import { provideWorkspace } from './composables/useWorkspace'
 import './styles/workspace.css'
 
 const workspace = provideWorkspace()
-const { isMobile, openSideDrawer } = workspace
+const {
+  isMobile,
+  openSideDrawer,
+  navigationConfirmOpen,
+  navigationIntentLabel,
+  draftDirty,
+  briefDirty,
+  confirmNavigation,
+  cancelNavigation,
+} = workspace
 const showResults = computed(
   () => workspace.stage.value === 'results' && Boolean(workspace.currentProject.value),
 )
@@ -49,6 +59,14 @@ const showResults = computed(
     <SideDrawer />
     <ProjectDrawer />
     <ModelStatusDrawer />
+    <UnsavedChangesDialog
+      :open="navigationConfirmOpen"
+      :destination="navigationIntentLabel"
+      :draft-dirty="draftDirty"
+      :brief-dirty="briefDirty"
+      @cancel="cancelNavigation"
+      @confirm="confirmNavigation"
+    />
     <StatusAnnouncer />
   </div>
 </template>

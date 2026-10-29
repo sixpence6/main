@@ -36,6 +36,9 @@ describe('T01 空配置工作台', () => {
     const textarea = screen.getByRole('textbox', { name: '描述商品与图片需求' })
     await harness.user.type(textarea, '一段尚未发送的草稿')
     await harness.user.click(screen.getByRole('button', { name: '新建项目' }))
+    const dialog = await screen.findByRole('alertdialog', { name: '放弃未保存的修改？' })
+    expect(within(dialog).getByText('输入框中尚未发送的文字')).toBeVisible()
+    await harness.user.click(within(dialog).getByRole('button', { name: '放弃修改' }))
 
     expect(textarea).toHaveValue('')
     expect(window.location.search).toBe('')

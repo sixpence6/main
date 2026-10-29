@@ -39,6 +39,8 @@ const {
   briefConfirmError,
   briefSaveNotice,
   briefConflict,
+  briefLocalCopy,
+  viewLocalBriefCopy,
   promptStale,
   saveDisabledReason,
   confirmDisabledReason,
@@ -198,7 +200,7 @@ watch(
           <button
             type="button"
             class="secondary-button"
-            :disabled="sendBusy || organizing || briefBusy"
+            :disabled="sendBusy || organizing || briefBusy || briefConflict || briefLocalCopy"
             @click="retryOrganize"
           >
             重新整理
@@ -222,6 +224,7 @@ watch(
           :save-error="briefSaveError"
           :confirm-error="briefConfirmError"
           :conflict="briefConflict"
+          :local-copy="briefLocalCopy"
           @start-edit="startBriefEdit"
           @update-field="setBriefField"
           @save="saveBrief"
@@ -229,6 +232,7 @@ watch(
           @confirm="confirmBrief"
           @reorganize="retryOrganize"
           @reload-latest="reloadLatestBrief"
+          @view-local-copy="viewLocalBriefCopy"
         />
 
         <section class="conversation-history" aria-labelledby="history-title">

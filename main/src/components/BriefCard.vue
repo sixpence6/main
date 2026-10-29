@@ -27,6 +27,7 @@ const props = defineProps<{
   saveError?: string
   confirmError?: string
   conflict?: boolean
+  localCopy?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -37,6 +38,7 @@ const emit = defineEmits<{
   (e: 'confirm'): void
   (e: 'reorganize'): void
   (e: 'reload-latest'): void
+  (e: 'view-local-copy'): void
 }>()
 
 const headingId = useId()
@@ -49,7 +51,7 @@ const fields = computed(() => {
       .filter((field) => Boolean(props.brief[field.key]?.trim()))
       .map((field) => ({ ...field, value: props.brief[field.key] }))
   }
-  if (props.editing) {
+  if (props.editing || props.localCopy) {
     return editableBriefFields.map((field) => ({
       ...field,
       value: props.draft?.[field.key] ?? props.brief[field.key],
@@ -102,14 +104,17 @@ function onFieldInput(key: EditableBriefKey, event: Event): void {
         </dt>
         <dd>
           <textarea
-            v-if="editable && editing"
+            v-if="editable && (editing || localCopy)"
             :id="fieldId(field.key)"
             :value="field.value"
             class="brief-input"
+            :class="{ 'brief-local-input': localCopy }"
+            :aria-label="localCopy ? field.label : undefined"
             rows="3"
+            :readonly="localCopy"
             :aria-invalid="Boolean(fieldErrors?.[field.key])"
             :aria-describedby="fieldErrors?.[field.key] ? fieldErrorId(field.key) : undefined"
-            :disabled="busy"
+            :disabled="!localCopy && busy"
             @input="onFieldInput(field.key, $event)"
           />
           <template v-else>{{ field.value }}</template>
@@ -180,7 +185,16 @@ function onFieldInput(key: EditableBriefKey, event: Event): void {
       <p class="muted">暂无参考图。</p>
     </div>
 
-    <div v-if="editable && !snapshot" class="brief-actions">
+    <div v-if="editable && !snapshot && localCopy" class="brief-local-copy">
+      <p class="status-warning">
+        当前显示的是未保存的本地副本（只读）。可复制内容，或加载最新需求后继续编辑。
+      </p>
+      <button type="button" class="secondary-button" :disabled="busy" @click="emit('reload-latest')">
+        加载最新需求
+      </button>
+    </div>
+
+    <div v-else-if="editable && !snapshot" class="brief-actions">
       <button
         v-if="!editing"
         type="button"
@@ -234,6 +248,9 @@ function onFieldInput(key: EditableBriefKey, event: Event): void {
         <span>当前操作基于已过期的需求版本，请加载最新需求后再操作。</span>
         <button type="button" class="secondary-button" @click="emit('reload-latest')">
           加载最新需求
+        </button>
+        <button type="button" class="secondary-button" @click="emit('view-local-copy')">
+          只读查看本地副本
         </button>
       </p>
     </div>

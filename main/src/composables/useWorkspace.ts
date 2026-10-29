@@ -57,8 +57,19 @@ export interface PendingGenerationRequest {
   confirmedRevision: number
 }
 
+type NavigationIntent =
+  | { kind: 'new' }
+  | { kind: 'project'; projectId: string }
+  | { kind: 'history'; projectId: string | null }
+
 export interface WorkspaceStore {
   draft: Ref<string>
+  draftDirty: ComputedRef<boolean>
+  hasUnsavedChanges: ComputedRef<boolean>
+  navigationConfirmOpen: Ref<boolean>
+  navigationIntentLabel: ComputedRef<string>
+  confirmNavigation: () => void
+  cancelNavigation: () => void
   projectParam: Ref<string | null>
   stage: Ref<StageId>
   stages: ComputedRef<StageView[]>
@@ -99,6 +110,7 @@ export interface WorkspaceStore {
   briefConfirmError: Ref<string>
   briefSaveNotice: Ref<string>
   briefConflict: Ref<boolean>
+  briefLocalCopy: Ref<boolean>
   promptStale: ComputedRef<boolean>
   saveDisabledReason: ComputedRef<string>
   confirmDisabledReason: ComputedRef<string>
@@ -138,6 +150,7 @@ export interface WorkspaceStore {
   saveBrief: () => Promise<void>
   confirmBrief: () => Promise<void>
   reloadLatestBrief: () => Promise<void>
+  viewLocalBriefCopy: () => void
   send: () => Promise<void>
   retryOrganize: () => Promise<void>
   toggleSidebar: () => void
@@ -188,6 +201,14 @@ function createWorkspace(): WorkspaceStore {
   const modelDrawerOpen = ref(false)
   const projectDrawerOpen = ref(false)
   const announcement = ref('')
+  const navigationConfirmOpen = ref(false)
+  const navigationIntent = ref<NavigationIntent | null>(null)
+  const navigationIntentLabel = computed(() => {
+    if (navigationIntent.value?.kind === 'new') return '新建项目'
+    if (navigationIntent.value?.kind === 'project') return '切换项目'
+    if (navigationIntent.value?.kind === 'history') return '离开当前项目'
+    return '继续操作'
+  })
 
   const configStatus = ref<ConfigStatus | null>(null)
   const configError = ref('')
@@ -212,6 +233,7 @@ function createWorkspace(): WorkspaceStore {
   const projectErrorKind = ref<ProjectErrorKind | null>(null)
   let detailController: AbortController | null = null
   let detailToken = 0
+  let projectContextToken = 0
 
   const sendBusy = ref(false)
   const sendError = ref('')
@@ -276,6 +298,7 @@ function createWorkspace(): WorkspaceStore {
   const briefConfirmError = ref('')
   const briefSaveNotice = ref('')
   const briefConflict = ref(false)
+  const briefLocalCopy = ref(false)
 
   const referencePending = shallowRef<PendingReference | null>(null)
   const referenceError = ref('')
@@ -347,6 +370,8 @@ function createWorkspace(): WorkspaceStore {
     if (!project || !fields) return false
     return editableBriefFields.some((field) => fields[field.key] !== project.brief[field.key])
   })
+  const draftDirty = computed(() => draft.value.trim().length > 0)
+  const hasUnsavedChanges = computed(() => draftDirty.value || briefDirty.value)
   const promptStale = computed(() => {
     const project = currentProject.value
     if (!project) return false
@@ -366,6 +391,7 @@ function createWorkspace(): WorkspaceStore {
   function resetBriefDraft(project: ProjectView | null): void {
     briefDraft.value = project ? briefFieldsFrom(project.brief) : null
     briefFieldErrors.value = {}
+    briefLocalCopy.value = false
   }
 
   const sendDisabledReason = computed(() => {
@@ -375,6 +401,8 @@ function createWorkspace(): WorkspaceStore {
     if (referenceBusy.value) return '正在处理参考图，完成前不能发送消息。'
     if (briefBusy.value) return '正在处理需求卡片，完成前不能发送新消息。'
     if (organizing.value) return '正在整理需求，完成前不能发送新消息。'
+    if (briefConflict.value) return '需求已在别处更新，请先加载最新需求，再发送消息。'
+    if (briefLocalCopy.value) return '正在查看未保存的本地副本，请先加载最新需求，再发送消息。'
     if (briefDirty.value) return '有未保存的需求修改，请先保存或取消修改，再发送消息。'
     if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
     const llm = configStatus.value?.llm
@@ -392,6 +420,7 @@ function createWorkspace(): WorkspaceStore {
     if (sendBusy.value) return '正在发送消息，完成前不能保存需求。'
     if (!currentProject.value) return '尚未选择项目。'
     if (briefConflict.value) return '需求已在别处更新，请先加载最新需求。'
+    if (briefLocalCopy.value) return '正在查看未保存的本地副本，请先加载最新需求。'
     if (!briefEditing.value) return '请先进入编辑状态。'
     if (!briefDirty.value) return '尚未修改需求。'
     return ''
@@ -405,6 +434,7 @@ function createWorkspace(): WorkspaceStore {
     const project = currentProject.value
     if (!project) return '尚未选择项目。'
     if (briefConflict.value) return '需求已在别处更新，请先加载最新需求。'
+    if (briefLocalCopy.value) return '正在查看未保存的本地副本，请先加载最新需求。'
     if (briefDirty.value) return '有未保存的修改，请先保存或取消修改。'
     if (draft.value.trim()) return '请先发送或清空输入框中的文字。'
     if (project.brief_status === 'confirmed') return '需求已经确认，无需重复确认。'
@@ -430,6 +460,8 @@ function createWorkspace(): WorkspaceStore {
     if (!project) return '尚未选择项目。'
     if (generationUncertain.value) return '上一次生成提交结果尚未确认，请先核实。'
     if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
+    if (briefConflict.value) return '需求已在别处更新，请先加载最新需求，再生成图片。'
+    if (briefLocalCopy.value) return '正在查看未保存的本地副本，请先加载最新需求，再生成图片。'
     if (draft.value.trim()) return '请先发送或清空输入框中的文字，再生成图片。'
     if (briefEditing.value) return '请先完成或取消需求编辑，再生成图片。'
     if (briefDirty.value) return '有未保存的需求修改，请先保存或取消修改，再生成图片。'
@@ -516,10 +548,41 @@ function createWorkspace(): WorkspaceStore {
     else window.history.replaceState({ project: id }, '', next)
   }
 
+  function openNavigationConfirm(intent: NavigationIntent): void {
+    closeProjectDrawer()
+    closeSideDrawer()
+    navigationIntent.value = intent
+    navigationConfirmOpen.value = true
+    announce('当前有未保存的修改，请确认是否放弃。')
+  }
+
+  function cancelNavigation(): void {
+    navigationIntent.value = null
+    navigationConfirmOpen.value = false
+    announce('已保留当前修改。')
+  }
+
+  function confirmNavigation(): void {
+    const intent = navigationIntent.value
+    navigationIntent.value = null
+    navigationConfirmOpen.value = false
+    if (!intent) return
+    if (intent.kind === 'new') {
+      performCreateNewProject()
+      return
+    }
+    if (intent.kind === 'project') {
+      performSelectProject(intent.projectId)
+      return
+    }
+    performHistoryNavigation(intent.projectId)
+  }
+
   function clearProjectDetail(): void {
     detailController?.abort()
     detailController = null
     detailToken += 1
+    projectContextToken += 1
     resetGenerationState()
     currentProject.value = null
     projectMessages.value = []
@@ -537,6 +600,14 @@ function createWorkspace(): WorkspaceStore {
   }
 
   function createNewProject(): void {
+    if (hasUnsavedChanges.value) {
+      openNavigationConfirm({ kind: 'new' })
+      return
+    }
+    performCreateNewProject()
+  }
+
+  function performCreateNewProject(): void {
     creationUnknown.value = false
     sendError.value = ''
     briefAction.value = null
@@ -663,6 +734,7 @@ function createWorkspace(): WorkspaceStore {
     const controller = new AbortController()
     detailController = controller
     const token = ++detailToken
+    projectContextToken += 1
     resetGenerationState()
     stage.value = 'describe'
     projectLoading.value = true
@@ -685,6 +757,7 @@ function createWorkspace(): WorkspaceStore {
       briefSaveError.value = ''
       briefConfirmError.value = ''
       briefSaveNotice.value = ''
+      briefConflict.value = false
       creationUnknown.value = false
     } catch (error) {
       if (isAbortError(error) || controller.signal.aborted || token !== detailToken) return
@@ -1435,6 +1508,7 @@ function createWorkspace(): WorkspaceStore {
     }
     const content = draft.value
     const originalProject = currentProject.value
+    const contextToken = projectContextToken
     sendBusy.value = true
     sendError.value = ''
     try {
@@ -1452,6 +1526,7 @@ function createWorkspace(): WorkspaceStore {
           }
           return
         }
+        if (projectContextToken !== contextToken) return
         currentProject.value = project
         projectParam.value = project.id
         updateProjectUrl(project.id, 'push')
@@ -1462,13 +1537,14 @@ function createWorkspace(): WorkspaceStore {
         content,
         expected_revision: project.revision,
       })
-      if (projectParam.value !== project.id) return
+      if (projectContextToken !== contextToken || projectParam.value !== project.id) return
       applyMessageResponse(response)
       creationUnknown.value = false
       draft.value = ''
       sendError.value = ''
       announce('需求整理完成，已显示最新回复。')
     } catch (error) {
+      if (projectContextToken !== contextToken) return
       sendError.value = writeErrorMessage(error, '消息发送失败，输入内容已保留，请稍后重试。')
     } finally {
       sendBusy.value = false
@@ -1483,11 +1559,20 @@ function createWorkspace(): WorkspaceStore {
       briefSaveError.value = '请先保存或取消当前修改，再重新整理需求。'
       return
     }
+    if (briefConflict.value) {
+      briefSaveError.value = '需求已在别处更新，请先加载最新需求，再重新整理。'
+      return
+    }
+    if (briefLocalCopy.value) {
+      briefSaveError.value = '正在查看未保存的本地副本，请先加载最新需求，再重新整理。'
+      return
+    }
     const reason = modelConfigReason()
     if (reason) {
       sendError.value = reason
       return
     }
+    const contextToken = projectContextToken
     briefAction.value = 'organize'
     sendError.value = ''
     try {
@@ -1495,10 +1580,11 @@ function createWorkspace(): WorkspaceStore {
         content: '请按当前已保存的需求重新整理。',
         expected_revision: project.revision,
       })
-      if (projectParam.value !== project.id) return
+      if (projectContextToken !== contextToken || projectParam.value !== project.id) return
       applyMessageResponse(response)
       announce('已重新请求整理当前需求。')
     } catch (error) {
+      if (projectContextToken !== contextToken) return
       sendError.value = writeErrorMessage(error, '重新整理失败，已保存的卡片内容仍会保留。')
     } finally {
       briefAction.value = null
@@ -1519,6 +1605,10 @@ function createWorkspace(): WorkspaceStore {
       return
     if (briefConflict.value) {
       briefSaveError.value = '需求已在别处更新，请先加载最新需求后再编辑。'
+      return
+    }
+    if (briefLocalCopy.value) {
+      briefSaveError.value = '正在查看未保存的本地副本，请先加载最新需求后再编辑。'
       return
     }
     briefDraft.value = briefFieldsFrom(project.brief)
@@ -1589,13 +1679,14 @@ function createWorkspace(): WorkspaceStore {
       briefSaveError.value = '请先修正标出的字段后再保存。'
       return
     }
+    const contextToken = projectContextToken
     briefAction.value = 'save'
     briefSaveError.value = ''
     briefConfirmError.value = ''
     briefSaveNotice.value = ''
     try {
       const updated = await api.updateBrief(project.id, patch)
-      if (projectParam.value !== project.id) return
+      if (projectContextToken !== contextToken || projectParam.value !== project.id) return
       currentProject.value = updated
       resetBriefDraft(updated)
       briefEditing.value = false
@@ -1605,6 +1696,7 @@ function createWorkspace(): WorkspaceStore {
         : '需求已保存。旧提示词已过期，请重新整理需求后再确认。'
       announce('需求已保存。')
     } catch (error) {
+      if (projectContextToken !== contextToken) return
       if (error instanceof ApiError && error.status === 409) {
         briefConflict.value = true
         briefSaveError.value = '需求已在别处更新，本地修改仍保留。请加载最新需求后再操作。'
@@ -1629,19 +1721,21 @@ function createWorkspace(): WorkspaceStore {
     }
     const project = currentProject.value
     if (!project) return
+    const contextToken = projectContextToken
     briefAction.value = 'confirm'
     briefConfirmError.value = ''
     briefSaveError.value = ''
     briefSaveNotice.value = ''
     try {
       const updated = await api.confirmBrief(project.id, project.revision)
-      if (projectParam.value !== project.id) return
+      if (projectContextToken !== contextToken || projectParam.value !== project.id) return
       currentProject.value = updated
       resetBriefDraft(updated)
       briefEditing.value = false
       briefSaveNotice.value = '需求已确认。'
       announce('需求已确认。')
     } catch (error) {
+      if (projectContextToken !== contextToken) return
       if (error instanceof ApiError && error.status === 409) {
         briefConflict.value = true
         briefConfirmError.value = '需求已在别处更新或尚不能确认，请加载最新需求后再操作。'
@@ -1657,12 +1751,13 @@ function createWorkspace(): WorkspaceStore {
     if (sendBusy.value || briefBusy.value || referenceBusy.value) return
     const id = projectParam.value ?? currentProject.value?.id
     if (!id) return
+    const contextToken = projectContextToken
     briefAction.value = 'reload'
     briefSaveError.value = ''
     briefConfirmError.value = ''
     try {
       const response = await api.getProject(id)
-      if (projectParam.value !== id) return
+      if (projectContextToken !== contextToken || projectParam.value !== id) return
       currentProject.value = response.project
       projectMessages.value = response.messages
       projectGenerations.value = response.generations
@@ -1672,16 +1767,39 @@ function createWorkspace(): WorkspaceStore {
       briefSaveNotice.value = '已加载最新需求。'
       announce('已加载最新需求。')
     } catch (error) {
+      if (projectContextToken !== contextToken) return
       briefSaveError.value = writeErrorMessage(error, '最新需求加载失败，请稍后重试。')
     } finally {
       briefAction.value = null
     }
   }
 
+  function viewLocalBriefCopy(): void {
+    if (!briefConflict.value || !briefDraft.value) return
+    briefEditing.value = false
+    briefLocalCopy.value = true
+    briefSaveError.value = ''
+    briefConfirmError.value = ''
+    const notice = '正在查看未保存的本地副本（只读），可复制内容或加载最新需求。'
+    briefSaveNotice.value = notice
+    announce(notice)
+  }
+
   function selectProject(id: string): void {
+    if (id === projectParam.value && currentProject.value?.id === id) return
+    if (hasUnsavedChanges.value) {
+      openNavigationConfirm({ kind: 'project', projectId: id })
+      return
+    }
+    performSelectProject(id)
+  }
+
+  function performSelectProject(id: string): void {
     creationUnknown.value = false
     sendError.value = ''
+    draft.value = ''
     closeProjectDrawer()
+    closeSideDrawer()
     projectParam.value = id
     updateProjectUrl(id, 'push')
     void loadProject(id)
@@ -1694,12 +1812,37 @@ function createWorkspace(): WorkspaceStore {
 
   function syncProjectFromUrl(): void {
     const id = currentProjectParam()
+    if (id === projectParam.value) return
+    if (hasUnsavedChanges.value) {
+      updateProjectUrl(projectParam.value, 'replace')
+      openNavigationConfirm({ kind: 'history', projectId: id })
+      return
+    }
     projectParam.value = id
     if (id === null) {
       clearProjectDetail()
       stage.value = 'describe'
       return
     }
+    void loadProject(id)
+  }
+
+  function performHistoryNavigation(id: string | null): void {
+    creationUnknown.value = false
+    sendError.value = ''
+    draft.value = ''
+    if (id === null) {
+      clearProjectDetail()
+      projectParam.value = null
+      stage.value = 'describe'
+      sideDrawerOpen.value = false
+      projectDrawerOpen.value = false
+      updateProjectUrl(null, 'push')
+      announce('已切换到空白工作台。')
+      return
+    }
+    projectParam.value = id
+    updateProjectUrl(id, 'push')
     void loadProject(id)
   }
 
@@ -1745,8 +1888,25 @@ function createWorkspace(): WorkspaceStore {
     { flush: 'sync' },
   )
 
+  function handleBeforeUnload(event: BeforeUnloadEvent): void {
+    if (!hasUnsavedChanges.value) return
+    event.preventDefault()
+    event.returnValue = ''
+  }
+
+  watch(
+    hasUnsavedChanges,
+    (dirty) => {
+      if (typeof window === 'undefined') return
+      if (dirty) window.addEventListener('beforeunload', handleBeforeUnload)
+      else window.removeEventListener('beforeunload', handleBeforeUnload)
+    },
+    { flush: 'sync' },
+  )
+
   onMounted(() => {
     void refreshConfig()
+    if (hasUnsavedChanges.value) window.addEventListener('beforeunload', handleBeforeUnload)
     if (projectParam.value !== null) {
       void loadProject(projectParam.value)
     }
@@ -1765,10 +1925,17 @@ function createWorkspace(): WorkspaceStore {
     resetGenerationState()
     clearReferenceState()
     window.removeEventListener('popstate', syncProjectFromUrl)
+    window.removeEventListener('beforeunload', handleBeforeUnload)
   })
 
   return {
     draft,
+    draftDirty,
+    hasUnsavedChanges,
+    navigationConfirmOpen,
+    navigationIntentLabel,
+    confirmNavigation,
+    cancelNavigation,
     projectParam,
     stage,
     stages,
@@ -1809,6 +1976,7 @@ function createWorkspace(): WorkspaceStore {
     briefConfirmError,
     briefSaveNotice,
     briefConflict,
+    briefLocalCopy,
     referencePending,
     referenceError,
     referenceNotice,
@@ -1848,6 +2016,7 @@ function createWorkspace(): WorkspaceStore {
     saveBrief,
     confirmBrief,
     reloadLatestBrief,
+    viewLocalBriefCopy,
     send,
     retryOrganize,
     toggleSidebar,
