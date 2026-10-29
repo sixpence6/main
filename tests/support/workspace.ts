@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import ElementPlus from 'element-plus'
+import { nextTick } from 'vue'
 import { vi } from 'vitest'
 import App from '@/App.vue'
 import type { ConfigStatus } from '@/api/types'
@@ -14,6 +15,10 @@ export interface MountWorkspaceOptions {
   config?: ConfigStatus
   configResponses?: MockStep[]
   fakeClock?: boolean
+  /** 视口宽度（px），在挂载前设置，用于断点相关行为。 */
+  viewportWidth?: number
+  /** 初始地址（可含 ?project=...），测试结束恢复原地址。 */
+  url?: string
 }
 
 /**
@@ -26,6 +31,20 @@ export async function mountWorkspace(options: MountWorkspaceOptions = {}) {
   if (options.fakeClock) clock.install()
   const visibility = new VisibilityController().install()
   const storage = new StorageController().install()
+
+  const originalUrl = window.location.href
+  const viewportDescriptor = Object.getOwnPropertyDescriptor(window, 'innerWidth')
+  const setViewportWidth = async (width: number): Promise<void> => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      writable: true,
+      value: width,
+    })
+    window.dispatchEvent(new Event('resize'))
+    await nextTick()
+  }
+  if (options.url) window.history.replaceState({}, '', options.url)
+  if (options.viewportWidth !== undefined) await setViewportWidth(options.viewportWidth)
 
   const steps = options.configResponses ?? [{ body: options.config ?? emptyConfig() }]
   fetchController.sequence('GET', '/api/config/status', steps)
@@ -47,12 +66,17 @@ export async function mountWorkspace(options: MountWorkspaceOptions = {}) {
     screen,
     within,
     waitFor,
+    setViewportWidth,
     dispose(): void {
       rendered.unmount()
       fetchController.restore()
       visibility.restore()
       storage.restore()
       clock.restore()
+      window.history.replaceState({}, '', originalUrl)
+      if (viewportDescriptor) {
+        Object.defineProperty(window, 'innerWidth', viewportDescriptor)
+      }
     },
   }
 }
