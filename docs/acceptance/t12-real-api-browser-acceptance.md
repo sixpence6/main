@@ -1,24 +1,24 @@
 # T12 真实 API 联调与浏览器完整闭环验收记录
 
 - **Issue**：GitHub #13《真实 API 联调与浏览器完整闭环验收》
-- **分支**：`integration/frontend-v1`
-- **核验基准备份**：`3ce5c75`（T11 完成提交）
-- **记录日期**：2026-10-29（Asia/Shanghai）
-- **结论**：**阻塞，未通过，不得视为真实闭环完成**。本记录只完成外部前提核验、契约映射盘点、自动化回归证据与待验收清单；没有真实后端、真实 OpenAPI、真实 LLM/VISUAL 配置，也没有 Chrome 浏览器，因此真实生成、持久化重启和跨浏览器验收均未执行。Issue #13 应保持打开并交由人工在前提具备后继续。
+- **前端基线分支**：`integration/frontend-v1`；后端 handoff：`integration/backend-v1`
+- **核验基准备份**：`3ce5c75`（前端 T11 完成提交）
+- **记录日期**：初记 2026-10-29；后端 T15 handoff 更新 2026-10-30（Asia/Shanghai）
+- **结论**：**浏览器验收仍阻塞，不能关闭 #13**。真实后端、OpenAPI、LLM/VISUAL 配置与持久化证据已由 T15 提供；FE-DEP-01–06 契约/映射核验通过。Chrome 缺失且 Chrome/Edge 人工场景未执行，FE-AC-01–22 仍全部未验证，整体 v1 不能标记完成。
 
-> 依据 T12 规格：前提不满足时必须列明阻塞证据和待验收项，不能以受控测试、模拟图片或布局检查替代真实闭环。本文件不包含任何 API Key、供应商原始响应或敏感配置。
-
-## 1. 外部前提与阻塞证据
+> 本文件只把后端真实证据作为浏览器验收前提，不把受控测试、真实 API 响应或布局检查替代 Chrome/Edge 人工验收。本文件不包含任何 API Key、供应商原始响应或敏感配置。
+## 1. 外部前提与当前状态
 
 | 前提 | 状态 | 证据 |
 |---|---|---|
-| 可运行的本机后端 | **缺失** | 仓库根目录仅含前端 `main/`、测试 `tests/`、文档 `docs/` 与规格 `vesion/`；文件扫描未发现后端源码、`openapi*.json/yaml` 或 `swagger*` 文件。 |
-| 本机前端 API 服务 | **不可用** | `127.0.0.1:8000` 上运行的是无关应用“智能审计助手 V1”：`GET /api/v1/health` 返回该应用信息，`GET /api/config/status` 与 `GET /api/projects` 返回 HTML 404；`8080` 返回纯文本 404。没有本项目所需的 `/api/config/status`、`/api/projects`、`/api/generations`、`/api/assets`。 |
-| 真实 OpenAPI | **缺失** | 无本项目可读取的 OpenAPI 文档；`main/src/api/types.ts`、`main/src/api/client.ts` 仍按后端设计草案与 `.scratch/implementation/contracts.md` 先行映射，未与真实 schema 核验。 |
-| 真实 LLM 配置 | **缺失** | 仓库与本机工作目录均无本项目 `.env`；无法执行需求整理、澄清或生成。 |
-| 真实 VISUAL 配置（纯文字与参考图） | **缺失** | 无供应商 Key、模型标识、能力字段、输出尺寸或文件限制可验证；参考图是否实际进入视觉请求无法取证。 |
-| Windows Chrome | **缺失** | 已检查常见安装路径，未发现 Chrome。 |
-| Windows Edge | **具备但不足以验收** | `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`，版本 `156.0.4314.50`；因无真实后端数据，仅能用于后续补充布局检查，不能替代真实闭环。 |
+| 可运行的本机后端 | **具备** | `main/backend/app` + `backend/.venv`；迁移 `0001 (head)`；169 后端测试通过 |
+| 本机前端 API 服务 | **具备** | uvicorn `127.0.0.1:8720`；`GET /api/health` 200；14 个 API 方法可调用 |
+| 真实 OpenAPI | **具备** | 12 paths / 14 operations；`docs/acceptance/evidence/openapi-v1.json`；T15 contract 5 tests |
+| 真实 LLM 配置 | **具备** | `openai-chat` / `deepseek-v4.1-flash`；真实澄清、review、反馈整理已执行 |
+| 真实 VISUAL 配置 | **具备** | `openai-images` / `gpt-image-2`；真实纯文字 v1/v2 与参考图 v3 已生成 |
+| 真实持久记录与重启 | **具备** | v1/v2/v3 重启后可读；interrupted → unknown 不重发；见 T15 |
+| Windows Chrome | **缺失** | 仍待安装或由人工在具备 Chrome 的环境执行 |
+| Windows Edge | **具备但未执行完整验收** | `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`；需按 §6 执行真实浏览器场景 |
 
 ## 2. 自动化回归证据（非真实验收）
 
@@ -27,23 +27,25 @@
 | 命令 | 结果 | 产物 |
 |---|---|---|
 | `npm run typecheck` | 通过 | `evidence/typecheck.txt` |
-| `npm test -- --run` | 12 个测试文件、148 个测试全部通过 | `evidence/test.txt` |
-| `npm run build` | 通过，Vite 8.3.5，1617 modules；JS 1,090.16 kB（gzip 346.27 kB），CSS 393.53 kB（gzip 53.62 kB）；保留 >500 kB chunk 警告 | `evidence/build.txt` |
+| `npm test` | 13 个测试文件、158 个测试全部通过 | `evidence/test.txt` |
+| `npm run build` | 通过，Vite 8.3.5，1617 modules；JS 1,094.90 kB（gzip 347.88 kB），CSS 394.14 kB（gzip 53.68 kB）；保留 >500 kB chunk 警告 | `evidence/build.txt` |
 
 这些结果只证明受控响应下的前端行为、类型与构建；**不证明**真实供应商适配、真实参考图输入、后端持久化、真实文件交付或 Chrome/Edge 双浏览器行为。
 
-## 3. FE-DEP-01–06 映射盘点
+## 3. FE-DEP-01–06 核验
 
-| 依赖 | 当前集中映射位置 | 真实证据 | 状态 |
+2026-10-30 后端 T15 交付后，已用实际 OpenAPI、真实响应与集中类型重新核验。详细字段对照见 `docs/acceptance/t15-real-dual-model-acceptance.md` §6–§7。
+
+| 依赖 | 核验位置 | 核验结果 | 状态 |
 |---|---|---|---|
-| FE-DEP-01 精确尺寸、供应商字节上限、等待上限、能力字段 | `main/src/api/types.ts` 的 `ConfigStatus` / `VisualConfigStatus` / `ConfigCapabilities`；`main/src/api/client.ts` 的 `getConfigStatus`；`ModelStatusDrawer.vue` / `ReferenceUploader.vue` 的只读展示与门禁 | 仅后端草案、`.scratch/implementation/contracts.md` 与受控 fixture | **未核验** |
-| FE-DEP-02 列表分页参数、摘要、下一页判定 | `ProjectListResponse` / `ProjectSummary`；`listProjects`；`useWorkspace` 的 `loadMore`；`AppSidebar.vue` | 仅 T02 受控测试 | **未核验** |
-| FE-DEP-03 消息/需求快照、生成快照、版本排序、request_id 关联 | `ProjectDetailResponse`、`MessageView.brief_snapshot`、`GenerationView.brief_snapshot/version_no/request_id`；`useWorkspace` 的 `adoptProjectDetail`、`succeededGenerations`、`findKnownGeneration`；`ResultPanel.vue` | 仅 T02/T06/T08/T09 受控测试 | **未核验** |
-| FE-DEP-04 生成阶段、错误细分、可重取原因和重取完成方式 | `GenerationStatus` / `GenerationStage` / `GenerationView.error/can_retrieve_result/retrieval_unavailable_reason`；`retrieveGenerationResult`；`ResultRetrievalPanel.vue`、`GenerationRiskDialog.vue` | 仅 T11 受控测试 | **未核验** |
-| FE-DEP-05 创建、确认、卡片、上传请求/响应字段、修订号与空值 | `PatchBriefRequest` / `ConfirmBriefRequest` / `SubmitGenerationRequest`；`createProject/sendMessage/updateBrief/confirmBrief/uploadReference/removeReference/submitGeneration`；`useWorkspace` 修订门禁 | 仅 T03–T06 受控测试 | **未核验** |
-| FE-DEP-06 配置完整性与实际调用证据来源 | `ConfigStatus.verification` 仅接受 `not_checked`；`ModelStatusDrawer.vue` 固定显示“尚未验证实际调用” | 无真实调用记录 | **未核验** |
+| FE-DEP-01 精确尺寸、供应商字节上限、等待上限、能力字段 | `ConfigStatus` / `VisualConfigStatus` / `ConfigCapabilities`；`getConfigStatus`；`ModelStatusDrawer.vue` / `ReferenceUploader.vue` | 8 个能力字段与 OpenAPI 一致；真实 `1024x1024`、`provider_max_reference_bytes=null`、有效上限 10,000,000，前端无自造上限 | **通过（契约/映射核验）** |
+| FE-DEP-02 列表分页参数、摘要、下一页判定 | `ProjectListResponse` / `ProjectSummary`；`listProjects`；`useWorkspace.loadMore` | 实际 `limit 1..100 default 20`、`cursor nullable`、`next_cursor`；真实 limit=1 分页走通 | **通过（契约/映射核验）** |
+| FE-DEP-03 消息/需求快照、生成快照、版本排序、request_id 关联 | `ProjectDetailResponse`、`MessageView.brief_snapshot`、`GenerationView.brief_snapshot/version_no/request_id`；`adoptProjectDetail`、`succeededGenerations` | 真实消息 sequence、卡片 snapshot、v1/v2/v3 版本递增和 request_id 重放均与类型一致 | **通过（契约/映射核验）** |
+| FE-DEP-04 生成阶段、错误细分、可重取原因和重取完成方式 | `GenerationView.status/stage/error/can_retrieve_result/retrieval_unavailable_reason`；`retrieveGenerationResult` | 真实 succeeded/stage done/can_retrieve false；retrieve 返回原 asset；错误码与类型一致 | **通过（契约/映射核验）** |
+| FE-DEP-05 创建、确认、卡片、上传请求/响应字段、修订号与空值 | `PatchBriefRequest` / `ConfirmBriefRequest` / `SubmitGenerationRequest`；`client.ts` 14 方法；`useWorkspace` 修订门禁 | 路径、参数、请求体、nullable 与 OpenAPI 一致；typecheck 通过 | **通过（契约/映射核验）** |
+| FE-DEP-06 配置完整性与实际调用证据来源 | `ConfigStatus.verification` 仅接受 `not_checked`；`ModelStatusDrawer.vue` | 真实 LLM/VISUAL 调用后后端仍返回 `not_checked`，前端未把它显示成“已验证” | **通过（契约/映射核验）** |
 
-**结论**：缺少真实 OpenAPI 与运行响应，无法完成字段差异修正，也不能把草案映射提升为已确认事实。
+**结论**：FE-DEP-01–06 的契约与集中映射已核验通过，未发现需要修改 `types.ts`/`client.ts` 的偏差。这只证明前端能按实际契约编译和调用；浏览器呈现与人工验收仍归 #13，不能把本节状态外推到 FE-AC。
 
 ## 4. FE-AC-01–22 逐项记录
 
@@ -76,19 +78,21 @@
 
 ## 5. SRS 真实验收项
 
-| SRS 项 | 状态 | 阻塞原因 |
+真实后端证据已于 2026-10-30 具备，但“浏览器中可见/可操作”的验收仍须 #13 执行。
+
+| SRS 项 | 后端真实证据 | 浏览器验收状态 |
 |---|---|---|
-| AC-01 两套真实配置且无 Key 泄露 | **未验证** | 无真实 LLM/VISUAL 配置与后端，无法发起需求整理或生成，也无法检查响应/日志/文件。 |
-| AC-02 纯文字需求卡→确认→实际图片下载 | **未验证** | 无真实后端与 VISUAL。 |
-| AC-03 参考图实际进入视觉请求 | **未验证** | 无真实参考图输入链路与供应商请求证据。 |
-| AC-07 反馈重生保留约束且新旧版可下载 | **未验证** | 无真实版本记录与文件交付。 |
-| AC-10 生成中刷新恢复原任务不重复提交 | **未验证** | 无真实持久记录与服务重启能力。 |
-| AC-11 成功版本重启后历史和图片仍可读 | **未验证** | 无真实持久化与文件存储。 |
-| AC-12 未完成生成重启变 unknown、不自动重生成 | **未验证** | 无真实后端重启场景。 |
+| AC-01 两套真实配置且无 Key 泄露 | 真实 config status、真实 LLM/VISUAL 调用、secret scan 0 匹配 | **后端通过；浏览器未验证** |
+| AC-02 纯文字需求卡→确认→实际图片下载 | 真实项目 64a44549… 的完整闭环，v1/v2 真实 PNG | **后端通过；浏览器未验证** |
+| AC-03 参考图实际进入视觉请求 | 真实上传/参考图消息/v3 生成；受控 multipart 原始 bytes 测试 | **后端通过；浏览器未验证** |
+| AC-07 反馈重生保留约束且新旧版可下载 | 真实反馈 revision 7、v2 与 v1 hash 不同、旧版可下载 | **后端通过；浏览器未验证** |
+| AC-10 生成中刷新恢复原任务不重复提交 | 真实 in-flight 只读刷新；无新消息/生成 | **后端通过；浏览器未验证** |
+| AC-11 成功版本重启后历史和图片仍可读 | v1/v2/v3 重启后 asset/hash 一致 | **后端通过；浏览器未验证** |
+| AC-12 未完成生成重启变 unknown、不自动重生成 | 真实进程中断 → unknown/PROCESS_INTERRUPTED，2s 后仍 1 条 | **后端通过；浏览器未验证** |
 
 ## 6. 浏览器与人工验收待办
 
-前提具备后至少执行：
+至少执行：
 
 1. Windows 近期 Chrome 与 Edge 分别覆盖 375 / 768 / 1279 / 1280 / 1440 宽度；记录 Head/Side/Body、独立滚动、输入可见、无整体横向溢出、图片、版本选择、项目抽屉与两种 Body 模式。
 2. 键盘走完商品描述、需求编辑、确认、生成、版本选择、项目抽屉和大图；记录可访问名称、焦点与返回、禁用原因、live region、正文对比、`prefers-reduced-motion` 与无 `backdrop-filter` 回退。
@@ -97,4 +101,7 @@
 
 ## 7. 结论
 
-T12 **不能关闭为已完成**。当前可交付的是：前端受控回归通过、外部前提缺失的可复核证据、FE-DEP 映射盘点、FE-AC/SRS 未验证清单。真实 API 联调与 Chrome/Edge 闭环验收需在具备后端、OpenAPI、真实两类模型配置和 Chrome 的环境后由人工继续。
+- **FE-DEP-01–06**：契约/映射核验通过（2026-10-30），依据实际 OpenAPI、真实响应与 `types.ts`/`client.ts`；浏览器呈现未验收。
+- **FE-AC-01–22**：仍**全部未验证**，需要在真实后端已就绪的基础上执行 Chrome/Edge、视口、视觉、键盘与交互场景。
+- **SRS AC-01/02/03/07/10/11/12**：后端真实证据已具备；浏览器验收未执行。
+- **#13 不能关闭为已完成**；整体 v1 也不能因后端 T15 通过而标记完成。下一步按 §6 执行浏览器验收，发现前端偏差时先修 `types.ts`/`client.ts`/组件映射并重跑 typecheck、完整测试与构建。
