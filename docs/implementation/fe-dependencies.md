@@ -67,7 +67,7 @@
 - **当前前端字段映射**：
   - `brief_status` → 真实需求状态徽标；仅当真实值为 `confirmed` 时解锁“生成图片”阶段（T02 不实际提交生成）。
   - 生成记录中真实存在 `status === "succeeded"` 的 `GenerationView` 时才解锁“查看结果”阶段，不使用前端假 `hasGeneration`。
-  - 可编辑需求字段：空字符串/纯空白 → “未填写”；`image_size === null` → “待配置”；`prompt === ""` → “尚未生成完整提示词”。
+  - 可编辑需求字段：空字符串/纯空白 → “未填写”；其中 `text_content` 为空 → “不要求加字”；`image_size === null` → “待配置”；`prompt === ""` → “尚未生成完整提示词”。
   - `reference_asset`：可用时用 `/api/assets/{id}` 预览并带可访问名称；`availability === "missing"` → 明确“参考图文件缺失”，不渲染伪造图片；null → “参考图记录不可用”。
   - `revision / prompt_revision / confirmed_revision` 只读取响应，不在本地 `+1`，不用它们推断成功或生成可用性。
 - **状态**：未核验（字段与空值语义待真实 OpenAPI 核验）。
@@ -77,3 +77,26 @@
 
 - 等真实 OpenAPI 或运行服务可用后，必须重新核验上述字段，并更新本文件的“状态”和“证据”。
 - 若 T02 读取项目时新增字段，应复用 `main/src/api/types.ts` 与 `main/src/api/client.ts`，避免在组件内直接拼装响应或错误文案。
+
+### FE-DEP-03 / FE-DEP-05：T03 核验记录（首次创建、消息响应与历史快照）
+
+- **状态**：未核验（仅后端设计草案与受控测试响应，没有真实 OpenAPI 或可连接服务）。
+- **T03 新增字段映射**：
+  - `POST /api/projects` → 请求体固定 `{}`，成功按 `201 ProjectView` 消费；读取 `id`、`revision`、`brief_status`、`brief`。创建后立即把 URL 更新为 `?project=<id>`，随后以返回的 `project.revision` 作为消息的 `expected_revision`，不本地加一。
+  - `POST /api/projects/{id}/messages` → 请求体 `{content, expected_revision}`；成功按 `MessageCreateResponse` 消费 `project`、`user_message`、`assistant_message`。`project` 作为最新服务端状态，两条消息按服务端返回追加；不从普通消息文本拼造卡片或回复。
+  - `assistant_message.brief_snapshot` → 历史“当时的需求快照”只读卡；仅当快照有可读字段时展示。当前需求卡来自 `project.brief`，与历史快照分开。
+  - `project.brief_error.code/message` → 持久整理失败说明与用户主动“重新整理”按钮；刷新后 `brief_status=organizing` 只读等待，不自动重发。
+- **失败行为**：创建请求网络断开、超时、`5xx` 或非结构化失败均按“创建结果未确认”处理：保留输入、停止再次创建、显示核实提示与“打开已有项目”入口，不自动重试。消息请求失败保留该项目、URL 与用户原文，下一次发送复用现有项目；所有写请求均无通用自动重试。`409` 显示统一安全冲突说明并保留输入。缺少 LLM 配置时只显示可操作原因，不创建项目。
+- **T03 证据**：`tests/t03-first-project.spec.ts` 的受控 HTTP 响应仅用于验证前端行为，不代表真实接口已确认；真实字段、状态码与排序仍需 OpenAPI/运行服务核验。
+- **风险**：重新整理的消息内容在现有契约中未单独定义；T03 使用可见的普通用户消息“请按当前需求卡重新整理需求。”触发现有消息接口，必须由后端契约或真实联调确认这是受支持的整理入口，未确认前不得宣称已完成真实整理链路。
+
+### FE-DEP-05：T03 核验记录（消息修订、空值与安全错误）
+
+- **状态**：未核验（仅后端设计草案与受控测试响应）。
+- **T03 新增字段映射**：
+  - `MessageCreateResponse.project.revision` → 后续消息的 `expected_revision` 唯一来源；不在客户端推算。
+  - `brief.text_content === ""` → 显示“不要求加字”；`brief.image_size === null` → 显示“待配置”；`brief.prompt === ""` → 显示“尚未生成完整提示词”。不补写材质、功能、认证、价格或像素。
+  - `project.brief_status` → 状态文案：`review` 显示“待确认”，`needs_input` 显示需要补充，`organizing` 显示“正在整理需求…”，`brief_error` 显示持久错误与“重新整理”操作。
+  - `ProjectView.revision / prompt_revision / confirmed_revision` 只读消费；`review` 卡片的提示词只按当前 `project.brief.prompt` 展示，不从历史消息或本地字段拼接。
+- **失败行为**：消息 `409` 保留本地输入并显示安全冲突说明；API 错误只使用统一安全映射，不回显供应商原文、Key、URL、堆栈。发送中禁用发送按钮，同步防止创建和发送重复点击；用户向上阅读时保留 `scrollTop` 并显示“有新内容”入口。
+- **证据**：`tests/t03-first-project.spec.ts` 覆盖创建不明、消息失败复用项目、`needs_input` 后续消息、review 提示词、空文字文案、快捷键/组合输入、整理状态、重挂载不重发与滚动提示；响应均为测试替身。

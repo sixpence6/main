@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { useWorkspace } from '@/composables/useWorkspace'
 
-const { announcement } = useWorkspace()
+const { announcement, organizing } = useWorkspace()
 </script>
 
 <template>
-  <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ announcement }}</div>
+  <div
+    class="sr-only"
+    :role="organizing ? undefined : 'status'"
+    aria-live="polite"
+    aria-atomic="true"
+  >{{ announcement }}</div>
 </template>

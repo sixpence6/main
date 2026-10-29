@@ -239,7 +239,7 @@ describe('T02 只读恢复项目详情', () => {
 
     expect(screen.getByText('生成记录 1 条')).toBeVisible()
     expect(screen.getByText('最近版本：第 1 版，状态：成功')).toBeVisible()
-    expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '发送' })).toBeEnabled()
     expect(harness.fetch.writes).toHaveLength(0)
     expect(harness.fetch.count('POST', /\/messages$/)).toBe(0)
     expect(harness.fetch.count('POST', /\/generations$/)).toBe(0)

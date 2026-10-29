@@ -59,6 +59,15 @@ export interface WorkspaceStore {
   projectLoading: Ref<boolean>
   projectError: Ref<string>
   projectErrorKind: Ref<ProjectErrorKind | null>
+  sendBusy: Ref<boolean>
+  creatingProject: Ref<boolean>
+  organizing: ComputedRef<boolean>
+  sendError: Ref<string>
+  sendDraft: Ref<string>
+  creationUncertain: Ref<boolean>
+  send: () => Promise<void>
+  retrySend: () => Promise<void>
+  retryOrganize: () => Promise<void>
   toggleSidebar: () => void
   openSideDrawer: () => void
   closeSideDrawer: () => void
@@ -132,6 +141,17 @@ function createWorkspace(): WorkspaceStore {
   let detailController: AbortController | null = null
   let detailToken = 0
 
+  const sendBusy = ref(false)
+  const creatingProject = ref(false)
+  const organizeInFlight = ref(false)
+  const sendError = ref('')
+  const sendDraft = ref('')
+  const creationUncertain = ref(false)
+  let sendController: AbortController | null = null
+  const organizing = computed(
+    () => organizeInFlight.value || currentProject.value?.brief_status === 'organizing',
+  )
+
   const stages = computed<StageView[]>(() => {
     const project = currentProject.value
     const hasProject = Boolean(projectParam.value)
@@ -186,7 +206,19 @@ function createWorkspace(): WorkspaceStore {
     else window.history.replaceState({ project: id }, '', next)
   }
 
+  function resetSendActivity(): void {
+    sendController?.abort()
+    sendController = null
+    sendBusy.value = false
+    creatingProject.value = false
+    organizeInFlight.value = false
+    sendError.value = ''
+  }
+
   function clearProjectDetail(): void {
+    resetSendActivity()
+    sendDraft.value = ''
+    creationUncertain.value = false
     detailController?.abort()
     detailController = null
     detailToken += 1
@@ -312,6 +344,7 @@ function createWorkspace(): WorkspaceStore {
   }
 
   async function loadProject(id: string): Promise<void> {
+    resetSendActivity()
     if (!isUuid(id)) {
       clearProjectDetail()
       projectErrorKind.value = 'invalid'
@@ -361,6 +394,8 @@ function createWorkspace(): WorkspaceStore {
 
   function selectProject(id: string): void {
     closeProjectDrawer()
+    resetSendActivity()
+    creationUncertain.value = false
     projectParam.value = id
     updateProjectUrl(id, 'push')
     void loadProject(id)
@@ -380,6 +415,146 @@ function createWorkspace(): WorkspaceStore {
       return
     }
     void loadProject(id)
+  }
+
+  function creationErrorIsUncertain(error: unknown): boolean {
+    return !(error instanceof ApiError) || error.status === 0 || error.status >= 500
+  }
+
+  function llmReady(): boolean {
+    const llm = configStatus.value?.llm
+    return Boolean(llm?.configured && llm.ready)
+  }
+
+  function missingLlmMessage(): string {
+    if (!configStatus.value) {
+      return configError.value
+        ? '模型配置状态读取失败，暂时无法发送；请先打开“模型状态”检查后重试。'
+        : '模型配置状态仍在读取，请稍候再发送。'
+    }
+    return '需求整理模型（LLM）尚未配置完成，请先打开“模型状态”补齐配置后再发送。'
+  }
+
+  async function submitContent(content: string, preserveDraft = false): Promise<void> {
+    if (sendBusy.value) return
+    const text = content
+    if (!text.trim()) {
+      sendError.value = '请先描述商品与图片需求再发送。'
+      return
+    }
+
+    if (!llmReady()) {
+      sendDraft.value = text
+      sendError.value = missingLlmMessage()
+      announce('当前无法发送：需求整理模型尚未配置完成。')
+      return
+    }
+
+    let projectId = projectParam.value
+    if (!projectId && creationUncertain.value) {
+      sendDraft.value = text
+      sendError.value = '项目创建结果未确认，请从已有项目核实后继续。'
+      return
+    }
+    if (projectId && !currentProject.value) {
+      sendError.value = '当前项目仍在读取，请稍候再发送。'
+      return
+    }
+
+    sendController?.abort()
+    const controller = new AbortController()
+    sendController = controller
+    sendBusy.value = true
+    sendError.value = ''
+    sendDraft.value = text
+
+    try {
+      let expectedRevision: number
+      if (!projectId) {
+        creatingProject.value = true
+        let created
+        try {
+          created = await api.createProject(controller.signal)
+        } catch (error) {
+          if (controller.signal.aborted) return
+          if (creationErrorIsUncertain(error)) {
+            creationUncertain.value = true
+            sendError.value =
+              '项目创建结果未确认，请从已有项目核实后继续；系统不会自动重复创建。'
+            announce('项目创建结果未确认，请从已有项目核实。')
+            return
+          }
+          sendError.value =
+            error instanceof ApiError ? error.message : '项目创建失败，请稍后重试。'
+          announce('项目创建失败，输入内容已保留。')
+          return
+        } finally {
+          creatingProject.value = false
+        }
+        if (controller.signal.aborted || !created) return
+        projectId = created.id
+        currentProject.value = created
+        projectParam.value = created.id
+        updateProjectUrl(created.id, 'push')
+        expectedRevision = created.revision
+      } else {
+        expectedRevision = currentProject.value!.revision
+      }
+
+      organizeInFlight.value = true
+      const response = await api.sendMessage(
+        projectId,
+        { content: text, expected_revision: expectedRevision },
+        controller.signal,
+      )
+      if (controller.signal.aborted) return
+      currentProject.value = response.project
+      projectParam.value = response.project.id
+      projectMessages.value = [
+        ...projectMessages.value,
+        response.user_message,
+        response.assistant_message,
+      ]
+      if (!preserveDraft) {
+        draft.value = ''
+        sendDraft.value = ''
+      }
+      sendError.value = ''
+      announce(
+        response.project.brief_status === 'review'
+          ? '需求整理完成，请核对当前需求卡。'
+          : response.project.brief_status === 'needs_input'
+            ? '需求整理需要补充信息，请查看助手问题。'
+            : '消息已发送。',
+      )
+    } catch (error) {
+      if (controller.signal.aborted) return
+      if (error instanceof ApiError && error.status === 409) {
+        sendError.value = `需求已被更新，当前内容未提交：${error.message} 请核对最新记录后再发送。`
+      } else {
+        sendError.value =
+          error instanceof ApiError ? error.message : '发送失败，请稍后重试。'
+      }
+      announce('发送失败，输入内容已保留。')
+    } finally {
+      if (sendController === controller) sendController = null
+      organizeInFlight.value = false
+      sendBusy.value = false
+      creatingProject.value = false
+    }
+  }
+
+  async function send(): Promise<void> {
+    await submitContent(draft.value)
+  }
+
+  async function retrySend(): Promise<void> {
+    await submitContent(draft.value || sendDraft.value)
+  }
+
+  async function retryOrganize(): Promise<void> {
+    if (!currentProject.value || sendBusy.value) return
+    await submitContent('请按当前需求卡重新整理需求。', true)
   }
 
   function setStage(id: StageId): void {
@@ -441,6 +616,8 @@ function createWorkspace(): WorkspaceStore {
     moreController = null
     detailController?.abort()
     detailController = null
+    sendController?.abort()
+    sendController = null
     window.removeEventListener('popstate', syncProjectFromUrl)
   })
 
@@ -471,6 +648,15 @@ function createWorkspace(): WorkspaceStore {
     projectLoading,
     projectError,
     projectErrorKind,
+    sendBusy,
+    creatingProject,
+    organizing,
+    sendError,
+    sendDraft,
+    creationUncertain,
+    send,
+    retrySend,
+    retryOrganize,
     toggleSidebar,
     openSideDrawer,
     closeSideDrawer,
