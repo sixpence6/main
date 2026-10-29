@@ -14,7 +14,9 @@ def _settings_and_registry(request: Request):
 
 
 @router.patch("/{project_id}/brief", response_model=ProjectView)
-async def patch_brief(project_id: str, payload: UpdateBriefRequest, request: Request) -> ProjectView:
+async def patch_brief(
+    project_id: str, payload: UpdateBriefRequest, request: Request
+) -> ProjectView:
     state = request.app.state
     changes = {
         name: getattr(payload, name)

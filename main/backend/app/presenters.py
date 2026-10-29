@@ -105,7 +105,9 @@ def generation_view(
     can_retrieve_result: bool = False,
     retrieval_unavailable_reason: str | None = None,
 ) -> GenerationView:
-    snapshot = json.loads(generation.brief_snapshot_json) if generation.brief_snapshot_json else None
+    snapshot = (
+        json.loads(generation.brief_snapshot_json) if generation.brief_snapshot_json else None
+    )
     return GenerationView(
         id=generation.id,
         project_id=generation.project_id,

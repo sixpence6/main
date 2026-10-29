@@ -97,18 +97,22 @@ class Settings(BaseSettings):
         path = self.web_dist_dir
         return path if path.is_absolute() else MAIN_DIR / path
 
-    def llm(self) -> "RoleConfig":
+    def llm(self) -> RoleConfig:
         return RoleConfig(
             role=ROLE_LLM,
             adapter_id=_blank(self.llm_adapter),
             base_url=_blank(self.llm_base_url),
-            api_key=self.llm_api_key if self.llm_api_key and self.llm_api_key.get_secret_value().strip() else None,
+            api_key=(
+                self.llm_api_key
+                if self.llm_api_key and self.llm_api_key.get_secret_value().strip()
+                else None
+            ),
             model=_blank(self.llm_model),
             timeout_seconds=max(int(self.llm_timeout_seconds), 1),
             image_size=None,
         )
 
-    def visual(self) -> "RoleConfig":
+    def visual(self) -> RoleConfig:
         return RoleConfig(
             role=ROLE_VISUAL,
             adapter_id=_blank(self.visual_adapter),

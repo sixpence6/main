@@ -10,9 +10,9 @@ from starlette.formparsers import MultiPartException, MultiPartParser
 
 from app.config import REFERENCE_MULTIPART_OVERHEAD_BYTES
 from app.errors import ApiError, validation_error
+from app.models import Asset
 from app.presenters import project_view
 from app.schemas import ProjectView
-from app.models import Asset
 from app.services.assets import (
     ImageValidationError,
     attach_reference,

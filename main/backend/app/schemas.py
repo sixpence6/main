@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, StrictBool, StrictInt, UUID4, Field, model_validator
+from pydantic import UUID4, BaseModel, ConfigDict, Field, StrictBool, StrictInt, model_validator
 
 BriefStatus = Literal["draft", "organizing", "needs_input", "review", "confirmed"]
 GenerationStatus = Literal["queued", "running", "succeeded", "failed", "unknown"]
@@ -169,7 +169,7 @@ class UpdateBriefRequest(BaseModel):
     text_content: str | None = Field(default=None, max_length=8_000)
 
     @model_validator(mode="after")
-    def _at_least_one_field(self) -> "UpdateBriefRequest":
+    def _at_least_one_field(self) -> UpdateBriefRequest:
         names = (
             "product_description",
             "purpose",

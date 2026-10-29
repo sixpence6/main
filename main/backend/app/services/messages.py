@@ -94,7 +94,11 @@ def _injected_image_size(settings: Settings, project: Project) -> str | None:
 
 
 def _build_request(
-    project: Project, messages: list[Message], user_text: str, has_reference: bool, image_size: str | None
+    project: Project,
+    messages: list[Message],
+    user_text: str,
+    has_reference: bool,
+    image_size: str | None,
 ) -> OrganizeRequest:
     brief = brief_from_project(project).model_copy(update={"image_size": image_size})
     return OrganizeRequest(

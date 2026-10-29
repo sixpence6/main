@@ -5,7 +5,12 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from sqlalchemy import event, text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from app.config import Settings
 
@@ -41,7 +46,9 @@ async def read_session(factory: async_sessionmaker[AsyncSession]) -> AsyncIterat
 
 
 @asynccontextmanager
-async def write_transaction(factory: async_sessionmaker[AsyncSession]) -> AsyncIterator[AsyncSession]:
+async def write_transaction(
+    factory: async_sessionmaker[AsyncSession],
+) -> AsyncIterator[AsyncSession]:
     """Short write transaction. BEGIN IMMEDIATE serialises writers at the SQLite level."""
     async with factory() as session:
         await session.execute(text("BEGIN IMMEDIATE"))

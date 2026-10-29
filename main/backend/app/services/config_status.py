@@ -41,10 +41,15 @@ def _base_status(role: RoleConfig, adapter_known: bool, extra_issues: list[Confi
 
 def build_config_status(settings: Settings, registry: AdapterRegistry) -> ConfigStatus:
     llm_role = settings.llm()
-    llm_status = LLMConfigStatus(**_base_status(llm_role, llm_role.adapter_id in registry.known_llm_ids(), []))
+    llm_status = LLMConfigStatus(
+        **_base_status(llm_role, llm_role.adapter_id in registry.known_llm_ids(), [])
+    )
 
     visual_role = settings.visual()
-    adapter_known = bool(visual_role.adapter_id) and visual_role.adapter_id in registry.known_visual_ids()
+    adapter_known = (
+        bool(visual_role.adapter_id)
+        and visual_role.adapter_id in registry.known_visual_ids()
+    )
     extra_issues: list[ConfigIssue] = []
     capabilities = VisualCapabilities(
         text_to_image=None,
@@ -81,7 +86,10 @@ def build_config_status(settings: Settings, registry: AdapterRegistry) -> Config
             and visual_role.image_size not in caps.supported_image_sizes
         ):
             extra_issues.append(
-                ConfigIssue(code="IMAGE_SIZE_NOT_SUPPORTED", message="当前尺寸不在适配器核实支持的尺寸内")
+                ConfigIssue(
+                    code="IMAGE_SIZE_NOT_SUPPORTED",
+                    message="当前尺寸不在适配器核实支持的尺寸内",
+                )
             )
 
     visual_status = VisualConfigStatus(
