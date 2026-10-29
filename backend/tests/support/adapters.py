@@ -65,6 +65,8 @@ class VisualStub:
     poll_outcomes: list[ProviderOutcome] = field(default_factory=list)
     fetch_outcome: ProviderOutcome | None = None
     fetch_error: BaseException | None = None
+    fetch_gate: asyncio.Event | None = None
+    fetch_delay_seconds: float = 0.0
     poll_errors: list[BaseException | None] = field(default_factory=list)
     poll_gate: asyncio.Event | None = None
     poll_delay_seconds: float = 0.0
@@ -110,6 +112,10 @@ class VisualStub:
 
     async def fetch_result(self, locator: str) -> ProviderOutcome:
         self.fetch_calls.append(locator)
+        if self.fetch_gate is not None:
+            await self.fetch_gate.wait()
+        if self.fetch_delay_seconds:
+            await asyncio.sleep(self.fetch_delay_seconds)
         if self.fetch_error is not None:
             raise self.fetch_error
         if self.fetch_outcome is None:

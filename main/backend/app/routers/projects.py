@@ -19,6 +19,7 @@ from app.services.projects import (
     get_project_detail,
     list_projects,
 )
+from app.services.retrieval import evaluate_retrieval
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -50,15 +51,34 @@ async def get_project_endpoint(request: Request, project_id: str) -> ProjectDeta
     state = request.app.state
     detail = await get_project_detail(state.session_factory, project_id)
     data_dir = state.settings.resolved_data_dir()
-    return ProjectDetailResponse(
-        project=project_view(detail.project, detail.reference_asset, data_dir),
-        messages=[message_view(message) for message in detail.messages],
-        generations=[
+    active_generation_id = next(
+        (
+            generation.id
+            for generation in detail.generations
+            if generation.status in ("queued", "running")
+        ),
+        None,
+    )
+    generation_views = []
+    for generation in detail.generations:
+        info = evaluate_retrieval(
+            generation,
+            settings=state.settings,
+            registry=state.registry,
+            project=detail.project,
+            active_generation_id=active_generation_id,
+        )
+        generation_views.append(
             generation_view(
                 generation,
                 detail.result_assets.get(generation.result_asset_id or ""),
                 data_dir,
+                can_retrieve_result=info.can_retrieve,
+                retrieval_unavailable_reason=info.reason,
             )
-            for generation in detail.generations
-        ],
+        )
+    return ProjectDetailResponse(
+        project=project_view(detail.project, detail.reference_asset, data_dir),
+        messages=[message_view(message) for message in detail.messages],
+        generations=generation_views,
     )

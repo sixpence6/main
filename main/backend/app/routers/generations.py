@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, Request, Response
 
 from app.presenters import generation_view
-from app.schemas import CreateGenerationRequest, GenerationResponse, GenerationView
+from app.schemas import CreateGenerationRequest, EmptyBody, GenerationResponse, GenerationView
 from app.services.generations import (
     SubmissionResult,
     load_generation,
@@ -13,6 +13,7 @@ from app.services.generations import (
     schedule_generation,
     submit_generation,
 )
+from app.services.retrieval import load_retrieval_info, retrieve_result
 
 logger = logging.getLogger("app.generations")
 
@@ -66,4 +67,34 @@ async def submit_generation_endpoint(
 async def get_generation_endpoint(request: Request, generation_id: str) -> GenerationView:
     state = request.app.state
     generation, result_asset = await load_generation(state.session_factory, generation_id)
-    return generation_view(generation, result_asset, state.settings.resolved_data_dir())
+    info = await load_retrieval_info(
+        state.session_factory, state.settings, state.registry, generation
+    )
+    return generation_view(
+        generation,
+        result_asset,
+        state.settings.resolved_data_dir(),
+        can_retrieve_result=info.can_retrieve,
+        retrieval_unavailable_reason=info.reason,
+    )
+
+
+@router.post(
+    "/api/generations/{generation_id}/retrieve-result",
+    response_model=GenerationView,
+)
+async def retrieve_generation_result_endpoint(
+    request: Request, generation_id: str, _payload: EmptyBody
+) -> GenerationView:
+    state = request.app.state
+    generation, result_asset = await retrieve_result(request.app, generation_id)
+    info = await load_retrieval_info(
+        state.session_factory, state.settings, state.registry, generation
+    )
+    return generation_view(
+        generation,
+        result_asset,
+        state.settings.resolved_data_dir(),
+        can_retrieve_result=info.can_retrieve,
+        retrieval_unavailable_reason=info.reason,
+    )
