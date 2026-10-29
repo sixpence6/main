@@ -193,3 +193,15 @@
 - **刷新与中断**：刷新只读取项目详情中的实际 `generations`/状态，不重发消息或生成；整理中刷新继续按项目状态查询，整理中断按 `brief_error` 显示且不自动重发；结果未确认按服务端 unknown 显示，不推测阶段、百分比或剩余时间。
 - **T10 证据**：`tests/t10-status-recovery.spec.ts` 的 11 个完整工作台测试通过；全量 138 个测试、`npm run typecheck`、`npm run build` 通过（构建 1613 modules）。覆盖 organizing 查询与停止、刷新恢复 queued、查询单飞、三次失败暂停与旧图保留、隐藏/显示中止与恢复、手动只读恢复、404 资源错误、成功清零失败、failed/unknown 终态、切项目隔离和整理中断不重发。受控测试响应不代表真实服务已按此返回。
 - **风险**：真实 OpenAPI 的项目/生成状态字段、错误码、服务重启后的记录一致性、真实浏览器可见性事件与网络中止时序尚未核验；未核验前不得宣称真实断连恢复链路已完成。
+
+
+## T11 核验记录：未知结果确认与重取现有结果
+
+- **状态**：未核验（仅后端设计草案、`contracts.md` 与受控测试响应；没有真实 OpenAPI 或可连接运行服务）。
+- **unknown 终态与风险确认**：服务端 `GenerationView.status === "unknown"` 时保留记录并显示“最近生成结果未确认；上次请求可能已提交并可能已计费。再次生成前需确认风险。”。点击“生成首图”先打开 `role="alertdialog"` 风险弹窗，说明第 N 版结果未确认、原请求可能已计费；取消/ Escape / 遮罩关闭均不发写请求，关闭后焦点回到触发按钮。只有点击“我已了解并再次生成”才创建**新的** UUID `request_id`，并在 POST 中发送 `acknowledge_unknown: true`；不重试或恢复旧请求。普通明确失败不弹该确认，仍使用新的 `request_id` 且不带 `acknowledge_unknown`。
+- **重取入口**：仅当最近生成记录为 `status === "failed"` 且 `error.code === "RESULT_FETCH_FAILED"` 时显示“重取现有结果”。`can_retrieve_result === true` 才显示可用按钮；为 false 时只显示服务端 `retrieval_unavailable_reason`（缺失时使用固定安全说明），不猜测是否可以重取，也不显示按钮。
+- **接口映射（FE-DEP-04 / 06）**：`POST /api/generations/{id}/retrieve-result`，JSON body 固定 `{}`，成功按 `200 GenerationView` 更新**同一条**生成记录与 `version_no`；不调用 `POST /api/projects/{id}/generations`、不创建新记录或新版本。成功后重新 `GET /api/projects/{id}` 刷新记录；若用户主动选择了其他成功版本，则保留其选择并提示“结果已重取：第 N 版已恢复。当前仍显示第 M 版。”。请求期间只显示“正在重取结果…”，按钮防重入。
+- **重取失败与回执不明**：`RESULT_FETCH_FAILED`、`RESULT_FETCH_TIMEOUT`、`ADAPTER_UNAVAILABLE`、`PROJECT_BUSY`、`RESULT_NOT_RETRIEVABLE`、`RETRIEVE_CONFIG_CHANGED`、401/403/404/413/422/429/409/503 均使用集中安全文案，保留原失败记录、原记录错误和旧成功图片，不自动重试；网络错误或无法确定受理的 5xx 先用 `GET /api/generations/{id}` 核实，成功才刷新，未成功则显示“重取结果的回执未确认，暂时无法判断是否成功。请稍后查看生成记录；不会自动重试。”。
+- **写入互斥**：`generationRetrieveBusy` 阻止发送消息、保存/确认/整理需求、上传/移除参考图、开始编辑与再次生成；需求编辑中、存在未保存字段、本地需求副本或 409 冲突时禁用重取并显示原因。普通查看、切换版本、下载、重新查询状态均不产生生成 POST 或重取 POST。
+- **T11 证据**：`tests/t11-terminal-recovery.spec.ts` 的 10 个完整工作台测试通过；全量 148 个测试、`npm run typecheck`、`npm run build` 通过（构建 1617 modules）。覆盖 unknown 风险弹窗取消/Escape 零写、新 UUID + `acknowledge_unknown=true`、普通失败新请求、重取成功同记录刷新、主动选旧版不被覆盖、重取失败保留旧图、不可重取原因、快速双击单请求、网络回执不明 GET 核实、查看/下载零生成。受控测试响应不代表真实服务已按此返回。
+- **风险**：真实 OpenAPI 的 `can_retrieve_result` 计算条件、`retrieval_unavailable_reason` 安全文本、重取同步/受理语义、`RESULT_FETCH_FAILED` 的 502 与 504 映射、unknown 的 `acknowledge_unknown` 校验及服务端重复计费语义尚未核验；未核验前不得宣称真实重取或终态恢复链路已完成。

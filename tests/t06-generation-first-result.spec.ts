@@ -384,12 +384,11 @@ describe('T06 生成首图与结果', () => {
       { body: detail(confirmedProject(), [unknown]) },
     ])
     expect(
-      screen.getByText('最近生成结果未确认；请先核实结果，确认前不能生成新图片。', {
+      screen.getByText('最近生成结果未确认；上次请求可能已提交并可能已计费。再次生成前需确认风险。', {
         selector: '.generation-latest-error',
       }),
     ).toBeVisible()
-    expect(screen.getByRole('button', { name: '生成首图' })).toBeDisabled()
-    expect(screen.getByText('上一次生成结果未确认，请先核实结果。')).toBeVisible()
+    expect(screen.getByRole('button', { name: '生成首图' })).toBeEnabled()
   })
 
   it('自动状态查询在途时不会叠加查询，卸载后停止查询', async () => {

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import AppHeader from './components/AppHeader.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import ConversationPanel from './components/ConversationPanel.vue'
+import GenerationRiskDialog from './components/GenerationRiskDialog.vue'
 import ModelStatusDrawer from './components/ModelStatusDrawer.vue'
 import ProjectDrawer from './components/ProjectDrawer.vue'
 import ResultPanel from './components/ResultPanel.vue'
@@ -28,6 +29,10 @@ const {
   statusQueryInterruptionTitle,
   generationQuerying,
   retryGenerationQuery,
+  generationRiskDialogOpen,
+  latestGenerationView,
+  confirmGenerationRisk,
+  cancelGenerationRisk,
 } = workspace
 const showResults = computed(
   () => workspace.stage.value === 'results' && Boolean(workspace.currentProject.value),
@@ -76,6 +81,12 @@ const showResults = computed(
     <SideDrawer />
     <ProjectDrawer />
     <ModelStatusDrawer />
+    <GenerationRiskDialog
+      :open="generationRiskDialogOpen"
+      :version-no="latestGenerationView?.version_no ?? null"
+      @cancel="cancelGenerationRisk"
+      @confirm="confirmGenerationRisk"
+    />
     <UnsavedChangesDialog
       :open="navigationConfirmOpen"
       :destination="navigationIntentLabel"

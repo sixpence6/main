@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { assetUrl } from '@/api/client'
 import type { GenerationView } from '@/api/types'
+import ResultRetrievalPanel from './ResultRetrievalPanel.vue'
 import { useWorkspace } from '@/composables/useWorkspace'
 import {
   briefFieldValue,
@@ -143,6 +144,8 @@ async function returnToConversation(): Promise<void> {
       </p>
       <p v-if="generationSubmitNotice" class="status-notice" role="status">{{ generationSubmitNotice }}</p>
     </header>
+
+    <ResultRetrievalPanel />
 
     <section v-if="currentProject" class="result-current" aria-labelledby="result-current-title">
       <div class="result-current-head">

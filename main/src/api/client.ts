@@ -194,4 +194,11 @@ export const api = {
   getGeneration(id: string, signal?: AbortSignal): Promise<GenerationView> {
     return requestJson<GenerationView>(`/api/generations/${encodeURIComponent(id)}`, { signal })
   },
+  retrieveGenerationResult(id: string, signal?: AbortSignal): Promise<GenerationView> {
+    return requestJson<GenerationView>(`/api/generations/${encodeURIComponent(id)}/retrieve-result`, {
+      method: 'POST',
+      body: '{}',
+      signal,
+    })
+  },
 }

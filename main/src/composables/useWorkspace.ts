@@ -138,6 +138,17 @@ export interface WorkspaceStore {
   generationRecoveryAvailable: ComputedRef<boolean>
   generationCredentialWarning: Ref<string>
   generationRecoveryAction: Ref<'verify' | 'resume' | null>
+  generationRiskDialogOpen: Ref<boolean>
+  generationRetrieveBusy: Ref<boolean>
+  generationRetrieveError: Ref<string>
+  generationRetrieveNotice: Ref<string>
+  resultRetrievalGeneration: ComputedRef<GenerationView | null>
+  resultRetrievalAvailable: ComputedRef<boolean>
+  resultRetrievalUnavailableReason: ComputedRef<string>
+  generationRetrieveDisabledReason: ComputedRef<string>
+  retrieveGenerationResult: () => Promise<void>
+  confirmGenerationRisk: () => Promise<void>
+  cancelGenerationRisk: () => void
   generationQuerying: Ref<boolean>
   generationQueryError: Ref<string>
   statusQueryInterruptionTitle: ComputedRef<string>
@@ -267,6 +278,10 @@ function createWorkspace(): WorkspaceStore {
       currentProject.value?.id === pendingGenerationRequest.projectId,
   )
   const generationRecoveryAction = ref<'verify' | 'resume' | null>(null)
+  const generationRiskDialogOpen = ref(false)
+  const generationRetrieveBusy = ref(false)
+  const generationRetrieveError = ref('')
+  const generationRetrieveNotice = ref('')
   const generationQuerying = ref(false)
   const generationQueryError = ref('')
   const statusQueryTarget = ref<'project' | 'generation' | null>(null)
@@ -284,6 +299,7 @@ function createWorkspace(): WorkspaceStore {
   let generationPollTimer: ReturnType<typeof setTimeout> | null = null
   let generationQueryController: AbortController | null = null
   let generationRefreshController: AbortController | null = null
+  let generationRetrieveController: AbortController | null = null
   let generationQueryFailures = 0
   let pendingGenerationRequest: PendingGenerationRequest | null = null
 
@@ -319,9 +335,24 @@ function createWorkspace(): WorkspaceStore {
         : '最近生成失败，已保留上一次成功图片。'
     }
     if (latest.status === 'unknown') {
-      return '最近生成结果未确认；请先核实结果，确认前不能生成新图片。'
+      return '最近生成结果未确认；上次请求可能已提交并可能已计费。再次生成前需确认风险。'
     }
     return ''
+  })
+
+  const resultRetrievalGeneration = computed<GenerationView | null>(() => {
+    const latest = latestGenerationView.value
+    if (!latest || latest.status !== 'failed') return null
+    if (latest.error?.code !== 'RESULT_FETCH_FAILED') return null
+    return latest
+  })
+  const resultRetrievalAvailable = computed(
+    () => resultRetrievalGeneration.value?.can_retrieve_result === true,
+  )
+  const resultRetrievalUnavailableReason = computed(() => {
+    const record = resultRetrievalGeneration.value
+    if (!record || record.can_retrieve_result) return ''
+    return record.retrieval_unavailable_reason?.trim() || '服务端未提供可重取信息，当前不能重取结果。'
   })
 
   const succeededGenerations = computed<GenerationView[]>(() => {
@@ -430,7 +461,7 @@ function createWorkspace(): WorkspaceStore {
     return ''
   })
   const referenceUploadDisabledReason = computed(() => {
-    if (generationSubmitBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能修改参考图。'
+    if (generationSubmitBusy.value || generationRetrieveBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能修改参考图。'
     if (referenceBusy.value) return '正在处理参考图，请稍候。'
     if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
     if (referenceConflict.value) return '参考图已在别处更新，请先加载最新项目。'
@@ -439,7 +470,7 @@ function createWorkspace(): WorkspaceStore {
     return ''
   })
   const referenceRemoveDisabledReason = computed(() => {
-    if (generationSubmitBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能修改参考图。'
+    if (generationSubmitBusy.value || generationRetrieveBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能修改参考图。'
     if (referenceBusy.value) return '正在处理参考图，请稍候。'
     if (!currentProject.value) return '尚未选择项目。'
     if (!currentProject.value.reference_asset) return '当前没有参考图。'
@@ -480,6 +511,7 @@ function createWorkspace(): WorkspaceStore {
   const sendDisabledReason = computed(() => {
     if (sendBusy.value) return '正在发送消息，请稍候。'
     if (generationSubmitBusy.value) return '正在提交生成请求，完成前不能发送消息。'
+    if (generationRetrieveBusy.value) return '正在重取结果，完成前不能发送消息。'
     if (activeGeneration.value) return '生成任务进行中，完成前不能发送消息。'
     if (referenceBusy.value) return '正在处理参考图，完成前不能发送消息。'
     if (briefBusy.value) return '正在处理需求卡片，完成前不能发送新消息。'
@@ -498,7 +530,7 @@ function createWorkspace(): WorkspaceStore {
 
   const saveDisabledReason = computed(() => {
     if (briefBusy.value) return '正在处理需求操作，请稍候。'
-    if (generationSubmitBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能保存需求。'
+    if (generationSubmitBusy.value || generationRetrieveBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能保存需求。'
     if (referenceBusy.value) return '正在处理参考图，完成前不能保存需求。'
     if (sendBusy.value) return '正在发送消息，完成前不能保存需求。'
     if (!currentProject.value) return '尚未选择项目。'
@@ -511,7 +543,7 @@ function createWorkspace(): WorkspaceStore {
 
   const confirmDisabledReason = computed(() => {
     if (sendBusy.value) return '正在发送消息，完成前不能确认需求。'
-    if (generationSubmitBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能确认需求。'
+    if (generationSubmitBusy.value || generationRetrieveBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能确认需求。'
     if (referenceBusy.value) return '正在处理参考图，完成前不能确认需求。'
     if (briefBusy.value) return '正在处理需求操作，请稍候。'
     const project = currentProject.value
@@ -535,6 +567,7 @@ function createWorkspace(): WorkspaceStore {
 
   const generationDisabledReason = computed(() => {
     if (generationSubmitBusy.value) return '正在提交生成请求，请稍候。'
+    if (generationRetrieveBusy.value) return '正在重取结果，完成前不能生成图片。'
     if (sendBusy.value) return '正在发送消息，完成前不能生成图片。'
     if (briefBusy.value) return '正在处理需求操作，完成前不能生成图片。'
     if (referenceBusy.value) return '正在处理参考图，完成前不能生成图片。'
@@ -572,7 +605,27 @@ function createWorkspace(): WorkspaceStore {
         ? '已有生成任务正在排队，请等待完成。'
         : '已有生成任务正在进行，请等待完成。'
     }
-    if (latestGenerationView.value?.status === 'unknown') return '上一次生成结果未确认，请先核实结果。'
+    return ''
+  })
+
+  const generationRetrieveDisabledReason = computed(() => {
+    if (generationRetrieveBusy.value) return '正在重取结果，请稍候。'
+    if (generationSubmitBusy.value) return '正在提交生成请求，完成前不能重取结果。'
+    if (sendBusy.value || briefBusy.value || referenceBusy.value) {
+      return '正在处理其他操作，完成前不能重取结果。'
+    }
+    if (organizing.value) return '正在整理需求，完成前不能重取结果。'
+    if (generationUncertain.value) return '生成提交结果尚未确认，请先核实。'
+    if (!currentProject.value) return '尚未选择项目。'
+    if (briefConflict.value || briefLocalCopy.value) {
+      return '存在未处理的本地需求副本，请先加载最新需求再重取结果。'
+    }
+    if (briefEditing.value || briefDirty.value) {
+      return '有未保存的需求修改，请先保存或取消修改，再重取结果。'
+    }
+    const record = resultRetrievalGeneration.value
+    if (!record) return '没有可重取的结果记录。'
+    if (!record.can_retrieve_result) return resultRetrievalUnavailableReason.value
     return ''
   })
 
@@ -1124,6 +1177,12 @@ function createWorkspace(): WorkspaceStore {
     generationPendingRestored.value = false
     generationCredentialWarning.value = ''
     generationRecoveryAction.value = null
+    generationRiskDialogOpen.value = false
+    generationRetrieveController?.abort()
+    generationRetrieveController = null
+    generationRetrieveBusy.value = false
+    generationRetrieveError.value = ''
+    generationRetrieveNotice.value = ''
     generationQueryError.value = ''
     statusQueryTarget.value = null
     statusQueryFailureKind.value = null
@@ -1162,7 +1221,7 @@ function createWorkspace(): WorkspaceStore {
       case 'PROJECT_BUSY': return '项目正在处理其他操作，请稍后再生成。'
       case 'ACTIVE_GENERATION_EXISTS': return '已有生成任务正在进行，请等待完成后再生成。'
       case 'IDEMPOTENCY_CONFLICT': return '同一个请求标识已用于其他参数，请重新发起生成。'
-      case 'UNKNOWN_ACK_REQUIRED': return '上一次生成结果未确认，请先核实并确认后再生成。'
+      case 'UNKNOWN_ACK_REQUIRED': return '上一次生成结果未确认，需要明确确认风险后再生成。'
       case 'BRIEF_NOT_READY': return '当前需求尚未确认，不能生成图片。'
       case 'IMAGE_SIZE_CHANGED': return '图片尺寸已变化，请重新整理并确认需求后再生成。'
       case 'REFERENCE_NOT_SUPPORTED': return '当前模型不支持参考图，请移除参考图后再生成。'
@@ -1173,7 +1232,10 @@ function createWorkspace(): WorkspaceStore {
     }
     if (error.status === 401 || error.status === 403) return '认证失败或没有权限，请检查模型配置后再生成。'
     if (error.status === 404) return '项目不存在或已被删除，请刷新项目列表。'
+    if (error.status === 413) return '生成请求内容过大，请精简参考图或需求后重试。'
+    if (error.status === 422) return '生成参数不符合要求，请检查需求与参考图后重试。'
     if (error.status === 429) return '请求过于频繁或额度不足，请稍后再试。'
+    if (error.status === 409) return '项目状态已变化，请加载最新状态后再生成。'
     if (error.status === 503) return '图片模型尚未配置或当前不可用，请检查模型状态。'
     return error.message || '生成请求提交失败，请稍后重试。'
   }
@@ -1359,14 +1421,45 @@ function createWorkspace(): WorkspaceStore {
       generationSubmitError.value = reason
       return
     }
+    if (latestGenerationView.value?.status === 'unknown') {
+      generationRiskDialogOpen.value = true
+      generationSubmitError.value = ''
+      return
+    }
+    await performGenerationSubmit(false)
+  }
+
+  async function confirmGenerationRisk(): Promise<void> {
+    if (!generationRiskDialogOpen.value) return
+    generationRiskDialogOpen.value = false
+    await performGenerationSubmit(latestGenerationView.value?.status === 'unknown')
+  }
+
+  function cancelGenerationRisk(): void {
+    if (!generationRiskDialogOpen.value) return
+    generationRiskDialogOpen.value = false
+    announce('已返回查看，未发起新的生成。')
+  }
+
+  async function performGenerationSubmit(acknowledgeUnknown: boolean): Promise<void> {
+    if (generationSubmitBusy.value) return
+    const reason = generationDisabledReason.value
+    if (reason) {
+      generationSubmitError.value = reason
+      return
+    }
+    if (!acknowledgeUnknown && latestGenerationView.value?.status === 'unknown') {
+      generationRiskDialogOpen.value = true
+      return
+    }
     const project = currentProject.value
     if (!project) return
     const request: PendingGenerationRequest = {
       projectId: project.id,
       requestId: createGenerationRequestId(),
       confirmedRevision: project.revision,
-      acknowledgeUnknownPresent: false,
-      acknowledgeUnknownValue: null,
+      acknowledgeUnknownPresent: acknowledgeUnknown,
+      acknowledgeUnknownValue: acknowledgeUnknown ? true : null,
       generationId: null,
     }
     const token = ++generationToken
@@ -1523,7 +1616,7 @@ function createWorkspace(): WorkspaceStore {
   }
 
   function retryGenerationQuery(): void {
-    if (generationQuerying.value || generationSubmitBusy.value) return
+    if (generationQuerying.value || generationSubmitBusy.value || generationRetrieveBusy.value) return
     if (organizing.value) {
       generationQueryFailures = 0
       void queryProjectStatus(true)
@@ -1533,6 +1626,142 @@ function createWorkspace(): WorkspaceStore {
     if (!target) return
     generationQueryFailures = 0
     void queryGeneration(target.id, true)
+  }
+
+  function writeRetrieveErrorMessage(error: unknown): string {
+    if (!(error instanceof ApiError)) {
+      return '重取结果失败，原记录与旧图片仍保留，请稍后重试。'
+    }
+    switch (error.code) {
+      case 'PROJECT_BUSY':
+        return '项目正在处理其他操作，暂时不能重取结果。'
+      case 'RESULT_NOT_RETRIEVABLE':
+        return '服务端表示该结果当前不能重取，请查看记录说明。'
+      case 'RETRIEVE_CONFIG_CHANGED':
+        return '模型配置已变化，无法重取这次结果；原记录和旧图片仍保留。'
+      case 'RESULT_FETCH_FAILED':
+        return '重取结果失败，原记录与旧图片仍保留，请稍后重试。'
+      case 'RESULT_FETCH_TIMEOUT':
+        return '重取结果超时，原记录与旧图片仍保留，请稍后重试。'
+      case 'ADAPTER_UNAVAILABLE':
+        return '图片模型当前不可用，暂时无法重取结果。'
+      default:
+        break
+    }
+    if (error.status === 401 || error.status === 403) return '认证失败或没有权限，无法重取结果。'
+    if (error.status === 404) return '生成记录不存在或已被删除，无法重取结果。'
+    if (error.status === 413) return '重取请求内容过大，无法处理。'
+    if (error.status === 422) return '重取请求不符合要求，请检查生成记录。'
+    if (error.status === 429) return '请求过于频繁或额度不足，请稍后再试。'
+    if (error.status === 409) return '生成记录状态已变化，请加载最新状态后再试。'
+    if (error.status === 503) return '图片模型或本地服务当前不可用，暂时无法重取结果。'
+    return error.message || '重取结果失败，原记录与旧图片仍保留，请稍后重试。'
+  }
+
+  function isAmbiguousRetrieve(error: unknown): boolean {
+    if (!(error instanceof ApiError)) return true
+    if (error.status === 0) return true
+    if (error.status < 500) return false
+    return !['RESULT_FETCH_FAILED', 'RESULT_FETCH_TIMEOUT', 'ADAPTER_UNAVAILABLE'].includes(error.code)
+  }
+
+  async function refreshProjectAfterRetrieve(
+    generation: GenerationView,
+    token: number,
+  ): Promise<void> {
+    const projectId = generation.project_id
+    const controller = new AbortController()
+    generationRefreshController = controller
+    const followLatest = !resultSelectionPinned
+    try {
+      const response = await api.getProject(projectId, controller.signal)
+      if (token !== generationToken || controller.signal.aborted || projectParam.value !== projectId) return
+      adoptProjectDetail(response, { followLatestResult: followLatest })
+      if (
+        !projectGenerations.value.some(
+          (item) => item.id === generation.id || item.request_id === generation.request_id,
+        )
+      ) {
+        upsertGeneration(generation)
+      }
+      const visible = selectedResultGeneration.value
+      generationRetrieveNotice.value =
+        followLatest || !visible || visible.id === generation.id
+          ? '结果已重取，生成记录与版本已更新。'
+          : `结果已重取：第 ${generation.version_no} 版已恢复。当前仍显示第 ${visible.version_no} 版。`
+      announce(generationRetrieveNotice.value)
+    } catch (error) {
+      if (isAbortError(error) || controller.signal.aborted || token !== generationToken) return
+      upsertGeneration(generation)
+      generationRetrieveNotice.value = '结果已重取，但项目记录刷新失败；已更新本次结果。'
+      announce(generationRetrieveNotice.value)
+    } finally {
+      if (generationRefreshController === controller) generationRefreshController = null
+    }
+  }
+
+  async function verifyRetrieveOutcome(
+    record: GenerationView,
+    token: number,
+  ): Promise<void> {
+    try {
+      const latest = await api.getGeneration(record.id)
+      if (token !== generationToken || projectParam.value !== record.project_id) return
+      upsertGeneration(latest)
+      if (latest.status === 'succeeded') {
+        generationRetrieveError.value = ''
+        await refreshProjectAfterRetrieve(latest, token)
+        return
+      }
+      generationRetrieveError.value =
+        '重取结果的回执未确认，暂时无法判断是否成功。请稍后查看生成记录；不会自动重试。'
+    } catch (error) {
+      if (token !== generationToken || projectParam.value !== record.project_id) return
+      if (error instanceof ApiError && error.status === 404) {
+        generationRetrieveError.value = '生成记录不存在或已被删除，无法核实重取结果。'
+        return
+      }
+      generationRetrieveError.value =
+        '重取结果后无法读取生成记录，暂不能确认是否成功；原记录与旧图片仍保留。'
+    }
+  }
+
+  async function retrieveGenerationResult(): Promise<void> {
+    if (generationRetrieveBusy.value) return
+    const reason = generationRetrieveDisabledReason.value
+    if (reason) {
+      generationRetrieveError.value = reason
+      return
+    }
+    const record = resultRetrievalGeneration.value
+    const project = currentProject.value
+    if (!record || !project || record.project_id !== project.id) return
+    const token = ++generationToken
+    clearGenerationPoll()
+    generationRetrieveBusy.value = true
+    generationRetrieveError.value = ''
+    generationRetrieveNotice.value = ''
+    clearStatusQueryError()
+    generationQueryFailures = 0
+    const controller = new AbortController()
+    generationRetrieveController = controller
+    try {
+      const updated = await api.retrieveGenerationResult(record.id, controller.signal)
+      if (token !== generationToken || controller.signal.aborted || projectParam.value !== project.id) return
+      upsertGeneration(updated)
+      clearSettledGenerationCredential(updated)
+      await refreshProjectAfterRetrieve(updated, token)
+    } catch (error) {
+      if (isAbortError(error) || controller.signal.aborted || token !== generationToken) return
+      if (isAmbiguousRetrieve(error)) {
+        await verifyRetrieveOutcome(record, token)
+        return
+      }
+      generationRetrieveError.value = writeRetrieveErrorMessage(error)
+    } finally {
+      if (token === generationToken) generationRetrieveBusy.value = false
+      if (generationRetrieveController === controller) generationRetrieveController = null
+    }
   }
 
 
@@ -2006,7 +2235,7 @@ function createWorkspace(): WorkspaceStore {
   }
 
   async function retryOrganize(): Promise<void> {
-    if (sendBusy.value || briefBusy.value || referenceBusy.value || generationSubmitBusy.value || activeGeneration.value) return
+    if (sendBusy.value || briefBusy.value || referenceBusy.value || generationSubmitBusy.value || generationRetrieveBusy.value || activeGeneration.value) return
     const project = currentProject.value
     if (!project) return
     if (briefDirty.value) {
@@ -2053,6 +2282,7 @@ function createWorkspace(): WorkspaceStore {
       briefBusy.value ||
       referenceBusy.value ||
       generationSubmitBusy.value ||
+      generationRetrieveBusy.value ||
       activeGeneration.value ||
       project.brief_status === 'organizing'
     )
@@ -2462,6 +2692,17 @@ function createWorkspace(): WorkspaceStore {
     generationRecoveryAvailable,
     generationCredentialWarning,
     generationRecoveryAction,
+    generationRiskDialogOpen,
+    generationRetrieveBusy,
+    generationRetrieveError,
+    generationRetrieveNotice,
+    resultRetrievalGeneration,
+    resultRetrievalAvailable,
+    resultRetrievalUnavailableReason,
+    generationRetrieveDisabledReason,
+    retrieveGenerationResult,
+    confirmGenerationRisk,
+    cancelGenerationRisk,
     generationQuerying,
     generationQueryError,
     statusQueryInterruptionTitle,

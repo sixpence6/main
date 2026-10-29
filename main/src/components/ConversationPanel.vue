@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import BriefCard from './BriefCard.vue'
 import ReferenceUploader from './ReferenceUploader.vue'
+import ResultRetrievalPanel from './ResultRetrievalPanel.vue'
 import { useWorkspace } from '@/composables/useWorkspace'
 import {
   briefStatusLabel,
@@ -343,6 +344,8 @@ watch(
               恢复本次提交仅重放原始请求参数；如果原请求未被受理，可能执行这次生成。
             </p>
           </div>
+
+          <ResultRetrievalPanel />
 
           <div class="generation-action-row">
             <button

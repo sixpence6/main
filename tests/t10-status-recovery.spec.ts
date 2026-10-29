@@ -266,7 +266,7 @@ describe('T10 状态轮询、断连与恢复', () => {
 
     await harness.clock.advance(2000)
     expect(
-      await screen.findByText('最近生成结果未确认；请先核实结果，确认前不能生成新图片。', {
+      await screen.findByText('最近生成结果未确认；上次请求可能已提交并可能已计费。再次生成前需确认风险。', {
         selector: '.generation-latest-error',
       }),
     ).toBeVisible()
