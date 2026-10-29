@@ -21,7 +21,11 @@ from app.config import RoleConfig, Settings
 from app.services.config_status import build_config_status
 
 
-def _role(image_model: str | None = None) -> RoleConfig:
+def _role(
+    vision_model: str | None = None,
+    vision_base_url: str | None = None,
+    vision_api_key: SecretStr | None = None,
+) -> RoleConfig:
     return RoleConfig(
         role="llm",
         adapter_id="openai-chat",
@@ -29,13 +33,25 @@ def _role(image_model: str | None = None) -> RoleConfig:
         api_key=SecretStr("sk-test-secret"),
         model="chat-model",
         timeout_seconds=30,
-        image_model=image_model,
+        vision_model=vision_model,
+        vision_base_url=vision_base_url,
+        vision_api_key=vision_api_key,
     )
 
 
-def _adapter(handler, image_model: str | None = None):
+def _adapter(
+    handler,
+    vision_model: str | None = None,
+    vision_base_url: str | None = None,
+    vision_api_key: SecretStr | None = None,
+):
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    return OpenAIChatAdapter(_role(image_model), client), client
+    return (
+        OpenAIChatAdapter(
+            _role(vision_model, vision_base_url, vision_api_key), client
+        ),
+        client,
+    )
 
 
 def _request() -> OrganizeRequest:
@@ -287,7 +303,7 @@ async def test_reference_image_is_sent_as_a_multimodal_content_part():
         return httpx.Response(200, json=_completion(_review_payload()))
 
     image = b"\x89PNG\r\n\x1a\nreference"
-    adapter, client = _adapter(handler, image_model="vision-model")
+    adapter, client = _adapter(handler, vision_model="vision-model")
     try:
         result = await adapter.organize(_image_request(image))
     finally:
@@ -301,6 +317,31 @@ async def test_reference_image_is_sent_as_a_multimodal_content_part():
     expected = "data:image/png;base64," + base64.b64encode(image).decode("ascii")
     assert content[1]["image_url"]["url"] == expected
     assert result.outcome == "review"
+
+
+async def test_reference_image_uses_its_own_base_url_and_key():
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["auth"] = request.headers.get("authorization")
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json=_completion(_review_payload()))
+
+    adapter, client = _adapter(
+        handler,
+        vision_model="vision-model",
+        vision_base_url="https://vision.example/v1",
+        vision_api_key=SecretStr("sk-vision-secret"),
+    )
+    try:
+        await adapter.organize(_image_request())
+    finally:
+        await client.aclose()
+
+    assert seen["url"] == "https://vision.example/v1/chat/completions"
+    assert seen["auth"] == "Bearer sk-vision-secret"
+    assert seen["body"]["model"] == "vision-model"
 
 
 async def test_reference_image_without_vision_model_is_rejected_before_http():
@@ -337,6 +378,26 @@ def test_builtin_registry_exposes_openai_chat_and_config_is_ready():
     status = build_config_status(settings, registry)
     assert status.llm.configured is True
     assert status.llm.ready is True
+
+
+def test_settings_keep_text_and_vision_credentials_separate():
+    settings = Settings(
+        _env_file=None,
+        llm_adapter="openai-chat",
+        llm_base_url="https://llm.example/v1",
+        llm_api_key="sk-main-secret",
+        llm_model="chat-model",
+        llm_vision_model="vision-model",
+        llm_vision_base_url="https://vision.example/v1",
+        llm_vision_api_key="sk-vision-secret",
+    )
+    role = settings.llm()
+    assert role.api_key is not None
+    assert role.api_key.get_secret_value() == "sk-main-secret"
+    assert role.vision_model == "vision-model"
+    assert role.vision_base_url == "https://vision.example/v1"
+    assert role.vision_api_key is not None
+    assert role.vision_api_key.get_secret_value() == "sk-vision-secret"
 
 
 def test_adapter_requires_configured_role():

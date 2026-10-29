@@ -33,9 +33,11 @@ with JSON-object responses; it returns either a clarifying
 question (`needs_input`) or a final review with a non-empty prompt. Set the
 optional `LLM_VISION_MODEL` to send the project reference image as a multimodal
 content part, so the organizer can read the product image; when it is blank the
-organizer stays text-only. The image adapter supports text-to-image and one
-reference image, and requests base64 image data so result download never depends
-on a signed CDN URL.
+organizer stays text-only. If the multimodal model is served under a different
+key or API root, set `LLM_VISION_BASE_URL` and `LLM_VISION_API_KEY`; both fall
+back to the text-model values when left blank. The image adapter supports
+text-to-image and one reference image, and requests base64 image data so result
+download never depends on a signed CDN URL.
 
 If either provider is left blank, the app still boots and reports that role as
 not ready through configuration diagnostics.

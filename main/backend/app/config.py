@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr | None = None
     llm_model: str | None = None
     llm_vision_model: str | None = None
+    llm_vision_base_url: str | None = None
+    llm_vision_api_key: SecretStr | None = None
     llm_timeout_seconds: int = 60
 
     visual_adapter: str | None = None
@@ -133,19 +135,29 @@ class Settings(BaseSettings):
         return path if path.is_absolute() else REPO_ROOT / path
 
     def llm(self) -> RoleConfig:
+        base_url = _blank(self.llm_base_url)
+        api_key = (
+            self.llm_api_key
+            if self.llm_api_key and self.llm_api_key.get_secret_value().strip()
+            else None
+        )
+        vision_api_key = (
+            self.llm_vision_api_key
+            if self.llm_vision_api_key
+            and self.llm_vision_api_key.get_secret_value().strip()
+            else api_key
+        )
         return RoleConfig(
             role=ROLE_LLM,
             adapter_id=_blank(self.llm_adapter),
-            base_url=_blank(self.llm_base_url),
-            api_key=(
-                self.llm_api_key
-                if self.llm_api_key and self.llm_api_key.get_secret_value().strip()
-                else None
-            ),
+            base_url=base_url,
+            api_key=api_key,
             model=_blank(self.llm_model),
             timeout_seconds=max(int(self.llm_timeout_seconds), 1),
             image_size=None,
-            image_model=_blank(self.llm_vision_model),
+            vision_model=_blank(self.llm_vision_model),
+            vision_base_url=_blank(self.llm_vision_base_url) or base_url,
+            vision_api_key=vision_api_key,
         )
 
     def visual(self) -> RoleConfig:
@@ -171,7 +183,9 @@ class RoleConfig:
     model: str | None
     timeout_seconds: int
     image_size: str | None = None
-    image_model: str | None = None
+    vision_model: str | None = None
+    vision_base_url: str | None = None
+    vision_api_key: SecretStr | None = None
 
     @property
     def configured(self) -> bool:

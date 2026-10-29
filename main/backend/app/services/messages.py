@@ -229,7 +229,7 @@ async def send_message(
                 image_size,
             )
 
-        if role.image_model and reference_asset is not None:
+        if role.vision_model and reference_asset is not None:
             reference_path = resolve_asset_file(settings, reference_asset)
             if reference_path is not None:
                 try:

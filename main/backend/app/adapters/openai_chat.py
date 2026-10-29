@@ -138,9 +138,15 @@ class OpenAIChatAdapter:
         if not role.base_url or not role.api_key or not role.model:
             raise ValueError("openai-chat 适配器缺少必要配置")
         self.model = role.model
-        self._image_model = role.image_model
+        self._vision_model = role.vision_model
         self._base_url = role.base_url.rstrip("/")
+        self._vision_base_url = (role.vision_base_url or role.base_url).rstrip("/")
         self._api_key = role.api_key.get_secret_value()
+        self._vision_api_key = (
+            role.vision_api_key.get_secret_value()
+            if role.vision_api_key
+            else self._api_key
+        )
         self._timeout_seconds = role.timeout_seconds
         self._client = client
 
@@ -207,18 +213,22 @@ class OpenAIChatAdapter:
 
     async def organize(self, request: OrganizeRequest) -> OrganizeResult:
         model = self.model
+        base_url = self._base_url
+        api_key = self._api_key
         if request.reference_image is not None:
-            if not self._image_model:
+            if not self._vision_model:
                 raise ProviderError(
                     "未配置多模态模型，无法理解参考图",
                     evidence="rejected",
                     error_code="LLM_VISION_NOT_CONFIGURED",
                 )
-            model = self._image_model
+            model = self._vision_model
+            base_url = self._vision_base_url
+            api_key = self._vision_api_key
         try:
             response = await self._client.post(
-                f"{self._base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {self._api_key}"},
+                f"{base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
                 json={
                     "model": model,
                     "messages": self._messages(request),
@@ -242,10 +252,12 @@ class OpenAIChatAdapter:
                 error_code="LLM_NETWORK_ERROR",
             ) from None
 
-        return self._interpret_response(response, request.brief.image_size)
+        return self._interpret_response(
+            response, request.brief.image_size, api_key
+        )
 
     def _interpret_response(
-        self, response: httpx.Response, image_size: str | None
+        self, response: httpx.Response, image_size: str | None, api_key: str
     ) -> OrganizeResult:
         if 300 <= response.status_code < 400:
             raise ProviderError(
@@ -261,7 +273,7 @@ class OpenAIChatAdapter:
             )
         if response.status_code >= 400:
             raise ProviderError(
-                _safe_error_message(response, self._api_key),
+                _safe_error_message(response, api_key),
                 evidence="rejected",
                 error_code=_status_error_code(response.status_code),
             )
