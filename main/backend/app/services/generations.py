@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.adapters.base import BriefData, GenerationRequest, ProviderOutcome
@@ -80,7 +81,9 @@ def canonical_request(
     }
     if acknowledge_present:
         payload["acknowledge_unknown"] = acknowledge_unknown
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return json.dumps(
+        payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    )
 
 
 def request_digest(canonical: str) -> str:
@@ -104,7 +107,9 @@ def service_fingerprint(role: RoleConfig) -> str:
         "base_url": _normalized_base_url(role.base_url or ""),
         "model": role.model,
     }
-    canonical = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    canonical = json.dumps(
+        payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -120,15 +125,23 @@ def parse_image_size(value: str | None) -> tuple[int, int] | None:
     return width, height
 
 
-def _require_visual_ready(settings: Settings, registry: AdapterRegistry) -> tuple[RoleConfig, Any]:
+def _require_visual_ready(
+    settings: Settings, registry: AdapterRegistry
+) -> tuple[RoleConfig, Any]:
     visual = settings.visual()
     if not visual.configured:
-        raise ApiError(503, "MODEL_NOT_CONFIGURED", "生图模型尚未配置完整，请检查本地配置")
+        raise ApiError(
+            503, "MODEL_NOT_CONFIGURED", "生图模型尚未配置完整，请检查本地配置"
+        )
     if not visual.adapter_id or visual.adapter_id not in registry.known_visual_ids():
-        raise ApiError(503, "ADAPTER_UNAVAILABLE", "生图模型适配器不可用，请检查本地配置")
+        raise ApiError(
+            503, "ADAPTER_UNAVAILABLE", "生图模型适配器不可用，请检查本地配置"
+        )
     capabilities = registry.visual_capabilities(visual.adapter_id)
     if capabilities is None or capabilities.text_to_image is not True:
-        raise ApiError(503, "MODEL_CAPABILITY_MISMATCH", "生图模型能力未核实或暂不支持文生图")
+        raise ApiError(
+            503, "MODEL_CAPABILITY_MISMATCH", "生图模型能力未核实或暂不支持文生图"
+        )
     if parse_image_size(visual.image_size) is None:
         raise conflict("IMAGE_SIZE_CHANGED", "生成尺寸尚未核实，请重新整理需求")
     media_size = capabilities.supported_image_sizes
@@ -148,7 +161,9 @@ async def _find_by_request(
     )
 
 
-async def _load_result_asset(session: AsyncSession, generation: Generation) -> Asset | None:
+async def _load_result_asset(
+    session: AsyncSession, generation: Generation
+) -> Asset | None:
     if not generation.result_asset_id:
         return None
     return await session.get(Asset, generation.result_asset_id)
@@ -164,7 +179,42 @@ async def _existing_result(
         raise conflict("IDEMPOTENCY_CONFLICT", "请求标识已被不同的原参数使用")
     async with read_session(session_factory) as session:
         result_asset = await _load_result_asset(session, generation)
-    return SubmissionResult(generation=generation, result_asset=result_asset, created=False)
+    return SubmissionResult(
+        generation=generation, result_asset=result_asset, created=False
+    )
+
+
+_SUBMIT_RETRY_ATTEMPTS = 100
+_SUBMIT_RETRY_DELAY_SECONDS = 0.01
+
+
+async def _read_contending_result(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    project_id: str,
+    request_id: str,
+    canonical: str,
+) -> SubmissionResult | None:
+    """Re-read state after a lost write race without surfacing a raw 500."""
+
+    existing: Generation | None = None
+    active: Generation | None = None
+    async with read_session(session_factory) as session:
+        existing = await _find_by_request(session, project_id, request_id)
+        if existing is None:
+            active = await session.scalar(
+                select(Generation).where(
+                    Generation.project_id == project_id,
+                    Generation.status.in_(("queued", "running")),
+                )
+            )
+    if existing is not None:
+        return await _existing_result(session_factory, existing, canonical=canonical)
+    if active is not None:
+        if active.request_id == request_id:
+            return await _existing_result(session_factory, active, canonical=canonical)
+        raise conflict("ACTIVE_GENERATION_EXISTS", "项目有正在进行的生成，请稍后再试")
+    return None
 
 
 async def submit_generation(
@@ -186,116 +236,198 @@ async def submit_generation(
         acknowledge_present=acknowledge_present,
         acknowledge_unknown=acknowledge_unknown,
     )
+
     async with read_session(session_factory) as session:
         existing = await _find_by_request(session, project_id, request_id)
-        if existing is not None:
-            return await _existing_result(session_factory, existing, canonical=canonical)
+    if existing is not None:
+        return await _existing_result(session_factory, existing, canonical=canonical)
 
-    async with locks.hold(project_id):
-        async with write_transaction(session_factory) as session:
-            duplicate = await _find_by_request(session, project_id, request_id)
-            if duplicate is not None:
-                if duplicate.request_canonical != canonical:
-                    raise conflict("IDEMPOTENCY_CONFLICT", "请求标识已被不同的原参数使用")
-                result_asset = await _load_result_asset(session, duplicate)
-                return SubmissionResult(duplicate, result_asset, created=False)
-
-            project = await require_project(session, project_id)
-            if project.brief_status == "organizing":
-                raise conflict("STALE_ORGANIZATION", "项目正在整理中，请稍后重试")
-            active = await session.scalar(
-                select(Generation.id).where(
-                    Generation.project_id == project_id,
-                    Generation.status.in_(("queued", "running")),
-                )
-            )
-            if active is not None:
-                raise conflict("ACTIVE_GENERATION_EXISTS", "项目有正在进行的生成，请稍后再试")
-
-            if (
-                project.revision is None
-                or project.prompt_revision is None
-                or project.confirmed_revision is None
-                or not (
-                    project.revision == project.prompt_revision == project.confirmed_revision
-                )
-                or not project.prompt.strip()
+    for attempt in range(_SUBMIT_RETRY_ATTEMPTS):
+        try:
+            async with (
+                locks.hold(project_id),
+                write_transaction(session_factory) as session,
             ):
-                raise conflict("BRIEF_NOT_READY", "需求尚未整理并确认，无法生成")
+                duplicate = await _find_by_request(session, project_id, request_id)
+                if duplicate is not None:
+                    if duplicate.request_canonical != canonical:
+                        raise conflict(
+                            "IDEMPOTENCY_CONFLICT", "请求标识已被不同的原参数使用"
+                        )
+                    result_asset = await _load_result_asset(session, duplicate)
+                    return SubmissionResult(duplicate, result_asset, created=False)
 
-            visual, capabilities = _require_visual_ready(settings, registry)
-            if project.image_size is None or project.image_size != visual.image_size:
-                raise conflict("IMAGE_SIZE_CHANGED", "当前生成尺寸与配置不一致，请重新整理需求")
+                project = await require_project(session, project_id)
+                if project.brief_status == "organizing":
+                    raise conflict("STALE_ORGANIZATION", "项目正在整理中，请稍后重试")
+                active = await session.scalar(
+                    select(Generation).where(
+                        Generation.project_id == project_id,
+                        Generation.status.in_(("queued", "running")),
+                    )
+                )
+                if active is not None:
+                    if active.request_id == request_id:
+                        if active.request_canonical != canonical:
+                            raise conflict(
+                                "IDEMPOTENCY_CONFLICT", "请求标识已被不同的原参数使用"
+                            )
+                        result_asset = await _load_result_asset(session, active)
+                        return SubmissionResult(active, result_asset, created=False)
+                    raise conflict(
+                        "ACTIVE_GENERATION_EXISTS", "项目有正在进行的生成，请稍后再试"
+                    )
 
-            reference_asset: Asset | None = None
-            if project.reference_asset_id:
-                reference_asset = await session.get(Asset, project.reference_asset_id)
                 if (
-                    reference_asset is None
-                    or reference_asset.project_id != project_id
-                    or reference_asset.kind != "reference"
+                    project.revision is None
+                    or project.prompt_revision is None
+                    or project.confirmed_revision is None
+                    or not (
+                        project.revision
+                        == project.prompt_revision
+                        == project.confirmed_revision
+                    )
+                    or not project.prompt.strip()
                 ):
-                    raise ApiError(422, "REFERENCE_NOT_SUPPORTED", "参考图不可用于当前项目")
-                if capabilities.reference_image is not True:
-                    raise ApiError(422, "REFERENCE_NOT_SUPPORTED", "当前生图模型不支持参考图")
+                    raise conflict("BRIEF_NOT_READY", "需求尚未整理并确认，无法生成")
+
+                visual, capabilities = _require_visual_ready(settings, registry)
                 if (
-                    capabilities.reference_mime_types is not None
-                    and reference_asset.mime_type not in capabilities.reference_mime_types
+                    project.image_size is None
+                    or project.image_size != visual.image_size
                 ):
-                    raise ApiError(422, "REFERENCE_NOT_SUPPORTED", "参考图格式不受当前生图模型支持")
-                provider_limit = capabilities.provider_max_reference_bytes
-                if provider_limit is not None and reference_asset.byte_size > provider_limit:
-                    raise ApiError(422, "REFERENCE_NOT_SUPPORTED", "参考图大小超过生图模型限制")
-                if resolve_asset_file(settings, reference_asset) is None:
-                    raise ApiError(422, "REFERENCE_NOT_SUPPORTED", "参考图文件不可用")
+                    raise conflict(
+                        "IMAGE_SIZE_CHANGED", "当前生成尺寸与配置不一致，请重新整理需求"
+                    )
 
-            latest = await session.scalar(
-                select(Generation)
-                .where(Generation.project_id == project_id)
-                .order_by(Generation.version_no.desc())
-                .limit(1)
-            )
-            if (
-                latest is not None
-                and latest.status == "unknown"
-                and acknowledge_unknown is not True
-            ):
-                raise conflict("UNKNOWN_ACK_REQUIRED", "上次生成结果未确认，请明确确认风险后再试")
+                reference_asset: Asset | None = None
+                if project.reference_asset_id:
+                    reference_asset = await session.get(
+                        Asset, project.reference_asset_id
+                    )
+                    if (
+                        reference_asset is None
+                        or reference_asset.project_id != project_id
+                        or reference_asset.kind != "reference"
+                    ):
+                        raise ApiError(
+                            422, "REFERENCE_NOT_SUPPORTED", "参考图不可用于当前项目"
+                        )
+                    if capabilities.reference_image is not True:
+                        raise ApiError(
+                            422, "REFERENCE_NOT_SUPPORTED", "当前生图模型不支持参考图"
+                        )
+                    if (
+                        capabilities.reference_mime_types is not None
+                        and reference_asset.mime_type
+                        not in capabilities.reference_mime_types
+                    ):
+                        raise ApiError(
+                            422,
+                            "REFERENCE_NOT_SUPPORTED",
+                            "参考图格式不受当前生图模型支持",
+                        )
+                    provider_limit = capabilities.provider_max_reference_bytes
+                    if (
+                        provider_limit is not None
+                        and reference_asset.byte_size > provider_limit
+                    ):
+                        raise ApiError(
+                            422, "REFERENCE_NOT_SUPPORTED", "参考图大小超过生图模型限制"
+                        )
+                    if resolve_asset_file(settings, reference_asset) is None:
+                        raise ApiError(
+                            422, "REFERENCE_NOT_SUPPORTED", "参考图文件不可用"
+                        )
 
-            now = format_timestamp(utc_now())
-            version_no = 1 if latest is None else latest.version_no + 1
-            brief = brief_from_project(project)
-            generation = Generation(
-                id=str(uuid4()),
+                latest = await session.scalar(
+                    select(Generation)
+                    .where(Generation.project_id == project_id)
+                    .order_by(Generation.version_no.desc())
+                    .limit(1)
+                )
+                if (
+                    latest is not None
+                    and latest.status == "unknown"
+                    and acknowledge_unknown is not True
+                ):
+                    raise conflict(
+                        "UNKNOWN_ACK_REQUIRED",
+                        "上次生成结果未确认，请明确确认风险后再试",
+                    )
+
+                now = format_timestamp(utc_now())
+                version_no = 1 if latest is None else latest.version_no + 1
+                brief = brief_from_project(project)
+                generation = Generation(
+                    id=str(uuid4()),
+                    project_id=project_id,
+                    version_no=version_no,
+                    request_id=request_id,
+                    request_canonical=canonical,
+                    request_digest=request_digest(canonical),
+                    confirmed_revision=confirmed_revision,
+                    status="queued",
+                    stage="waiting_slot",
+                    brief_snapshot_json=snapshot_json(brief),
+                    prompt=project.prompt,
+                    image_size=project.image_size,
+                    reference_asset_id=project.reference_asset_id,
+                    adapter_id=visual.adapter_id or "",
+                    model=visual.model or "",
+                    service_fingerprint=service_fingerprint(visual),
+                    remote_task_id=None,
+                    result_locator_json=None,
+                    result_asset_id=None,
+                    error_code=None,
+                    error_message=None,
+                    submit_attempted=0,
+                    created_at=now,
+                    started_at=None,
+                    completed_at=None,
+                )
+                session.add(generation)
+                project.updated_at = now
+                await session.flush()
+                return SubmissionResult(
+                    generation=generation, result_asset=None, created=True
+                )
+
+        except IntegrityError:
+            recovered = await _read_contending_result(
+                session_factory,
                 project_id=project_id,
-                version_no=version_no,
                 request_id=request_id,
-                request_canonical=canonical,
-                request_digest=request_digest(canonical),
-                confirmed_revision=confirmed_revision,
-                status="queued",
-                stage="waiting_slot",
-                brief_snapshot_json=snapshot_json(brief),
-                prompt=project.prompt,
-                image_size=project.image_size,
-                reference_asset_id=project.reference_asset_id,
-                adapter_id=visual.adapter_id or "",
-                model=visual.model or "",
-                service_fingerprint=service_fingerprint(visual),
-                remote_task_id=None,
-                result_locator_json=None,
-                result_asset_id=None,
-                error_code=None,
-                error_message=None,
-                submit_attempted=0,
-                created_at=now,
-                started_at=None,
-                completed_at=None,
+                canonical=canonical,
             )
-            session.add(generation)
-            project.updated_at = now
-            await session.flush()
-            return SubmissionResult(generation=generation, result_asset=None, created=True)
+            if recovered is not None:
+                return recovered
+        except OperationalError as exc:
+            message = str(exc).lower()
+            if "locked" not in message and "busy" not in message:
+                raise
+            recovered = await _read_contending_result(
+                session_factory,
+                project_id=project_id,
+                request_id=request_id,
+                canonical=canonical,
+            )
+            if recovered is not None:
+                return recovered
+        except ApiError as exc:
+            if exc.code != "PROJECT_BUSY":
+                raise
+            recovered = await _read_contending_result(
+                session_factory,
+                project_id=project_id,
+                request_id=request_id,
+                canonical=canonical,
+            )
+            if recovered is not None:
+                return recovered
+        if attempt + 1 < _SUBMIT_RETRY_ATTEMPTS:
+            await asyncio.sleep(_SUBMIT_RETRY_DELAY_SECONDS)
+    raise conflict("PROJECT_BUSY", "项目正在处理其他写操作，请稍后重试")
 
 
 async def load_generation(
@@ -450,7 +582,7 @@ async def _deliver_result(
         await _set_stage(session_factory, claimed.id, "fetching_result")
         try:
             fetched = await adapter.fetch_result(locator)
-        except Exception:  # noqa: BLE001 - known remote result could not be downloaded
+        except Exception:
             logger.exception("fetching result for generation %s failed", claimed.id)
             await _finish_generation(
                 session_factory,
@@ -712,7 +844,7 @@ async def execute_generation(app: FastAPI, generation_id: str) -> None:
                 error_code="VISUAL_OUTCOME_UNKNOWN",
                 error_message="生图等待超时，结果未确认",
             )
-        except Exception:  # noqa: BLE001 - execution evidence is uncertain
+        except Exception:
             logger.exception("generation %s failed or became uncertain", generation_id)
             await _finish_generation(
                 session_factory,
@@ -754,7 +886,7 @@ def schedule_generation(app: FastAPI, generation_id: str) -> None:
             return
         try:
             finished.result()
-        except Exception:  # noqa: BLE001 - already logged where possible
+        except Exception:
             logger.exception("background generation task %s crashed", generation_id)
 
     task.add_done_callback(_done)
