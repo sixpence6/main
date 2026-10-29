@@ -1,0 +1,57 @@
+:root {
+  --color-page: #F4F0E8;
+  --color-panel: #FFFCF7;
+  --color-glass: rgba(255, 252, 247, 0.84);
+  --color-text: #2C2723;
+  --color-text-muted: #6F665C;
+  --color-primary: #705239;
+  --color-primary-hover: #5B4330;
+  --color-border: #DED5C7;
+  --color-accent: #B89A68;
+  --color-success: #42664C;
+  --color-warning: #7C5A22;
+  --color-danger: #A43D35;
+  --color-info: #4F6274;
+
+  --font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Segoe UI", system-ui, sans-serif;
+  --text-body: 14px;
+  --text-body-line: 22px;
+  --text-input: 16px;
+  --text-input-line: 24px;
+  --text-section: 16px;
+  --text-section-line: 24px;
+  --text-product: 20px;
+  --text-product-line: 28px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --radius-control: 8px;
+  --radius-panel: 16px;
+  --radius-image: 24px;
+
+  --shadow-panel: 0 8px 24px rgba(44, 39, 35, 0.06);
+
+  --head-height: 56px;
+  --body-padding: 16px;
+  --sidebar-width: 0px;
+  --conversation-max: 880px;
+  --results-max: 1120px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --head-height: 64px;
+    --body-padding: 20px;
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --body-padding: 24px;
+  }
+}
