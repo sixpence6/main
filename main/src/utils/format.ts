@@ -1,0 +1,73 @@
+import type { Brief, BriefStatus, GenerationStatus, GenerationView } from '@/api/types'
+
+export const editableBriefFields = [
+  { key: 'product_description', label: '商品描述' },
+  { key: 'purpose', label: '图片用途' },
+  { key: 'style', label: '风格' },
+  { key: 'composition', label: '构图与场景' },
+  { key: 'text_content', label: '图片中的文字' },
+] as const
+
+export type EditableBriefKey = (typeof editableBriefFields)[number]['key']
+
+export function displayProjectTitle(title: string | null | undefined): string {
+  const value = (title ?? '').trim()
+  return value || '未命名项目'
+}
+
+export function formatDateTime(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '时间未知'
+  return date.toLocaleString()
+}
+
+export function formatByteSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '大小未知'
+  return `${bytes.toLocaleString()} 字节`
+}
+
+export function briefStatusLabel(status: BriefStatus): string {
+  switch (status) {
+    case 'draft': return '草稿'
+    case 'organizing': return '正在整理'
+    case 'needs_input': return '需要补充'
+    case 'review': return '待确认'
+    case 'confirmed': return '需求已确认'
+  }
+}
+
+export function generationStatusLabel(status: GenerationStatus): string {
+  switch (status) {
+    case 'queued': return '等待生成'
+    case 'running': return '正在生成'
+    case 'succeeded': return '成功'
+    case 'failed': return '生成失败'
+    case 'unknown': return '结果未确认'
+  }
+}
+
+export function briefFieldValue(brief: Brief | null | undefined, key: EditableBriefKey): string {
+  const value = brief?.[key]
+  return typeof value === 'string' && value.trim() ? value : '未填写'
+}
+
+export function hasSnapshotContent(brief: Brief | null): boolean {
+  if (!brief) return false
+  return editableBriefFields.some((field) => Boolean(brief[field.key]?.trim())) || Boolean(brief.prompt?.trim())
+}
+
+export function snapshotFields(brief: Brief | null) {
+  if (!brief) return []
+  return editableBriefFields
+    .filter((field) => Boolean(brief[field.key]?.trim()))
+    .map((field) => ({ ...field, value: brief[field.key] }))
+}
+
+export function latestGeneration(generations: GenerationView[]): GenerationView | null {
+  if (!generations.length) return null
+  return generations.reduce((latest, item) => (item.version_no > latest.version_no ? item : latest))
+}
+
+export function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+}
