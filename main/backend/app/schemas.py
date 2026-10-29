@@ -170,16 +170,17 @@ class UpdateBriefRequest(BaseModel):
 
     @model_validator(mode="after")
     def _at_least_one_field(self) -> "UpdateBriefRequest":
-        if not any(
-            value is not None
-            for value in (
-                self.product_description,
-                self.purpose,
-                self.style,
-                self.composition,
-                self.text_content,
-            )
-        ):
+        names = (
+            "product_description",
+            "purpose",
+            "style",
+            "composition",
+            "text_content",
+        )
+        for name in names:
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"{name} 不能为 null")
+        if not any(getattr(self, name) is not None for name in names):
             raise ValueError("至少提供一个可编辑字段")
         return self
 

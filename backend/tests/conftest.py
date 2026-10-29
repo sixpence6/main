@@ -71,6 +71,26 @@ def llm_settings(settings: Settings) -> Settings:
     )
 
 
+@pytest.fixture
+def full_settings(settings: Settings) -> Settings:
+    return Settings(
+        _env_file=None,
+        data_dir=settings.data_dir,
+        web_dist_dir=settings.web_dist_dir,
+        llm_adapter="stub-llm",
+        llm_base_url="https://llm.invalid",
+        llm_api_key="sk-test-llm",
+        llm_model="stub-model",
+        llm_timeout_seconds=5,
+        visual_adapter="stub-visual",
+        visual_base_url="https://visual.invalid",
+        visual_api_key="sk-test-visual",
+        visual_model="stub-model",
+        visual_image_size="1024x1024",
+        visual_timeout_seconds=5,
+    )
+
+
 @pytest_asyncio.fixture
 async def llm_app(llm_settings: Settings):
     from tests.support.adapters import build_test_registry
