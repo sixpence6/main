@@ -19,15 +19,26 @@ export interface AssetView {
   availability: 'available' | 'missing'
 }
 
-export interface Brief {
+export interface BriefFields {
   product_description: string
   purpose: string
   style: string
   composition: string
   text_content: string
+}
+
+export interface Brief extends BriefFields {
   image_size: string | null
   reference_asset_id: string | null
   prompt: string
+}
+
+export type PatchBriefRequest = Partial<BriefFields> & {
+  expected_revision: number
+}
+
+export interface ConfirmBriefRequest {
+  revision: number
 }
 
 export interface ProjectView {

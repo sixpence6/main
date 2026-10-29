@@ -28,6 +28,25 @@ const {
   sendError,
   organizing,
   sendDisabledReason,
+  briefDraft,
+  briefEditing,
+  briefFieldErrors,
+  briefDirty,
+  briefAction,
+  briefBusy,
+  briefSaveError,
+  briefConfirmError,
+  briefSaveNotice,
+  briefConflict,
+  promptStale,
+  saveDisabledReason,
+  confirmDisabledReason,
+  startBriefEdit,
+  cancelBriefEdit,
+  setBriefField,
+  saveBrief,
+  confirmBrief,
+  reloadLatestBrief,
   send,
   retryOrganize,
 } = workspace
@@ -47,7 +66,7 @@ const hasProjectParam = computed(() => projectParam.value !== null)
 const latest = computed(() => latestGeneration(projectGenerations.value))
 const showComposer = computed(() => !hasProjectParam.value || Boolean(currentProject.value))
 const showOrganizing = computed(
-  () => Boolean(currentProject.value) && (sendBusy.value || organizing.value),
+  () => Boolean(currentProject.value) && (sendBusy.value || organizing.value || briefAction.value === 'organize'),
 )
 const composerReason = computed(() => {
   if (!sendDisabledReason.value) return ''
@@ -164,7 +183,7 @@ watch(
           <button
             type="button"
             class="secondary-button"
-            :disabled="sendBusy || organizing"
+            :disabled="sendBusy || organizing || briefBusy"
             @click="retryOrganize"
           >
             重新整理
@@ -175,6 +194,26 @@ watch(
           :brief="currentProject.brief"
           heading="当前需求"
           :reference-asset="currentProject.reference_asset"
+          editable
+          :editing="briefEditing"
+          :draft="briefDraft"
+          :dirty="briefDirty"
+          :field-errors="briefFieldErrors"
+          :prompt-stale="promptStale"
+          :busy="briefBusy"
+          :save-disabled-reason="saveDisabledReason"
+          :confirm-disabled-reason="confirmDisabledReason"
+          :save-notice="briefSaveNotice"
+          :save-error="briefSaveError"
+          :confirm-error="briefConfirmError"
+          :conflict="briefConflict"
+          @start-edit="startBriefEdit"
+          @update-field="setBriefField"
+          @save="saveBrief"
+          @cancel="cancelBriefEdit"
+          @confirm="confirmBrief"
+          @reorganize="retryOrganize"
+          @reload-latest="reloadLatestBrief"
         />
 
         <section class="conversation-history" aria-labelledby="history-title">

@@ -1189,3 +1189,93 @@ body,
   cursor: not-allowed;
   opacity: 0.75;
 }
+
+/* T04 需求卡编辑、保存、整理与确认 */
+.prompt-heading {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.prompt-heading h4 {
+  margin: 0;
+}
+
+.prompt-block .status-warning {
+  grid-column: 1 / -1;
+  margin: 0 0 var(--space-2);
+}
+
+.brief-input {
+  width: 100%;
+  min-height: 76px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: #fffdf8;
+  color: var(--color-text);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.brief-input[aria-invalid='true'] {
+  border-color: var(--color-error);
+}
+
+.field-error {
+  margin: 4px 0 0;
+  color: var(--color-error);
+  font-size: 13px;
+}
+
+.brief-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.brief-actions .brief-error,
+.brief-actions .status-notice,
+.brief-actions .control-reason,
+.brief-actions .dirty-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.brief-actions .brief-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.status-notice {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  background: #eef4e8;
+  color: #3f5d35;
+}
+
+.dirty-note {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}

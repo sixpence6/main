@@ -6,6 +6,8 @@ import type {
   ProjectListResponse,
   ProjectView,
   MessageCreateResponse,
+  ConfirmBriefRequest,
+  PatchBriefRequest,
 } from './types'
 
 const JSON_HEADERS = { Accept: 'application/json' }
@@ -146,6 +148,19 @@ export const api = {
     return requestJson<MessageCreateResponse>(
       `/api/projects/${encodeURIComponent(projectId)}/messages`,
       { method: 'POST', body: JSON.stringify(input) },
+    )
+  },
+  updateBrief(projectId: string, input: PatchBriefRequest): Promise<ProjectView> {
+    return requestJson<ProjectView>(
+      `/api/projects/${encodeURIComponent(projectId)}/brief`,
+      { method: 'PATCH', body: JSON.stringify(input) },
+    )
+  },
+  confirmBrief(projectId: string, revision: number): Promise<ProjectView> {
+    const body: ConfirmBriefRequest = { revision }
+    return requestJson<ProjectView>(
+      `/api/projects/${encodeURIComponent(projectId)}/confirm`,
+      { method: 'POST', body: JSON.stringify(body) },
     )
   },
 }
