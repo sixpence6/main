@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 import json
+from dataclasses import replace
 
 import httpx
 import pytest
@@ -8,6 +10,7 @@ from pydantic import SecretStr
 
 from app.adapters.base import (
     BriefData,
+    OrganizeImage,
     OrganizeMessage,
     OrganizeRequest,
     ProviderError,
@@ -18,7 +21,7 @@ from app.config import RoleConfig, Settings
 from app.services.config_status import build_config_status
 
 
-def _role() -> RoleConfig:
+def _role(image_model: str | None = None) -> RoleConfig:
     return RoleConfig(
         role="llm",
         adapter_id="openai-chat",
@@ -26,12 +29,13 @@ def _role() -> RoleConfig:
         api_key=SecretStr("sk-test-secret"),
         model="chat-model",
         timeout_seconds=30,
+        image_model=image_model,
     )
 
 
-def _adapter(handler):
+def _adapter(handler, image_model: str | None = None):
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    return OpenAIChatAdapter(_role(), client), client
+    return OpenAIChatAdapter(_role(image_model), client), client
 
 
 def _request() -> OrganizeRequest:
@@ -44,6 +48,14 @@ def _request() -> OrganizeRequest:
         ),
         user_text="电商主图，白色背景",
         has_reference_image=False,
+    )
+
+
+def _image_request(data: bytes = b"\x89PNG\r\n", mime_type: str = "image/png"):
+    return replace(
+        _request(),
+        has_reference_image=True,
+        reference_image=OrganizeImage(data=data, mime_type=mime_type),
     )
 
 
@@ -265,6 +277,50 @@ async def test_review_requires_all_brief_fields():
 
     assert raised.value.evidence == "rejected"
     assert raised.value.error_code == "LLM_RESPONSE_INVALID"
+
+
+async def test_reference_image_is_sent_as_a_multimodal_content_part():
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json=_completion(_review_payload()))
+
+    image = b"\x89PNG\r\n\x1a\nreference"
+    adapter, client = _adapter(handler, image_model="vision-model")
+    try:
+        result = await adapter.organize(_image_request(image))
+    finally:
+        await client.aclose()
+
+    body = seen["body"]
+    assert body["model"] == "vision-model"
+    content = body["messages"][-1]["content"]
+    assert content[0] == {"type": "text", "text": "电商主图，白色背景"}
+    assert content[1]["type"] == "image_url"
+    expected = "data:image/png;base64," + base64.b64encode(image).decode("ascii")
+    assert content[1]["image_url"]["url"] == expected
+    assert result.outcome == "review"
+
+
+async def test_reference_image_without_vision_model_is_rejected_before_http():
+    called = False
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal called
+        called = True
+        return httpx.Response(200, json=_completion(_review_payload()))
+
+    adapter, client = _adapter(handler)
+    try:
+        with pytest.raises(ProviderError) as raised:
+            await adapter.organize(_image_request())
+    finally:
+        await client.aclose()
+
+    assert called is False
+    assert raised.value.evidence == "rejected"
+    assert raised.value.error_code == "LLM_VISION_NOT_CONFIGURED"
 
 
 def test_builtin_registry_exposes_openai_chat_and_config_is_ready():

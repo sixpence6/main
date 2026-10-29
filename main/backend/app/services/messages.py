@@ -2,20 +2,27 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.adapters.base import BriefData, OrganizeMessage, OrganizeRequest, OrganizeResult
+from app.adapters.base import (
+    BriefData,
+    OrganizeImage,
+    OrganizeMessage,
+    OrganizeRequest,
+    OrganizeResult,
+)
 from app.adapters.registry import AdapterRegistry
 from app.config import Settings
 from app.db import ProjectLocks, read_session, write_transaction
 from app.errors import ApiError, conflict, validation_error
 from app.models import Asset, Generation, Message, Project
 from app.presenters import brief_from_project, snapshot_json
+from app.services.assets import resolve_asset_file
 from app.services.projects import DEFAULT_PROJECT_TITLE, require_project
 from app.timeutil import format_timestamp, utc_now
 
@@ -221,6 +228,25 @@ async def send_message(
                 reference_asset is not None,
                 image_size,
             )
+
+        if role.image_model and reference_asset is not None:
+            reference_path = resolve_asset_file(settings, reference_asset)
+            if reference_path is not None:
+                try:
+                    reference_bytes = await asyncio.to_thread(reference_path.read_bytes)
+                except OSError:
+                    logger.warning(
+                        "reference image unreadable project=%s", project_id
+                    )
+                else:
+                    if reference_bytes:
+                        request = replace(
+                            request,
+                            reference_image=OrganizeImage(
+                                data=reference_bytes,
+                                mime_type=reference_asset.mime_type,
+                            ),
+                        )
 
         adapter = registry.build_llm(role, http_client)
         if adapter is None:

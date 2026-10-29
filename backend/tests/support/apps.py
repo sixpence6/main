@@ -31,6 +31,7 @@ def llm_settings(base: Settings, **overrides) -> Settings:
         "llm_base_url": "https://llm.invalid",
         "llm_api_key": "sk-test-llm",
         "llm_model": "stub-model",
+        "llm_vision_model": "stub-vision",
         "llm_timeout_seconds": 5,
         "visual_adapter": None,
         "visual_base_url": None,

@@ -1,15 +1,24 @@
 from __future__ import annotations
 
+import base64
 import json
 import re
 from typing import Any
 
 import httpx
 
-from app.adapters.base import BriefData, OrganizeRequest, OrganizeResult, ProviderError
+from app.adapters.base import (
+    BriefData,
+    OrganizeImage,
+    OrganizeRequest,
+    OrganizeResult,
+    ProviderError,
+)
 from app.config import RoleConfig
 
 _MAX_ERROR_MESSAGE_LENGTH = 200
+_MAX_IMAGE_BYTES = 10_000_000
+_IMAGE_MIME_TYPES = {"image/png", "image/jpeg"}
 _URL_PATTERN = re.compile(r"https?://\S+")
 _FIELD_NAMES = (
     "product_description",
@@ -39,6 +48,9 @@ _SYSTEM_PROMPT = """你是电商生图工作台的需求整理助手。
 - 用户已经给出的约束必须保留，不要擅自改变商品、价格、活动或文字内容。
 - 未知材质、功能、认证和价格保持未指定；风格、构图可以给出可见建议。
 - 尺寸、参考图、模型和资源 ID 由服务端管理，不要输出这些字段，也不要让用户选择。
+- 如果本轮附带了参考图，先观察商品外观、颜色、材质、结构、包装和可见文字，
+  并把这些作为商品描述的依据；看不清或不确定的细节不要编造。
+- 用户文字与参考图冲突时，以用户明确的文字为准，并在 content 中说明。
 - content 和字段使用用户当前使用的语言。"""
 
 
@@ -126,17 +138,19 @@ class OpenAIChatAdapter:
         if not role.base_url or not role.api_key or not role.model:
             raise ValueError("openai-chat 适配器缺少必要配置")
         self.model = role.model
+        self._image_model = role.image_model
         self._base_url = role.base_url.rstrip("/")
         self._api_key = role.api_key.get_secret_value()
         self._timeout_seconds = role.timeout_seconds
         self._client = client
 
-    def _messages(self, request: OrganizeRequest) -> list[dict[str, str]]:
+    def _messages(self, request: OrganizeRequest) -> list[dict[str, Any]]:
         context = {
             "current_brief": request.brief.as_dict(),
             "has_reference_image": request.has_reference_image,
+            "reference_image_attached": request.reference_image is not None,
         }
-        messages: list[dict[str, str]] = [
+        messages: list[dict[str, Any]] = [
             {"role": "system", "content": _SYSTEM_PROMPT},
             {
                 "role": "system",
@@ -151,15 +165,62 @@ class OpenAIChatAdapter:
             messages.append({"role": role, "content": message.content})
         if not request.messages or request.messages[-1].content != request.user_text:
             messages.append({"role": "user", "content": request.user_text})
+        if request.reference_image is not None:
+            self._attach_reference_image(messages, request.reference_image)
         return messages
 
+    def _attach_reference_image(
+        self, messages: list[dict[str, Any]], image: OrganizeImage
+    ) -> None:
+        if image.mime_type not in _IMAGE_MIME_TYPES:
+            raise ProviderError(
+                "参考图格式不支持",
+                evidence="rejected",
+                error_code="LLM_IMAGE_UNSUPPORTED",
+            )
+        if not image.data or len(image.data) > _MAX_IMAGE_BYTES:
+            raise ProviderError(
+                "参考图大小超出多模态模型限制",
+                evidence="rejected",
+                error_code="LLM_IMAGE_TOO_LARGE",
+            )
+        encoded = base64.b64encode(image.data).decode("ascii")
+        image_part = {
+            "type": "image_url",
+            "image_url": {"url": f"data:{image.mime_type};base64,{encoded}"},
+        }
+        for message in reversed(messages):
+            if message.get("role") != "user":
+                continue
+            content = message.get("content")
+            if isinstance(content, str):
+                message["content"] = [
+                    {"type": "text", "text": content},
+                    image_part,
+                ]
+            elif isinstance(content, list):
+                content.append(image_part)
+            else:
+                message["content"] = [image_part]
+            return
+        messages.append({"role": "user", "content": [image_part]})
+
     async def organize(self, request: OrganizeRequest) -> OrganizeResult:
+        model = self.model
+        if request.reference_image is not None:
+            if not self._image_model:
+                raise ProviderError(
+                    "未配置多模态模型，无法理解参考图",
+                    evidence="rejected",
+                    error_code="LLM_VISION_NOT_CONFIGURED",
+                )
+            model = self._image_model
         try:
             response = await self._client.post(
                 f"{self._base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {self._api_key}"},
                 json={
-                    "model": self.model,
+                    "model": model,
                     "messages": self._messages(request),
                     "temperature": 0.2,
                     "max_tokens": 4096,

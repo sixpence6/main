@@ -42,11 +42,20 @@ class OrganizeMessage:
 
 
 @dataclass(frozen=True)
+class OrganizeImage:
+    """One reference image supplied to a multimodal organizer."""
+
+    data: bytes
+    mime_type: str
+
+
+@dataclass(frozen=True)
 class OrganizeRequest:
     brief: BriefData
     messages: tuple[OrganizeMessage, ...]
     user_text: str
     has_reference_image: bool
+    reference_image: OrganizeImage | None = None
 
 
 @dataclass(frozen=True)

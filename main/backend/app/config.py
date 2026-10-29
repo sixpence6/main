@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     llm_base_url: str | None = None
     llm_api_key: SecretStr | None = None
     llm_model: str | None = None
+    llm_vision_model: str | None = None
     llm_timeout_seconds: int = 60
 
     visual_adapter: str | None = None
@@ -144,6 +145,7 @@ class Settings(BaseSettings):
             model=_blank(self.llm_model),
             timeout_seconds=max(int(self.llm_timeout_seconds), 1),
             image_size=None,
+            image_model=_blank(self.llm_vision_model),
         )
 
     def visual(self) -> RoleConfig:
@@ -169,6 +171,7 @@ class RoleConfig:
     model: str | None
     timeout_seconds: int
     image_size: str | None = None
+    image_model: str | None = None
 
     @property
     def configured(self) -> bool:

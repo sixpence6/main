@@ -149,6 +149,27 @@ async def detail(client, project_id: str) -> dict:
 
 
 @pytest.mark.asyncio
+async def test_text_only_organizer_keeps_reference_flag_without_image_bytes(full_settings):
+    text_only = full_settings.model_copy(update={"llm_vision_model": None})
+    async with environment(text_only) as (client, llm, _visual):
+        project = await create_project(client)
+        uploaded = await upload_ok(
+            client, project["id"], project["revision"], png_bytes(640, 480, (20, 80, 200))
+        )
+        exchange = await client.post(
+            f"/api/projects/{project['id']}/messages",
+            json={
+                "content": "用这张参考图做电商主图",
+                "expected_revision": uploaded["revision"],
+            },
+        )
+        assert exchange.status_code == 200, exchange.text
+        assert len(llm.calls) == 1
+        assert llm.calls[0].has_reference_image is True
+        assert llm.calls[0].reference_image is None
+
+
+@pytest.mark.asyncio
 async def test_reference_bytes_reach_visual_and_feedback_keeps_original_reference(
     full_settings,
 ):
@@ -198,6 +219,9 @@ async def test_reference_bytes_reach_visual_and_feedback_keeps_original_referenc
         assert len(llm.calls) == 2
         feedback_request = llm.calls[1]
         assert feedback_request.has_reference_image is True
+        assert feedback_request.reference_image is not None
+        assert feedback_request.reference_image.mime_type == "image/png"
+        assert feedback_request.reference_image.data == reference_image
         assert feedback_request.brief.reference_asset_id == reference_id
         assert feedback_request.brief.style == "干净明亮"
         assert feedback_request.brief.product_description == "白色陶瓷马克杯，容量 350ml"
