@@ -56,12 +56,17 @@ const {
   generationSubmitError,
   generationSubmitNotice,
   generationUncertain,
+  generationPendingRestored,
+  generationRecoveryAvailable,
+  generationCredentialWarning,
+  generationRecoveryAction,
   generationQueryError,
   generationDisabledReason,
   activeGeneration,
   latestGenerationError,
   submitGeneration,
   verifyGenerationSubmission,
+  resumeGenerationSubmission,
   retryGenerationQuery,
 } = workspace
 const input = ref<HTMLTextAreaElement | null>(null)
@@ -310,14 +315,35 @@ watch(
             <p class="generation-error" role="alert">
               提交待核实：生成请求可能已发出，但尚未收到确认。确认前不会再次提交。
             </p>
-            <button
-              type="button"
-              class="secondary-button"
-              :disabled="generationSubmitBusy"
-              @click="verifyGenerationSubmission"
-            >
-              {{ generationSubmitBusy ? '正在核实…' : '核实提交结果' }}
-            </button>
+            <p v-if="generationPendingRestored" class="generation-recovery-note" role="status">
+              已恢复上次未确认的原始提交参数。可先只读核实，或明确恢复本次提交。
+            </p>
+            <p v-if="generationCredentialWarning" class="generation-recovery-note" role="status">
+              {{ generationCredentialWarning }}
+            </p>
+            <div class="generation-recovery-actions">
+              <button
+                type="button"
+                class="secondary-button"
+                :disabled="generationSubmitBusy"
+                @click="verifyGenerationSubmission"
+              >
+                {{ generationRecoveryAction === 'verify' ? '正在核实…' : '核实提交结果' }}
+              </button>
+              <button
+                v-if="generationRecoveryAvailable"
+                type="button"
+                class="secondary-button"
+                aria-describedby="generation-recovery-risk"
+                :disabled="generationSubmitBusy"
+                @click="resumeGenerationSubmission"
+              >
+                {{ generationRecoveryAction === 'resume' ? '正在恢复提交…' : '恢复本次提交' }}
+              </button>
+            </div>
+            <p id="generation-recovery-risk" class="generation-recovery-risk">
+              恢复本次提交仅重放原始请求参数；如果原请求未被受理，可能执行这次生成。
+            </p>
           </div>
 
           <div class="generation-action-row">

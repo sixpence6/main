@@ -167,3 +167,16 @@
 - **可访问性与布局**：版本条为独立横向滚动区，使用 `role="group"`、`aria-pressed`、可访问版本名称，键盘可聚焦并选择；选中态有可见样式；移动端保持横向滚动，不压缩按钮文字。
 - **T08 证据**：`tests/t08-version-browsing.spec.ts` 的 9 个完整工作台测试通过；全量 112 个测试、`npm run typecheck`、`npm run build` 通过（构建 1613 modules）。覆盖版本排序与默认最新、旧版预览不改当前需求、资源缺失隔离、失败不遮盖、快照缺失不编造、继续编辑不发送、查看旧版时新结果提示、切换项目后轮询不跳回、反馈到新版并逐版下载。受控测试响应不代表真实服务已按此返回。
 - **风险**：真实 OpenAPI 的 `version_no` 唯一性、同版本排序、`brief_snapshot` 可空性、`result_asset` 是否总随详情返回、下载资源响应头与真实浏览器横向滚动/键盘行为尚未核验；未核验前不得宣称真实历史版本链路已完成。
+
+
+## T09 核验记录：提交回执不明后的核实与手动恢复
+
+- **状态**：未核验（仅后端设计草案、`contracts.md` 与受控测试响应；没有真实 OpenAPI 或可连接运行服务）。
+- **最小凭据与写入时机**：每次生成 POST 发出前，内存保留原请求，并尝试写入同源 `sessionStorage` 键 `ecommerce-generation-pending`；内容仅 `projectId`、`requestId`、`confirmedRevision`、`acknowledgeUnknownPresent`、`acknowledgeUnknownValue`、可选 `generationId`。不保存卡片、图片、草稿或密钥。回执明确成功或进入可查询状态后清理；回执不明时凭据保留。
+- **存储失败隔离**：`sessionStorage` 读取、JSON 解析、字段格式校验和写入失败均按“无凭据/不可持久化”安全处理。无效或项目不匹配的凭据不用于任何请求；写入失败时内存原请求仍可用于手动恢复，并显示“无法写入会话存储；本次提交仍保留在当前页面，刷新或关闭页面后将无法恢复。”。不承诺关闭标签页后恢复，也不依赖跨标签共享。
+- **刷新自动核实**：项目详情加载后读取同项目凭据，先 GET `/api/projects/{id}`，在 `generations` 中按原 `request_id` 精确匹配；若凭据带有已知 `generationId` 且项目详情未包含，再 GET `/api/generations/{id}` 并按同一 `request_id` 复核。匹配到 queued/running 恢复状态轮询，匹配到 succeeded 恢复结果视图；自动核实只发 GET，不产生消息或生成 POST。
+- **未匹配处理**：显示“提交待核实：生成请求可能已发出，但尚未收到确认。确认前不会再次提交。”及“仍未查到这次生成提交的记录；这不代表失败。可先只读核实，或明确恢复本次提交。”，保留原凭据和恢复入口；不把未匹配当作原请求失败，不自动创建替代请求。
+- **手动恢复**：仅使用凭据中完全相同的 `request_id`、`confirmed_revision` 和 `acknowledge_unknown` 的存在性/值重放 POST，即使当前项目修订或模型配置已变化也不重算；恢复按钮说明“恢复本次提交仅重放原始请求参数；如果原请求未被受理，可能执行这次生成。”。恢复进行中防重入、不生成新 `request_id`；它与只读核实、主动新生成在界面和请求上明确区分。
+- **终态清理与限制**：服务端记录进入终态后清理凭据并停止待核实状态；不宣称远端绝无重复计费，也不尝试跨标签协调。未知生成状态（`status === "unknown"`）仍按 T06/T08 规则阻止新生成，后续确认协议待真实契约核验。
+- **T09 证据**：`tests/t09-uncertain-submit-recovery.spec.ts` 的 15 个完整工作台测试通过；全量 127 个测试、`npm run typecheck`、`npm run build` 通过（构建 1613 modules）。覆盖最小凭据、存储读写失败、刷新匹配 queued/succeeded、已知生成 ID 核实、未匹配保留、三种 `acknowledge_unknown` 手动恢复参数逐字段一致、恢复防重、无效凭据和无凭据不误报。受控测试响应不代表真实服务已按此返回。
+- **风险**：真实 OpenAPI 的幂等语义（相同 `request_id`/参数返回 200 还是 202）、`UNKNOWN_ACK_REQUIRED` 与 `acknowledge_unknown` 的后续协议、5xx 是否代表受理不明、`sessionStorage` 在真实浏览器隐私模式/配额下的行为尚未核验；未核验前不得宣称真实断网恢复链路已完成。

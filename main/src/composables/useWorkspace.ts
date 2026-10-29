@@ -24,6 +24,7 @@ import type {
   ProjectDetailResponse,
   ProjectSummary,
   ProjectView,
+  SubmitGenerationRequest,
 } from '@/api/types'
 import { editableBriefFields, isUuid, type EditableBriefKey } from '@/utils/format'
 import { useViewport } from './useViewport'
@@ -55,6 +56,9 @@ export interface PendingGenerationRequest {
   projectId: string
   requestId: string
   confirmedRevision: number
+  acknowledgeUnknownPresent: boolean
+  acknowledgeUnknownValue: boolean | null
+  generationId: string | null
 }
 
 type NavigationIntent =
@@ -130,6 +134,10 @@ export interface WorkspaceStore {
   generationSubmitError: Ref<string>
   generationSubmitNotice: Ref<string>
   generationUncertain: Ref<boolean>
+  generationPendingRestored: Ref<boolean>
+  generationRecoveryAvailable: ComputedRef<boolean>
+  generationCredentialWarning: Ref<string>
+  generationRecoveryAction: Ref<'verify' | 'resume' | null>
   generationQuerying: Ref<boolean>
   generationQueryError: Ref<string>
   generationDisabledReason: ComputedRef<string>
@@ -143,6 +151,7 @@ export interface WorkspaceStore {
   selectResultGeneration: (id: string) => void
   submitGeneration: () => Promise<void>
   verifyGenerationSubmission: () => Promise<void>
+  resumeGenerationSubmission: () => Promise<void>
   retryGenerationQuery: () => void
   chooseReferenceFiles: (files: File[]) => Promise<void>
   retryReferenceUpload: () => Promise<void>
@@ -248,6 +257,15 @@ function createWorkspace(): WorkspaceStore {
   const generationSubmitError = ref('')
   const generationSubmitNotice = ref('')
   const generationUncertain = ref(false)
+  const generationPendingRestored = ref(false)
+  const generationCredentialWarning = ref('')
+  const generationRecoveryAvailable = computed(
+    () =>
+      generationUncertain.value &&
+      pendingGenerationRequest !== null &&
+      currentProject.value?.id === pendingGenerationRequest.projectId,
+  )
+  const generationRecoveryAction = ref<'verify' | 'resume' | null>(null)
   const generationQuerying = ref(false)
   const generationQueryError = ref('')
   let generationToken = 0
@@ -783,6 +801,7 @@ function createWorkspace(): WorkspaceStore {
       projectError.value = '项目链接无效，请检查地址或从项目列表重新选择。'
       return
     }
+    const restoredCredential = readGenerationCredential(id)
     detailController?.abort()
     const controller = new AbortController()
     detailController = controller
@@ -813,6 +832,7 @@ function createWorkspace(): WorkspaceStore {
       briefSaveNotice.value = ''
       briefConflict.value = false
       creationUnknown.value = false
+      await restoreGenerationCredential(restoredCredential, response.generations, controller.signal)
     } catch (error) {
       if (isAbortError(error) || controller.signal.aborted || token !== detailToken) return
       if (error instanceof ApiError) {
@@ -836,6 +856,63 @@ function createWorkspace(): WorkspaceStore {
         if (detailController === controller) detailController = null
       }
     }
+  }
+
+  async function findKnownGeneration(
+    request: PendingGenerationRequest,
+    generations: GenerationView[],
+    signal?: AbortSignal,
+  ): Promise<GenerationView | null> {
+    const inProject = generations.find((item) => item.request_id === request.requestId)
+    if (inProject) return inProject
+    if (!request.generationId) return null
+    try {
+      const known = await api.getGeneration(request.generationId, signal)
+      if (known.request_id !== request.requestId) return null
+      return known
+    } catch {
+      return null
+    }
+  }
+
+  async function restoreGenerationCredential(
+    credential: PendingGenerationRequest | null,
+    generations: GenerationView[],
+    signal?: AbortSignal,
+  ): Promise<void> {
+    if (!credential || signal?.aborted) return
+    const match = await findKnownGeneration(credential, generations, signal)
+    if (signal?.aborted || currentProject.value?.id !== credential.projectId) return
+    pendingGenerationRequest = credential
+    generationPendingRestored.value = true
+    if (!match) {
+      generationUncertain.value = true
+      generationSubmitNotice.value = '已恢复上次未确认的生成提交。'
+      generationSubmitError.value =
+        '仍未查到这次生成提交的记录；这不代表失败。可先只读核实，或明确恢复本次提交。'
+      return
+    }
+    upsertGeneration(match)
+    pendingGenerationRequest = null
+    generationUncertain.value = false
+    generationPendingRestored.value = false
+    clearGenerationCredential()
+    if (match.status === 'queued' || match.status === 'running') {
+      generationSubmitNotice.value = '已恢复上次生成提交，正在继续读取任务状态。'
+      scheduleGenerationPoll(match.id)
+      announce(generationSubmitNotice.value)
+      return
+    }
+    if (match.status === 'succeeded') {
+      selectedResultGenerationId.value = match.id
+      resultSelectionPinned = false
+      stage.value = 'results'
+      generationSubmitNotice.value = '已恢复上次生成结果，已切换到结果视图。'
+      announce(generationSubmitNotice.value)
+      return
+    }
+    generationSubmitNotice.value = '已恢复上次生成提交记录。'
+    announce(generationSubmitNotice.value)
   }
 
   function modelConfigReason(): string {
@@ -884,8 +961,62 @@ function createWorkspace(): WorkspaceStore {
     })
   }
 
-  function saveGenerationCredential(request: PendingGenerationRequest): void {
-    if (typeof window === 'undefined') return
+  function buildGenerationRequestBody(request: PendingGenerationRequest): SubmitGenerationRequest {
+    const body: SubmitGenerationRequest = {
+      request_id: request.requestId,
+      confirmed_revision: request.confirmedRevision,
+    }
+    if (request.acknowledgeUnknownPresent) {
+      body.acknowledge_unknown = request.acknowledgeUnknownValue === true
+    }
+    return body
+  }
+
+  function normalizeGenerationCredential(
+    value: unknown,
+    projectId: string,
+  ): PendingGenerationRequest | null {
+    if (!value || typeof value !== 'object') return null
+    const record = value as Record<string, unknown>
+    if (record.projectId !== projectId) return null
+    if (typeof record.requestId !== 'string' || !record.requestId.trim()) return null
+    if (record.requestId.length > 200) return null
+    const revision = record.confirmedRevision
+    if (typeof revision !== 'number' || !Number.isInteger(revision) || revision < 0) return null
+    if (typeof record.acknowledgeUnknownPresent !== 'boolean') return null
+    const present = record.acknowledgeUnknownPresent
+    const acknowledgeValue = present ? record.acknowledgeUnknownValue : null
+    if (present && typeof acknowledgeValue !== 'boolean') return null
+    let generationId: string | null = null
+    if (record.generationId !== undefined && record.generationId !== null) {
+      if (typeof record.generationId !== 'string' || !record.generationId) return null
+      generationId = record.generationId
+    }
+    return {
+      projectId,
+      requestId: record.requestId,
+      confirmedRevision: revision,
+      acknowledgeUnknownPresent: present,
+      acknowledgeUnknownValue: present ? (acknowledgeValue as boolean) : null,
+      generationId,
+    }
+  }
+
+  /** 只读取同一项目的原请求；格式不完整、解析失败或读取失败一律返回 null。 */
+  function readGenerationCredential(projectId: string): PendingGenerationRequest | null {
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = window.sessionStorage.getItem(GENERATION_CREDENTIAL_KEY)
+      if (!raw) return null
+      return normalizeGenerationCredential(JSON.parse(raw) as unknown, projectId)
+    } catch {
+      return null
+    }
+  }
+
+  /** 返回是否成功写入；失败时调用方仍保留内存中的原请求。 */
+  function saveGenerationCredential(request: PendingGenerationRequest): boolean {
+    if (typeof window === 'undefined') return false
     try {
       window.sessionStorage.setItem(
         GENERATION_CREDENTIAL_KEY,
@@ -893,13 +1024,15 @@ function createWorkspace(): WorkspaceStore {
           projectId: request.projectId,
           requestId: request.requestId,
           confirmedRevision: request.confirmedRevision,
-          acknowledgeUnknownPresent: false,
-          acknowledgeUnknownValue: null,
-          generationId: null,
+          acknowledgeUnknownPresent: request.acknowledgeUnknownPresent,
+          acknowledgeUnknownValue: request.acknowledgeUnknownValue,
+          generationId: request.generationId,
         }),
       )
+      return true
     } catch {
       // 会话凭据只是刷新后的辅助信息，写入失败不影响当前提交。
+      return false
     }
   }
 
@@ -910,6 +1043,17 @@ function createWorkspace(): WorkspaceStore {
     } catch {
       // 清理失败不影响主流程。
     }
+  }
+
+  function clearSettledGenerationCredential(generation: GenerationView): void {
+    const request = pendingGenerationRequest
+    if (!request || request.requestId !== generation.request_id) return
+    if (generation.status === 'queued' || generation.status === 'running') return
+    pendingGenerationRequest = null
+    generationUncertain.value = false
+    generationPendingRestored.value = false
+    generationCredentialWarning.value = ''
+    clearGenerationCredential()
   }
 
   function clearGenerationPoll(): void {
@@ -931,6 +1075,9 @@ function createWorkspace(): WorkspaceStore {
     generationSubmitError.value = ''
     generationSubmitNotice.value = ''
     generationUncertain.value = false
+    generationPendingRestored.value = false
+    generationCredentialWarning.value = ''
+    generationRecoveryAction.value = null
     generationQueryError.value = ''
     generationQueryFailures = 0
     pendingGenerationRequest = null
@@ -1009,6 +1156,7 @@ function createWorkspace(): WorkspaceStore {
       const generation = await api.getGeneration(generationId, controller.signal)
       if (token !== generationToken || controller.signal.aborted || projectParam.value !== project.id) return
       upsertGeneration(generation)
+      clearSettledGenerationCredential(generation)
       generationQueryFailures = 0
       generationQueryError.value = ''
       if (generation.status === 'queued' || generation.status === 'running') {
@@ -1083,25 +1231,34 @@ function createWorkspace(): WorkspaceStore {
       projectId: project.id,
       requestId: createGenerationRequestId(),
       confirmedRevision: project.revision,
+      acknowledgeUnknownPresent: false,
+      acknowledgeUnknownValue: null,
+      generationId: null,
     }
     const token = ++generationToken
     clearGenerationPoll()
     generationSubmitBusy.value = true
+    generationRecoveryAction.value = null
     generationSubmitError.value = ''
     generationSubmitNotice.value = ''
     generationQueryError.value = ''
     generationQueryFailures = 0
+    generationPendingRestored.value = false
     pendingGenerationRequest = request
-    saveGenerationCredential(request)
+    const saved = saveGenerationCredential(request)
+    generationCredentialWarning.value = saved
+      ? ''
+      : '无法写入会话存储；本次提交仍保留在当前页面，刷新或关闭页面后将无法恢复。'
     try {
-      const response = await api.submitGeneration(project.id, {
-        request_id: request.requestId,
-        confirmed_revision: request.confirmedRevision,
-      })
+      const response = await api.submitGeneration(project.id, buildGenerationRequestBody(request))
       if (token !== generationToken || projectParam.value !== project.id) return
       upsertGeneration(response.generation)
-      pendingGenerationRequest = null
-      clearGenerationCredential()
+      clearSettledGenerationCredential(response.generation)
+      if (response.generation.status === 'queued' || response.generation.status === 'running') {
+        pendingGenerationRequest = null
+        generationCredentialWarning.value = ''
+        clearGenerationCredential()
+      }
       generationSubmitNotice.value = '生成请求已提交，正在等待模型处理。'
       announce('生成请求已提交，正在等待模型处理。')
       if (response.generation.status === 'queued' || response.generation.status === 'running') {
@@ -1117,6 +1274,8 @@ function createWorkspace(): WorkspaceStore {
         announce('生成提交结果未确认，请先核实。')
       } else {
         pendingGenerationRequest = null
+        generationPendingRestored.value = false
+        generationCredentialWarning.value = ''
         clearGenerationCredential()
         generationSubmitError.value = writeGenerationErrorMessage(error)
       }
@@ -1132,17 +1291,28 @@ function createWorkspace(): WorkspaceStore {
     const token = ++generationToken
     clearGenerationPoll()
     generationSubmitBusy.value = true
+    generationRecoveryAction.value = 'verify'
     generationSubmitError.value = ''
     try {
       const response = await api.getProject(request.projectId)
       if (token !== generationToken || projectParam.value !== request.projectId) return
       adoptProjectDetail(response)
-      const match = response.generations.find((item) => item.request_id === request.requestId)
+      let match = response.generations.find((item) => item.request_id === request.requestId) ?? null
+      if (!match) {
+        const known = await findKnownGeneration(request, response.generations)
+        if (token !== generationToken || projectParam.value !== request.projectId) return
+        if (known) {
+          upsertGeneration(known)
+          match = known
+        }
+      }
       if (!match) {
         generationSubmitError.value = '仍未查到这次生成提交的记录；这不代表失败，请稍后再核实，不要重复提交。'
         return
       }
       generationUncertain.value = false
+      generationPendingRestored.value = false
+      generationCredentialWarning.value = ''
       pendingGenerationRequest = null
       clearGenerationCredential()
       generationSubmitNotice.value = '已核实生成提交，生成记录已恢复。'
@@ -1156,6 +1326,61 @@ function createWorkspace(): WorkspaceStore {
       generationSubmitError.value = errorMessage(error, '核实生成提交结果失败，请稍后重试。')
     } finally {
       if (token === generationToken) generationSubmitBusy.value = false
+      if (token === generationToken && generationRecoveryAction.value === 'verify') {
+        generationRecoveryAction.value = null
+      }
+    }
+  }
+
+  /**
+   * 手动恢复同一次提交：只使用上次保存的原 request_id、confirmed_revision
+   * 与 acknowledge_unknown 存在性/值，绝不根据当前需求或配置重新计算。
+   */
+  async function resumeGenerationSubmission(): Promise<void> {
+    if (generationSubmitBusy.value) return
+    const request = pendingGenerationRequest
+    const project = currentProject.value
+    if (!generationUncertain.value || !request || !project || project.id !== request.projectId) return
+    const token = ++generationToken
+    clearGenerationPoll()
+    generationSubmitBusy.value = true
+    generationRecoveryAction.value = 'resume'
+    generationSubmitError.value = ''
+    generationSubmitNotice.value = ''
+    try {
+      const response = await api.submitGeneration(
+        request.projectId,
+        buildGenerationRequestBody(request),
+      )
+      if (token !== generationToken || projectParam.value !== request.projectId) return
+      upsertGeneration(response.generation)
+      pendingGenerationRequest = null
+      generationUncertain.value = false
+      generationPendingRestored.value = false
+      generationCredentialWarning.value = ''
+      clearGenerationCredential()
+      generationSubmitNotice.value = '已恢复本次提交，生成记录已恢复。'
+      announce(generationSubmitNotice.value)
+      if (response.generation.status === 'queued' || response.generation.status === 'running') {
+        scheduleGenerationPoll(response.generation.id)
+      } else if (response.generation.status === 'succeeded') {
+        await refreshGenerationProject(response.generation, token)
+      }
+    } catch (error) {
+      if (token !== generationToken) return
+      if (isUnconfirmedWrite(error)) {
+        generationUncertain.value = true
+        generationSubmitError.value =
+          '恢复提交的结果仍未确认；原始请求凭据仍保留，请稍后再核实，不要创建新的提交。'
+        announce('恢复提交结果未确认，请保留当前凭据并稍后核实。')
+      } else {
+        generationSubmitError.value = writeGenerationErrorMessage(error)
+      }
+    } finally {
+      if (token === generationToken) generationSubmitBusy.value = false
+      if (token === generationToken && generationRecoveryAction.value === 'resume') {
+        generationRecoveryAction.value = null
+      }
     }
   }
 
@@ -2077,6 +2302,10 @@ function createWorkspace(): WorkspaceStore {
     generationSubmitError,
     generationSubmitNotice,
     generationUncertain,
+    generationPendingRestored,
+    generationRecoveryAvailable,
+    generationCredentialWarning,
+    generationRecoveryAction,
     generationQuerying,
     generationQueryError,
     generationDisabledReason,
@@ -2090,6 +2319,7 @@ function createWorkspace(): WorkspaceStore {
     selectResultGeneration,
     submitGeneration,
     verifyGenerationSubmission,
+    resumeGenerationSubmission,
     retryGenerationQuery,
     chooseReferenceFiles,
     retryReferenceUpload,

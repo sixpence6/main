@@ -1608,6 +1608,25 @@ body,
   margin: var(--space-2) 0;
 }
 
+.generation-recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.generation-recovery-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.generation-recovery-risk {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
 .result-view-panel {
   border-style: solid;
   background: var(--color-panel);

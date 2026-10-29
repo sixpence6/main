@@ -23,6 +23,10 @@ export interface MountWorkspaceOptions {
   viewportWidth?: number
   /** 初始地址（可含 ?project=...），测试结束恢复原地址。 */
   url?: string
+  /** 挂载前已有的 sessionStorage 数据，用于模拟刷新后的会话恢复。 */
+  sessionState?: Record<string, string>
+  /** 挂载前调整存储替身（例如注入读取失败）。 */
+  setupStorage?: (storage: StorageController) => void
 }
 
 /**
@@ -35,6 +39,10 @@ export async function mountWorkspace(options: MountWorkspaceOptions = {}) {
   if (options.fakeClock) clock.install()
   const visibility = new VisibilityController().install()
   const storage = new StorageController().install()
+  for (const [key, value] of Object.entries(options.sessionState ?? {})) {
+    storage.session.setItem(key, value)
+  }
+  options.setupStorage?.(storage)
 
   const originalUrl = window.location.href
   const viewportDescriptor = Object.getOwnPropertyDescriptor(window, 'innerWidth')
