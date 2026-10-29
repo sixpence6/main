@@ -1,0 +1,14 @@
+
+> ecommerce-image-workspace@0.1.0 build
+> vite build
+
+[36mvite v8.3.5 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 1617 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                     0.40 kB │ gzip:   0.30 kB
+dist/assets/index-Zadlx4hV.css    393.53 kB │ gzip:  53.62 kB
+dist/assets/index-BUrLzJtU.js   1,090.16 kB │ gzip: 346.27 kB
+
+[32m✓ built in 802ms[39m

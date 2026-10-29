@@ -205,3 +205,12 @@
 - **写入互斥**：`generationRetrieveBusy` 阻止发送消息、保存/确认/整理需求、上传/移除参考图、开始编辑与再次生成；需求编辑中、存在未保存字段、本地需求副本或 409 冲突时禁用重取并显示原因。普通查看、切换版本、下载、重新查询状态均不产生生成 POST 或重取 POST。
 - **T11 证据**：`tests/t11-terminal-recovery.spec.ts` 的 10 个完整工作台测试通过；全量 148 个测试、`npm run typecheck`、`npm run build` 通过（构建 1617 modules）。覆盖 unknown 风险弹窗取消/Escape 零写、新 UUID + `acknowledge_unknown=true`、普通失败新请求、重取成功同记录刷新、主动选旧版不被覆盖、重取失败保留旧图、不可重取原因、快速双击单请求、网络回执不明 GET 核实、查看/下载零生成。受控测试响应不代表真实服务已按此返回。
 - **风险**：真实 OpenAPI 的 `can_retrieve_result` 计算条件、`retrieval_unavailable_reason` 安全文本、重取同步/受理语义、`RESULT_FETCH_FAILED` 的 502 与 504 映射、unknown 的 `acknowledge_unknown` 校验及服务端重复计费语义尚未核验；未核验前不得宣称真实重取或终态恢复链路已完成。
+
+## T12 核验记录：真实 API 与浏览器闭环（阻塞）
+
+- **状态**：阻塞，未核验。真实本机后端、OpenAPI、LLM/VISUAL 配置与 Chrome 均缺失；`127.0.0.1:8000` 运行的是无关应用，`/api/config/status` 与 `/api/projects` 均返回 404。
+- **已执行**：`npm run typecheck` 通过；12 个测试文件、148 个测试通过；生产构建通过。均为受控回归证据，不代表真实供应商、持久化或文件交付已通过。
+- **FE-DEP-01–06**：未发现真实 OpenAPI，无法核验字段、分页、快照、修订、能力、等待上限或重取方式；集中映射仍以草案和 `contracts.md` 为准，未提升为事实。
+- **FE-AC-01–22 / SRS AC-01、02、03、07、10–12**：全部记为“未验证”；逐项表、阻塞证据、受控测试参考与前提具备后的待办见 `docs/acceptance/t12-real-api-browser-acceptance.md`。
+- **证据**：`docs/acceptance/evidence/typecheck.txt`、`test.log`、`build.log`。不含 Key 或供应商敏感原响应。
+- **结论**：T12 不能以替身通过或关闭为完成；等待具备真实后端/OpenAPI/两类模型配置/Chrome 后人工继续。
