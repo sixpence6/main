@@ -1,0 +1,64 @@
+from __future__ import annotations
+
+from typing import Annotated
+
+from fastapi import APIRouter, Query, Request
+
+from app.presenters import generation_view, message_view, project_view
+from app.schemas import (
+    CreateProjectRequest,
+    ProjectDetailResponse,
+    ProjectListResponse,
+    ProjectView,
+)
+from app.services.projects import (
+    DEFAULT_LIST_LIMIT,
+    MAX_LIST_LIMIT,
+    create_project,
+    decode_cursor,
+    get_project_detail,
+    list_projects,
+)
+
+router = APIRouter(prefix="/api/projects", tags=["projects"])
+
+
+@router.post("", response_model=ProjectView, status_code=201)
+async def create_project_endpoint(
+    request: Request, _payload: CreateProjectRequest
+) -> ProjectView:
+    state = request.app.state
+    project = await create_project(state.session_factory)
+    return project_view(project, None, state.settings.resolved_data_dir())
+
+
+@router.get("", response_model=ProjectListResponse)
+async def list_projects_endpoint(
+    request: Request,
+    limit: Annotated[int, Query(ge=1, le=MAX_LIST_LIMIT)] = DEFAULT_LIST_LIMIT,
+    cursor: Annotated[str | None, Query()] = None,
+) -> ProjectListResponse:
+    state = request.app.state
+    items, next_cursor = await list_projects(
+        state.session_factory, limit=limit, cursor=decode_cursor(cursor)
+    )
+    return ProjectListResponse(items=items, next_cursor=next_cursor)
+
+
+@router.get("/{project_id}", response_model=ProjectDetailResponse)
+async def get_project_endpoint(request: Request, project_id: str) -> ProjectDetailResponse:
+    state = request.app.state
+    detail = await get_project_detail(state.session_factory, project_id)
+    data_dir = state.settings.resolved_data_dir()
+    return ProjectDetailResponse(
+        project=project_view(detail.project, detail.reference_asset, data_dir),
+        messages=[message_view(message) for message in detail.messages],
+        generations=[
+            generation_view(
+                generation,
+                detail.result_assets.get(generation.result_asset_id or ""),
+                data_dir,
+            )
+            for generation in detail.generations
+        ],
+    )
