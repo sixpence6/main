@@ -137,6 +137,10 @@ export interface WorkspaceStore {
   latestSucceededGeneration: ComputedRef<GenerationView | null>
   activeGeneration: ComputedRef<GenerationView | null>
   latestGenerationError: ComputedRef<string>
+  succeededGenerations: ComputedRef<GenerationView[]>
+  selectedResultGenerationId: Ref<string | null>
+  selectedResultGeneration: ComputedRef<GenerationView | null>
+  selectResultGeneration: (id: string) => void
   submitGeneration: () => Promise<void>
   verifyGenerationSubmission: () => Promise<void>
   retryGenerationQuery: () => void
@@ -289,6 +293,55 @@ function createWorkspace(): WorkspaceStore {
     }
     return ''
   })
+
+  const succeededGenerations = computed<GenerationView[]>(() => {
+    return projectGenerations.value
+      .filter((item) => item.status === 'succeeded')
+      .slice()
+      .sort((a, b) => {
+        if (a.version_no !== b.version_no) return a.version_no - b.version_no
+        const aTime = Date.parse(a.completed_at ?? a.created_at)
+        const bTime = Date.parse(b.completed_at ?? b.created_at)
+        if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) return aTime - bTime
+        return a.id.localeCompare(b.id)
+      })
+  })
+  const selectedResultGenerationId = ref<string | null>(null)
+  let resultSelectionPinned = false
+
+  const selectedResultGeneration = computed<GenerationView | null>(() => {
+    const id = selectedResultGenerationId.value
+    if (id) {
+      const match = projectGenerations.value.find((item) => item.id === id && item.status === 'succeeded')
+      if (match) return match
+    }
+    return latestSucceededGeneration.value
+  })
+
+  function reconcileResultSelection(followLatest: boolean): void {
+    const latest = latestSucceededGeneration.value
+    if (!latest) {
+      selectedResultGenerationId.value = null
+      resultSelectionPinned = false
+      return
+    }
+    const currentId = selectedResultGenerationId.value
+    const currentExists = Boolean(
+      currentId && projectGenerations.value.some((item) => item.id === currentId && item.status === 'succeeded'),
+    )
+    if (followLatest || !currentExists) {
+      selectedResultGenerationId.value = latest.id
+      resultSelectionPinned = false
+    }
+  }
+
+  function selectResultGeneration(id: string): void {
+    const target = projectGenerations.value.find((item) => item.id === id && item.status === 'succeeded')
+    if (!target) return
+    selectedResultGenerationId.value = target.id
+    resultSelectionPinned = true
+    if (generationSubmitNotice.value.startsWith('新结果：')) generationSubmitNotice.value = ''
+  }
 
   const briefDraft = ref<BriefFields | null>(null)
   const briefEditing = ref(false)
@@ -752,6 +805,7 @@ function createWorkspace(): WorkspaceStore {
       currentProject.value = response.project
       projectMessages.value = response.messages
       projectGenerations.value = response.generations
+      reconcileResultSelection(true)
       resetBriefDraft(response.project)
       briefEditing.value = false
       briefSaveError.value = ''
@@ -880,19 +934,30 @@ function createWorkspace(): WorkspaceStore {
     generationQueryError.value = ''
     generationQueryFailures = 0
     pendingGenerationRequest = null
+    selectedResultGenerationId.value = null
+    resultSelectionPinned = false
   }
 
   function upsertGeneration(generation: GenerationView): void {
     const index = projectGenerations.value.findIndex(
       (item) => item.id === generation.id || item.request_id === generation.request_id,
     )
+    const previousSelected = selectedResultGenerationId.value
+    const previousLatestId = latestSucceededGeneration.value?.id ?? null
+    const wasFollowingLatest = !previousSelected || previousSelected === previousLatestId
     if (index < 0) {
       projectGenerations.value = [...projectGenerations.value, generation]
-      return
+    } else {
+      const next = [...projectGenerations.value]
+      next[index] = generation
+      projectGenerations.value = next
     }
-    const next = [...projectGenerations.value]
-    next[index] = generation
-    projectGenerations.value = next
+    if (generation.status === 'succeeded' && wasFollowingLatest && !resultSelectionPinned) {
+      selectedResultGenerationId.value = generation.id
+      resultSelectionPinned = false
+    } else if (!selectedResultGenerationId.value) {
+      selectedResultGenerationId.value = latestSucceededGeneration.value?.id ?? null
+    }
   }
 
   function writeGenerationErrorMessage(error: unknown): string {
@@ -969,22 +1034,37 @@ function createWorkspace(): WorkspaceStore {
     const projectId = generation.project_id
     const controller = new AbortController()
     generationRefreshController = controller
+    const followLatest = !resultSelectionPinned || stage.value !== 'results'
     try {
       const response = await api.getProject(projectId, controller.signal)
       if (token !== generationToken || controller.signal.aborted || projectParam.value !== projectId) return
-      adoptProjectDetail(response)
+      adoptProjectDetail(response, { followLatestResult: followLatest })
       if (!projectGenerations.value.some((item) => item.id === generation.id || item.request_id === generation.request_id)) {
         upsertGeneration(generation)
       }
-      generationSubmitNotice.value = '图片已生成，已切换到结果视图。'
+      const visible = selectedResultGeneration.value
+      if (followLatest || !visible || visible.id === generation.id) {
+        generationSubmitNotice.value = '图片已生成，已切换到结果视图。'
+      } else {
+        generationSubmitNotice.value = `新结果：第 ${generation.version_no} 版已生成。当前仍显示第 ${visible.version_no} 版。`
+      }
       stage.value = 'results'
-      announce('图片已生成，已切换到结果视图。')
+      announce(generationSubmitNotice.value)
     } catch (error) {
       if (isAbortError(error) || controller.signal.aborted || token !== generationToken) return
+      if (followLatest) {
+        selectedResultGenerationId.value = generation.id
+        resultSelectionPinned = false
+      }
       upsertGeneration(generation)
-      generationSubmitNotice.value = '图片已生成，但项目最新记录读取失败；已显示本次生成结果。'
+      const visible = selectedResultGeneration.value
+      if (visible && visible.id !== generation.id) {
+        generationSubmitNotice.value = `新结果：第 ${generation.version_no} 版已生成。当前仍显示第 ${visible.version_no} 版。`
+      } else {
+        generationSubmitNotice.value = '图片已生成，但项目最新记录读取失败；已显示本次生成结果。'
+      }
       stage.value = 'results'
-      announce('图片已生成，已切换到结果视图。')
+      announce(generationSubmitNotice.value)
     } finally {
       if (generationRefreshController === controller) generationRefreshController = null
     }
@@ -1229,10 +1309,14 @@ function createWorkspace(): WorkspaceStore {
     return error.message || '参考图操作失败，已保留当前参考图，请稍后重试。'
   }
 
-  function adoptProjectDetail(response: ProjectDetailResponse): void {
+  function adoptProjectDetail(
+    response: ProjectDetailResponse,
+    options?: { followLatestResult?: boolean },
+  ): void {
     currentProject.value = response.project
     projectMessages.value = response.messages
     projectGenerations.value = response.generations
+    reconcileResultSelection(Boolean(options?.followLatestResult))
     resetBriefDraft(response.project)
     briefEditing.value = false
     briefSaveError.value = ''
@@ -2000,6 +2084,10 @@ function createWorkspace(): WorkspaceStore {
     latestSucceededGeneration,
     activeGeneration,
     latestGenerationError,
+    succeededGenerations,
+    selectedResultGenerationId,
+    selectedResultGeneration,
+    selectResultGeneration,
     submitGeneration,
     verifyGenerationSubmission,
     retryGenerationQuery,

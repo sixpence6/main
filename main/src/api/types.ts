@@ -73,7 +73,7 @@ export interface GenerationView {
   confirmed_revision: number
   status: GenerationStatus
   stage: GenerationStage
-  brief_snapshot: Brief
+  brief_snapshot: Brief | null
   prompt: string
   reference_asset_id: string | null
   adapter_id: string
