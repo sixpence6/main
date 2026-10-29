@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import AppHeader from './components/AppHeader.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import ConversationPanel from './components/ConversationPanel.vue'
 import ModelStatusDrawer from './components/ModelStatusDrawer.vue'
 import ProjectDrawer from './components/ProjectDrawer.vue'
+import ResultPanel from './components/ResultPanel.vue'
 import ResultPlaceholder from './components/ResultPlaceholder.vue'
 import SideDrawer from './components/SideDrawer.vue'
 import StageNav from './components/StageNav.vue'
@@ -13,6 +15,9 @@ import './styles/workspace.css'
 
 const workspace = provideWorkspace()
 const { isMobile, openSideDrawer } = workspace
+const showResults = computed(
+  () => workspace.stage.value === 'results' && Boolean(workspace.currentProject.value),
+)
 </script>
 
 <template>
@@ -34,8 +39,9 @@ const { isMobile, openSideDrawer } = workspace
           </div>
 
           <StageNav />
-          <ConversationPanel />
-          <ResultPlaceholder />
+          <ResultPanel v-if="showResults" />
+          <ConversationPanel v-else />
+          <ResultPlaceholder v-if="!workspace.currentProject.value" />
         </div>
       </main>
     </div>

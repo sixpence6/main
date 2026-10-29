@@ -126,3 +126,19 @@
   - 确认要求无必需澄清、无未发送输入、无未保存修改、提示词与当前 revision 同版本且尺寸存在；生成入口只在真实 `confirmed` 响应后解锁，确认动作本身不创建生成记录。
 - **T04 证据**：`tests/t04-brief-edit.spec.ts` 的 PATCH/confirm/消息响应均为受控测试替身，不代表真实服务已按此返回；真实字段、状态码、确认规则与整理入口仍需 OpenAPI/运行服务核验。
 - **风险**：重新整理复用消息接口的请求语义仍需后端确认；真实服务可能以独立整理接口或不同 `brief_status` 返回，届时必须更新集中类型与映射，不得在组件内猜测。
+
+## T06 核验记录：生成首图、任务状态与结果资源
+
+- **状态**：未核验（仅后端设计草案、`contracts.md` 与受控测试响应；没有真实 OpenAPI 或可连接运行服务）。
+- **接口映射（FE-DEP-01 / 03 / 04 / 05）**：
+  - `POST /api/projects/{id}/generations` → JSON `{request_id, confirmed_revision}`；`request_id` 为前端生成的 UUID，`confirmed_revision` 取当前项目响应中的 `confirmed_revision`（仅在 `revision === prompt_revision === confirmed_revision` 且非空时允许提交）。成功 `202 GenerationSubmitResponse {generation}`；相同请求幂等返回 `200`。前端只采纳响应中的 `generation`，不伪造任务 ID 或版本号。
+  - 首次异步等待前以内存锁和 `generationSubmitBusy` 防重；不实现通用写请求自动重试。父规格要求的最小会话凭据保存在 `sessionStorage['ecommerce-generation-pending']`，只含 `projectId/requestId/confirmedRevision` 及后续恢复字段；写失败不影响本次提交。
+  - `GET /api/generations/{id}` → `200 GenerationView`，消费 `status`、`stage`、`version_no`、`result_asset_id`、`result_asset`、`error` 等真实字段；`404 GENERATION_NOT_FOUND` 作为查询失败显示，不解释为生成失败。
+  - 成功后重新 `GET /api/projects/{id}`，以项目详情中的 `generations` 和 `result_asset` 为准；刷新页面只读取已有记录，不重新整理、不重新生成。
+  - 结果资源通过既有 `GET /api/assets/{id}?download=false` 预览、`?download=true` 下载；下载文件名为 `project-<project_id>-v<version_no>.<ext>`，扩展名由响应的 `mime_type` 映射（png/jpeg→jpg/webp/gif，未知类型安全回退），不使用本地路径、供应商 URL 或扩展名猜测。
+- **生成门槛**：只有真实 `brief_status === confirmed`、三种修订相等且非空、`VISUAL` 配置已配置且可用、`text_to_image === true`、尺寸存在且受支持、无草稿/未保存编辑/活跃整理/参考图阻塞/活跃生成/待核实提交时才显示可点击的“生成首图”。能力为 `false` 明确说明不支持；为 `null/unknown` 明确说明“文生图能力尚未核实，不能生成图片。”；不根据模型名推断。
+- **任务状态与查询**：queued/running 使用服务端 `status/stage` 显示真实状态；首次自动查询在前次响应结束后约 2 秒进行，单飞（同一时间最多一个自动查询），项目切换、终态、卸载时清理定时器和请求；连续 3 次 GET 失败停止自动查询并显示“暂时无法读取生成状态。已停止自动查询，请手动重试。”，提供手动重新查询。
+- **回执不明**：提交网络错误、超时、`0` 或 `5xx` 等回执不明时显示“提交待核实：生成请求可能已发出，但尚未收到确认。确认前不会再次提交。”并锁住新生成；不把“未查到记录”当作明确拒绝。T06 只保证安全的只读 `GET` 核实与阻塞，完整手动恢复由 T09 #10 交付。明确拒绝（4xx 业务码）、业务 `failed/unknown` 与 GET 查询错误分别显示；失败保留当前需求和上一次成功旧图。
+- **结果视图（FE-AC-07 / 08 / 13 / 14 / 19 / 20）**：成功记录只在有真实 `succeeded` 生成后解锁“查看结果”；显示版本号、完成时间和图片实际尺寸；无图显示空占位，不显示模拟成功图或虚构进度。结果图片使用弱棋盘底、完整包含显示、适应窗口/原始大小切换、可滚动大图、Esc 关闭并返回触发按钮焦点。`availability === missing` 显示“结果文件缺失”，不渲染图片或下载链接。
+- **T06 证据**：`tests/t06-generation-first-result.spec.ts` 的 15 个测试全部通过；全量测试 93 个通过。覆盖已确认项目摘要与提示词入口、UUID request_id 与 confirmed_revision、单飞轮询与成功重读项目、双击防重、业务失败保留旧图、资源缺失、刷新零新增 POST、回执不明核实、查询失败停止、未知能力阻塞、明确拒绝、导航不生成、unknown 状态阻塞、在途查询不叠加及卸载清理。受控测试响应不代表真实服务已按此返回。
+- **风险**：真实 OpenAPI 的生成提交/状态/资源字段、幂等语义、`acknowledge_unknown` 的后续恢复协议、`ProjectDetailResponse.generations` 是否总携带 `result_asset`、错误码和异步状态机尚未核验；未核验前不得宣称真实生图链路已完成。

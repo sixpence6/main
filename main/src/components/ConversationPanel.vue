@@ -50,6 +50,17 @@ const {
   reloadLatestBrief,
   send,
   retryOrganize,
+  generationSubmitBusy,
+  generationSubmitError,
+  generationSubmitNotice,
+  generationUncertain,
+  generationQueryError,
+  generationDisabledReason,
+  activeGeneration,
+  latestGenerationError,
+  submitGeneration,
+  verifyGenerationSubmission,
+  retryGenerationQuery,
 } = workspace
 const input = ref<HTMLTextAreaElement | null>(null)
 const historyScroll = ref<HTMLElement | null>(null)
@@ -172,6 +183,9 @@ watch(
           <p class="project-status-line">
             <span class="status-badge">{{ briefStatusLabel(currentProject.brief_status) }}</span>
           </p>
+          <p v-if="latestGenerationError" class="generation-latest-error" role="alert">
+            {{ latestGenerationError }}
+          </p>
         </header>
 
         <div v-if="showOrganizing" class="organizing-status" role="status">
@@ -248,11 +262,82 @@ watch(
         </section>
 
         <section class="generation-summary" aria-labelledby="generation-title">
-          <h3 id="generation-title">生成概览</h3>
-          <p>生成记录 {{ projectGenerations.length }} 条</p>
+          <div class="generation-summary-header">
+            <div>
+              <h3 id="generation-title">生成概览</h3>
+              <p>生成记录 {{ projectGenerations.length }} 条</p>
+            </div>
+            <span class="generation-quantity">生成数量：1 张</span>
+          </div>
+
+          <dl class="generation-facts">
+            <div>
+              <dt>用途</dt>
+              <dd>{{ currentProject.brief.purpose || '未填写' }}</dd>
+            </div>
+            <div>
+              <dt>图片尺寸</dt>
+              <dd>{{ currentProject.brief.image_size || '尚未确定' }}</dd>
+            </div>
+            <div>
+              <dt>参考图</dt>
+              <dd>{{ currentProject.reference_asset ? '有（1 张）' : '无' }}</dd>
+            </div>
+            <div>
+              <dt>生成数量</dt>
+              <dd>1 张</dd>
+            </div>
+          </dl>
+
+          <details class="generation-prompt">
+            <summary>查看完整提示词</summary>
+            <textarea class="generation-prompt-text" readonly rows="5" aria-label="完整提示词" :value="currentProject.brief.prompt || '尚未生成完整提示词'"></textarea>
+          </details>
+
           <p v-if="latest">最近版本：第 {{ latest.version_no }} 版，状态：{{ generationStatusLabel(latest.status) }}</p>
           <p v-else class="muted">尚未生成图片。</p>
-          <p class="muted">当前版本仅只读恢复生成记录，不轮询状态、不显示结果图，也不提供下载。</p>
+
+          <p v-if="activeGeneration" class="generation-live" role="status">
+            当前生成：第 {{ activeGeneration.version_no }} 版，{{ generationStatusLabel(activeGeneration.status) }}。
+          </p>
+          <p v-if="generationSubmitNotice" class="status-notice" role="status">{{ generationSubmitNotice }}</p>
+
+          <div v-if="generationUncertain" class="generation-uncertain">
+            <p class="generation-error" role="alert">
+              提交待核实：生成请求可能已发出，但尚未收到确认。确认前不会再次提交。
+            </p>
+            <button
+              type="button"
+              class="secondary-button"
+              :disabled="generationSubmitBusy"
+              @click="verifyGenerationSubmission"
+            >
+              {{ generationSubmitBusy ? '正在核实…' : '核实提交结果' }}
+            </button>
+          </div>
+
+          <div class="generation-action-row">
+            <button
+              type="button"
+              class="primary-button"
+              :disabled="Boolean(generationDisabledReason) || generationSubmitBusy"
+              @click="submitGeneration"
+            >
+              {{ generationSubmitBusy ? '正在提交生成请求…' : '生成首图' }}
+            </button>
+            <p v-if="generationDisabledReason" class="control-reason">{{ generationDisabledReason }}</p>
+          </div>
+
+          <p v-if="generationSubmitError" class="generation-error" role="alert">{{ generationSubmitError }}</p>
+          <p v-if="generationQueryError" class="generation-error" role="alert">{{ generationQueryError }}</p>
+          <button
+            v-if="generationQueryError"
+            type="button"
+            class="secondary-button"
+            @click="retryGenerationQuery"
+          >
+            重新查询状态
+          </button>
         </section>
       </template>
     </template>
@@ -289,7 +374,7 @@ watch(
         aria-label="描述商品与图片需求"
         rows="6"
         placeholder="例如：为米色亚麻托特包生成一张简洁主图，浅暖色背景，突出材质与轮廓……"
-        :disabled="sendBusy || organizing"
+        :disabled="sendBusy || organizing || generationSubmitBusy || Boolean(activeGeneration)"
         @keydown="onKeydown"
         @compositionstart="onCompositionStart"
         @compositionend="onCompositionEnd"

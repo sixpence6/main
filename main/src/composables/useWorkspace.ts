@@ -51,6 +51,12 @@ export interface StageView {
   reason: string
 }
 
+export interface PendingGenerationRequest {
+  projectId: string
+  requestId: string
+  confirmedRevision: number
+}
+
 export interface WorkspaceStore {
   draft: Ref<string>
   projectParam: Ref<string | null>
@@ -108,6 +114,20 @@ export interface WorkspaceStore {
   referenceGenerationBlockedReason: ComputedRef<string>
   referenceUploadDisabledReason: ComputedRef<string>
   referenceRemoveDisabledReason: ComputedRef<string>
+  generationSubmitBusy: Ref<boolean>
+  generationSubmitError: Ref<string>
+  generationSubmitNotice: Ref<string>
+  generationUncertain: Ref<boolean>
+  generationQuerying: Ref<boolean>
+  generationQueryError: Ref<string>
+  generationDisabledReason: ComputedRef<string>
+  latestGenerationView: ComputedRef<GenerationView | null>
+  latestSucceededGeneration: ComputedRef<GenerationView | null>
+  activeGeneration: ComputedRef<GenerationView | null>
+  latestGenerationError: ComputedRef<string>
+  submitGeneration: () => Promise<void>
+  verifyGenerationSubmission: () => Promise<void>
+  retryGenerationQuery: () => void
   chooseReferenceFiles: (files: File[]) => Promise<void>
   retryReferenceUpload: () => Promise<void>
   removeReference: () => Promise<void>
@@ -198,6 +218,56 @@ function createWorkspace(): WorkspaceStore {
   const creationUnknown = ref(false)
   const organizing = computed(() => currentProject.value?.brief_status === 'organizing')
 
+  const generationSubmitBusy = ref(false)
+  const generationSubmitError = ref('')
+  const generationSubmitNotice = ref('')
+  const generationUncertain = ref(false)
+  const generationQuerying = ref(false)
+  const generationQueryError = ref('')
+  let generationToken = 0
+  let generationPollTimer: ReturnType<typeof setTimeout> | null = null
+  let generationQueryController: AbortController | null = null
+  let generationRefreshController: AbortController | null = null
+  let generationQueryFailures = 0
+  let pendingGenerationRequest: PendingGenerationRequest | null = null
+
+  const latestGenerationView = computed<GenerationView | null>(() => {
+    let latest: GenerationView | null = null
+    for (const item of projectGenerations.value) {
+      if (!latest || item.version_no > latest.version_no) latest = item
+    }
+    return latest
+  })
+  const latestSucceededGeneration = computed<GenerationView | null>(() => {
+    let latest: GenerationView | null = null
+    for (const item of projectGenerations.value) {
+      if (item.status !== 'succeeded') continue
+      if (!latest || item.version_no > latest.version_no) latest = item
+    }
+    return latest
+  })
+  const activeGeneration = computed<GenerationView | null>(() => {
+    let active: GenerationView | null = null
+    for (const item of projectGenerations.value) {
+      if (item.status !== 'queued' && item.status !== 'running') continue
+      if (!active || item.version_no > active.version_no) active = item
+    }
+    return active
+  })
+  const latestGenerationError = computed(() => {
+    const latest = latestGenerationView.value
+    if (!latest) return ''
+    if (latest.status === 'failed') {
+      return latest.error?.message
+        ? `最近生成失败：${latest.error.message}`
+        : '最近生成失败，已保留上一次成功图片。'
+    }
+    if (latest.status === 'unknown') {
+      return '最近生成结果未确认；请先核实结果，确认前不能生成新图片。'
+    }
+    return ''
+  })
+
   const briefDraft = ref<BriefFields | null>(null)
   const briefEditing = ref(false)
   const briefFieldErrors = ref<Partial<Record<EditableBriefKey, string>>>({})
@@ -254,6 +324,7 @@ function createWorkspace(): WorkspaceStore {
     return ''
   })
   const referenceUploadDisabledReason = computed(() => {
+    if (generationSubmitBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能修改参考图。'
     if (referenceBusy.value) return '正在处理参考图，请稍候。'
     if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
     if (referenceConflict.value) return '参考图已在别处更新，请先加载最新项目。'
@@ -262,6 +333,7 @@ function createWorkspace(): WorkspaceStore {
     return ''
   })
   const referenceRemoveDisabledReason = computed(() => {
+    if (generationSubmitBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能修改参考图。'
     if (referenceBusy.value) return '正在处理参考图，请稍候。'
     if (!currentProject.value) return '尚未选择项目。'
     if (!currentProject.value.reference_asset) return '当前没有参考图。'
@@ -298,10 +370,12 @@ function createWorkspace(): WorkspaceStore {
 
   const sendDisabledReason = computed(() => {
     if (sendBusy.value) return '正在发送消息，请稍候。'
+    if (generationSubmitBusy.value) return '正在提交生成请求，完成前不能发送消息。'
+    if (activeGeneration.value) return '生成任务进行中，完成前不能发送消息。'
     if (referenceBusy.value) return '正在处理参考图，完成前不能发送消息。'
     if (briefBusy.value) return '正在处理需求卡片，完成前不能发送新消息。'
     if (organizing.value) return '正在整理需求，完成前不能发送新消息。'
-    if (briefDirty.value) return '有未保存的需求修改，请先保存或取消修改。'
+    if (briefDirty.value) return '有未保存的需求修改，请先保存或取消修改，再发送消息。'
     if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
     const llm = configStatus.value?.llm
     if (!llm) return '正在读取模型配置，请稍候。'
@@ -313,6 +387,7 @@ function createWorkspace(): WorkspaceStore {
 
   const saveDisabledReason = computed(() => {
     if (briefBusy.value) return '正在处理需求操作，请稍候。'
+    if (generationSubmitBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能保存需求。'
     if (referenceBusy.value) return '正在处理参考图，完成前不能保存需求。'
     if (sendBusy.value) return '正在发送消息，完成前不能保存需求。'
     if (!currentProject.value) return '尚未选择项目。'
@@ -324,6 +399,7 @@ function createWorkspace(): WorkspaceStore {
 
   const confirmDisabledReason = computed(() => {
     if (sendBusy.value) return '正在发送消息，完成前不能确认需求。'
+    if (generationSubmitBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能确认需求。'
     if (referenceBusy.value) return '正在处理参考图，完成前不能确认需求。'
     if (briefBusy.value) return '正在处理需求操作，请稍候。'
     const project = currentProject.value
@@ -341,6 +417,47 @@ function createWorkspace(): WorkspaceStore {
       return '完整提示词不是当前版本，请重新整理需求后再确认。'
     }
     if (!project.brief.image_size) return '图片尺寸尚未配置，无法确认需求。'
+    return ''
+  })
+
+  const generationDisabledReason = computed(() => {
+    if (generationSubmitBusy.value) return '正在提交生成请求，请稍候。'
+    if (sendBusy.value) return '正在发送消息，完成前不能生成图片。'
+    if (briefBusy.value) return '正在处理需求操作，完成前不能生成图片。'
+    if (referenceBusy.value) return '正在处理参考图，完成前不能生成图片。'
+    if (organizing.value) return '正在整理需求，完成前不能生成图片。'
+    const project = currentProject.value
+    if (!project) return '尚未选择项目。'
+    if (generationUncertain.value) return '上一次生成提交结果尚未确认，请先核实。'
+    if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
+    if (draft.value.trim()) return '请先发送或清空输入框中的文字，再生成图片。'
+    if (briefEditing.value) return '请先完成或取消需求编辑，再生成图片。'
+    if (briefDirty.value) return '有未保存的需求修改，请先保存或取消修改，再生成图片。'
+    if (project.brief_status !== 'confirmed') return '需求尚未确认，确认后才能生成图片。'
+    if (project.revision !== project.prompt_revision || project.revision !== project.confirmed_revision) {
+      return '需求或提示词已变化，请重新整理并确认需求。'
+    }
+    if (!project.brief.prompt.trim()) return '完整提示词尚未生成，请先重新整理需求。'
+    const visual = configStatus.value?.visual
+    if (!visual) return '正在读取模型配置，请稍候。'
+    if (!visual.configured) return '图片模型尚未配置，当前无法生成图片。'
+    if (!visual.ready) return '图片模型当前不可用，请稍后重试。'
+    if (visual.capabilities?.text_to_image === false) return '当前模型不支持文生图，不能生成图片。'
+    if (visual.capabilities?.text_to_image !== true) return '文生图能力尚未核实，不能生成图片。'
+    if (!project.brief.image_size) return '图片尺寸尚未确定，不能生成图片。'
+    if (
+      visual.capabilities?.supported_image_sizes?.length &&
+      !visual.capabilities.supported_image_sizes.includes(project.brief.image_size)
+    ) {
+      return `当前模型不支持 ${project.brief.image_size} 尺寸。`
+    }
+    if (referenceGenerationBlockedReason.value) return referenceGenerationBlockedReason.value
+    if (activeGeneration.value) {
+      return activeGeneration.value.status === 'queued'
+        ? '已有生成任务正在排队，请等待完成。'
+        : '已有生成任务正在进行，请等待完成。'
+    }
+    if (latestGenerationView.value?.status === 'unknown') return '上一次生成结果未确认，请先核实结果。'
     return ''
   })
 
@@ -403,6 +520,7 @@ function createWorkspace(): WorkspaceStore {
     detailController?.abort()
     detailController = null
     detailToken += 1
+    resetGenerationState()
     currentProject.value = null
     projectMessages.value = []
     projectGenerations.value = []
@@ -545,6 +663,8 @@ function createWorkspace(): WorkspaceStore {
     const controller = new AbortController()
     detailController = controller
     const token = ++detailToken
+    resetGenerationState()
+    stage.value = 'describe'
     projectLoading.value = true
     projectError.value = ''
     projectErrorKind.value = null
@@ -622,6 +742,277 @@ function createWorkspace(): WorkspaceStore {
 
   function isUnconfirmedWrite(error: unknown): boolean {
     return error instanceof ApiError && (error.status === 0 || error.status >= 500)
+  }
+
+  const GENERATION_CREDENTIAL_KEY = 'ecommerce-generation-pending'
+
+  function createGenerationRequestId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+      const random = Math.floor(Math.random() * 16)
+      const value = char === 'x' ? random : (random & 0x3) | 0x8
+      return value.toString(16)
+    })
+  }
+
+  function saveGenerationCredential(request: PendingGenerationRequest): void {
+    if (typeof window === 'undefined') return
+    try {
+      window.sessionStorage.setItem(
+        GENERATION_CREDENTIAL_KEY,
+        JSON.stringify({
+          projectId: request.projectId,
+          requestId: request.requestId,
+          confirmedRevision: request.confirmedRevision,
+          acknowledgeUnknownPresent: false,
+          acknowledgeUnknownValue: null,
+          generationId: null,
+        }),
+      )
+    } catch {
+      // 会话凭据只是刷新后的辅助信息，写入失败不影响当前提交。
+    }
+  }
+
+  function clearGenerationCredential(): void {
+    if (typeof window === 'undefined') return
+    try {
+      window.sessionStorage.removeItem(GENERATION_CREDENTIAL_KEY)
+    } catch {
+      // 清理失败不影响主流程。
+    }
+  }
+
+  function clearGenerationPoll(): void {
+    if (generationPollTimer !== null) {
+      clearTimeout(generationPollTimer)
+      generationPollTimer = null
+    }
+  }
+
+  function resetGenerationState(): void {
+    generationToken += 1
+    clearGenerationPoll()
+    generationQueryController?.abort()
+    generationQueryController = null
+    generationRefreshController?.abort()
+    generationRefreshController = null
+    generationSubmitBusy.value = false
+    generationQuerying.value = false
+    generationSubmitError.value = ''
+    generationSubmitNotice.value = ''
+    generationUncertain.value = false
+    generationQueryError.value = ''
+    generationQueryFailures = 0
+    pendingGenerationRequest = null
+  }
+
+  function upsertGeneration(generation: GenerationView): void {
+    const index = projectGenerations.value.findIndex(
+      (item) => item.id === generation.id || item.request_id === generation.request_id,
+    )
+    if (index < 0) {
+      projectGenerations.value = [...projectGenerations.value, generation]
+      return
+    }
+    const next = [...projectGenerations.value]
+    next[index] = generation
+    projectGenerations.value = next
+  }
+
+  function writeGenerationErrorMessage(error: unknown): string {
+    if (!(error instanceof ApiError)) return '生成请求提交失败，请稍后重试。'
+    switch (error.code) {
+      case 'REVISION_CONFLICT': return '需求已在别处更新，请重新读取最新需求后再生成。'
+      case 'PROJECT_BUSY': return '项目正在处理其他操作，请稍后再生成。'
+      case 'ACTIVE_GENERATION_EXISTS': return '已有生成任务正在进行，请等待完成后再生成。'
+      case 'IDEMPOTENCY_CONFLICT': return '同一个请求标识已用于其他参数，请重新发起生成。'
+      case 'UNKNOWN_ACK_REQUIRED': return '上一次生成结果未确认，请先核实并确认后再生成。'
+      case 'BRIEF_NOT_READY': return '当前需求尚未确认，不能生成图片。'
+      case 'IMAGE_SIZE_CHANGED': return '图片尺寸已变化，请重新整理并确认需求后再生成。'
+      case 'REFERENCE_NOT_SUPPORTED': return '当前模型不支持参考图，请移除参考图后再生成。'
+      case 'MODEL_NOT_CONFIGURED': return '图片模型尚未配置，不能生成图片。'
+      case 'ADAPTER_UNAVAILABLE': return '图片模型当前不可用，请稍后重试。'
+      case 'MODEL_CAPABILITY_MISMATCH': return '当前模型能力与需求不匹配，请检查模型配置。'
+      default: break
+    }
+    if (error.status === 401 || error.status === 403) return '认证失败或没有权限，请检查模型配置后再生成。'
+    if (error.status === 404) return '项目不存在或已被删除，请刷新项目列表。'
+    if (error.status === 429) return '请求过于频繁或额度不足，请稍后再试。'
+    if (error.status === 503) return '图片模型尚未配置或当前不可用，请检查模型状态。'
+    return error.message || '生成请求提交失败，请稍后重试。'
+  }
+
+  function scheduleGenerationPoll(generationId: string): void {
+    clearGenerationPoll()
+    const project = currentProject.value
+    if (!project) return
+    const token = generationToken
+    generationPollTimer = setTimeout(() => {
+      generationPollTimer = null
+      if (token !== generationToken || projectParam.value !== project.id) return
+      void queryGeneration(generationId)
+    }, 2000)
+  }
+
+  async function queryGeneration(generationId: string, manual = false): Promise<void> {
+    if (generationQuerying.value) return
+    const project = currentProject.value
+    if (!project) return
+    clearGenerationPoll()
+    const token = generationToken
+    const controller = new AbortController()
+    generationQueryController = controller
+    generationQuerying.value = true
+    if (manual) generationQueryError.value = ''
+    try {
+      const generation = await api.getGeneration(generationId, controller.signal)
+      if (token !== generationToken || controller.signal.aborted || projectParam.value !== project.id) return
+      upsertGeneration(generation)
+      generationQueryFailures = 0
+      generationQueryError.value = ''
+      if (generation.status === 'queued' || generation.status === 'running') {
+        scheduleGenerationPoll(generation.id)
+      } else if (generation.status === 'succeeded') {
+        await refreshGenerationProject(generation, token)
+      }
+    } catch (error) {
+      if (isAbortError(error) || controller.signal.aborted || token !== generationToken) return
+      generationQueryFailures += 1
+      if (generationQueryFailures >= 3) {
+        generationQueryError.value = '暂时无法读取生成状态。已停止自动查询，请手动重试。'
+      } else {
+        scheduleGenerationPoll(generationId)
+      }
+    } finally {
+      if (token === generationToken) generationQuerying.value = false
+      if (generationQueryController === controller) generationQueryController = null
+    }
+  }
+
+  async function refreshGenerationProject(generation: GenerationView, token: number): Promise<void> {
+    const projectId = generation.project_id
+    const controller = new AbortController()
+    generationRefreshController = controller
+    try {
+      const response = await api.getProject(projectId, controller.signal)
+      if (token !== generationToken || controller.signal.aborted || projectParam.value !== projectId) return
+      adoptProjectDetail(response)
+      if (!projectGenerations.value.some((item) => item.id === generation.id || item.request_id === generation.request_id)) {
+        upsertGeneration(generation)
+      }
+      generationSubmitNotice.value = '图片已生成，已切换到结果视图。'
+      stage.value = 'results'
+      announce('图片已生成，已切换到结果视图。')
+    } catch (error) {
+      if (isAbortError(error) || controller.signal.aborted || token !== generationToken) return
+      upsertGeneration(generation)
+      generationSubmitNotice.value = '图片已生成，但项目最新记录读取失败；已显示本次生成结果。'
+      stage.value = 'results'
+      announce('图片已生成，已切换到结果视图。')
+    } finally {
+      if (generationRefreshController === controller) generationRefreshController = null
+    }
+  }
+
+  async function submitGeneration(): Promise<void> {
+    if (generationSubmitBusy.value) return
+    const reason = generationDisabledReason.value
+    if (reason) {
+      generationSubmitError.value = reason
+      return
+    }
+    const project = currentProject.value
+    if (!project) return
+    const request: PendingGenerationRequest = {
+      projectId: project.id,
+      requestId: createGenerationRequestId(),
+      confirmedRevision: project.revision,
+    }
+    const token = ++generationToken
+    clearGenerationPoll()
+    generationSubmitBusy.value = true
+    generationSubmitError.value = ''
+    generationSubmitNotice.value = ''
+    generationQueryError.value = ''
+    generationQueryFailures = 0
+    pendingGenerationRequest = request
+    saveGenerationCredential(request)
+    try {
+      const response = await api.submitGeneration(project.id, {
+        request_id: request.requestId,
+        confirmed_revision: request.confirmedRevision,
+      })
+      if (token !== generationToken || projectParam.value !== project.id) return
+      upsertGeneration(response.generation)
+      pendingGenerationRequest = null
+      clearGenerationCredential()
+      generationSubmitNotice.value = '生成请求已提交，正在等待模型处理。'
+      announce('生成请求已提交，正在等待模型处理。')
+      if (response.generation.status === 'queued' || response.generation.status === 'running') {
+        scheduleGenerationPoll(response.generation.id)
+      } else if (response.generation.status === 'succeeded') {
+        await refreshGenerationProject(response.generation, token)
+      }
+    } catch (error) {
+      if (token !== generationToken) return
+      if (isUnconfirmedWrite(error)) {
+        generationUncertain.value = true
+        generationSubmitError.value = ''
+        announce('生成提交结果未确认，请先核实。')
+      } else {
+        pendingGenerationRequest = null
+        clearGenerationCredential()
+        generationSubmitError.value = writeGenerationErrorMessage(error)
+      }
+    } finally {
+      if (token === generationToken) generationSubmitBusy.value = false
+    }
+  }
+
+  async function verifyGenerationSubmission(): Promise<void> {
+    if (generationSubmitBusy.value) return
+    const request = pendingGenerationRequest
+    if (!generationUncertain.value || !request) return
+    const token = ++generationToken
+    clearGenerationPoll()
+    generationSubmitBusy.value = true
+    generationSubmitError.value = ''
+    try {
+      const response = await api.getProject(request.projectId)
+      if (token !== generationToken || projectParam.value !== request.projectId) return
+      adoptProjectDetail(response)
+      const match = response.generations.find((item) => item.request_id === request.requestId)
+      if (!match) {
+        generationSubmitError.value = '仍未查到这次生成提交的记录；这不代表失败，请稍后再核实，不要重复提交。'
+        return
+      }
+      generationUncertain.value = false
+      pendingGenerationRequest = null
+      clearGenerationCredential()
+      generationSubmitNotice.value = '已核实生成提交，生成记录已恢复。'
+      announce('已核实生成提交，生成记录已恢复。')
+      if (match.status === 'queued' || match.status === 'running') {
+        scheduleGenerationPoll(match.id)
+      } else if (match.status === 'succeeded') {
+        await refreshGenerationProject(match, token)
+      }
+    } catch (error) {
+      generationSubmitError.value = errorMessage(error, '核实生成提交结果失败，请稍后重试。')
+    } finally {
+      if (token === generationToken) generationSubmitBusy.value = false
+    }
+  }
+
+  function retryGenerationQuery(): void {
+    if (generationQuerying.value || generationSubmitBusy.value) return
+    const target = activeGeneration.value ?? latestGenerationView.value
+    if (!target) return
+    generationQueryFailures = 0
+    generationQueryError.value = ''
+    void queryGeneration(target.id, true)
   }
 
 
@@ -1085,7 +1476,7 @@ function createWorkspace(): WorkspaceStore {
   }
 
   async function retryOrganize(): Promise<void> {
-    if (sendBusy.value || briefBusy.value || referenceBusy.value) return
+    if (sendBusy.value || briefBusy.value || referenceBusy.value || generationSubmitBusy.value || activeGeneration.value) return
     const project = currentProject.value
     if (!project) return
     if (briefDirty.value) {
@@ -1121,6 +1512,8 @@ function createWorkspace(): WorkspaceStore {
       sendBusy.value ||
       briefBusy.value ||
       referenceBusy.value ||
+      generationSubmitBusy.value ||
+      activeGeneration.value ||
       project.brief_status === 'organizing'
     )
       return
@@ -1369,6 +1762,7 @@ function createWorkspace(): WorkspaceStore {
     moreController = null
     detailController?.abort()
     detailController = null
+    resetGenerationState()
     clearReferenceState()
     window.removeEventListener('popstate', syncProjectFromUrl)
   })
@@ -1427,6 +1821,20 @@ function createWorkspace(): WorkspaceStore {
     referenceGenerationBlockedReason,
     referenceUploadDisabledReason,
     referenceRemoveDisabledReason,
+    generationSubmitBusy,
+    generationSubmitError,
+    generationSubmitNotice,
+    generationUncertain,
+    generationQuerying,
+    generationQueryError,
+    generationDisabledReason,
+    latestGenerationView,
+    latestSucceededGeneration,
+    activeGeneration,
+    latestGenerationError,
+    submitGeneration,
+    verifyGenerationSubmission,
+    retryGenerationQuery,
     chooseReferenceFiles,
     retryReferenceUpload,
     removeReference,

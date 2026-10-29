@@ -7,7 +7,10 @@ import type {
   ProjectView,
   MessageCreateResponse,
   ConfirmBriefRequest,
+  GenerationSubmitResponse,
+  GenerationView,
   PatchBriefRequest,
+  SubmitGenerationRequest,
 } from './types'
 
 const JSON_HEADERS = { Accept: 'application/json' }
@@ -178,5 +181,17 @@ export const api = {
       `/api/projects/${encodeURIComponent(projectId)}/reference?${query.toString()}`,
       { method: 'DELETE' },
     )
+  },
+  submitGeneration(
+    projectId: string,
+    input: SubmitGenerationRequest,
+  ): Promise<GenerationSubmitResponse> {
+    return requestJson<GenerationSubmitResponse>(
+      `/api/projects/${encodeURIComponent(projectId)}/generations`,
+      { method: 'POST', body: JSON.stringify(input) },
+    )
+  },
+  getGeneration(id: string, signal?: AbortSignal): Promise<GenerationView> {
+    return requestJson<GenerationView>(`/api/generations/${encodeURIComponent(id)}`, { signal })
   },
 }

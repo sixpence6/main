@@ -89,6 +89,16 @@ export interface GenerationView {
   completed_at: string | null
 }
 
+export interface SubmitGenerationRequest {
+  request_id: string
+  confirmed_revision: number
+  acknowledge_unknown?: boolean
+}
+
+export interface GenerationSubmitResponse {
+  generation: GenerationView
+}
+
 export interface ProjectSummary {
   id: string
   title: string | null
