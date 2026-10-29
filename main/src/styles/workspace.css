@@ -1132,3 +1132,60 @@ body,
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* T03 对话发送、整理状态与错误恢复 */
+.history-scroll {
+  max-height: min(48vh, 560px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding-right: 4px;
+}
+
+.organizing-status {
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: #f8f1e5;
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.brief-error,
+.composer-error {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid #d8b4ae;
+  border-radius: var(--radius-control);
+  background: #fbeeeb;
+  color: var(--color-error);
+}
+
+.brief-error p,
+.composer-error p {
+  margin: 4px 0 var(--space-2);
+}
+
+.brief-error .muted {
+  color: #6f4b45;
+}
+
+.new-content-button {
+  position: sticky;
+  bottom: var(--space-2);
+  display: block;
+  margin: var(--space-2) auto 0;
+  padding: 6px 14px;
+  border: 1px solid var(--color-primary);
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.prompt-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+}

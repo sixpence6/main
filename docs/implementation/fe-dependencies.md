@@ -77,3 +77,15 @@
 
 - 等真实 OpenAPI 或运行服务可用后，必须重新核验上述字段，并更新本文件的“状态”和“证据”。
 - 若 T02 读取项目时新增字段，应复用 `main/src/api/types.ts` 与 `main/src/api/client.ts`，避免在组件内直接拼装响应或错误文案。
+
+## T03 核验记录：首次创建、消息响应与修订值
+
+- **状态**：未核验（仅后端设计草案与受控测试响应，没有真实 OpenAPI 或可连接服务）。
+- **接口映射**：
+  - `POST /api/projects` → 请求体固定 `{}`，成功按 `201 ProjectView` 消费 `id`、`revision`、`brief_status`、`brief`。创建后立即把 URL 更新为 `?project=<id>`，随后以响应中的 `project.revision` 作为首条消息的 `expected_revision`，不本地加一。
+  - `POST /api/projects/{id}/messages` → 请求体 `{content, expected_revision}`；成功按 `MessageCreateResponse` 消费 `project`、`user_message`、`assistant_message`。`project` 作为最新服务端状态，两条消息按服务端返回追加；不从普通消息文本拼造卡片或回复。后续发送使用最近一次响应中的 `project.revision`。
+  - `assistant_message.brief_snapshot` → 历史“当时的需求快照”只读卡；仅当快照有可读字段时展示。当前需求卡来自 `project.brief`，与历史快照分开。
+  - `project.brief_error.code/message` → 持久整理失败说明与用户主动“重新整理”按钮；刷新后 `brief_status=organizing` 只读等待，不自动重发。
+- **失败行为**：创建请求网络断开、超时、`5xx` 或非结构化失败均按“创建结果未确认”处理：保留输入、停止再次创建、显示核实提示与“打开已有项目”入口，不自动重试。消息请求失败保留该项目、URL 与用户原文，下一次发送复用现有项目；所有写请求均无通用自动重试。`409` 显示统一安全冲突说明并保留输入。缺少 LLM 配置时只显示可操作原因，不创建项目。
+- **T03 证据**：`tests/t03-first-project.spec.ts` 的受控 HTTP 响应仅用于验证前端行为，不代表真实接口已确认；真实字段、状态码与排序仍需 OpenAPI/运行服务核验。
+- **风险**：重新整理的消息内容在现有契约中未单独定义；T03 使用普通用户消息“请按当前已保存的需求重新整理。”触发现有消息接口，必须由后端契约或真实联调确认这是受支持的整理入口，未确认前不得宣称已完成真实整理链路。

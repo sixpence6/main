@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import BriefCard from './BriefCard.vue'
 import { useWorkspace } from '@/composables/useWorkspace'
 import {
@@ -21,12 +21,21 @@ const {
   projectMessages,
   projectGenerations,
   fillExample,
-  announce,
   retryProject,
   openProjectDrawer,
   createNewProject,
+  sendBusy,
+  sendError,
+  organizing,
+  sendDisabledReason,
+  send,
+  retryOrganize,
 } = workspace
 const input = ref<HTMLTextAreaElement | null>(null)
+const historyScroll = ref<HTMLElement | null>(null)
+const composing = ref(false)
+const hasNewContent = ref(false)
+const nearBottom = ref(true)
 
 const examples = [
   '米色亚麻托特包，简洁主图',
@@ -37,14 +46,63 @@ const examples = [
 const hasProjectParam = computed(() => projectParam.value !== null)
 const latest = computed(() => latestGeneration(projectGenerations.value))
 const showComposer = computed(() => !hasProjectParam.value || Boolean(currentProject.value))
+const showOrganizing = computed(
+  () => Boolean(currentProject.value) && (sendBusy.value || organizing.value),
+)
+const composerReason = computed(() => {
+  if (!sendDisabledReason.value) return ''
+  if (sendDisabledReason.value === '请输入商品与图片需求。' && !draft.value.trim()) return ''
+  return sendDisabledReason.value
+})
 
 function useExample(text: string): void {
   fillExample(text)
   void nextTick(() => input.value?.focus())
 }
 
-function onSendShortcut(): void {
-  announce('发送能力将在后续版本接入，当前输入尚未发送。')
+function isNearBottom(): boolean {
+  const element = historyScroll.value
+  if (!element) return true
+  return element.scrollHeight - element.scrollTop - element.clientHeight < 24
+}
+
+function scrollToBottom(): void {
+  const element = historyScroll.value
+  if (!element) return
+  element.scrollTop = element.scrollHeight
+  nearBottom.value = true
+  hasNewContent.value = false
+}
+
+function onHistoryScroll(): void {
+  nearBottom.value = isNearBottom()
+  if (nearBottom.value) hasNewContent.value = false
+}
+
+function onNewContent(): void {
+  scrollToBottom()
+  void nextTick(() => input.value?.focus())
+}
+
+function onSubmit(): void {
+  void send()
+}
+
+function onKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Enter') return
+  if (event.isComposing || composing.value || event.keyCode === 229) return
+  if (event.ctrlKey || event.metaKey) {
+    event.preventDefault()
+    void send()
+  }
+}
+
+function onCompositionStart(): void {
+  composing.value = true
+}
+
+function onCompositionEnd(): void {
+  composing.value = false
 }
 
 function messageRoleLabel(role: string): string {
@@ -52,6 +110,17 @@ function messageRoleLabel(role: string): string {
   if (role === 'assistant') return '助手'
   return '系统'
 }
+
+watch(
+  () => projectMessages.value.length,
+  async () => {
+    const follow = nearBottom.value
+    await nextTick()
+    if (follow) scrollToBottom()
+    else hasNewContent.value = true
+  },
+  { flush: 'post' },
+)
 </script>
 
 <template>
@@ -78,12 +147,29 @@ function messageRoleLabel(role: string): string {
 
       <template v-else-if="currentProject">
         <header class="project-heading">
-          <p class="eyebrow">已读取项目 · 只读</p>
+          <p class="eyebrow">当前项目</p>
           <h2 id="conversation-title">{{ displayProjectTitle(currentProject.title) }}</h2>
           <p class="project-status-line">
             <span class="status-badge">{{ briefStatusLabel(currentProject.brief_status) }}</span>
           </p>
         </header>
+
+        <div v-if="showOrganizing" class="organizing-status" role="status">
+          正在整理需求…
+        </div>
+
+        <div v-if="currentProject.brief_error" class="brief-error" role="alert">
+          <strong>需求整理失败</strong>
+          <p>{{ currentProject.brief_error.message || '已保存的原文和卡片仍会保留。' }}</p>
+          <button
+            type="button"
+            class="secondary-button"
+            :disabled="sendBusy || organizing"
+            @click="retryOrganize"
+          >
+            重新整理
+          </button>
+        </div>
 
         <BriefCard
           :brief="currentProject.brief"
@@ -93,21 +179,32 @@ function messageRoleLabel(role: string): string {
 
         <section class="conversation-history" aria-labelledby="history-title">
           <h3 id="history-title">对话记录</h3>
-          <p v-if="!projectMessages.length" class="muted">暂无对话记录。</p>
-          <ol v-else class="message-list">
-            <li v-for="message in projectMessages" :key="message.id" class="message-item">
-              <article :aria-label="messageRoleLabel(message.role) + '的消息'">
-                <p class="message-role">{{ messageRoleLabel(message.role) }}</p>
-                <p class="message-content">{{ message.content }}</p>
-                <BriefCard
-                  v-if="message.role === 'assistant' && hasSnapshotContent(message.brief_snapshot)"
-                  :brief="message.brief_snapshot!"
-                  heading="当时的需求快照"
-                  snapshot
-                />
-              </article>
-            </li>
-          </ol>
+          <div
+            ref="historyScroll"
+            class="history-scroll"
+            tabindex="0"
+            aria-label="对话记录滚动区域"
+            @scroll="onHistoryScroll"
+          >
+            <p v-if="!projectMessages.length" class="muted">暂无对话记录。</p>
+            <ol v-else class="message-list">
+              <li v-for="message in projectMessages" :key="message.id" class="message-item">
+                <article :aria-label="messageRoleLabel(message.role) + '的消息'">
+                  <p class="message-role">{{ messageRoleLabel(message.role) }}</p>
+                  <p class="message-content">{{ message.content }}</p>
+                  <BriefCard
+                    v-if="message.role === 'assistant' && hasSnapshotContent(message.brief_snapshot)"
+                    :brief="message.brief_snapshot!"
+                    heading="当时的需求快照"
+                    snapshot
+                  />
+                </article>
+              </li>
+            </ol>
+          </div>
+          <button v-if="hasNewContent" type="button" class="new-content-button" @click="onNewContent">
+            有新内容
+          </button>
         </section>
 
         <section class="generation-summary" aria-labelledby="generation-title">
@@ -115,7 +212,7 @@ function messageRoleLabel(role: string): string {
           <p>生成记录 {{ projectGenerations.length }} 条</p>
           <p v-if="latest">最近版本：第 {{ latest.version_no }} 版，状态：{{ generationStatusLabel(latest.status) }}</p>
           <p v-else class="muted">尚未生成图片。</p>
-          <p class="muted">T02 仅只读恢复生成记录，不轮询状态、不显示结果图，也不提供下载。</p>
+          <p class="muted">当前版本仅只读恢复生成记录，不轮询状态、不显示结果图，也不提供下载。</p>
         </section>
       </template>
     </template>
@@ -125,7 +222,7 @@ function messageRoleLabel(role: string): string {
         <p class="eyebrow">当前状态：未选择项目</p>
         <h2 id="conversation-title">从一个商品想法开始</h2>
         <p class="conversation-intro">
-          用一段自然语言描述商品、受众、画面风格和交付用途。工作台会保留这次会话的草稿；生成与发送能力将在后续版本接入。
+          用一段自然语言描述商品、受众、画面风格和交付用途。发送后会为你创建项目并整理需求；未发送的内容只保留在当前页面。
         </p>
       </div>
 
@@ -139,7 +236,8 @@ function messageRoleLabel(role: string): string {
       </div>
     </template>
 
-    <form v-if="showComposer" class="composer" @submit.prevent="onSendShortcut">
+    <form v-if="showComposer" class="composer" @submit.prevent="onSubmit">
+      <p v-if="sendError" class="composer-error" role="alert">{{ sendError }}</p>
       <label class="sr-only" for="workspace-prompt">描述商品与图片需求</label>
       <textarea
         id="workspace-prompt"
@@ -149,22 +247,26 @@ function messageRoleLabel(role: string): string {
         aria-label="描述商品与图片需求"
         rows="6"
         placeholder="例如：为米色亚麻托特包生成一张简洁主图，浅暖色背景，突出材质与轮廓……"
-        @keydown.ctrl.enter.prevent="onSendShortcut"
-        @keydown.meta.enter.prevent="onSendShortcut"
+        :disabled="sendBusy || organizing"
+        @keydown="onKeydown"
+        @compositionstart="onCompositionStart"
+        @compositionend="onCompositionEnd"
       />
       <div class="composer-actions">
-        <p class="composer-hint">Enter 换行；当前为只读恢复，发送能力将在后续版本接入。</p>
+        <p class="composer-hint">Enter 换行；Ctrl/⌘ + Enter 发送。</p>
         <div class="composer-buttons">
           <button type="button" class="secondary-button" disabled aria-describedby="reference-reason" title="添加参考图将在后续版本接入">
             添加参考图
           </button>
-          <button type="submit" class="primary-button" disabled aria-describedby="send-reason" title="发送将在后续版本接入">
+          <button type="submit" class="primary-button" :disabled="Boolean(sendDisabledReason)">
             发送
           </button>
         </div>
       </div>
+      <p v-if="composerReason" id="send-reason" class="control-reason">
+        {{ composerReason }}
+      </p>
       <p id="reference-reason" class="control-reason">添加参考图将在后续版本接入，当前不可用。</p>
-      <p id="send-reason" class="control-reason">发送将在后续版本接入，当前输入不会发出。</p>
     </form>
   </section>
 </template>

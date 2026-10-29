@@ -48,7 +48,8 @@ export function generationStatusLabel(status: GenerationStatus): string {
 
 export function briefFieldValue(brief: Brief | null | undefined, key: EditableBriefKey): string {
   const value = brief?.[key]
-  return typeof value === 'string' && value.trim() ? value : '未填写'
+  if (typeof value === 'string' && value.trim()) return value
+  return key === 'text_content' ? '不要求加字' : '未填写'
 }
 
 export function hasSnapshotContent(brief: Brief | null): boolean {

@@ -4,6 +4,8 @@ import type {
   HealthStatus,
   ProjectDetailResponse,
   ProjectListResponse,
+  ProjectView,
+  MessageCreateResponse,
 } from './types'
 
 const JSON_HEADERS = { Accept: 'application/json' }
@@ -133,5 +135,17 @@ export const api = {
   },
   getProject(id: string, signal?: AbortSignal): Promise<ProjectDetailResponse> {
     return requestJson<ProjectDetailResponse>(`/api/projects/${encodeURIComponent(id)}`, { signal })
+  },
+  createProject(): Promise<ProjectView> {
+    return requestJson<ProjectView>('/api/projects', { method: 'POST', body: '{}' })
+  },
+  sendMessage(
+    projectId: string,
+    input: { content: string; expected_revision: number },
+  ): Promise<MessageCreateResponse> {
+    return requestJson<MessageCreateResponse>(
+      `/api/projects/${encodeURIComponent(projectId)}/messages`,
+      { method: 'POST', body: JSON.stringify(input) },
+    )
   },
 }
