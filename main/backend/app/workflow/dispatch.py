@@ -38,6 +38,7 @@ _ACTIONS: dict[str, dict[str, Any]] = {
     "revise_visual": {"label": "修改视觉方案", "kind": "text", "requires_text": True, "text_label": "说明视觉调整", "requires_confirmation": False},
     "finalize_requirements": {"label": "生成最终需求卡", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "confirm_requirements": {"label": "确认需求卡", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": False},
+    "revise_requirements": {"label": "修改需求", "kind": "text", "requires_text": True, "text_label": "说明需要修改的需求内容", "requires_confirmation": False},
     "compile_prompt": {"label": "编制生图提示词", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "revise_prompt": {"label": "修改提示词", "kind": "text", "requires_text": True, "text_label": "说明提示词调整", "requires_confirmation": False},
     "submit_generation": {"label": "提交生成", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
@@ -108,6 +109,12 @@ def available_actions(ctx: WorkflowContext) -> list[ActionView]:
                 continue
             merged = {**base, **{key: value for key, value in item.items() if key != "id"}}
             views.append(ActionView(id=action_id, **merged))
+    # Updating the requirements remains an explicit user action after the
+    # card was confirmed and the workflow advanced to prompt compilation.
+    # The S06 handler re-validates the active confirmation before revoking it.
+    if ctx.run.stage == "S07" and ctx.run.status == "active":
+        if not any(view.id == "revise_requirements" for view in views):
+            views.append(action_view("revise_requirements"))
     return views
 
 

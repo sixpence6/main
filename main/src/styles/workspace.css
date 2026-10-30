@@ -2428,3 +2428,106 @@ body,
 .generation-gate.is-blocked strong {
   color: var(--color-danger);
 }
+
+
+/* T09 最终需求卡确认 */
+.workflow-empty,
+.workflow-confirmation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-page);
+}
+
+.workflow-empty {
+  color: var(--color-text-muted);
+}
+
+.workflow-confirmation p {
+  margin: 0;
+}
+
+.workflow-confirmation .status-badge {
+  margin-left: var(--space-2);
+}
+
+.workflow-version {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.workflow-brief {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-page);
+}
+
+.workflow-brief > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.workflow-brief h4 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.workflow-brief > header span {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.workflow-brief-fields {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+}
+
+.workflow-brief-field {
+  display: grid;
+  grid-template-columns: minmax(96px, 140px) minmax(0, 1fr);
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.workflow-brief-field dt {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.workflow-brief-field dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.workflow-download {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+@media (max-width: 767px) {
+  .workflow-panel {
+    padding: var(--space-4);
+  }
+
+  .workflow-brief-field {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+
+  .workflow-action button {
+    width: 100%;
+  }
+}

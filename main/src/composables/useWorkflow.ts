@@ -56,8 +56,10 @@ export function useWorkflow(projectId: WorkflowProjectId) {
       return true
     } catch (caught) {
       error.value = caught instanceof ApiError ? caught.message : '操作未能完成，请稍后重试。'
-      if (caught instanceof ApiError && caught.code === 'REVISION_CONFLICT') {
+      if (caught instanceof ApiError && caught.status === 409) {
+        const message = caught.message
         await load()
+        error.value = message
       }
       return false
     } finally {

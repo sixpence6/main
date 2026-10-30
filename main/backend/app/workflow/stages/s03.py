@@ -429,15 +429,23 @@ def _blocked_template(output: RoleOutput) -> tuple[str, str]:
     return "MISSING_EVIDENCE", "SERVICE_UNAVAILABLE"
 
 
-async def _compose(ctx: WorkflowContext, action: str, text: str | None) -> None:
-    if action != "compose_brief":
-        if text is None:
-            raise validation_error("消息内容不能为空")
-        await _record_user_text(ctx, text)
-        await _supersede_prior_draft(ctx)
-    elif text is not None:
-        await _record_user_text(ctx, text)
-        await _supersede_prior_draft(ctx)
+async def _compose(
+    ctx: WorkflowContext,
+    action: str,
+    text: str | None,
+    *,
+    record_user_text: bool = True,
+    current_requirement: dict[str, Any] | None = None,
+) -> None:
+    if record_user_text:
+        if action != "compose_brief":
+            if text is None:
+                raise validation_error("消息内容不能为空")
+            await _record_user_text(ctx, text)
+            await _supersede_prior_draft(ctx)
+        elif text is not None:
+            await _record_user_text(ctx, text)
+            await _supersede_prior_draft(ctx)
 
     size = _configured_size(ctx)
     await _sync_requirement_revision(ctx)
@@ -477,7 +485,7 @@ async def _compose(ctx: WorkflowContext, action: str, text: str | None) -> None:
                     "configured_size": size,
                     "reference_asset_id": reference_asset_id,
                     "reference_usage": expected_usage,
-                    "current_requirement": (approved_inputs[-1] if approved_inputs else None),
+                    "current_requirement": current_requirement or (approved_inputs[-1] if approved_inputs else None),
                 },
                 approved_inputs=approved_inputs,
                 repair_codes=repair_codes,
@@ -633,6 +641,34 @@ async def _compose(ctx: WorkflowContext, action: str, text: str | None) -> None:
         return
 
 
+async def start_requirements_revision(
+    ctx: WorkflowContext,
+    text: str,
+    *,
+    current_requirement: dict[str, Any] | None = None,
+) -> None:
+    """Record an explicit requirements edit and rerun the S03 review chain.
+
+    The caller owns the S06 confirmation checks. This helper only persists the
+    exact user text, revokes downstream approvals and starts a fresh S03 draft;
+    it never edits the final brief or reuses the previous approval.
+    """
+    cleaned = text.strip()
+    if not cleaned:
+        raise validation_error("消息内容不能为空")
+    if len(text) > 20_000:
+        raise validation_error("消息内容过长")
+    await _record_user_text(ctx, text)
+    await _supersede_prior_draft(ctx)
+    await _compose(
+        ctx,
+        "revise_requirements",
+        None,
+        record_user_text=False,
+        current_requirement=current_requirement,
+    )
+
+
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
     if action not in ACTIONS:
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
@@ -640,4 +676,11 @@ async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> 
     await _compose(ctx, action, text)
 
 
-__all__ = ["STAGE", "ACTIONS", "REVIEW_RULE_IDS", "available", "handle"]
+__all__ = [
+    "STAGE",
+    "ACTIONS",
+    "REVIEW_RULE_IDS",
+    "available",
+    "handle",
+    "start_requirements_revision",
+]

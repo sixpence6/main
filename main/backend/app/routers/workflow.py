@@ -76,9 +76,27 @@ async def run_action(
         else:
             module = dispatch.owner_for_stage(ctx.run.stage)
             if module is None or action_id not in module.ACTIONS:
-                raise ApiError(
-                    409, "ACTION_NOT_AVAILABLE", "当前状态不支持此操作，请先完成提示的步骤。"
+                # A repeated confirmation may arrive after the first click has
+                # already advanced S06 to S07. Replaying it through S06 is safe
+                # only while S07 is current and an active requirements-card
+                # approval exists; S06 then verifies the exact bound snapshot.
+                replay_confirmation = (
+                    action_id == "confirm_requirements"
+                    and ctx.run.stage == "S07"
+                    and await state.latest_approval(ctx, "requirements_card") is not None
                 )
+                # The requirements card may also be revised after confirmation.
+                # S06 validates that the active confirmation still matches the
+                # current project revision and card before starting the S03 rerun.
+                revise_after_confirmation = (
+                    action_id == "revise_requirements"
+                    and ctx.run.stage == "S07"
+                    and await state.latest_approval(ctx, "requirements_card") is not None
+                )
+                if not (replay_confirmation or revise_after_confirmation):
+                    raise ApiError(
+                        409, "ACTION_NOT_AVAILABLE", "当前状态不支持此操作，请先完成提示的步骤。"
+                    )
         await dispatch.handle_action(ctx, action_id, data)
         fresh = await state.reload_context(ctx)
         return await state.build_workflow_view(fresh)
