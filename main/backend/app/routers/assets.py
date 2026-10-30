@@ -52,6 +52,11 @@ async def _sync_reference_workflow(
         ctx = await workflow_state.load_context(app, project_id)
         if ctx.run is None:
             return
+        if ctx.run.status == "completed":
+            # A published version is immutable history. The new file becomes
+            # the current project reference; the next feedback version will
+            # decide whether it needs a fresh S02 analysis.
+            return
         if removed:
             await s02.prepare_after_reference_removal(ctx)
             return

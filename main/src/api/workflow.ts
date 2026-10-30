@@ -83,6 +83,23 @@ export interface WorkflowDelivery {
   created_at: string
 }
 
+export interface WorkflowVersion {
+  run_id: string
+  sequence_no: number
+  requirement_revision: number
+  status: string
+  generation_job_id: string | null
+  asset_id: string | null
+  filename: string | null
+  caption: string | null
+  published_at: string | null
+  brief: Record<string, unknown> | null
+  prompt: Record<string, unknown> | null
+  quality: Record<string, unknown> | null
+  can_download: boolean
+  created_at: string
+}
+
 export interface WorkflowView {
   project_id: string
   run_id: string | null
@@ -99,6 +116,7 @@ export interface WorkflowView {
   legacy: WorkflowLegacyItem[]
   generation_job: WorkflowGenerationJob | null
   delivery: WorkflowDelivery | null
+  versions?: WorkflowVersion[]
   updated_at: string | null
 }
 

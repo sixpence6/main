@@ -6,6 +6,7 @@ import type {
   WorkflowApproval,
   WorkflowArtifact,
   WorkflowLegacyItem,
+  WorkflowVersion,
 } from '@/api/workflow'
 import { useWorkflow } from '@/composables/useWorkflow'
 import { useWorkspace } from '@/composables/useWorkspace'
@@ -152,6 +153,11 @@ const approvedArtifacts = computed<WorkflowArtifact[]>(() => {
 const approvedBriefDraft = computed(() =>
   approvedArtifacts.value.some((artifact) => artifact.kind === 'brief_draft'),
 )
+const publishedVersions = computed<WorkflowVersion[]>(() =>
+  (view.value?.versions ?? []).filter(
+    (version) => version.status === 'published' && version.can_download,
+  ),
+)
 
 const issueHeading = computed(() => {
   if (!view.value?.issue) return ''
@@ -268,6 +274,24 @@ function artifactLabel(kind: string): string {
 
 function legacyKindLabel(kind: string): string {
   return LEGACY_KIND_LABELS[kind] ?? '历史内容'
+}
+
+function versionDownloadUrl(version: WorkflowVersion): string {
+  return version.asset_id ? assetUrl(version.asset_id) + '?download=true' : ''
+}
+
+function versionBrief(version: WorkflowVersion): string {
+  const product = version.brief?.product_description
+  const purpose = version.brief?.purpose
+  const parts = [product, purpose].filter(
+    (item): item is string => typeof item === 'string' && item.length > 0,
+  )
+  return parts.join(' · ')
+}
+
+function versionPrompt(version: WorkflowVersion): string {
+  const prompt = version.prompt?.positive_prompt
+  return typeof prompt === 'string' ? prompt : ''
 }
 
 function formatBriefValue(key: string, value: unknown): string {
@@ -521,6 +545,9 @@ watch(
         </button>
       </div>
       <p v-if="actionError" class="form-error" role="alert">{{ actionError }}</p>
+      <p v-if="view?.available_actions.some((item) => item.id === 'request_new_version')" class="muted workflow-version-note" role="note">
+        反馈会重新确认需求并生成一个新版本，不承诺局部像素不变或只修改指定区域。每次生成仍仅一张图并使用固定尺寸。
+      </p>
     </div>
 
     <div v-if="approvedArtifacts.length" class="workflow-artifacts">
@@ -574,6 +601,21 @@ watch(
       </p>
       <p v-else class="muted">交付尚未发布，暂不提供查看或下载。</p>
     </div>
+
+    <section v-if="publishedVersions.length" class="workflow-versions" aria-labelledby="workflow-versions-title">
+      <h4 id="workflow-versions-title">历史版本</h4>
+      <article v-for="version in publishedVersions" :key="version.run_id" class="workflow-version">
+        <header>
+          <strong>第 {{ version.requirement_revision }} 版</strong>
+          <span>已发布 · 已审查</span>
+        </header>
+        <p v-if="versionBrief(version)">需求：{{ versionBrief(version) }}</p>
+        <p v-if="versionPrompt(version)">提示词：{{ versionPrompt(version) }}</p>
+        <a v-if="version.asset_id" :href="versionDownloadUrl(version)" class="text-button" download>
+          下载第 {{ version.requirement_revision }} 版
+        </a>
+      </article>
+    </section>
 
     <div v-if="view?.legacy.length" class="workflow-legacy">
       <h4>历史内容</h4>

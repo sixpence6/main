@@ -24,6 +24,7 @@ from app.workflow.state import (
     add_review,
     approved_artifact,
     latest_artifact,
+    latest_project_artifact,
     record_diagnostic,
     revoke_downstream_approvals,
     set_artifact_status,
@@ -350,6 +351,12 @@ async def current_reference_report(
     if not asset_id:
         return None
     artifact = await approved_artifact(ctx, "reference_report")
+    if artifact is None:
+        # A new version run has no copied report of its own. Reuse the latest
+        # approved report only when its evidence binds to the current file.
+        artifact = await latest_project_artifact(
+            ctx, "reference_report", status="approved"
+        )
     if artifact is None:
         return None
     expected = _REFERENCE_EVIDENCE_PREFIX + asset_id
@@ -742,6 +749,22 @@ async def _compose(
     evidence = tuple(message.id for message in messages) + (
         (reference_evidence,) if reference_evidence is not None else ()
     )
+    previous_final = await latest_project_artifact(
+        ctx, "final_brief", status="approved"
+    )
+    if previous_final is not None and previous_final.run_id != ctx.run_id:
+        previous_payload = _json_dict(previous_final.payload_json)
+        approved_inputs.append(
+            {
+                "kind": "final_brief",
+                "artifact_id": previous_final.id,
+                "digest": previous_final.digest,
+                "payload": previous_payload,
+            }
+        )
+        evidence = (*evidence, previous_final.id)
+        if current_requirement is None:
+            current_requirement = previous_payload
     message_ids = {message.id for message in messages}
     text_authorized = _text_authorized(messages)
     user_text = "\n\n".join(message.content for message in messages)

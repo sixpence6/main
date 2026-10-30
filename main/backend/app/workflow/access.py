@@ -242,6 +242,24 @@ def _artifact_payload(artifact: Artifact) -> dict[str, object]:
     return payload if isinstance(payload, dict) else {}
 
 
+async def _active_approvals(
+    session: AsyncSession, project_id: str, approval_type: str
+) -> list[Approval]:
+    return list(
+        (
+            await session.scalars(
+                select(Approval)
+                .where(
+                    Approval.project_id == project_id,
+                    Approval.approval_type == approval_type,
+                    Approval.revoked_at.is_(None),
+                )
+                .order_by(Approval.created_at.desc())
+            )
+        ).all()
+    )
+
+
 async def _v2_access(
     session: AsyncSession,
     settings: Settings,
@@ -266,27 +284,46 @@ async def _v2_access(
     ):
         return AccessDecision(False, "ASSET_UNAVAILABLE")
 
-    image_approval = await _active_approval(session, asset.project_id, "image")
+    delivery = await session.scalar(
+        select(Delivery)
+        .where(
+            Delivery.project_id == asset.project_id,
+            Delivery.generation_job_id == job.id,
+            Delivery.asset_id == asset.id,
+            Delivery.status == "published",
+        )
+        .order_by(Delivery.published_at.desc())
+        .limit(1)
+    )
+    if delivery is None:
+        return AccessDecision(False, "NOT_PUBLISHED")
+
+    image_approval = None
+    for candidate in await _active_approvals(session, asset.project_id, "image"):
+        if candidate.rules_version != "2.0.0" or candidate.prompt_version != "2.0.0":
+            continue
+        if candidate.requirement_snapshot_digest != job.confirmed_snapshot_digest:
+            continue
+        if await _matches_asset(session, asset, candidate, _checks(candidate)):
+            image_approval = candidate
+            break
     if image_approval is None:
-        return AccessDecision(False, "APPROVAL_MISSING")
-    if image_approval.rules_version != "2.0.0" or image_approval.prompt_version != "2.0.0":
-        return AccessDecision(False, "ASSET_UNAVAILABLE")
-    if image_approval.requirement_snapshot_digest != job.confirmed_snapshot_digest:
-        return AccessDecision(False, "REQUIREMENT_CHANGED")
-    checks = _checks(image_approval)
-    if not await _matches_asset(session, asset, image_approval, checks):
         return AccessDecision(False, "DIGEST_MISMATCH")
 
-    manifest_approval = await _active_approval(session, asset.project_id, "delivery_manifest")
+    manifest_approval = None
+    for candidate in await _active_approvals(session, asset.project_id, "delivery_manifest"):
+        if (
+            candidate.approved_by != "output_reviewer"
+            or candidate.rules_version != "2.0.0"
+            or candidate.prompt_version != "2.0.0"
+            or candidate.requirement_snapshot_digest != job.confirmed_snapshot_digest
+            or candidate.artifact_id != delivery.manifest_artifact_id
+        ):
+            continue
+        manifest_approval = candidate
+        break
     if manifest_approval is None:
         return AccessDecision(False, "APPROVAL_MISSING")
-    if (
-        manifest_approval.approved_by != "output_reviewer"
-        or manifest_approval.rules_version != "2.0.0"
-        or manifest_approval.prompt_version != "2.0.0"
-        or manifest_approval.requirement_snapshot_digest != job.confirmed_snapshot_digest
-    ):
-        return AccessDecision(False, "ASSET_UNAVAILABLE")
     if not manifest_approval.artifact_id:
         return AccessDecision(False, "APPROVAL_MISSING")
     manifest = await session.get(Artifact, manifest_approval.artifact_id)
@@ -311,19 +348,6 @@ async def _v2_access(
     ):
         return AccessDecision(False, "REQUIREMENT_CHANGED")
 
-    delivery = await session.scalar(
-        select(Delivery)
-        .where(
-            Delivery.project_id == asset.project_id,
-            Delivery.generation_job_id == job.id,
-            Delivery.asset_id == asset.id,
-            Delivery.status == "published",
-        )
-        .order_by(Delivery.published_at.desc())
-        .limit(1)
-    )
-    if delivery is None:
-        return AccessDecision(False, "NOT_PUBLISHED")
     if (
         not delivery.asset_digest
         or delivery.asset_digest != asset.sha256
