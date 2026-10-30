@@ -10,7 +10,7 @@
 
 | 项 | 值 |
 |---|---|
-| 仓库/分支 | `a13295877929-gif/main` / `integration/backend-v1` |
+| 仓库/分支 | `sixpence6/main` / `integration/backend-v1` |
 | 后端 | FastAPI + uvicorn，`127.0.0.1:8720`，`backend/data/app.db`，迁移 `0001 (head)` |
 | LLM | `openai-chat` / `deepseek-v4.1-flash` @ `https://api.ai-pixel.online/v1`，60s |
 | VISUAL | `openai-images` / `gpt-image-2` @ `https://usfast.ailzd.com/v1`，同步，300s |

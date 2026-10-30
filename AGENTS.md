@@ -6,7 +6,7 @@ main 文件夹为项目本体，任何与项目无关的文件、脚手架、测
 
 ### Issue tracker
 
-Issues live as GitHub issues in `a13295877929-gif/main`. See `docs/agents/issue-tracker.md`.
+Issues live as GitHub issues in `sixpence6/main`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -15,7 +15,3 @@ Five canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
-
-### pre-todo
-
-v2 版本做门禁，设计好文档后把这一条删除
