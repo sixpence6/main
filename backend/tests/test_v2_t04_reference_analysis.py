@@ -837,7 +837,7 @@ async def test_technical_vision_failure_is_not_retried_automatically(full_settin
         view = await workflow(client, project["id"])
         assert view["status"] == "failed"
         assert view["issue"]["template_id"] == "SERVICE_UNAVAILABLE"
-        assert [action["id"] for action in view["available_actions"]] == ["analyze_reference"]
+        assert [action["id"] for action in view["available_actions"]] == ["continue_workflow"]
         assert len(stub.role_calls_received) == 1
         assert (await client.get(f"/api/projects/{project['id']}")).json()["project"][
             "reference_asset"
@@ -911,7 +911,7 @@ async def test_selected_usage_survives_failed_reanalysis_and_retry(full_settings
         assert failed.status_code == 503, failed.text
         view = await workflow(client, project["id"])
         assert view["status"] == "failed"
-        assert [action["id"] for action in view["available_actions"]] == ["analyze_reference"]
+        assert [action["id"] for action in view["available_actions"]] == ["continue_workflow"]
 
         retried = await act(
             client,
