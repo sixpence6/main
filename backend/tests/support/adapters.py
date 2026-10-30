@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 import httpx
 
@@ -13,6 +14,8 @@ from app.adapters.base import (
     OrganizeRequest,
     OrganizeResult,
     ProviderOutcome,
+    RoleRequest,
+    RoleResponse,
 )
 from app.adapters.registry import AdapterRegistry
 from app.config import RoleConfig
@@ -27,6 +30,35 @@ class LLMStub:
     calls: list[OrganizeRequest] = field(default_factory=list)
     delay_seconds: float = 0.0
     gate: asyncio.Event | None = None
+    role_responses: dict[str, list[Any]] = field(default_factory=dict)
+    role_calls_received: list[RoleRequest] = field(default_factory=list)
+    role_responder: Callable[[RoleRequest], Any] | None = None
+
+    async def complete(self, request: RoleRequest) -> RoleResponse:
+        self.role_calls_received.append(request)
+        if self.gate is not None:
+            await self.gate.wait()
+        if self.delay_seconds:
+            await asyncio.sleep(self.delay_seconds)
+        task = request.payload.get("task")
+        role = str(task.get("role")) if isinstance(task, dict) else ""
+        if self.role_responder is not None:
+            response = self.role_responder(request)
+        else:
+            queue = self.role_responses.get(role)
+            if not queue:
+                raise AssertionError(f"no scripted role response for {role!r}")
+            response = queue.pop(0)
+        if isinstance(response, BaseException):
+            raise response
+        if isinstance(response, RoleResponse):
+            return response
+        if not isinstance(response, dict):
+            raise AssertionError("role response must be a dict or exception")
+        return RoleResponse(
+            payload=response,
+            model_fingerprint=f"stub-llm:{role}:deadbeef",
+        )
 
     async def organize(self, request: OrganizeRequest) -> OrganizeResult:
         self.calls.append(request)

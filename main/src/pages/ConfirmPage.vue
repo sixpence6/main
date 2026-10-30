@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import PageTemplate from '@/components/PageTemplate.vue'
+import WorkflowPanel from '@/components/workflow/WorkflowPanel.vue'
 import BriefCard from '@/components/BriefCard.vue'
 import { useWorkspace } from '@/composables/useWorkspace'
 import { briefStatusLabel, displayProjectTitle } from '@/utils/format'
@@ -44,6 +45,7 @@ const {
     title-id="confirm-title"
     intro="编辑并确认当前需求；确认后才能进入生成图片阶段。"
   >
+    <WorkflowPanel />
     <div v-if="projectLoading" class="project-loading" role="status">正在读取项目详情…</div>
 
     <div v-else-if="projectError" class="project-error" role="alert">

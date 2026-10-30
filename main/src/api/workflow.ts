@@ -1,0 +1,127 @@
+import { requestJson } from './client'
+
+export type WorkflowStatus =
+  | 'none'
+  | 'active'
+  | 'needs_input'
+  | 'blocked'
+  | 'completed'
+  | 'failed'
+
+export interface WorkflowIssue {
+  code: string
+  message: string
+  template_id: string | null
+  params: Record<string, string>
+}
+
+export interface WorkflowArtifact {
+  id: string
+  kind: string
+  revision_no: number
+  status: 'candidate' | 'approved' | 'rejected' | 'superseded'
+  digest: string
+  payload: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface WorkflowApproval {
+  id: string
+  approval_type: string
+  artifact_id: string | null
+  artifact_digest: string
+  approved_by: string
+  requirement_snapshot_digest: string
+  referenced_material_digest: string
+  prompt_version: string
+  rules_version: string
+  model_fingerprint: string
+  checks: Record<string, unknown>
+  created_at: string
+  revoked_at: string | null
+  revocation_reason: string | null
+}
+
+export interface WorkflowAction {
+  id: string
+  label: string
+  kind: 'button' | 'text' | 'confirm'
+  requires_text: boolean
+  text_label: string | null
+  requires_confirmation: boolean
+}
+
+export interface WorkflowLegacyItem {
+  id: string
+  kind: 'message' | 'generation' | 'asset'
+  ref_id: string
+  status: 'legacy_unreviewed' | 'approved'
+  note: string | null
+  reviewed_at: string | null
+  created_at: string
+}
+
+export interface WorkflowGenerationJob {
+  id: string
+  status: string
+  request_id: string
+  submit_attempted: boolean
+  result_asset_id: string | null
+  error_code: string | null
+  error_message: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkflowDelivery {
+  id: string
+  status: 'approved' | 'published' | 'revoked'
+  asset_id: string
+  filename: string
+  caption: string | null
+  published_at: string | null
+  created_at: string
+}
+
+export interface WorkflowView {
+  project_id: string
+  run_id: string | null
+  stage: string | null
+  status: WorkflowStatus
+  project_revision: number
+  requirement_revision: number
+  intent_route: string | null
+  intent_action: string | null
+  issue: WorkflowIssue | null
+  artifacts: WorkflowArtifact[]
+  approvals: WorkflowApproval[]
+  available_actions: WorkflowAction[]
+  legacy: WorkflowLegacyItem[]
+  generation_job: WorkflowGenerationJob | null
+  delivery: WorkflowDelivery | null
+  updated_at: string | null
+}
+
+export interface WorkflowActionInput {
+  expected_revision: number
+  text?: string | null
+  payload?: Record<string, unknown> | null
+}
+
+export function getWorkflow(projectId: string, signal?: AbortSignal): Promise<WorkflowView> {
+  return requestJson<WorkflowView>(
+    `/api/projects/${encodeURIComponent(projectId)}/workflow`,
+    { signal },
+  )
+}
+
+export function runWorkflowAction(
+  projectId: string,
+  actionId: string,
+  input: WorkflowActionInput,
+): Promise<WorkflowView> {
+  return requestJson<WorkflowView>(
+    `/api/projects/${encodeURIComponent(projectId)}/workflow/actions/${encodeURIComponent(actionId)}`,
+    { method: 'POST', body: JSON.stringify(input) },
+  )
+}

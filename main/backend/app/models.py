@@ -102,13 +102,23 @@ class Asset(Base):
     width: Mapped[int] = mapped_column(Integer, nullable=False)
     height: Mapped[int] = mapped_column(Integer, nullable=False)
     byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    review_status: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="quarantined", server_default="quarantined"
+    )
+    review_note: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[str] = mapped_column(String(32), nullable=False)
 
     __table_args__ = (
         CheckConstraint("kind IN ('reference','generated')", name="ck_assets_kind"),
+        CheckConstraint(
+            "review_status IN ('quarantined','approved','rejected','legacy_unreviewed')",
+            name="ck_assets_review_status",
+        ),
         CheckConstraint("width > 0 AND height > 0", name="ck_assets_dimensions_positive"),
         CheckConstraint("byte_size >= 0", name="ck_assets_byte_size_non_negative"),
         Index("ix_assets_project_kind", "project_id", "kind"),
+        Index("ix_assets_review_status", "review_status"),
     )
 
 
@@ -145,6 +155,7 @@ class Generation(Base):
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     submit_attempted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    workflow_job_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
     created_at: Mapped[str] = mapped_column(String(32), nullable=False)
     started_at: Mapped[str | None] = mapped_column(String(32), nullable=True)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import re
 from typing import Any
@@ -13,6 +14,8 @@ from app.adapters.base import (
     OrganizeRequest,
     OrganizeResult,
     ProviderError,
+    RoleRequest,
+    RoleResponse,
 )
 from app.config import RoleConfig
 
@@ -210,6 +213,152 @@ class OpenAIChatAdapter:
                 message["content"] = [image_part]
             return
         messages.append({"role": "user", "content": [image_part]})
+
+
+    def _fingerprint(self, model: str, base_url: str) -> str:
+        """A stable, non-secret identifier for the model configuration in use."""
+        digest = hashlib.sha256(
+            f"{self.adapter_id}|{model}|{base_url}".encode("utf-8")
+        ).hexdigest()[:32]
+        return f"{self.adapter_id}:{model}:{digest}"
+
+    async def complete(self, request: RoleRequest) -> RoleResponse:
+        """Execute one strict role call and return its single JSON object.
+
+        The adapter performs exactly one HTTP attempt. Contract validation and
+        business acceptance intentionally live in the workflow layer.
+        """
+        model = self.model
+        base_url = self._base_url
+        api_key = self._api_key
+        if request.images:
+            if not self._vision_model:
+                raise ProviderError(
+                    "未配置多模态模型，无法处理图片",
+                    evidence="rejected",
+                    error_code="LLM_VISION_NOT_CONFIGURED",
+                )
+            model = self._vision_model
+            base_url = self._vision_base_url
+            api_key = self._vision_api_key
+
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": request.system_prompt},
+            {
+                "role": "user",
+                "content": json.dumps(
+                    request.payload, ensure_ascii=False, separators=(",", ":")
+                ),
+            },
+        ]
+        for image in request.images:
+            self._attach_reference_image(messages, image)
+
+        try:
+            response = await self._client.post(
+                f"{base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "model": model,
+                    "messages": messages,
+                    "temperature": 0.2,
+                    "max_tokens": 4096,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=self._timeout_seconds,
+                follow_redirects=False,
+            )
+        except httpx.TimeoutException:
+            raise ProviderError(
+                "语言模型请求超时",
+                evidence="uncertain",
+                error_code="LLM_TIMEOUT",
+            ) from None
+        except httpx.RequestError:
+            raise ProviderError(
+                "语言模型请求未能确认送达",
+                evidence="uncertain",
+                error_code="LLM_NETWORK_ERROR",
+            ) from None
+
+        payload = self._interpret_role_response(response, api_key)
+        return RoleResponse(
+            payload=payload,
+            model_fingerprint=self._fingerprint(model, base_url),
+        )
+
+    def _interpret_role_response(
+        self, response: httpx.Response, api_key: str
+    ) -> dict[str, object]:
+        if 300 <= response.status_code < 400:
+            raise ProviderError(
+                "语言模型服务返回了不允许的重定向",
+                evidence="rejected",
+                error_code="LLM_REQUEST_REJECTED",
+            )
+        if response.status_code >= 500:
+            raise ProviderError(
+                "语言模型服务暂时不可用",
+                evidence="uncertain",
+                error_code="LLM_UPSTREAM_ERROR",
+            )
+        if response.status_code >= 400:
+            raise ProviderError(
+                _safe_error_message(response, api_key),
+                evidence="rejected",
+                error_code=_status_error_code(response.status_code),
+            )
+        if not 200 <= response.status_code < 300:
+            raise ProviderError(
+                "语言模型服务返回了未预期的状态",
+                evidence="uncertain",
+                error_code="LLM_RESPONSE_INVALID",
+            )
+        try:
+            body = response.json()
+        except ValueError:
+            raise ProviderError(
+                "语言模型返回格式异常",
+                evidence="uncertain",
+                error_code="LLM_RESPONSE_INVALID",
+            ) from None
+        if not isinstance(body, dict):
+            raise ProviderError(
+                "语言模型返回格式异常",
+                evidence="uncertain",
+                error_code="LLM_RESPONSE_INVALID",
+            )
+        choices = body.get("choices")
+        if not isinstance(choices, list) or not choices:
+            raise ProviderError(
+                "语言模型没有返回候选结果",
+                evidence="uncertain",
+                error_code="LLM_RESPONSE_INVALID",
+            )
+        choice = choices[0]
+        message = choice.get("message") if isinstance(choice, dict) else None
+        content = _content_text(message)
+        if not content or not content.strip():
+            raise ProviderError(
+                "语言模型没有返回内容",
+                evidence="uncertain",
+                error_code="LLM_RESPONSE_INVALID",
+            )
+        try:
+            parsed = _extract_json(content)
+        except (ValueError, TypeError):
+            raise ProviderError(
+                "语言模型返回的内容不是有效 JSON",
+                evidence="uncertain",
+                error_code="LLM_RESPONSE_INVALID",
+            ) from None
+        if not isinstance(parsed, dict):
+            raise ProviderError(
+                "语言模型返回的内容不是 JSON 对象",
+                evidence="uncertain",
+                error_code="LLM_RESPONSE_INVALID",
+            )
+        return parsed
 
     async def organize(self, request: OrganizeRequest) -> OrganizeResult:
         model = self.model

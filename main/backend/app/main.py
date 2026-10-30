@@ -24,6 +24,7 @@ from app.routers import (
     messages,
     projects,
     web,
+    workflow,
 )
 from app.services.recovery import repair_leftover_state
 from app.startup import ensure_data_dir, prepare_database
@@ -132,6 +133,7 @@ def create_app(
     app.include_router(briefs.router)
     app.include_router(assets.router)
     app.include_router(generations.router)
+    app.include_router(workflow.router)
 
     @app.api_route(
         "/api/{rest:path}",

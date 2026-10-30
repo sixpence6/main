@@ -65,10 +65,29 @@ class OrganizeResult:
     brief: BriefData
 
 
+@dataclass(frozen=True)
+class RoleRequest:
+    """One strict v2 role call: reviewed system prompt, typed data, optional images."""
+
+    system_prompt: str
+    payload: dict[str, object]
+    images: tuple[OrganizeImage, ...] = ()
+
+
+@dataclass(frozen=True)
+class RoleResponse:
+    """A single parsed JSON object plus a non-secret model configuration fingerprint."""
+
+    payload: dict[str, object]
+    model_fingerprint: str
+
+
 class LLMAdapter(Protocol):
     adapter_id: str
 
     async def organize(self, request: OrganizeRequest) -> OrganizeResult: ...
+
+    async def complete(self, request: RoleRequest) -> RoleResponse: ...
 
 
 @dataclass(frozen=True)

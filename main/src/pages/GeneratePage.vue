@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted } from "vue";
 import PageTemplate from "@/components/PageTemplate.vue";
+import WorkflowPanel from "@/components/workflow/WorkflowPanel.vue";
 import { useWorkspace } from "@/composables/useWorkspace";
 import { displayProjectTitle, generationStatusLabel } from "@/utils/format";
 
@@ -55,6 +56,7 @@ onMounted(() => {
     title-id="generation-page-title"
     intro="确认后的完整提示词如下；可返回修改需求，或直接生成图片。"
   >
+    <WorkflowPanel />
     <div v-if="projectLoading" class="project-loading" role="status">
       正在读取项目详情…
     </div>

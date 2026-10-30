@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import PageTemplate from '@/components/PageTemplate.vue'
+import WorkflowPanel from '@/components/workflow/WorkflowPanel.vue'
 import ResultRetrievalPanel from '@/components/ResultRetrievalPanel.vue'
 import { assetUrl } from '@/api/client'
 import type { GenerationView } from '@/api/types'
@@ -131,6 +132,7 @@ async function onViewerKeydown(event: KeyboardEvent): Promise<void> {
     title-id="result-title"
     intro="这里只展示当前生成和历史生成的图片。"
   >
+    <WorkflowPanel />
     <div v-if="projectLoading" class="project-loading" role="status">正在读取项目详情…</div>
 
     <div v-else-if="projectError" class="project-error" role="alert">

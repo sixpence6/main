@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-EXPECTED_OPERATIONS = 14
+EXPECTED_OPERATIONS = 16
 
 
 def _operations(spec: dict[str, Any]) -> set[tuple[str, str]]:
