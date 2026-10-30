@@ -69,6 +69,9 @@ def _capability_ready(ctx: WorkflowContext, capability: str) -> tuple[Any, str]:
             return None, "图片生成能力不可用"
         if not llm.configured:
             return None, "审查模型配置不完整"
+        # VISION 是付费生成的前置能力；缺少显式视觉模型时必须在调用前阻断。
+        if not llm.vision_model:
+            return None, "视觉理解模型未配置"
         return llm, ""
     raise ValueError(f"unknown capability {capability}")
 

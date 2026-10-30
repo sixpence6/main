@@ -30,6 +30,12 @@ import { editableBriefFields, isUuid, type EditableBriefKey } from '@/utils/form
 import { useRoute, useRouter } from 'vue-router'
 import { useViewport } from './useViewport'
 
+const CAPABILITY_NAMES: Record<string, string> = {
+  TEXT: '文字处理',
+  VISION: '视觉理解',
+  IMAGE_GEN: '图片生成',
+}
+
 export type StageId = 'describe' | 'confirm' | 'generate' | 'results'
 export type BriefAction = 'save' | 'confirm' | 'organize' | 'reload'
 export type ReferenceAction = 'upload' | 'remove' | 'reload'
@@ -445,15 +451,20 @@ function createWorkspace(): WorkspaceStore {
   const referenceChecking = ref(false)
   const referenceConflict = ref(false)
   let referenceToken = 0
+  const imageCapabilities = computed(
+    () => configStatus.value?.image_generation?.capabilities ?? configStatus.value?.visual.capabilities,
+  )
   const referenceCapability = computed<boolean | null>(
-    () => configStatus.value?.visual.capabilities?.reference_image ?? null,
+    () => imageCapabilities.value?.reference_image ?? null,
   )
   const referenceBusy = computed(
     () => referenceChecking.value || referenceAction.value !== null,
   )
   const referenceLimitBytes = computed(() => {
-    const caps = configStatus.value?.visual.capabilities
-    let limit = 10_000_000
+    const caps = imageCapabilities.value
+    let limit = typeof caps?.local_reference_max_bytes === 'number'
+      ? caps.local_reference_max_bytes
+      : 10_000_000
     for (const value of [caps?.provider_max_reference_bytes, caps?.effective_reference_max_bytes]) {
       if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
         limit = Math.min(limit, value)
@@ -462,7 +473,9 @@ function createWorkspace(): WorkspaceStore {
     return Math.max(0, limit)
   })
   const referenceMimeTypes = computed<string[]>(() => {
-    const configured = configStatus.value?.visual.capabilities?.reference_mime_types
+    const configured =
+      imageCapabilities.value?.effective_reference_mime_types ??
+      imageCapabilities.value?.reference_mime_types
     if (!configured?.length) return ['image/png', 'image/jpeg']
     const normalized = configured
       .map((value) => value.trim().toLowerCase())
@@ -621,6 +634,12 @@ function createWorkspace(): WorkspaceStore {
     if (!visual.ready) return '图片模型当前不可用，请稍后重试。'
     if (visual.capabilities?.text_to_image === false) return '当前模型不支持文生图，不能生成图片。'
     if (visual.capabilities?.text_to_image !== true) return '文生图能力尚未核实，不能生成图片。'
+    // 付费生成需要 TEXT、VISION、IMAGE_GEN 三项能力同时就绪（AC-44/AC-45）。
+    const generation = configStatus.value?.generation
+    if (generation && !generation.allowed) {
+      const labels = generation.missing_capabilities.map((name) => CAPABILITY_NAMES[name] ?? name)
+      return `付费生成所需能力未就绪：${labels.join('、')}；不会发起生成请求。`
+    }
     if (!project.brief.image_size) return '图片尺寸尚未确定，不能生成图片。'
     if (
       visual.capabilities?.supported_image_sizes?.length &&

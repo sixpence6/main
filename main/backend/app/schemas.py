@@ -141,15 +141,54 @@ class VisualCapabilities(BaseModel):
     reference_mime_types: list[str] | None
     provider_max_reference_bytes: int | None
     effective_reference_max_bytes: int | None
+    # T02：本地限制与最终生效限制分开表达，前端不需要自行推断“更严格者”。
+    local_reference_max_bytes: int | None
+    effective_reference_mime_types: list[str] | None
+    usable_image_size: str | None
 
 
 class VisualConfigStatus(LLMConfigStatus):
     capabilities: VisualCapabilities
 
 
+class CapabilityStatus(BaseModel):
+    # T02：TEXT/VISION/IMAGE_GEN 三种能力各自独立表达，禁止把生图配置当成视觉理解配置。
+    capability: Literal["TEXT", "VISION", "IMAGE_GEN"]
+    configured: bool
+    ready: bool
+    adapter_id: str | None
+    model: str | None
+    missing_fields: list[str]
+    issues: list[ConfigIssue]
+    timeout_seconds: int
+    verification: Literal["not_checked"]
+    model_fingerprint: str | None
+    declared_capabilities: list[str]
+
+
+class VisionConfigStatus(CapabilityStatus):
+    endpoint_source: Literal["shared_text", "independent", "missing"]
+    credential_source: Literal["shared_text", "independent", "missing"]
+
+
+class ImageGenerationConfigStatus(CapabilityStatus):
+    capabilities: VisualCapabilities
+
+
+class GenerationGate(BaseModel):
+    allowed: bool
+    missing_capabilities: list[str]
+    issues: list[ConfigIssue]
+    verification: Literal["not_checked"]
+
+
 class ConfigStatus(BaseModel):
     llm: LLMConfigStatus
     visual: VisualConfigStatus
+    text: CapabilityStatus
+    vision: VisionConfigStatus
+    image_generation: ImageGenerationConfigStatus
+    generation: GenerationGate
 
 
 class EmptyBody(BaseModel):

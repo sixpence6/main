@@ -1,12 +1,15 @@
 import type {
   AssetView,
+  CapabilityStatus,
   Brief,
   ConfigStatus,
   GenerationView,
+  ImageGenerationConfigStatus,
   MessageView,
   ModelConfigStatus,
   ProjectSummary,
   ProjectView,
+  VisionConfigStatus,
   VisualConfigStatus,
 } from '@/api/types'
 
@@ -41,65 +44,159 @@ export function visualStatus(overrides: Partial<VisualConfigStatus> = {}): Visua
       reference_mime_types: null,
       provider_max_reference_bytes: null,
       effective_reference_max_bytes: 10_000_000,
+      local_reference_max_bytes: 10_000_000,
+      effective_reference_mime_types: null,
+      usable_image_size: null,
       ...(overrides.capabilities ?? {}),
     },
   }
 }
 
-export function emptyConfig(): ConfigStatus {
+function textCapability(llm: ModelConfigStatus): CapabilityStatus {
   return {
-    llm: modelStatus({
-      missing_fields: ['LLM_API_KEY', 'LLM_MODEL'],
+    ...llm,
+    capability: 'TEXT',
+    model_fingerprint: llm.model ? `${llm.adapter_id}:${llm.model}:text0000` : null,
+    declared_capabilities: llm.adapter_id ? ['text'] : [],
+  }
+}
+
+function visionCapability(
+  llm: ModelConfigStatus,
+  overrides: Partial<VisionConfigStatus> = {},
+): VisionConfigStatus {
+  return {
+    ...llm,
+    capability: 'VISION',
+    model_fingerprint: llm.model ? `${llm.adapter_id}:vision-model:vision00` : null,
+    declared_capabilities: llm.adapter_id ? ['text', 'image_input'] : [],
+    endpoint_source: llm.configured ? 'shared_text' : 'missing',
+    credential_source: llm.configured ? 'shared_text' : 'missing',
+    ...overrides,
+  }
+}
+
+function imageCapability(
+  visual: VisualConfigStatus,
+  overrides: Partial<ImageGenerationConfigStatus> = {},
+): ImageGenerationConfigStatus {
+  return {
+    ...visual,
+    capability: 'IMAGE_GEN',
+    timeout_seconds: 300,
+    model_fingerprint: visual.model ? `${visual.adapter_id}:${visual.model}:image000` : null,
+    declared_capabilities: visual.capabilities.text_to_image
+      ? ['text_to_image', 'reference_image']
+      : [],
+    ...overrides,
+  }
+}
+
+export function emptyConfig(): ConfigStatus {
+  const llm = modelStatus({
+    missing_fields: ['LLM_API_KEY', 'LLM_MODEL'],
+  })
+  const visual = visualStatus({
+    missing_fields: ['VISUAL_API_KEY', 'VISUAL_MODEL'],
+  })
+  return {
+    llm,
+    visual,
+    text: textCapability(llm),
+    vision: visionCapability(llm, {
+      configured: false,
+      ready: false,
+      adapter_id: null,
+      model: null,
+      missing_fields: ['vision_model'],
+      endpoint_source: 'missing',
+      credential_source: 'missing',
     }),
-    visual: visualStatus({
+    image_generation: imageCapability(visual, {
+      configured: false,
+      ready: false,
       missing_fields: ['VISUAL_API_KEY', 'VISUAL_MODEL'],
     }),
+    generation: {
+      allowed: false,
+      missing_capabilities: ['TEXT', 'VISION', 'IMAGE_GEN'],
+      issues: [],
+      verification: 'not_checked',
+    },
   }
 }
 
 export function unknownCapabilitiesConfig(): ConfigStatus {
+  const llm = modelStatus({
+    configured: true,
+    ready: true,
+    adapter_id: 'openai-compatible',
+    model: 'text-model',
+  })
+  const visual = visualStatus({
+    configured: true,
+    ready: true,
+    adapter_id: 'image-adapter',
+    model: 'image-model',
+  })
   return {
-    llm: modelStatus({
-      configured: true,
-      ready: true,
-      adapter_id: 'openai-compatible',
-      model: 'text-model',
+    llm,
+    visual,
+    text: textCapability(llm),
+    vision: visionCapability(llm, { model: 'vision-model' }),
+    image_generation: imageCapability(visual, {
+      ready: false,
     }),
-    visual: visualStatus({
-      configured: true,
-      ready: true,
-      adapter_id: 'image-adapter',
-      model: 'image-model',
-    }),
+    generation: {
+      allowed: false,
+      missing_capabilities: ['IMAGE_GEN'],
+      issues: [],
+      verification: 'not_checked',
+    },
   }
 }
 
 export function configuredConfig(): ConfigStatus {
+  const llm = modelStatus({
+    configured: true,
+    ready: true,
+    adapter_id: 'openai-compatible',
+    model: 'text-model',
+    timeout_seconds: 90,
+  })
+  const visual = visualStatus({
+    configured: true,
+    ready: true,
+    adapter_id: 'image-adapter',
+    model: 'image-model',
+    timeout_seconds: 180,
+    capabilities: {
+      text_to_image: true,
+      reference_image: true,
+      asynchronous: true,
+      supported_image_sizes: ['1024x1024', '1536x1536'],
+      selected_image_size: '1024x1024',
+      reference_mime_types: ['image/png', 'image/jpeg'],
+      provider_max_reference_bytes: 5_000_000,
+      effective_reference_max_bytes: 5_000_000,
+      local_reference_max_bytes: 10_000_000,
+      effective_reference_mime_types: null,
+      usable_image_size: '1024x1024',
+    },
+  })
   return {
-    llm: modelStatus({
-      configured: true,
-      ready: true,
-      adapter_id: 'openai-compatible',
-      model: 'text-model',
-      timeout_seconds: 90,
-    }),
-    visual: visualStatus({
-      configured: true,
-      ready: true,
-      adapter_id: 'image-adapter',
-      model: 'image-model',
-      timeout_seconds: 180,
-      capabilities: {
-        text_to_image: true,
-        reference_image: true,
-        asynchronous: true,
-        supported_image_sizes: ['1024x1024', '1536x1536'],
-        selected_image_size: '1024x1024',
-        reference_mime_types: ['image/png', 'image/jpeg'],
-        provider_max_reference_bytes: 5_000_000,
-        effective_reference_max_bytes: 5_000_000,
-      },
-    }),
+    llm,
+    visual,
+    text: textCapability(llm),
+    // VISION 使用 SRS 默认的 60 秒单次上限，与 TEXT 的 90 秒分开展示。
+    vision: visionCapability(llm, { model: 'vision-model', timeout_seconds: 60 }),
+    image_generation: imageCapability(visual, { timeout_seconds: 180 }),
+    generation: {
+      allowed: true,
+      missing_capabilities: [],
+      issues: [],
+      verification: 'not_checked',
+    },
   }
 }
 

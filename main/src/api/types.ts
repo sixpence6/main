@@ -123,6 +123,8 @@ export interface ApiIssue {
   message: string
 }
 
+export type CapabilityName = 'TEXT' | 'VISION' | 'IMAGE_GEN'
+
 export interface ConfigCapabilities {
   text_to_image: boolean | null
   reference_image: boolean | null
@@ -132,6 +134,9 @@ export interface ConfigCapabilities {
   reference_mime_types: string[] | null
   provider_max_reference_bytes: number | null
   effective_reference_max_bytes: number | null
+  local_reference_max_bytes: number | null
+  effective_reference_mime_types: string[] | null
+  usable_image_size: string | null
 }
 
 export interface ModelConfigStatus {
@@ -145,6 +150,28 @@ export interface ModelConfigStatus {
   verification: 'not_checked'
 }
 
+export interface CapabilityStatus extends ModelConfigStatus {
+  capability: CapabilityName
+  model_fingerprint: string | null
+  declared_capabilities: string[]
+}
+
+export interface VisionConfigStatus extends CapabilityStatus {
+  endpoint_source: 'shared_text' | 'independent' | 'missing'
+  credential_source: 'shared_text' | 'independent' | 'missing'
+}
+
+export interface ImageGenerationConfigStatus extends CapabilityStatus {
+  capabilities: ConfigCapabilities
+}
+
+export interface GenerationGate {
+  allowed: boolean
+  missing_capabilities: CapabilityName[]
+  issues: ApiIssue[]
+  verification: 'not_checked'
+}
+
 export interface VisualConfigStatus extends ModelConfigStatus {
   capabilities: ConfigCapabilities
 }
@@ -152,6 +179,10 @@ export interface VisualConfigStatus extends ModelConfigStatus {
 export interface ConfigStatus {
   llm: ModelConfigStatus
   visual: VisualConfigStatus
+  text: CapabilityStatus
+  vision: VisionConfigStatus
+  image_generation: ImageGenerationConfigStatus
+  generation: GenerationGate
 }
 
 export interface HealthStatus {
