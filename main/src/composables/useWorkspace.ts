@@ -27,6 +27,7 @@ import type {
   SubmitGenerationRequest,
 } from '@/api/types'
 import { editableBriefFields, isUuid, type EditableBriefKey } from '@/utils/format'
+import { useRoute, useRouter } from 'vue-router'
 import { useViewport } from './useViewport'
 
 export type StageId = 'describe' | 'confirm' | 'generate' | 'results'
@@ -221,12 +222,20 @@ function dedupeProjects(items: ProjectSummary[]): ProjectSummary[] {
   })
 }
 
+function stageIdFromRouteName(name: unknown): StageId | null {
+  return name === 'describe' || name === 'confirm' || name === 'generate' || name === 'results'
+    ? name
+    : null
+}
+
 function createWorkspace(): WorkspaceStore {
   const { breakpoint, isMobile } = useViewport()
+  const router = useRouter()
+  const route = useRoute()
 
   const draft = ref('')
   const projectParam = ref<string | null>(currentProjectParam())
-  const stage = ref<StageId>('describe')
+  const stage = ref<StageId>(stageIdFromRouteName(route.name) ?? 'describe')
   const sidebarExpanded = ref(breakpoint.value === 'wide')
   const sideDrawerOpen = ref(false)
   const modelDrawerOpen = ref(false)
@@ -653,11 +662,13 @@ function createWorkspace(): WorkspaceStore {
     const project = currentProject.value
     const hasProject = Boolean(projectParam.value)
     const hasReviewableBrief = Boolean(
-      project && (project.brief_status === 'review' || project.brief_status === 'confirmed'),
+      project &&
+        (project.brief_status === 'draft' ||
+          project.brief_status === 'review' ||
+          project.brief_status === 'confirmed'),
     )
     const hasConfirmedBrief = project?.brief_status === 'confirmed'
     const hasGenerationRecords = projectGenerations.value.length > 0
-    const hasGeneration = projectGenerations.value.some((item) => item.status === 'succeeded')
     const referenceBlocked = referenceGenerationBlockedReason.value
     return [
       { id: 'describe', label: '描述需求', locked: false, reason: '' },
@@ -680,7 +691,7 @@ function createWorkspace(): WorkspaceStore {
       {
         id: 'results',
         label: '查看结果',
-        locked: !hasGeneration,
+        locked: !hasGenerationRecords,
         reason: '尚未生成图片，暂无可查看的结果。',
       },
     ]
@@ -695,14 +706,19 @@ function createWorkspace(): WorkspaceStore {
     })
   }
 
-  function updateProjectUrl(id: string | null, mode: 'push' | 'replace'): void {
-    if (typeof window === 'undefined') return
-    const url = new URL(window.location.href)
-    if (id) url.searchParams.set('project', id)
-    else url.searchParams.delete('project')
-    const next = url.pathname + url.search + url.hash
-    if (mode === 'push') window.history.pushState({ project: id }, '', next)
-    else window.history.replaceState({ project: id }, '', next)
+  function routeQueryWithProject(): Record<string, string | string[]> {
+    const query: Record<string, string | string[]> = {}
+    for (const [key, value] of Object.entries(route.query)) {
+      if (key === 'project' || value === undefined || value === null) continue
+      query[key] = Array.isArray(value) ? value.map((item) => String(item)) : String(value)
+    }
+    if (projectParam.value) query.project = projectParam.value
+    return query
+  }
+
+  function updateProjectUrl(id: string | null, mode: 'push' | 'replace'): Promise<unknown> {
+    if (id) projectParam.value = id
+    return router[mode]({ name: stage.value, query: routeQueryWithProject(), hash: route.hash }).catch(() => undefined)
   }
 
   function openNavigationConfirm(intent: NavigationIntent): void {
@@ -896,6 +912,7 @@ function createWorkspace(): WorkspaceStore {
     projectContextToken += 1
     resetGenerationState()
     resetMessageConflict()
+    const preferredStage = stage.value
     stage.value = 'describe'
     projectLoading.value = true
     projectError.value = ''
@@ -928,7 +945,7 @@ function createWorkspace(): WorkspaceStore {
       ) {
         return
       }
-      chooseDefaultStage()
+      chooseDefaultStage(preferredStage)
       if (organizing.value || activeGeneration.value) {
         scheduleStatusQuery()
       }
@@ -957,25 +974,49 @@ function createWorkspace(): WorkspaceStore {
     }
   }
 
-  function chooseDefaultStage(): void {
+  function chooseDefaultStage(preferredStage?: StageId): void {
     const project = currentProject.value
     if (!project) {
       stage.value = 'describe'
       return
     }
-    const latest = latestGenerationView.value
-    if (
-      project.brief_status === 'organizing' ||
-      organizing.value ||
-      activeGeneration.value ||
-      generationUncertain.value ||
-      latest?.status === 'failed' ||
-      latest?.status === 'unknown'
-    ) {
+    if (preferredStage && preferredStage !== 'describe') {
+      const preferred = stages.value.find((item) => item.id === preferredStage)
+      if (preferred && !preferred.locked) {
+        stage.value = preferredStage
+        return
+      }
+    }
+    if (project.brief_status === 'organizing' || organizing.value) {
       stage.value = 'describe'
       return
     }
-    stage.value = latestSucceededGeneration.value ? 'results' : 'describe'
+    if (generationUncertain.value) {
+      stage.value = 'generate'
+      return
+    }
+    if (activeGeneration.value) {
+      stage.value = 'results'
+      return
+    }
+    const latest = latestGenerationView.value
+    if (latest?.status === 'failed' || latest?.status === 'unknown') {
+      stage.value = 'describe'
+      return
+    }
+    if (latestSucceededGeneration.value) {
+      stage.value = 'results'
+      return
+    }
+    if (project.brief_status === 'review') {
+      stage.value = 'confirm'
+      return
+    }
+    if (project.brief_status === 'confirmed') {
+      stage.value = 'generate'
+      return
+    }
+    stage.value = 'describe'
   }
 
   async function findKnownGeneration(
@@ -1562,6 +1603,7 @@ function createWorkspace(): WorkspaceStore {
       generationSubmitNotice.value = '生成请求已提交，正在等待模型处理。'
       announce('生成请求已提交，正在等待模型处理。')
       if (response.generation.status === 'queued' || response.generation.status === 'running') {
+        stage.value = 'results'
         scheduleStatusQuery()
       } else if (response.generation.status === 'succeeded') {
         await refreshGenerationProject(response.generation, token)
@@ -2448,7 +2490,8 @@ function createWorkspace(): WorkspaceStore {
       })
       if (projectContextToken !== contextToken || projectParam.value !== project.id) return
       applyMessageResponse(response)
-      announce('已重新请求整理当前需求。')
+      briefSaveNotice.value = response.assistant_message.content || '已重新整理当前需求。'
+      announce('已重新整理当前需求。')
     } catch (error) {
       if (projectContextToken !== contextToken) return
       if (error instanceof ApiError && error.status === 409) {
@@ -2458,7 +2501,7 @@ function createWorkspace(): WorkspaceStore {
         sendError.value = ''
         announce('重新整理遇到版本冲突，请加载最新需求或查看本地副本。')
       } else {
-        sendError.value = writeErrorMessage(error, '重新整理失败，已保存的卡片内容仍会保留。')
+        briefSaveError.value = writeErrorMessage(error, '重新整理失败，已保存的卡片内容仍会保留。')
       }
     } finally {
       briefAction.value = null
@@ -2715,7 +2758,13 @@ function createWorkspace(): WorkspaceStore {
     const id = currentProjectParam()
     if (id === projectParam.value) return
     if (hasUnsavedChanges.value) {
-      updateProjectUrl(projectParam.value, 'replace')
+      const target = router.resolve({
+        name: stage.value,
+        query: routeQueryWithProject(),
+        hash: route.hash,
+      }).fullPath
+      window.history.replaceState(window.history.state, '', target)
+      void updateProjectUrl(projectParam.value, 'replace')
       openNavigationConfirm({ kind: 'history', projectId: id })
       return
     }
@@ -2756,9 +2805,9 @@ function createWorkspace(): WorkspaceStore {
     stage.value = id
     if (id === 'generate') {
       void nextTick(() => {
-        const summary = document.getElementById('generation-summary')
         const heading = document.getElementById('generation-title')
-        const focusTarget = (summary ?? heading) as HTMLElement | null
+        const summary = document.getElementById('generation-summary')
+        const focusTarget = (heading ?? summary) as HTMLElement | null
         if (!focusTarget) return
         focusTarget.setAttribute('tabindex', '-1')
         focusTarget.focus()
@@ -2766,6 +2815,34 @@ function createWorkspace(): WorkspaceStore {
       })
     }
   }
+
+  watch(
+    () => stageIdFromRouteName(route.name),
+    (next) => {
+      if (!next || next === stage.value) return
+      const target = stages.value.find((item) => item.id === next)
+      if (!target || target.locked) {
+        if (target?.locked) announce(target.reason)
+        void router.replace({ name: stage.value, query: routeQueryWithProject(), hash: route.hash }).catch(() => undefined)
+        return
+      }
+      stage.value = next
+    },
+  )
+
+  watch(stage, (next) => {
+    if (stageIdFromRouteName(route.name) === next) return
+    void router.replace({ name: next, query: routeQueryWithProject(), hash: route.hash }).catch(() => undefined)
+  })
+
+  watch(
+    () => route.query.project,
+    () => {
+      const nextProject = typeof route.query.project === 'string' ? route.query.project : null
+      if (nextProject !== projectParam.value) syncProjectFromUrl()
+    },
+    { flush: 'sync' },
+  )
 
   async function checkHealth(): Promise<void> {
     try {
@@ -2846,6 +2923,8 @@ function createWorkspace(): WorkspaceStore {
     if (hasUnsavedChanges.value) window.addEventListener('beforeunload', handleBeforeUnload)
     if (projectParam.value !== null) {
       void loadProject(projectParam.value)
+    } else if (stage.value !== 'describe') {
+      stage.value = 'describe'
     }
     window.addEventListener('popstate', syncProjectFromUrl)
     document.addEventListener('visibilitychange', handleVisibilityChange)

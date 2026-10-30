@@ -236,11 +236,6 @@ describe('T02 只读恢复项目详情', () => {
     expect(await screen.findByRole('heading', { name: '春季托特包主图' })).toBeVisible()
     expect(harness.fetch.last('GET', detailPath)?.path).toBe(`/api/projects/${PROJECT_A}`)
 
-    const currentBrief = screen.getByRole('region', { name: '当前需求' })
-    expect(within(currentBrief).getByText('米色亚麻托特包')).toBeVisible()
-    expect(within(currentBrief).getByText('当前确认用的完整提示词')).toBeVisible()
-    expect(within(currentBrief).getByText('1024x1024')).toBeVisible()
-
     expect(screen.getByText('做一个米色托特包主图')).toBeVisible()
     expect(screen.getByText('已整理为可确认的需求。')).toBeVisible()
     expect(screen.getByText('这是普通补充说明。')).toBeVisible()
@@ -249,13 +244,23 @@ describe('T02 只读恢复项目详情', () => {
     expect(within(snapshotCard).getByText('快照里的商品描述')).toBeVisible()
     expect(within(snapshotCard).getByText('快照中的提示词')).toBeVisible()
 
-    expect(screen.getByText('生成记录 1 条')).toBeVisible()
+    await harness.user.click(within(nav).getByRole('button', { name: '确认需求' }))
+    expect(await screen.findByRole('heading', { name: '确认需求' })).toBeVisible()
+    const currentBrief = screen.getByRole('region', { name: '当前需求' })
+    expect(within(currentBrief).getByText('米色亚麻托特包')).toBeVisible()
+    expect(within(currentBrief).getByText('当前确认用的完整提示词')).toBeVisible()
+    expect(within(currentBrief).getByText('1024x1024')).toBeVisible()
+
+    await harness.user.click(within(nav).getByRole('button', { name: '生成图片' }))
+    expect(await screen.findByRole('heading', { name: '生成图片' })).toBeVisible()
     expect(screen.getByText('最近版本：第 1 版，状态：成功')).toBeVisible()
-    expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
+    expect(screen.queryByText('生成记录 1 条')).not.toBeInTheDocument()
+
+    await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
+    expect(await screen.findByRole('button', { name: '发送' })).toBeDisabled()
     expect(harness.fetch.writes).toHaveLength(0)
     expect(harness.fetch.count('POST', /\/messages$/)).toBe(0)
     expect(harness.fetch.count('POST', /\/generations$/)).toBe(0)
-
     const results = within(nav).getByRole('button', { name: '查看结果' })
     expect(results).not.toHaveAttribute('aria-disabled', 'true')
     await harness.user.click(results)

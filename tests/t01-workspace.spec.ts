@@ -27,7 +27,7 @@ describe('T01 空配置工作台', () => {
     expect(textarea).toHaveValue('米色亚麻托特包，简洁主图')
     expect(harness.fetch.writes).toHaveLength(0)
     expect(harness.fetch.count('GET', '/api/config/status')).toBe(1)
-    expect(screen.getByText('尚未生成图片')).toBeVisible()
+    expect(screen.getByRole('button', { name: '查看结果' })).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('新建项目清空草稿并移除项目参数，不读取或创建项目', async () => {

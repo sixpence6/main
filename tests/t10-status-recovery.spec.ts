@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { screen, waitFor } from '@testing-library/vue'
+import { screen, within, waitFor } from '@testing-library/vue'
 import { mountWorkspace, type WorkspaceHarness } from './support/workspace'
 import {
   PROJECT_A,
@@ -120,6 +120,9 @@ describe('T10 状态轮询、断连与恢复', () => {
       brief: sampleBrief(),
     }), [{ body: detail(sampleProject({ brief_status: 'review', brief: sampleBrief() }), [queuedGeneration()]) }])
     await screen.findByRole('heading', { name: '春季托特包主图' })
+    const nav = screen.getByRole('navigation', { name: '工作阶段' })
+    await harness.user.click(within(nav).getByRole('button', { name: '查看结果' }))
+    expect(await screen.findByRole('heading', { name: '查看结果' })).toBeVisible()
     expect(screen.getByText('当前生成：第 2 版，等待生成。')).toBeVisible()
     expect(harness.fetch.count('GET', generationPath)).toBe(0)
     expect(harness.fetch.count('POST', generationsPath)).toBe(0)

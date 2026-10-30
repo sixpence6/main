@@ -1,9 +1,11 @@
 import { render, screen, waitFor, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import ElementPlus from 'element-plus'
+import { createWebHistory } from 'vue-router'
 import { nextTick } from 'vue'
 import { vi } from 'vitest'
 import App from '@/App.vue'
+import { createAppRouter } from '@/router'
 import type { ConfigStatus } from '@/api/types'
 import { ClockController } from './clock'
 import { emptyConfig } from './fixtures'
@@ -68,9 +70,11 @@ export async function mountWorkspace(options: MountWorkspaceOptions = {}) {
   const user = userEvent.setup(
     options.fakeClock ? { advanceTimers: vi.advanceTimersByTime } : undefined,
   )
+  const router = createAppRouter(createWebHistory())
   const rendered = render(App, {
-    global: { plugins: [ElementPlus] },
+    global: { plugins: [ElementPlus, router] },
   })
+  await router.isReady()
 
   return {
     ...rendered,
@@ -82,6 +86,7 @@ export async function mountWorkspace(options: MountWorkspaceOptions = {}) {
     screen,
     within,
     waitFor,
+    router,
     setViewportWidth,
     dispose(): void {
       rendered.unmount()

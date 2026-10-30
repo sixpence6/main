@@ -130,11 +130,14 @@ describe('T03 首次描述创建项目', () => {
     expect(window.location.search).toBe('?project=' + PROJECT_A)
     expect(screen.getByRole('heading', { name: '米色亚麻托特包主图' })).toBeVisible()
     expect(screen.getByText('待确认')).toBeVisible()
+    expect(screen.getByText(content)).toBeVisible()
+    const nav = screen.getByRole('navigation', { name: '工作阶段' })
+    await harness.user.click(within(nav).getByRole('button', { name: '确认需求' }))
+    expect(await screen.findByRole('heading', { name: '确认需求' })).toBeVisible()
     const current = screen.getByRole('region', { name: '当前需求' })
     expect(within(current).getByText('为米色亚麻托特包生成一张简洁主图。')).toBeVisible()
     expect(within(current).getByText('不要求加字')).toBeVisible()
     expect(within(current).getByText('1024x1024')).toBeVisible()
-    expect(screen.getByText(content)).toBeVisible()
   })
 
   it('创建回执不明时保留输入、停止再次创建并引导核实已有项目', async () => {
@@ -231,6 +234,9 @@ describe('T03 澄清与需求卡', () => {
       content: '用于电商主图，不需要加字',
       expected_revision: 2,
     })
+    const nav = screen.getByRole('navigation', { name: '工作阶段' })
+    await harness.user.click(within(nav).getByRole('button', { name: '确认需求' }))
+    expect(await screen.findByRole('heading', { name: '确认需求' })).toBeVisible()
     const current = screen.getByRole('region', { name: '当前需求' })
     expect(within(current).getByText('使用补充后的完整提示词。')).toBeVisible()
     expect(within(current).getByText('不要求加字')).toBeVisible()
@@ -309,6 +315,9 @@ describe('T03 恢复与可访问状态', () => {
       ],
     })
 
+    const nav = screen.getByRole('navigation', { name: '工作阶段' })
+    await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
+    expect(await screen.findByRole('heading', { name: '描述需求' })).toBeVisible()
     expect(await screen.findByText('历史消息 0')).toBeVisible()
     const scroller = screen.getByLabelText('对话记录滚动区域')
     Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 1000 })

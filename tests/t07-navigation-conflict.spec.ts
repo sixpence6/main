@@ -78,6 +78,12 @@ async function openProjectDrawer(): Promise<HTMLElement> {
   return screen.findByRole('dialog', { name: '已有项目' })
 }
 
+async function goToStage(label: '描述需求' | '确认需求'): Promise<void> {
+  const nav = screen.getByRole('navigation', { name: '工作阶段' })
+  await harness!.user.click(within(nav).getByRole('button', { name: label }))
+  await screen.findByRole('heading', { name: label })
+}
+
 async function mountProjectA(extraRoutes: NonNullable<Parameters<typeof mountWorkspace>[0]>['routes'] = []) {
   harness = await mountWorkspace({
     config: configuredConfig(),
@@ -155,6 +161,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
       },
     ])
 
+    await goToStage('确认需求')
     await harness.user.click(screen.getByRole('button', { name: '编辑需求' }))
     const product = screen.getByLabelText('商品描述')
     await harness.user.clear(product)
@@ -187,6 +194,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     harness = await mountProjectA([
       { method: 'GET', url: detailPathB, responses: [{ body: detailResponse(projectB()) }] },
     ])
+    await goToStage('描述需求')
     const composer = screen.getByLabelText('描述商品与图片需求')
     await harness.user.type(composer, '后退前的草稿')
 
@@ -227,6 +235,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     window.dispatchEvent(event)
     expect(event.defaultPrevented).toBe(false)
 
+    await goToStage('描述需求')
     const composer = screen.getByLabelText('描述商品与图片需求')
     await harness.user.type(composer, '临时草稿')
     event = beforeUnloadEvent()
@@ -238,6 +247,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     window.dispatchEvent(event)
     expect(event.defaultPrevented).toBe(false)
 
+    await goToStage('确认需求')
     await harness.user.click(screen.getByRole('button', { name: '编辑需求' }))
     const product = screen.getByLabelText('商品描述')
     await harness.user.clear(product)
@@ -275,6 +285,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
       ],
     })
     await screen.findByRole('heading', { name: '春季托特包主图' })
+    await goToStage('描述需求')
     const composer = screen.getByLabelText('描述商品与图片需求')
     await harness.user.type(composer, '发送后立刻离开')
 
@@ -316,6 +327,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
       ],
     })
     await screen.findByRole('heading', { name: '春季托特包主图' })
+    await goToStage('确认需求')
     await harness.user.click(screen.getByRole('button', { name: '编辑需求' }))
     const product = screen.getByLabelText('商品描述')
     await harness.user.clear(product)
@@ -333,6 +345,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     window.history.pushState({}, '', `/?project=${PROJECT_A}`)
     window.dispatchEvent(new PopStateEvent('popstate'))
     await screen.findByRole('heading', { name: '春季托特包主图' })
+    await screen.findByRole('heading', { name: '确认需求' })
     expect(within(currentCard()).getByText('米色亚麻托特包')).toBeVisible()
     expect(harness.fetch.count('PATCH', briefPathA)).toBe(1)
     expect(harness.fetch.count('GET', detailPathA)).toBe(2)
@@ -368,6 +381,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
       ],
     })
     await screen.findByRole('heading', { name: '春季托特包主图' })
+    await goToStage('确认需求')
     await harness.user.click(screen.getByRole('button', { name: '编辑需求' }))
     const product = screen.getByLabelText('商品描述')
     await harness.user.clear(product)

@@ -110,7 +110,18 @@ async function openConversation(title = '春季托特包主图') {
   const describe = within(nav).getByRole('button', { name: '描述需求' })
   await waitFor(() => expect(describe).not.toHaveAttribute('aria-disabled', 'true'))
   await harness!.user.click(describe)
+  await screen.findByRole('heading', { name: '描述需求' })
+  await waitFor(() => expect(harness!.router.currentRoute.value.name).toBe('describe'))
   await screen.findByRole('heading', { name: title })
+}
+
+async function goToGenerate(): Promise<void> {
+  const nav = await screen.findByRole('navigation', { name: '工作阶段' })
+  const generate = within(nav).getByRole('button', { name: '生成图片' })
+  await waitFor(() => expect(generate).not.toHaveAttribute('aria-disabled', 'true'))
+  await harness!.user.click(generate)
+  await screen.findByRole('heading', { name: '生成图片' })
+  await waitFor(() => expect(harness!.router.currentRoute.value.name).toBe('generate'))
 }
 
 function selectedVersionButton(version: number): HTMLElement {
@@ -134,8 +145,8 @@ describe('T08 版本浏览与反馈重生', () => {
       '/api/assets/asset-v2',
     )
     expect(screen.getByText('实际尺寸：1024 × 1026')).toBeVisible()
-    expect(screen.getByText('第 2 版需求快照')).toBeVisible()
-    expect(screen.getByLabelText('该版本提示词')).toHaveValue('第 2 版完整提示词。')
+    expect(screen.queryByRole('region', { name: '当前需求' })).toBeNull()
+    expect(screen.queryByLabelText('该版本提示词')).toBeNull()
 
     const latestLink = screen.getByRole('link', { name: '下载当前图片' })
     expect(latestLink).toHaveAttribute('href', '/api/assets/asset-v2?download=true')
@@ -161,14 +172,11 @@ describe('T08 版本浏览与反馈重生', () => {
     expect(harness.fetch.writes).toHaveLength(0)
   })
 
-  it('浏览旧版只改变预览、快照和下载，不改变当前需求、参考图或修订', async () => {
+  it('浏览旧版只改变预览和下载，不写入项目或需求', async () => {
     harness = await mountResults(currentProject(), [succeededVersion(1), succeededVersion(2)])
 
-    const current = screen.getByRole('region', { name: '当前需求' })
-    expect(within(current).getByText('当前最新商品描述')).toBeVisible()
-    expect(within(current).getByText('当前最新风格')).toBeVisible()
-    expect(within(current).getByText('有（1 张）')).toBeVisible()
-    expect(within(current).getByText('当前修订：第 5 修订')).toBeVisible()
+    expect(screen.queryByRole('region', { name: '当前需求' })).toBeNull()
+    expect(screen.getByText('共 2 个成功版本')).toBeVisible()
 
     await harness.user.click(selectedVersionButton(1))
 
@@ -176,17 +184,12 @@ describe('T08 版本浏览与反馈重生', () => {
       'src',
       '/api/assets/asset-v1',
     )
-    expect(screen.getByText('第 1 版需求快照')).toBeVisible()
-    expect(screen.getByLabelText('该版本提示词')).toHaveValue('第 1 版完整提示词。')
-    expect(screen.getByText('第 1 版商品描述')).toBeVisible()
     expect(screen.getByText('实际尺寸：1024 × 1025')).toBeVisible()
     expect(screen.getByRole('link', { name: '下载当前图片' })).toHaveAttribute(
       'href',
       '/api/assets/asset-v1?download=true',
     )
-    expect(within(current).getByText('当前最新商品描述')).toBeVisible()
-    expect(within(current).getByText('有（1 张）')).toBeVisible()
-    expect(within(current).getByText('当前修订：第 5 修订')).toBeVisible()
+    expect(screen.queryByRole('region', { name: '当前需求' })).toBeNull()
     expect(harness.fetch.writes).toHaveLength(0)
   })
 
@@ -236,7 +239,7 @@ describe('T08 版本浏览与反馈重生', () => {
     harness = await mountResults(currentProject(), [succeededVersion(1), failed])
 
     expect(screen.getByText('最近生成失败：模型超时', { selector: '.generation-latest-error' })).toBeVisible()
-    expect(screen.getByText('第 2 版 · 状态：生成失败')).toBeVisible()
+    expect(screen.getByText('第 1 版 · 状态：成功')).toBeVisible()
     expect(screen.getByRole('img', { name: '生成结果图' })).toHaveAttribute(
       'src',
       '/api/assets/asset-v1',
@@ -244,30 +247,35 @@ describe('T08 版本浏览与反馈重生', () => {
 
     await harness.user.click(selectedVersionButton(1))
     expect(screen.getByText('最近生成失败：模型超时', { selector: '.generation-latest-error' })).toBeVisible()
-    expect(screen.getByText('第 2 版 · 状态：生成失败')).toBeVisible()
+    expect(screen.getByText('第 1 版 · 状态：成功')).toBeVisible()
   })
 
-  it('版本缺少快照或提示词时显示不可还原，不用当前需求补写', async () => {
+  it('版本缺少快照或提示词时仍按结果资产展示图片', async () => {
     const incomplete = succeededVersion(1, {
       brief_snapshot: null,
       prompt: '',
     })
     harness = await mountResults(currentProject(), [incomplete])
 
-    const snapshot = screen.getByRole('region', { name: '第 1 版需求快照' })
-    expect(within(snapshot).getByText('该版本未保存可还原的需求快照，无法还原当时的需求字段。')).toBeVisible()
-    expect(within(snapshot).queryByText('当前最新商品描述')).toBeNull()
-    expect(within(snapshot).getByLabelText('该版本提示词')).toHaveValue('该版本未保存完整提示词。')
+    expect(screen.getByRole('img', { name: '生成结果图' })).toHaveAttribute(
+      'src',
+      '/api/assets/asset-v1',
+    )
+    expect(screen.getByRole('link', { name: '下载当前图片' })).toHaveAttribute(
+      'href',
+      '/api/assets/asset-v1?download=true',
+    )
+    expect(screen.queryByText('当前最新商品描述')).toBeNull()
+    expect(screen.queryByLabelText('该版本提示词')).toBeNull()
   })
 
-  it('继续编辑回到对话并聚焦输入，不发送消息也不恢复旧需求', async () => {
+  it('结果页不提供继续编辑，可通过导航回到描述页且不发请求', async () => {
     harness = await mountResults(currentProject(), [succeededVersion(1)])
-    expect(screen.getByText(/继续修改只会回到对话并聚焦输入/)).toBeVisible()
+    expect(screen.queryByRole('button', { name: '继续编辑' })).toBeNull()
 
-    await harness.user.click(screen.getByRole('button', { name: '继续编辑' }))
+    await openConversation()
 
-    await waitFor(() => expect(screen.getByLabelText('描述商品与图片需求')).toHaveFocus())
-    expect(screen.getByText('当前最新商品描述')).toBeVisible()
+    expect(screen.getByLabelText('描述商品与图片需求')).toBeVisible()
     expect(harness.fetch.count('POST', messagesPathA)).toBe(0)
     expect(harness.fetch.count('POST', generationsPathA)).toBe(0)
     expect(harness.fetch.writes).toHaveLength(0)
@@ -283,6 +291,7 @@ describe('T08 版本浏览与反馈重生', () => {
       routes: [{ method: 'GET', url: detailPathA, responses: [{ body: detail(currentProject(), [oldVersion]) }] }],
     })
     await openConversation()
+    await goToGenerate()
 
     const queued = sampleGeneration({
       id: 'generation-2',
@@ -319,7 +328,6 @@ describe('T08 版本浏览与反馈重生', () => {
     )
     expect(selectedVersionButton(1)).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: /^第 2 版，/ })).toBeVisible()
-    expect(screen.getByText('第 2 版 · 状态：成功')).toBeVisible()
 
     await harness.user.click(selectedVersionButton(2))
     expect(await screen.findByRole('img', { name: '生成结果图' })).toHaveAttribute(
@@ -345,6 +353,7 @@ describe('T08 版本浏览与反馈重生', () => {
       ],
     })
     await openConversation()
+    await goToGenerate()
     const queued = sampleGeneration({
       id: 'generation-2',
       version_no: 2,
@@ -433,6 +442,7 @@ describe('T08 版本浏览与反馈重生', () => {
       url: '/?project=' + PROJECT_A,
       routes: [{ method: 'GET', url: detailPathA, responses: [{ body: detail(initial, [oldVersion]) }] }],
     })
+    await waitFor(() => expect(harness!.router.currentRoute.value.name).toBe('results'))
     await openConversation()
 
     let messageCalls = 0
@@ -472,11 +482,8 @@ describe('T08 版本浏览与反馈重生', () => {
     harness.fetch.route('GET', generationPath2, () => ({ body: newVersion }))
     harness.fetch.route('GET', detailPathA, () => ({ body: detail(confirmedProject, [oldVersion, newVersion]) }))
 
-    await harness.user.click(screen.getByRole('button', { name: /查看结果/ }))
-    await screen.findByRole('heading', { name: '查看结果' })
-    await harness.user.click(screen.getByRole('button', { name: '继续编辑' }))
+    const nav = screen.getByRole('navigation', { name: '工作阶段' })
     const composer = screen.getByLabelText('描述商品与图片需求')
-    await waitFor(() => expect(composer).toHaveFocus())
     await harness.user.type(composer, '把背景改成浅灰色')
     await harness.user.keyboard('{Control>}{Enter}{/Control}')
     await screen.findByText('已更新需求。')
@@ -485,7 +492,9 @@ describe('T08 版本浏览与反馈重生', () => {
       content: '把背景改成浅灰色',
       expected_revision: 3,
     })
-    expect(within(screen.getByRole('region', { name: '当前需求' })).getByText('浅灰亚麻托特包')).toBeVisible()
+
+    await harness.user.click(within(nav).getByRole('button', { name: '确认需求' }))
+    await screen.findByRole('heading', { name: '确认需求' })
 
     await harness.user.click(screen.getByRole('button', { name: '重新整理需求' }))
     await waitFor(() => expect(screen.getByRole('button', { name: '确认当前需求' })).toBeEnabled())
@@ -496,8 +505,10 @@ describe('T08 版本浏览与反馈重生', () => {
 
     await harness.user.click(screen.getByRole('button', { name: '确认当前需求' }))
     await screen.findByText('需求已确认。', { selector: '.status-notice' })
-    expect(harness.fetch.last('POST', confirmPathA)?.body).toEqual({ revision: 5 })
 
+    await harness.user.click(within(nav).getByRole('button', { name: '生成图片' }))
+    await screen.findByRole('heading', { name: '生成图片' })
+    await waitFor(() => expect(harness!.router.currentRoute.value.name).toBe('generate'))
     await harness.user.click(screen.getByRole('button', { name: '生成首图' }))
     await screen.findByText('生成请求已提交，正在等待模型处理。', { selector: '.status-notice' })
     expect(harness.fetch.last('POST', generationsPathA)?.body).toMatchObject({
@@ -521,7 +532,7 @@ describe('T08 版本浏览与反馈重生', () => {
       'src',
       '/api/assets/asset-v1',
     )
-    expect(screen.getByText('第 1 版商品描述')).toBeVisible()
+    expect(screen.getByText('第 1 版 · 状态：成功')).toBeVisible()
     expect(screen.getByRole('link', { name: '下载当前图片' })).toHaveAttribute(
       'href',
       '/api/assets/asset-v1?download=true',

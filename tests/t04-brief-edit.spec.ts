@@ -241,12 +241,17 @@ describe('T04 单独整理与确认', () => {
 
   it('存在未发送文字或未保存字段时不能确认', async () => {
     harness = await mountReviewProject()
+    await harness.user.click(screen.getByRole('button', { name: '描述需求' }))
     const composer = screen.getByRole('textbox', { name: '描述商品与图片需求' })
     await harness.user.type(composer, '还未发送的补充')
 
+    await harness.user.click(screen.getByRole('button', { name: '确认需求' }))
     expect(screen.getByRole('button', { name: '确认当前需求' })).toBeDisabled()
     expect(screen.getByText('请先发送或清空输入框中的文字。')).toBeVisible()
-    await harness.user.clear(composer)
+
+    await harness.user.click(screen.getByRole('button', { name: '描述需求' }))
+    await harness.user.clear(screen.getByRole('textbox', { name: '描述商品与图片需求' }))
+    await harness.user.click(screen.getByRole('button', { name: '确认需求' }))
     expect(screen.getByRole('button', { name: '确认当前需求' })).toBeEnabled()
 
     await harness.user.click(screen.getByRole('button', { name: '编辑需求' }))
@@ -344,10 +349,13 @@ describe('T04 需求卡一致性与失败边界', () => {
     ]
     harness = await mountReviewProject(initial, [{ body: emptyDetail(initial, history) }])
 
+    await harness.user.click(screen.getByRole('button', { name: '描述需求' }))
     const historyCard = screen.getByRole('region', { name: '当时的需求快照' })
     expect(within(historyCard).getByText('历史商品')).toBeVisible()
     expect(within(historyCard).queryByRole('button', { name: '编辑需求' })).toBeNull()
     expect(within(historyCard).queryByRole('textbox')).toBeNull()
+
+    await harness.user.click(screen.getByRole('button', { name: '确认需求' }))
     expect(within(currentCard()).getByRole('button', { name: '编辑需求' })).toBeVisible()
   })
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { fireEvent, screen, waitFor } from '@testing-library/vue'
+import { fireEvent, screen, waitFor, within } from '@testing-library/vue'
 import { mountWorkspace, type WorkspaceHarness } from './support/workspace'
 import {
   PROJECT_A,
@@ -83,6 +83,25 @@ function sessionState(value: Record<string, unknown>): Record<string, string> {
   return { [CREDENTIAL_KEY]: JSON.stringify(value) }
 }
 
+const routeNames = { 描述需求: 'describe', 确认需求: 'confirm', 生成图片: 'generate', 查看结果: 'results' } as const
+
+async function settleRoute(): Promise<void> {
+  await waitFor(() => {
+    const nav = screen.getByRole('navigation', { name: '工作阶段' })
+    const current = nav.querySelector('[aria-current="step"]')
+    expect(current).not.toBeNull()
+    const label = current!.querySelector('.stage-label')?.textContent?.trim() ?? ''
+    expect(harness!.router.currentRoute.value.name).toBe(routeNames[label as keyof typeof routeNames])
+  })
+}
+
+async function goToGenerate(): Promise<void> {
+  const nav = screen.getByRole('navigation', { name: '工作阶段' })
+  await harness!.user.click(within(nav).getByRole('button', { name: '生成图片' }))
+  await screen.findByRole('heading', { name: '生成图片' })
+  await waitFor(() => expect(harness!.router.currentRoute.value.name).toBe('generate'))
+}
+
 async function mountRefresh(options: {
   project?: ProjectView
   generations?: GenerationView[]
@@ -118,8 +137,11 @@ async function mountRefresh(options: {
   })
   if (options.expectResults) {
     await screen.findByRole('img', { name: '生成结果图' })
+    await settleRoute()
   } else {
     await screen.findByRole('heading', { name: '春季托特包主图' })
+    await settleRoute()
+    await goToGenerate()
   }
   return harness
 }

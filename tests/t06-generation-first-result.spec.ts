@@ -77,8 +77,8 @@ async function mountProject(
     routes: [{ method: 'GET', url: detailPath, responses: detailResponses }],
   })
   const nav = await screen.findByRole('navigation', { name: '工作阶段' })
-  await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
-  await screen.findByRole('heading', { name: '春季托特包主图' })
+  await harness.user.click(within(nav).getByRole('button', { name: '生成图片' }))
+  await screen.findByRole('heading', { name: '生成概览' })
   return harness
 }
 
@@ -87,13 +87,9 @@ describe('T06 生成首图与结果', () => {
     harness = await mountProject(confirmedProject())
 
     const summary = screen.getByText('生成概览').closest('section') as HTMLElement
-    expect(within(summary).getByText('生成记录 0 条')).toBeVisible()
-    expect(within(summary).getByText('电商主图')).toBeVisible()
-    expect(within(summary).getByText('1024x1024')).toBeVisible()
-    expect(within(summary).getByText('生成数量：1 张')).toBeVisible()
-    expect(within(summary).getByText('尚未生成图片。')).toBeVisible()
-    expect(within(summary).getByText('查看完整提示词')).toBeVisible()
-    expect(within(summary).getByLabelText('完整提示词')).toHaveValue(sampleBrief().prompt)
+    expect(within(summary).getByText('第 3 修订 · 确认后的提示词')).toBeVisible()
+    expect(within(summary).getByText('图片尺寸：1024x1024')).toBeVisible()
+    expect(within(summary).getByLabelText('确认后的提示词')).toHaveValue(sampleBrief().prompt)
     expect(screen.getByRole('button', { name: '生成首图' })).toBeEnabled()
     expect(screen.queryByRole('img', { name: '生成结果图' })).toBeNull()
     expect(harness.fetch.count('POST', generationsPath)).toBe(0)
@@ -115,8 +111,9 @@ describe('T06 生成首图与结果', () => {
     const body = harness.fetch.last('POST', generationsPath)?.body as Record<string, unknown>
     expect(body.request_id).toMatch(/^[0-9a-f-]{36}$/)
     expect(body).not.toHaveProperty('acknowledge_unknown')
+    expect(await screen.findByRole('heading', { name: '查看结果' })).toBeVisible()
     expect(screen.getByText('当前生成：第 2 版，等待生成。')).toBeVisible()
-    expect(screen.getByRole('button', { name: '生成首图' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '生成首图' })).toBeNull()
     expect(harness.fetch.count('GET', generationPath)).toBe(0)
     expect(harness.fetch.count('POST', generationsPath)).toBe(1)
   })
@@ -138,7 +135,7 @@ describe('T06 生成首图与结果', () => {
         },
       ],
     })
-    await screen.findByRole('heading', { name: '春季托特包主图' })
+    await screen.findByRole('button', { name: '生成首图' })
     const running = queuedGeneration({ status: 'running', stage: 'waiting_remote' })
     const succeeded = succeededGeneration({ version_no: 2 })
     harness.fetch.route('POST', generationsPath, () => ({
@@ -152,10 +149,11 @@ describe('T06 生成首图与结果', () => {
 
     await harness.user.click(screen.getByRole('button', { name: '生成首图' }))
     await screen.findByText('生成请求已提交，正在等待模型处理。', { selector: '.status-notice' })
+    await screen.findByRole('heading', { name: '查看结果' })
     await harness.clock.advance(2000)
     expect(harness.fetch.count('GET', generationPath)).toBe(1)
     expect(screen.getByText('当前生成：第 2 版，正在生成。')).toBeVisible()
-    expect(screen.getByRole('button', { name: '生成首图' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '生成首图' })).toBeNull()
 
     await harness.clock.advance(2000)
     expect(harness.fetch.count('GET', generationPath)).toBe(2)
@@ -168,7 +166,7 @@ describe('T06 生成首图与结果', () => {
     const link = screen.getByRole('link', { name: '下载当前图片' })
     expect(link).toHaveAttribute('href', '/api/assets/asset-1?download=true')
     expect(link).toHaveAttribute('download', 'project-' + PROJECT_A + '-v2.png')
-    expect(screen.getByText('第 2 版 · 成功', { exact: false })).toBeVisible()
+    expect(screen.getByText('第 2 版 · 状态：成功', { exact: false })).toBeVisible()
     expect(harness.fetch.count('POST', generationsPath)).toBe(1)
   })
 
@@ -213,7 +211,7 @@ describe('T06 生成首图与结果', () => {
 
     await harness.user.click(screen.getByRole('button', { name: '生成首图' }))
     await screen.findByText('最近生成失败：模型超时', { selector: '.generation-latest-error' })
-    expect(screen.getByText('生成记录 2 条')).toBeVisible()
+    expect(screen.getByText('最近版本：第 2 版，状态：生成失败')).toBeVisible()
 
     await harness.user.click(screen.getByRole('button', { name: /查看结果/ }))
     await screen.findByRole('img', { name: '生成结果图' })
@@ -275,7 +273,7 @@ describe('T06 生成首图与结果', () => {
         })
       },
     })
-    await screen.findByRole('heading', { name: '春季托特包主图' })
+    await screen.findByRole('button', { name: '生成首图' })
 
     await harness.user.click(screen.getByRole('button', { name: '生成首图' }))
     await screen.findByText('提交待核实：生成请求可能已发出，但尚未收到确认。确认前不会再次提交。')
@@ -298,7 +296,7 @@ describe('T06 生成首图与结果', () => {
       url: '/?project=' + PROJECT_A,
       routes: [{ method: 'GET', url: detailPath, responses: [{ body: detail(confirmedProject()) }] }],
     })
-    await screen.findByRole('heading', { name: '春季托特包主图' })
+    await screen.findByRole('button', { name: '生成首图' })
     harness.fetch.route('POST', generationsPath, () => ({
       status: 202,
       body: { generation: queuedGeneration() },
@@ -344,7 +342,7 @@ describe('T06 生成首图与结果', () => {
       url: '/?project=' + PROJECT_A,
       routes: [{ method: 'GET', url: detailPath, responses: [{ body: detail(confirmedProject()) }] }],
     })
-    await screen.findByRole('heading', { name: '春季托特包主图' })
+    await screen.findByRole('button', { name: '生成首图' })
     expect(screen.getByRole('button', { name: '生成首图' })).toBeDisabled()
     expect(screen.getByText('文生图能力尚未核实，不能生成图片。')).toBeVisible()
   })
@@ -399,7 +397,7 @@ describe('T06 生成首图与结果', () => {
       url: '/?project=' + PROJECT_A,
       routes: [{ method: 'GET', url: detailPath, responses: [{ body: detail(confirmedProject()) }] }],
     })
-    await screen.findByRole('heading', { name: '春季托特包主图' })
+    await screen.findByRole('button', { name: '生成首图' })
     harness.fetch.route('POST', generationsPath, () => ({
       status: 202,
       body: { generation: queuedGeneration() },

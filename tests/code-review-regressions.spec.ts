@@ -77,6 +77,13 @@ function jpegBytes(trimEnd = false): Uint8Array<ArrayBuffer> {
   return (trimEnd ? bytes.slice(0, -2) : bytes) as Uint8Array<ArrayBuffer>
 }
 
+async function goToStage(label: '描述需求' | '确认需求' | '生成图片', routeName: 'describe' | 'confirm' | 'generate'): Promise<void> {
+  const nav = screen.getByRole('navigation', { name: '工作阶段' })
+  await harness!.user.click(within(nav).getByRole('button', { name: label }))
+  await screen.findByRole('heading', { name: label })
+  await waitFor(() => expect(harness!.router.currentRoute.value.name).toBe(routeName))
+}
+
 async function chooseFile(file: File): Promise<void> {
   const input = screen.getByLabelText('选择参考图文件')
   await waitFor(() => expect(input).toBeEnabled())
@@ -108,7 +115,7 @@ describe('代码审查修复回归', () => {
     expect(await screen.findByRole('heading', { name: '春季托特包主图' })).toBeVisible()
     expect(screen.getByText('最近生成失败：模型处理失败')).toBeVisible()
     const nav = screen.getByRole('navigation', { name: '工作阶段' })
-    expect(within(nav).getByRole('button', { name: '查看结果' })).toHaveAttribute('aria-disabled', 'true')
+    expect(within(nav).getByRole('button', { name: '查看结果' })).not.toHaveAttribute('aria-disabled', 'true')
   })
 
   it('有生成记录时生成图片阶段解锁，并把焦点移到生成概览', async () => {
@@ -177,6 +184,7 @@ describe('代码审查修复回归', () => {
       body: { error: { code: 'REVISION_CONFLICT', message: '修订冲突' } },
     }))
     await screen.findByRole('heading', { name: '春季托特包主图' })
+    await goToStage('描述需求', 'describe')
 
     const draft = '这条消息没有发送，但必须保留。'
     await harness.user.type(screen.getByLabelText('描述商品与图片需求'), draft)
@@ -205,6 +213,7 @@ describe('代码审查修复回归', () => {
     })
     harness.fetch.route('POST', generationsPathA, () => ({ status: 202, body: '{not-json' }))
     await screen.findByRole('heading', { name: '春季托特包主图' })
+    await goToStage('生成图片', 'generate')
 
     await harness.user.click(screen.getByRole('button', { name: '生成首图' }))
 
@@ -237,6 +246,7 @@ describe('代码审查修复回归', () => {
     })
     harness.fetch.networkError('POST', detailPathB + '/generations')
     await screen.findByRole('heading', { name: '陶瓷马克杯' })
+    await goToStage('生成图片', 'generate')
 
     await harness.user.click(screen.getByRole('button', { name: '生成首图' }))
     await screen.findByText('提交待核实：生成请求可能已发出，但尚未收到确认。确认前不会再次提交。')

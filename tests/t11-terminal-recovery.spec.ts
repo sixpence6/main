@@ -109,10 +109,23 @@ function retrievalSucceeded(overrides: Partial<GenerationView> = {}): Generation
   })
 }
 
+const routeNames = { 描述需求: 'describe', 确认需求: 'confirm', 生成图片: 'generate', 查看结果: 'results' } as const
+
+async function settleRoute(): Promise<void> {
+  await waitFor(() => {
+    const nav = screen.getByRole('navigation', { name: '工作阶段' })
+    const current = nav.querySelector('[aria-current="step"]')
+    expect(current).not.toBeNull()
+    const label = current!.querySelector('.stage-label')?.textContent?.trim() ?? ''
+    expect(harness!.router.currentRoute.value.name).toBe(routeNames[label as keyof typeof routeNames])
+  })
+}
+
 async function mountProject(
   project: ProjectView,
   generations: GenerationView[],
   extraDetailResponses: { body: ProjectDetailResponse }[] = [],
+  target: 'describe' | 'generate' | 'results' = 'describe',
 ): Promise<WorkspaceHarness> {
   harness = await mountWorkspace({
     config: configuredConfig(),
@@ -126,15 +139,19 @@ async function mountProject(
       },
     ],
   })
-  const nav = await screen.findByRole('navigation', { name: '工作阶段' })
-  await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
   await screen.findByRole('heading', { name: '春季托特包主图' })
+  await settleRoute()
+  const labels = { describe: '描述需求', generate: '生成图片', results: '查看结果' } as const
+  const nav = screen.getByRole('navigation', { name: '工作阶段' })
+  await harness.user.click(within(nav).getByRole('button', { name: labels[target] }))
+  await screen.findByRole('heading', { name: labels[target] })
+  await waitFor(() => expect(harness!.router.currentRoute.value.name).toBe(target))
   return harness
 }
 
 describe('T11 终态恢复：未知结果确认与重取结果', () => {
   it('业务结果未确认时先要求明确风险确认，取消与 Escape 都不写请求', async () => {
-    harness = await mountProject(confirmedProject(), [unknownGeneration()])
+    harness = await mountProject(confirmedProject(), [unknownGeneration()], [], 'generate')
 
     expect(
       screen.getByText('最近生成结果未确认；上次请求可能已提交并可能已计费。再次生成前需确认风险。', {
@@ -158,7 +175,7 @@ describe('T11 终态恢复：未知结果确认与重取结果', () => {
   })
 
   it('确认风险后使用新 request_id 与 acknowledge_unknown=true 重新生成', async () => {
-    harness = await mountProject(confirmedProject(), [unknownGeneration()])
+    harness = await mountProject(confirmedProject(), [unknownGeneration()], [], 'generate')
     let submitted: Record<string, unknown> | null = null
     harness.fetch.route('POST', generationsPath, (request) => {
       submitted = request.body as Record<string, unknown>
@@ -198,7 +215,7 @@ describe('T11 终态恢复：未知结果确认与重取结果', () => {
       result_asset: null,
       error: { code: 'MODEL_ERROR', message: '模型超时' },
     })
-    harness = await mountProject(confirmedProject(), [succeededGeneration(), failed])
+    harness = await mountProject(confirmedProject(), [succeededGeneration(), failed], [], 'generate')
     let submitted: Record<string, unknown> | null = null
     harness.fetch.route('POST', generationsPath, (request) => {
       submitted = request.body as Record<string, unknown>
@@ -224,7 +241,7 @@ describe('T11 终态恢复：未知结果确认与重取结果', () => {
     const updated = retrievalSucceeded()
     harness = await mountProject(project, [old, failed], [
       { body: detail(project, [old, updated]) },
-    ])
+    ], 'results')
     harness.fetch.route('POST', retrievePath, () => ({ body: updated }))
 
     const panel = screen.getByRole('heading', { name: '重取现有结果' }).closest('section') as HTMLElement
@@ -257,7 +274,7 @@ describe('T11 终态恢复：未知结果确认与重取结果', () => {
     const updated = retrievalSucceeded({ version_no: 4 })
     harness = await mountProject(project, [first, latestSuccess, failed], [
       { body: detail(project, [first, latestSuccess, updated]) },
-    ])
+    ], 'results')
     harness.fetch.route('POST', retrievePath, () => ({ body: updated }))
 
     await harness.user.click(screen.getByRole('button', { name: /查看结果/ }))
@@ -279,7 +296,7 @@ describe('T11 终态恢复：未知结果确认与重取结果', () => {
     const project = confirmedProject()
     const old = succeededGeneration()
     const failed = retrievalFailedGeneration()
-    harness = await mountProject(project, [old, failed])
+    harness = await mountProject(project, [old, failed], [], 'results')
     harness.fetch.route('POST', retrievePath, () => ({
       status: 502,
       body: { error: { code: 'RESULT_FETCH_FAILED', message: '下载失败' } },
@@ -302,9 +319,12 @@ describe('T11 终态恢复：未知结果确认与重取结果', () => {
 
   it('服务端表示不可重取时只显示原因，不显示重取按钮', async () => {
     const reason = '原始模型已不再可用，无法重新获取。'
-    harness = await mountProject(confirmedProject(), [
-      retrievalFailedGeneration({ can_retrieve_result: false, retrieval_unavailable_reason: reason }),
-    ])
+    harness = await mountProject(
+      confirmedProject(),
+      [retrievalFailedGeneration({ can_retrieve_result: false, retrieval_unavailable_reason: reason })],
+      [],
+      'results',
+    )
 
     expect(screen.getByRole('heading', { name: '重取现有结果' })).toBeVisible()
     expect(screen.getByText(reason)).toBeVisible()
@@ -319,7 +339,7 @@ describe('T11 终态恢复：未知结果确认与重取结果', () => {
     const updated = retrievalSucceeded()
     harness = await mountProject(project, [old, failed], [
       { body: detail(project, [old, updated]) },
-    ])
+    ], 'results')
     harness.fetch.route('POST', retrievePath, () => ({ body: updated, delayMs: 250 }))
 
     const button = screen.getByRole('button', { name: '重取现有结果' })
@@ -336,7 +356,7 @@ describe('T11 终态恢复：未知结果确认与重取结果', () => {
     const updated = retrievalSucceeded()
     harness = await mountProject(project, [old, failed], [
       { body: detail(project, [old, updated]) },
-    ])
+    ], 'results')
     harness.fetch.route('POST', retrievePath, () => ({ networkError: 'Failed to fetch' }))
     harness.fetch.route('GET', generationPath, () => ({ body: updated }))
 
@@ -348,7 +368,7 @@ describe('T11 终态恢复：未知结果确认与重取结果', () => {
   })
 
   it('普通查看与下载结果不会创建生成或重取请求', async () => {
-    harness = await mountProject(confirmedProject(), [succeededGeneration()])
+    harness = await mountProject(confirmedProject(), [succeededGeneration()], [], 'results')
     await harness.user.click(screen.getByRole('button', { name: /查看结果/ }))
     await screen.findByRole('img', { name: '生成结果图' })
 

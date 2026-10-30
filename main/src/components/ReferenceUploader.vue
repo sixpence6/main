@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { assetUrl } from '@/api/client'
 import { useWorkspace } from '@/composables/useWorkspace'
 import { formatByteSize } from '@/utils/format'
 
@@ -25,7 +26,8 @@ const {
 const fileInput = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
 
-const hasCurrent = computed(() => Boolean(currentProject.value?.reference_asset))
+const currentReference = computed(() => currentProject.value?.reference_asset ?? null)
+const hasCurrent = computed(() => Boolean(currentReference.value))
 const pickingDisabled = computed(() => Boolean(referenceUploadDisabledReason.value))
 const pickLabel = computed(() => (hasCurrent.value ? '替换参考图' : '选择参考图'))
 const capabilityText = computed(() => {
@@ -150,6 +152,13 @@ function onDragLeave(): void {
 
     <div v-if="hasCurrent" class="reference-current-actions">
       <p>当前参考图已关联。替换或移除会使用当前项目修订。</p>
+      <span v-if="currentReference?.availability === 'missing'" class="status-warning">参考图文件缺失</span>
+      <img
+        v-else-if="currentReference?.availability === 'available'"
+        :src="assetUrl(currentReference.id)"
+        alt="参考图"
+        class="reference-thumbnail"
+      />
       <button
         type="button"
         class="secondary-button"
