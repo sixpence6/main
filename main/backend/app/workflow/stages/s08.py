@@ -3,23 +3,20 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from datetime import datetime, timezone
 from typing import Any
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.adapters.base import BriefData
 from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict
-from app.models import Asset, Generation, Project
+from app.models import Asset, Generation
 from app.presenters import brief_from_project, dumps_json, snapshot_json
 from app.services.assets import resolve_asset_file
 from app.services.config_status import build_config_status
 from app.services.generations import (
     execute_generation,
-    parse_image_size,
     request_digest,
     service_fingerprint,
 )
@@ -28,18 +25,32 @@ from app.workflow import state, templates
 from app.workflow.contracts import ContractError, digest_payload, validate_data
 from app.workflow.stages.s07 import _candidate_errors, _hard_requirements, _require_confirmed
 from app.workflow.state import WorkflowContext
-from app.workflow.tables import Approval, GenerationJob
+from app.workflow.tables import DiagnosticEvent, GenerationJob
 
 STAGE = "S08"
 ACTIONS = ["submit_generation"]
 
-_ACTIVE_JOB_STATUSES = ("created", "submit_pending", "submitted", "remote_pending", "result_fetched")
+_ACTIVE_JOB_STATUSES = (
+    "created",
+    "submit_pending",
+    "submitted",
+    "remote_pending",
+    "result_fetched",
+)
+_UNKNOWN_ISSUE = "GENERATION_UNKNOWN"
 
 
 def available(ctx: WorkflowContext) -> list[str]:
-    if ctx.run is None or ctx.run.stage != STAGE or ctx.run.status != "active":
+    # A blocked S08 may be an unknown provider outcome. The action is still
+    # exposed so the client can replay the original idempotent request or
+    # explicitly acknowledge the risk before creating a new task.
+    if ctx.run is None or ctx.run.stage != STAGE:
         return []
-    return list(ACTIONS)
+    if ctx.run.status == "active":
+        return list(ACTIONS)
+    if ctx.run.status == "blocked" and ctx.run.issue_code == _UNKNOWN_ISSUE:
+        return list(ACTIONS)
+    return []
 
 
 def _now() -> str:
@@ -71,9 +82,7 @@ def _reference_unavailable() -> ApiError:
     return ApiError(409, "REFERENCE_UNAVAILABLE", "参考图文件不可用，已阻止提交生成。")
 
 
-async def _load_prompt(
-    ctx: WorkflowContext, brief: dict[str, Any]
-) -> tuple[Any, dict[str, Any]]:
+async def _load_prompt(ctx: WorkflowContext, brief: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
     prompt_artifact = await state.approved_artifact(ctx, "prompt_plan")
     approval = await state.latest_approval(ctx, "generation_prompt")
     if prompt_artifact is None or approval is None:
@@ -88,7 +97,7 @@ async def _load_prompt(
         )
     except (ContractError, json.JSONDecodeError):
         raise _prompt_stale() from None
-    configured_size = (ctx.project.image_size or ctx.settings.visual().image_size or "")
+    configured_size = ctx.project.image_size or ctx.settings.visual().image_size or ""
     errors = _candidate_errors(payload, _hard_requirements(brief), brief, configured_size)
     if errors:
         raise _prompt_stale()
@@ -113,7 +122,10 @@ async def _check_reference(ctx: WorkflowContext, payload: dict[str, Any]) -> Non
         asset = await session.get(Asset, reference_id)
     if asset is None or asset.project_id != ctx.project_id or asset.kind != "reference":
         raise _reference_unavailable()
-    if capabilities.reference_mime_types and asset.mime_type not in capabilities.reference_mime_types:
+    if (
+        capabilities.reference_mime_types
+        and asset.mime_type not in capabilities.reference_mime_types
+    ):
         raise ApiError(422, "REFERENCE_FORMAT_UNSUPPORTED", "当前参考图格式不受生图适配器支持。")
     if (
         capabilities.provider_max_reference_bytes is not None
@@ -124,16 +136,26 @@ async def _check_reference(ctx: WorkflowContext, payload: dict[str, Any]) -> Non
         raise _reference_unavailable()
 
 
-async def _existing_job(ctx: WorkflowContext, prompt_artifact_id: str) -> GenerationJob | None:
+async def _job_by_request_id(ctx: WorkflowContext, request_id: str) -> GenerationJob | None:
     async with read_session(ctx.session_factory) as session:
-        existing = await session.scalar(
-            select(GenerationJob)
-            .where(GenerationJob.run_id == ctx.run_id)
-            .order_by(GenerationJob.created_at.desc())
-            .limit(1)
+        return await session.scalar(
+            select(GenerationJob).where(
+                GenerationJob.project_id == ctx.project_id,
+                GenerationJob.request_id == request_id,
+            )
         )
-        if existing is not None:
-            return existing
+
+
+async def _existing_job(
+    ctx: WorkflowContext, request_id: str, prompt_artifact_id: str
+) -> GenerationJob | None:
+    # Request IDs are deterministic for a submission and for an acknowledged
+    # retry. Looking them up exactly makes replay safe even after a later,
+    # acknowledged generation has been created.
+    existing = await _job_by_request_id(ctx, request_id)
+    if existing is not None:
+        return existing
+    async with read_session(ctx.session_factory) as session:
         active = await session.scalar(
             select(GenerationJob)
             .where(
@@ -143,9 +165,9 @@ async def _existing_job(ctx: WorkflowContext, prompt_artifact_id: str) -> Genera
             .order_by(GenerationJob.created_at.desc())
             .limit(1)
         )
-        if active is not None and active.prompt_artifact_id != prompt_artifact_id:
-            raise conflict("GENERATION_IN_PROGRESS", "当前项目已有进行中的生成任务，不能重复提交。")
-        return active
+    if active is not None and active.prompt_artifact_id != prompt_artifact_id:
+        raise conflict("GENERATION_IN_PROGRESS", "当前项目已有进行中的生成任务，不能重复提交。")
+    return active
 
 
 async def _create_job(
@@ -157,23 +179,28 @@ async def _create_job(
     request_id: str,
     input_digest: str,
     snapshot_digest: str,
+    attempt: int = 1,
+    previous: Generation | None = None,
 ) -> tuple[GenerationJob, Generation]:
     visual = ctx.settings.visual()
-    canonical = dumps_json(
-        {
-            "project_id": ctx.project_id,
-            "request_id": request_id,
-            "run_id": ctx.run_id,
-            "confirmed_revision": ctx.project.confirmed_revision,
-            "requirement_revision": ctx.run.requirement_revision,
-            "stage": STAGE,
-            "attempt": 1,
-            "input_digest": input_digest,
-            "prompt_artifact_id": prompt_artifact.id,
-            "prompt_digest": prompt_artifact.digest,
-            "confirmed_snapshot_digest": snapshot_digest,
-        }
-    )
+    canonical_payload: dict[str, Any] = {
+        "project_id": ctx.project_id,
+        "request_id": request_id,
+        "run_id": ctx.run_id,
+        "confirmed_revision": ctx.project.confirmed_revision,
+        "requirement_revision": ctx.run.requirement_revision,
+        "stage": STAGE,
+        "attempt": attempt,
+        "input_digest": input_digest,
+        "prompt_artifact_id": prompt_artifact.id,
+        "prompt_digest": prompt_artifact.digest,
+        "confirmed_snapshot_digest": snapshot_digest,
+    }
+    if previous is not None:
+        canonical_payload["acknowledge_unknown"] = True
+        canonical_payload["previous_generation_id"] = previous.id
+        canonical_payload["previous_request_id"] = previous.request_id
+    canonical = dumps_json(canonical_payload)
     digest = request_digest(canonical)
     now = _now()
     async with write_transaction(ctx.session_factory) as session:
@@ -219,11 +246,35 @@ async def _create_job(
         await session.flush()
         generation.workflow_job_id = job.id
         job.generation_id = generation.id
+        if previous is not None:
+            session.add(
+                DiagnosticEvent(
+                    id=str(uuid4()),
+                    project_id=ctx.project_id,
+                    event="generation_risk_acknowledged",
+                    detail_json=dumps_json(
+                        {
+                            "previous_generation_id": previous.id,
+                            "previous_request_id": previous.request_id,
+                            "new_generation_id": generation.id,
+                            "new_request_id": request_id,
+                        }
+                    ),
+                    created_at=now,
+                )
+            )
         await session.flush()
     return job, generation
 
 
-def _schedule(app, job_id: str, generation_id: str, prompt_artifact_id: str, prompt_digest: str, snapshot_digest: str) -> None:
+def _schedule(
+    app,
+    job_id: str,
+    generation_id: str,
+    prompt_artifact_id: str,
+    prompt_digest: str,
+    snapshot_digest: str,
+) -> None:
     task = asyncio.create_task(
         _run_job(app, job_id, generation_id, prompt_artifact_id, prompt_digest, snapshot_digest),
         name=f"workflow-generation-{job_id}",
@@ -258,8 +309,73 @@ async def _mark_job(
         await session.flush()
 
 
-async def _still_current(app, job_id: str, prompt_artifact_id: str, prompt_digest: str, snapshot_digest: str) -> bool:
-    ctx = await state.load_context(app, (await _job_project(app, job_id)) or "")
+async def _mark_unknown(
+    app,
+    job_id: str,
+    *,
+    error_code: str,
+    error_message: str,
+    remote_task_id: str | None = None,
+) -> None:
+    await _mark_job(
+        app.state.session_factory,
+        job_id,
+        status="unknown",
+        error_code=error_code,
+        error_message=error_message,
+        remote_task_id=remote_task_id,
+        submit_attempted=1,
+    )
+    async with read_session(app.state.session_factory) as session:
+        job = await session.get(GenerationJob, job_id)
+        if job is None:
+            return
+        latest_job_id = await session.scalar(
+            select(GenerationJob.id)
+            .where(GenerationJob.run_id == job.run_id)
+            .order_by(GenerationJob.created_at.desc(), GenerationJob.id.desc())
+            .limit(1)
+        )
+        project_id = job.project_id
+        run_id = job.run_id
+    if latest_job_id != job_id:
+        return
+    ctx = await state.load_context(app, project_id)
+    if ctx.run is None or ctx.run.id != run_id or ctx.run.stage != STAGE:
+        return
+    if ctx.run.status not in {"active", "blocked"}:
+        return
+    await state.set_stage(
+        ctx,
+        STAGE,
+        "blocked",
+        issue_code=_UNKNOWN_ISSUE,
+        message=templates.render(_UNKNOWN_ISSUE),
+        template_id=_UNKNOWN_ISSUE,
+    )
+
+
+async def _still_current(
+    app, job_id: str, prompt_artifact_id: str, prompt_digest: str, snapshot_digest: str
+) -> bool:
+    async with read_session(app.state.session_factory) as session:
+        job = await session.get(GenerationJob, job_id)
+        if job is None or job.generation_id is None:
+            return False
+        project_id = job.project_id
+        generation_id = job.generation_id
+        latest_generation_id = await session.scalar(
+            select(Generation.id)
+            .where(Generation.project_id == project_id)
+            .order_by(Generation.version_no.desc(), Generation.created_at.desc())
+            .limit(1)
+        )
+    # A later generation for the same project supersedes this one.  This is
+    # what keeps a late result from an acknowledged unknown task from
+    # overwriting the replacement task or becoming publishable.
+    if latest_generation_id != generation_id:
+        return False
+    ctx = await state.load_context(app, project_id)
     if ctx.run is None:
         return False
     if ctx.project.confirmed_revision != ctx.project.revision:
@@ -272,20 +388,21 @@ async def _still_current(app, job_id: str, prompt_artifact_id: str, prompt_diges
         return False
     if approval is None or approval.artifact_digest != prompt.digest:
         return False
-    if approval.requirement_snapshot_digest != snapshot_digest:
-        return False
-    return True
+    return approval.requirement_snapshot_digest == snapshot_digest
 
 
-async def _job_project(app, job_id: str) -> str | None:
-    async with read_session(app.state.session_factory) as session:
-        job = await session.get(GenerationJob, job_id)
-        return job.project_id if job is not None else None
-
-
-async def _run_job(app, job_id: str, generation_id: str, prompt_artifact_id: str, prompt_digest: str, snapshot_digest: str) -> None:
+async def _run_job(
+    app,
+    job_id: str,
+    generation_id: str,
+    prompt_artifact_id: str,
+    prompt_digest: str,
+    snapshot_digest: str,
+) -> None:
     try:
-        if not await _still_current(app, job_id, prompt_artifact_id, prompt_digest, snapshot_digest):
+        if not await _still_current(
+            app, job_id, prompt_artifact_id, prompt_digest, snapshot_digest
+        ):
             await _mark_job(
                 app.state.session_factory,
                 job_id,
@@ -309,7 +426,9 @@ async def _run_job(app, job_id: str, generation_id: str, prompt_artifact_id: str
 
         # 供应商返回时再次核对当前确认版本；旧版本结果只保留审计信息，
         # 不能进入待审核候选，也不能覆盖当前需求。
-        if not await _still_current(app, job_id, prompt_artifact_id, prompt_digest, snapshot_digest):
+        if not await _still_current(
+            app, job_id, prompt_artifact_id, prompt_digest, snapshot_digest
+        ):
             async with read_session(app.state.session_factory) as session:
                 stale_generation = await session.get(Generation, generation_id)
                 stale_asset_id = stale_generation.result_asset_id if stale_generation else None
@@ -343,7 +462,12 @@ async def _run_job(app, job_id: str, generation_id: str, prompt_artifact_id: str
         async with read_session(app.state.session_factory) as session:
             generation = await session.get(Generation, generation_id)
         if generation is None:
-            await _mark_job(app.state.session_factory, job_id, status="unknown", error_code="VISUAL_OUTCOME_UNKNOWN", error_message="生图结果未确认")
+            await _mark_unknown(
+                app,
+                job_id,
+                error_code="VISUAL_OUTCOME_UNKNOWN",
+                error_message="生图结果未确认",
+            )
             return
 
         if generation.status == "succeeded" and generation.result_asset_id:
@@ -359,7 +483,13 @@ async def _run_job(app, job_id: str, generation_id: str, prompt_artifact_id: str
                     except OSError:
                         digest = None
                 if digest is None:
-                    await _mark_job(app.state.session_factory, job_id, status="failed", error_code="RESULT_FILE_MISSING", error_message="结果图片文件不可用，未发布。")
+                    await _mark_job(
+                        app.state.session_factory,
+                        job_id,
+                        status="failed",
+                        error_code="RESULT_FILE_MISSING",
+                        error_message="结果图片文件不可用，未发布。",
+                    )
                     return
                 async with write_transaction(app.state.session_factory) as session:
                     stored = await session.get(Asset, asset_id)
@@ -379,79 +509,193 @@ async def _run_job(app, job_id: str, generation_id: str, prompt_artifact_id: str
                 return
 
         status = generation.status if generation.status in {"failed", "unknown"} else "unknown"
-        await _mark_job(
-            app.state.session_factory,
-            job_id,
-            status=status,
-            error_code=generation.error_code or ("VISUAL_TASK_FAILED" if status == "failed" else "VISUAL_OUTCOME_UNKNOWN"),
-            error_message=generation.error_message or ("生成任务失败" if status == "failed" else "生图结果未确认"),
-            remote_task_id=generation.remote_task_id,
-            submit_attempted=1,
-        )
+        if status == "unknown":
+            await _mark_unknown(
+                app,
+                job_id,
+                error_code=generation.error_code or "VISUAL_OUTCOME_UNKNOWN",
+                error_message=generation.error_message or "生图结果未确认",
+                remote_task_id=generation.remote_task_id,
+            )
+        else:
+            await _mark_job(
+                app.state.session_factory,
+                job_id,
+                status=status,
+                error_code=generation.error_code or "VISUAL_TASK_FAILED",
+                error_message=generation.error_message or "生成任务失败",
+                remote_task_id=generation.remote_task_id,
+                submit_attempted=1,
+            )
     except asyncio.CancelledError:
         raise
     except Exception:
-        await _mark_job(
-            app.state.session_factory,
+        await _mark_unknown(
+            app,
             job_id,
-            status="unknown",
             error_code="VISUAL_OUTCOME_UNKNOWN",
             error_message="生图结果未确认",
-            submit_attempted=1,
         )
 
 
-async def _submit(ctx: WorkflowContext) -> None:
-    if ctx.run is None or ctx.run.stage != STAGE or ctx.run.status != "active":
+def _request_id(ctx: WorkflowContext, prompt_artifact_id: str, final_digest: str) -> str:
+    return str(
+        uuid5(
+            NAMESPACE_URL,
+            f"v2-generation:{ctx.project_id}:{ctx.run_id}:{prompt_artifact_id}:{final_digest}",
+        )
+    )
+
+
+def _ack_request_id(
+    ctx: WorkflowContext,
+    prompt_artifact_id: str,
+    final_digest: str,
+    previous: Generation,
+) -> str:
+    return str(
+        uuid5(
+            NAMESPACE_URL,
+            "v2-generation-ack:"
+            f"{ctx.project_id}:{ctx.run_id}:{prompt_artifact_id}:{final_digest}:"
+            f"{previous.id}:{previous.request_id}",
+        )
+    )
+
+
+async def _generation_by_id(ctx: WorkflowContext, generation_id: str) -> Generation | None:
+    async with read_session(ctx.session_factory) as session:
+        return await session.get(Generation, generation_id)
+
+
+def _input_digest(brief: dict[str, Any], prompt: dict[str, Any]) -> str:
+    return digest_payload(
+        {
+            "final_brief": brief,
+            "prompt": prompt,
+            "image_size": prompt["size"],
+            "reference_asset_id": prompt.get("reference_asset_id"),
+        }
+    )
+
+
+def _unknown_ack_required() -> ApiError:
+    return conflict("UNKNOWN_ACK_REQUIRED", templates.render("GENERATION_UNKNOWN"))
+
+
+async def _submit(ctx: WorkflowContext, action_payload: dict[str, Any]) -> None:
+    if ctx.run is None or ctx.run.stage != STAGE:
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    if ctx.run.status not in {"active", "blocked"}:
+        raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    if ctx.run.status == "blocked" and ctx.run.issue_code != _UNKNOWN_ISSUE:
+        raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+
     final_artifact, brief = await _require_confirmed(ctx)
-    prompt_artifact, payload = await _load_prompt(ctx, brief)
+    prompt_artifact, prompt_payload = await _load_prompt(ctx, brief)
 
     status = build_config_status(ctx.settings, ctx.registry)
     if not status.generation.allowed:
         raise _capability_error(status)
 
-    await _check_reference(ctx, payload)
-    existing = await _existing_job(ctx, prompt_artifact.id)
+    await _check_reference(ctx, prompt_payload)
+    request_id = _request_id(ctx, prompt_artifact.id, final_artifact.digest)
+    original = await _job_by_request_id(ctx, request_id)
+
+    if original is not None:
+        if original.status != "unknown":
+            # Any repeated click for an already-submitted request must replay
+            # the original task and must not call the provider again.
+            return
+        ack_value = action_payload.get("acknowledge_unknown")
+        if ack_value is None:
+            # The original idempotent request remains a safe no-op while the
+            # outcome is unconfirmed. It may already have been billed.
+            return
+        if ack_value is not True:
+            raise _unknown_ack_required()
+        previous_id = action_payload.get("previous_generation_id")
+        if not isinstance(previous_id, str) or not previous_id:
+            raise _unknown_ack_required()
+        previous = await _generation_by_id(ctx, previous_id)
+        if (
+            previous is None
+            or previous.id != original.generation_id
+            or previous.project_id != ctx.project_id
+            or previous.status != "unknown"
+        ):
+            raise _unknown_ack_required()
+        ack_request_id = _ack_request_id(ctx, prompt_artifact.id, final_artifact.digest, previous)
+        existing_ack = await _job_by_request_id(ctx, ack_request_id)
+        if existing_ack is not None:
+            return
+        input_digest = _input_digest(brief, prompt_payload)
+        try:
+            job, generation = await _create_job(
+                ctx,
+                prompt_artifact=prompt_artifact,
+                payload=prompt_payload,
+                brief=brief,
+                request_id=ack_request_id,
+                input_digest=input_digest,
+                snapshot_digest=final_artifact.digest,
+                attempt=2,
+                previous=previous,
+            )
+        except IntegrityError:
+            existing_ack = await _job_by_request_id(ctx, ack_request_id)
+            if existing_ack is not None:
+                return
+            raise
+        await state.set_stage(ctx, STAGE, "active")
+        _schedule(
+            ctx.app,
+            job.id,
+            generation.id,
+            prompt_artifact.id,
+            prompt_artifact.digest,
+            final_artifact.digest,
+        )
+        return
+
+    if ctx.run.status == "blocked":
+        # A blocked run without the original job cannot be acknowledged
+        # safely, so no new task may be created.
+        raise _unknown_ack_required()
+    existing = await _existing_job(ctx, request_id, prompt_artifact.id)
     if existing is not None:
         return
 
-    request_id = str(
-        uuid5(
-            NAMESPACE_URL,
-            f"v2-generation:{ctx.project_id}:{ctx.run_id}:{prompt_artifact.id}:{final_artifact.digest}",
-        )
-    )
-    input_digest = digest_payload(
-        {
-            "final_brief": brief,
-            "prompt": payload,
-            "image_size": payload["size"],
-            "reference_asset_id": payload.get("reference_asset_id"),
-        }
-    )
+    input_digest = _input_digest(brief, prompt_payload)
     try:
         job, generation = await _create_job(
             ctx,
             prompt_artifact=prompt_artifact,
-            payload=payload,
+            payload=prompt_payload,
             brief=brief,
             request_id=request_id,
             input_digest=input_digest,
             snapshot_digest=final_artifact.digest,
         )
     except IntegrityError:
-        existing = await _existing_job(ctx, prompt_artifact.id)
+        existing = await _existing_job(ctx, request_id, prompt_artifact.id)
         if existing is not None:
             return
         raise
-    _schedule(ctx.app, job.id, generation.id, prompt_artifact.id, prompt_artifact.digest, final_artifact.digest)
+    _schedule(
+        ctx.app,
+        job.id,
+        generation.id,
+        prompt_artifact.id,
+        prompt_artifact.digest,
+        final_artifact.digest,
+    )
 
 
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
     if action not in ACTIONS:
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
-    await _submit(ctx)
+    await _submit(ctx, payload or {})
 
 
 __all__ = ["STAGE", "ACTIONS", "available", "handle"]
