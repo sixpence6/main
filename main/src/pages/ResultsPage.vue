@@ -32,8 +32,15 @@ const {
 
 const selectedGeneration = computed(() => selectedResultGeneration.value)
 const resultAsset = computed(() => selectedGeneration.value?.result_asset ?? null)
+const retentionExpired = computed(
+  () => selectedGeneration.value?.retention_status === 'expired',
+)
 const hasResult = computed(
-  () => Boolean(resultAsset.value && resultAsset.value.availability === 'available'),
+  () => Boolean(
+    !retentionExpired.value &&
+      resultAsset.value &&
+      resultAsset.value.availability === 'available',
+  ),
 )
 const downloadName = computed(() => {
   const generation = selectedGeneration.value
@@ -198,12 +205,12 @@ async function onViewerKeydown(event: KeyboardEvent): Promise<void> {
             >
               <span class="result-version-thumbnail" aria-hidden="true">
                 <img
-                  v-if="generation.result_asset && generation.result_asset.availability === 'available'"
+                  v-if="generation.result_asset && generation.result_asset.availability === 'available' && generation.retention_status !== 'expired'"
                   :src="assetUrl(generation.result_asset.id)"
                   :alt="`第 ${generation.version_no} 版缩略图`"
                   loading="lazy"
                 />
-                <span v-else class="result-version-missing">文件缺失</span>
+                <span v-else class="result-version-missing">{{ generation.retention_status === 'expired' ? '已过期' : '文件缺失' }}</span>
               </span>
               <span class="result-version-label">第 {{ generation.version_no }} 版</span>
               <time class="result-version-time" :datetime="generation.completed_at ?? generation.created_at">
@@ -214,10 +221,15 @@ async function onViewerKeydown(event: KeyboardEvent): Promise<void> {
         </section>
 
         <p class="result-meta">
-          正在查看第 {{ selectedGeneration.version_no }} 版 · {{ resultTime }}
+          正在查看第 {{ selectedGeneration.version_no }} 版 · {{ resultTime }}<template v-if="retentionExpired"> · 已过保留期</template>
         </p>
 
-        <div v-if="!hasResult" class="result-delivery-error" role="alert">
+        <div v-if="retentionExpired" class="result-delivery-error result-retention-expired" role="alert">
+          <strong>结果已过保留期</strong>
+          <p>该候选图已按保留期清理，无法预览或下载。继续编辑不会自动重新生成。</p>
+        </div>
+
+        <div v-else-if="!hasResult" class="result-delivery-error" role="alert">
           <strong>结果文件缺失</strong>
           <p>生成记录存在，但结果文件不可用，无法预览或下载。</p>
         </div>

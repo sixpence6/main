@@ -96,6 +96,8 @@ class GenerationView(BaseModel):
     retrieval_unavailable_reason: str | None
     legacy_unreviewed: bool = False
     legacy_notice: str | None = None
+    retention_status: str | None = None
+    retention_expires_at: str | None = None
     created_at: str
     started_at: str | None
     completed_at: str | None

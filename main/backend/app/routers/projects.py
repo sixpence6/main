@@ -20,6 +20,7 @@ from app.services.projects import (
     get_project_detail,
     list_projects,
 )
+from app.services.retention import generation_retention
 from app.services.retrieval import evaluate_generations_retrieval
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -68,6 +69,7 @@ async def get_project_endpoint(request: Request, project_id: str) -> ProjectDeta
     generation_views = []
     for generation in detail.generations:
         info = retrieval[generation.id]
+        retention = await generation_retention(request.app, generation)
         generation_views.append(
             generation_view(
                 generation,
@@ -76,6 +78,7 @@ async def get_project_endpoint(request: Request, project_id: str) -> ProjectDeta
                 can_retrieve_result=info.can_retrieve,
                 retrieval_unavailable_reason=info.reason,
                 policy=detail.policy,
+                retention=retention,
             )
         )
     return ProjectDetailResponse(
