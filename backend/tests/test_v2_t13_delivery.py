@@ -165,7 +165,7 @@ async def _seed_ready_state(
                 artifact_id=None,
                 approval_type="image",
                 artifact_digest="image-artifact-digest",
-                approved_by="user",
+                approved_by="output_reviewer",
                 requirement_snapshot_digest=(approval_requirement_digest or confirmed_digest),
                 referenced_material_digest="material-digest",
                 prompt_version="2.0.0",

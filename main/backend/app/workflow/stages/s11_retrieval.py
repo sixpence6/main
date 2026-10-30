@@ -81,9 +81,20 @@ async def _publish(
     caption = str(delivery_data.get("caption") or "")[:800]
     await add_approval(
         ctx,
+        approval_type="quality_report",
+        artifact=quality_artifact,
+        approved_by="output_reviewer",
+        checks={"target_id": f"quality_report:{asset.id}"},
+        requirement_digest=snapshot_digest,
+        material_digest=reference_digest,
+        model_fingerprint=model_fingerprint,
+    )
+    await add_approval(
+        ctx,
         approval_type="image",
         artifact=quality_artifact,
         approved_by="output_reviewer",
+        target_digest=digest,
         checks={
             "asset_id": asset.id,
             "asset_digest": digest,

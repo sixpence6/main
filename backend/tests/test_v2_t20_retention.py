@@ -533,7 +533,7 @@ async def test_cleanup_preserves_published_reference_history_and_shared_dependen
                 artifact_id=artifact.id,
                 approval_type="image",
                 artifact_digest="a" * 64,
-                approved_by="user",
+                approved_by="output_reviewer",
                 requirement_snapshot_digest="e" * 64,
                 referenced_material_digest="c" * 64,
                 prompt_version="2.0.0",
@@ -662,6 +662,23 @@ async def test_rejected_quarantined_candidates_expire_while_approved_dependencie
                 updated_at=_ts(utc_now()),
             )
             session.add(job)
+            await session.flush()
+
+            # 报告获批只允许展示报告，不能把未通过的候选图变成永久保留。
+            approved_failed_report = Artifact(
+                id=_id("artifact"),
+                run_id=job_run.id,
+                project_id=quarantined_job.project_id,
+                kind="quality_report",
+                revision_no=1,
+                status="approved",
+                payload_json=json.dumps(
+                    {"asset_id": quarantined_job.asset_id, "decision": "fail"}
+                ),
+                digest="c" * 64,
+                created_at=_ts(utc_now()),
+            )
+            session.add(approved_failed_report)
             await session.flush()
 
         report = await retention.run_retention_cleanup(app, now=fixed_now)

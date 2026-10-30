@@ -854,6 +854,18 @@ async def _review_and_apply(
     if approved_report is None:
         await _block_stage(ctx, "IMAGE_NOT_APPROVED", "IMAGE_NOT_APPROVED")
         return
+    # 报告与图片是不同审批目标：报告批准只允许展示报告，绝不授权图片。
+    await add_approval(
+        ctx,
+        approval_type="quality_report",
+        artifact=approved_report,
+        approved_by="output_reviewer",
+        checks={
+            "target_id": quality_target,
+            "checks": report_checks,
+        },
+        model_fingerprint=review.model_fingerprint,
+    )
     image_checks = image_result.get("checks")
     if not isinstance(image_checks, list):
         image_checks = []
@@ -885,7 +897,8 @@ async def _review_and_apply(
             ctx,
             approval_type="image",
             artifact=approved_report,
-            approved_by="quality_compliance",
+            approved_by="output_reviewer",
+            target_digest=candidate.sha256,
             checks={
                 "asset_id": candidate.asset.id,
                 "asset_digest": candidate.sha256,

@@ -392,10 +392,17 @@ async def test_quality_pass_records_separate_report_and_image_approvals(
     assert job.status == "approved"
     approvals = await _approvals(llm_app, seed.project_id)
     image_approval = next(item for item in approvals if item.approval_type == "image")
+    report_approval = next(
+        item for item in approvals if item.approval_type == "quality_report"
+    )
     checks = json.loads(image_approval.checks_json)
     assert checks["asset_id"] == seed.asset_id
     assert checks["quality_report_id"] == report["id"]
-    assert image_approval.artifact_digest == report["digest"]
+    assert image_approval.approved_by == "output_reviewer"
+    assert image_approval.artifact_digest == asset.sha256
+    assert report_approval.approved_by == "output_reviewer"
+    assert report_approval.artifact_digest == report["digest"]
+    assert report_approval.id != image_approval.id
 
 
 async def test_hard_failure_keeps_image_quarantined_but_report_may_pass(

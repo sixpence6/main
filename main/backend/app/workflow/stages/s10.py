@@ -168,7 +168,8 @@ async def _require_image_approval(
     if approval is None:
         raise _image_not_approved()
     if (
-        approval.rules_version != "2.0.0"
+        approval.approved_by != "output_reviewer"
+        or approval.rules_version != "2.0.0"
         or approval.prompt_version != "2.0.0"
         or approval.requirement_snapshot_digest != job.confirmed_snapshot_digest
     ):

@@ -308,7 +308,7 @@ async def _seed_published(
                 artifact_id=artifact_id,
                 approval_type=approval_type,
                 artifact_digest=artifact_digest,
-                approved_by="output_reviewer" if approval_type != "image" else "user",
+                approved_by="output_reviewer",
                 requirement_snapshot_digest=requirement_digest,
                 referenced_material_digest=digest_payload(
                     {"reference": reference_asset_id or "none"}
@@ -742,7 +742,7 @@ async def test_two_published_versions_keep_each_other_downloadable(full_settings
                     artifact_id=artifact_id,
                     approval_type="image",
                     artifact_digest=digest_payload(payload),
-                    approved_by="user",
+                    approved_by="output_reviewer",
                     requirement_snapshot_digest="second-requirement",
                     referenced_material_digest="second-material",
                     prompt_version="2.0.0",

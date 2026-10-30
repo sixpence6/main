@@ -15,7 +15,7 @@ from app.errors import conflict, not_found_project
 from app.models import Asset, Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
-from app.workflow.access import load_project_access_policy
+from app.workflow.access import can_access_asset, load_project_access_policy
 from app.workflow.contracts import digest_payload, validate_data
 from app.workflow.schemas_workflow import (
     ApprovalView,
@@ -50,9 +50,17 @@ BRIEF_FIELDS = (
 APPROVAL_ORDER = (
     "requirements_card",
     "generation_prompt",
+    "quality_report",
     "image",
     "delivery_manifest",
 )
+APPROVAL_APPROVERS = {
+    "requirements_card": "user",
+    "generation_prompt": "output_reviewer",
+    "quality_report": "output_reviewer",
+    "image": "output_reviewer",
+    "delivery_manifest": "output_reviewer",
+}
 
 
 @dataclass
@@ -432,19 +440,32 @@ async def add_approval(
     requirement_digest: str | None = None,
     material_digest: str | None = None,
     model_fingerprint: str | None = None,
+    target_digest: str | None = None,
+    session: AsyncSession | None = None,
 ) -> Approval:
+    """写入不可变审批记录。
+
+    target_digest 绑定审批目标摘要。图片批准的目标是候选图字节，而其外键
+    仍指向质检报告产物；这样报告批准与图片批准不会共用同一摘要。
+    session 允许调用方把审批与发布写入同一事务，避免已发布但无审批。
+    """
     if approval_type not in APPROVAL_ORDER:
         raise ValueError(f"unknown approval type {approval_type}")
-    if approved_by not in {"user", "output_reviewer", "quality_compliance"}:
-        raise ValueError(f"unknown approver {approved_by}")
+    expected_approver = APPROVAL_APPROVERS[approval_type]
+    if approved_by != expected_approver:
+        raise ValueError(
+            f"approval type {approval_type} must be issued by {expected_approver}"
+        )
     if artifact.status != "approved":
         raise conflict("ARTIFACT_NOT_APPROVED", "产物尚未通过审查，无法批准")
     req_digest = requirement_digest or await requirement_snapshot_digest(ctx)
     mat_digest = material_digest or await referenced_material_digest(ctx)
     fingerprint = model_fingerprint or await latest_model_fingerprint(ctx)
+    row_digest = target_digest or artifact.digest
     now = format_timestamp(utc_now())
-    async with write_transaction(ctx.session_factory) as session:
-        existing = await session.scalar(
+
+    async def _persist(db: AsyncSession) -> Approval:
+        existing = await db.scalar(
             select(Approval)
             .where(
                 Approval.project_id == ctx.project_id,
@@ -456,13 +477,13 @@ async def add_approval(
         )
         if (
             existing is not None
-            and existing.artifact_digest == artifact.digest
+            and existing.artifact_digest == row_digest
             and existing.requirement_snapshot_digest == req_digest
         ):
             return existing
-        # Image and delivery approvals are version-scoped evidence. A new
-        # published version must not revoke the approvals that keep older
-        # published assets readable.
+        # Requirements and prompt approvals are superseded by a new version.
+        # Image/delivery approvals are version-scoped evidence: a new published
+        # version must not revoke approvals that keep older assets readable.
         if existing is not None and approval_type in {"requirements_card", "generation_prompt"}:
             existing.revoked_at = now
             existing.revocation_reason = "superseded"
@@ -471,7 +492,7 @@ async def add_approval(
             project_id=ctx.project_id,
             artifact_id=artifact.id,
             approval_type=approval_type,
-            artifact_digest=artifact.digest,
+            artifact_digest=row_digest,
             approved_by=approved_by,
             requirement_snapshot_digest=req_digest,
             referenced_material_digest=mat_digest,
@@ -481,9 +502,14 @@ async def add_approval(
             checks_json=json.dumps(checks or {}, ensure_ascii=False, sort_keys=True),
             created_at=now,
         )
-        session.add(approval)
-        await session.flush()
-    return approval
+        db.add(approval)
+        await db.flush()
+        return approval
+
+    if session is not None:
+        return await _persist(session)
+    async with write_transaction(ctx.session_factory) as opened:
+        return await _persist(opened)
 
 
 async def revoke_active_approval_types(
@@ -633,7 +659,9 @@ def _json_dict(value: str | None) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
-async def _build_versions(session: AsyncSession, project_id: str) -> list[WorkflowVersionView]:
+async def _build_versions(
+    session: AsyncSession, project_id: str, settings: Settings
+) -> list[WorkflowVersionView]:
     """Build the immutable published-version history for the workspace.
 
     Only a published delivery whose asset is approved and whose digest still
@@ -698,11 +726,8 @@ async def _build_versions(session: AsyncSession, project_id: str) -> list[Workfl
         )
         can_download = bool(
             asset is not None
-            and asset.review_status == "approved"
-            and asset.sha256
-            and delivery.asset_digest
-            and delivery.asset_digest == asset.sha256
             and delivery.filename
+            and (await can_access_asset(session, settings, asset, download=True)).allow
         )
         versions.append(
             WorkflowVersionView(
@@ -784,7 +809,7 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
             .order_by(GenerationJob.created_at.desc())
             .limit(1)
         )
-        versions = await _build_versions(session, ctx.project_id)
+        versions = await _build_versions(session, ctx.project_id, ctx.settings)
         policy = await load_project_access_policy(session, ctx.project_id)
         delivery = None
         if job is not None:

@@ -984,40 +984,43 @@ async def _publish_legacy_image(
             delivery.approved_at = now
             delivery.published_at = now
         await session.flush()
-    await add_approval(
-        ctx,
-        approval_type="image",
-        artifact=quality_artifact,
-        approved_by="output_reviewer",
-        checks={
-            "legacy_item_id": item.id,
-            "asset_id": asset.id,
-            "asset_digest": asset_digest,
-            "quality_report_id": quality_artifact.id,
-            "rule_ids": list(rules),
-            "checks": checks,
-            "source": "v1_legacy",
-        },
-        requirement_digest=snapshot_digest,
-        material_digest=reference_digest,
-        model_fingerprint=model_fingerprint,
-    )
-    await add_approval(
-        ctx,
-        approval_type="delivery_manifest",
-        artifact=delivery_artifact,
-        approved_by="output_reviewer",
-        checks={
-            "legacy_item_id": item.id,
-            "asset_id": asset.id,
-            "asset_digest": asset_digest,
-            "manifest_artifact_id": delivery_artifact.id,
-            "source": "v1_legacy",
-        },
-        requirement_digest=snapshot_digest,
-        material_digest=reference_digest,
-        model_fingerprint=model_fingerprint,
-    )
+        await add_approval(
+            ctx,
+            approval_type="image",
+            artifact=quality_artifact,
+            approved_by="output_reviewer",
+            target_digest=asset_digest,
+            checks={
+                "legacy_item_id": item.id,
+                "asset_id": asset.id,
+                "asset_digest": asset_digest,
+                "quality_report_id": quality_artifact.id,
+                "rule_ids": list(rules),
+                "checks": checks,
+                "source": "v1_legacy",
+            },
+            requirement_digest=snapshot_digest,
+            material_digest=reference_digest,
+            model_fingerprint=model_fingerprint,
+            session=session,
+        )
+        await add_approval(
+            ctx,
+            approval_type="delivery_manifest",
+            artifact=delivery_artifact,
+            approved_by="output_reviewer",
+            checks={
+                "legacy_item_id": item.id,
+                "asset_id": asset.id,
+                "asset_digest": asset_digest,
+                "manifest_artifact_id": delivery_artifact.id,
+                "source": "v1_legacy",
+            },
+            requirement_digest=snapshot_digest,
+            material_digest=reference_digest,
+            model_fingerprint=model_fingerprint,
+            session=session,
+        )
 
 
 async def _review_legacy_image(ctx: WorkflowContext, item: LegacyItem) -> None:

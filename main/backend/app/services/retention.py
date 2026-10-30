@@ -244,14 +244,16 @@ async def _project_dependencies(
     if any(job.status in NON_TERMINAL_JOB_STATUSES for job in jobs):
         return True
 
-    # 只有已批准的产物载荷才构成有效依赖；候选、被拒或 unknown 的审查记录
-    # 只是数据库审计材料，不得阻止到期候选文件清理。
+    # 只有已批准的交付/清单类产物才构成有效依赖；候选、被拒或 unknown 的
+    # 审查记录只是数据库审计材料，不得阻止到期候选文件清理。质检报告即使
+    # 获批，也只证明报告可展示，不能把失败图片永久保活。
     approved_artifacts = list(
         (
             await session.scalars(
                 select(Artifact).where(
                     Artifact.project_id == asset.project_id,
                     Artifact.status == "approved",
+                    Artifact.kind != "quality_report",
                 )
             )
         ).all()

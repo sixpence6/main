@@ -300,6 +300,8 @@ async def _v2_access(
 
     image_approval = None
     for candidate in await _active_approvals(session, asset.project_id, "image"):
+        if candidate.approved_by != "output_reviewer":
+            continue
         if candidate.rules_version != "2.0.0" or candidate.prompt_version != "2.0.0":
             continue
         if candidate.requirement_snapshot_digest != job.confirmed_snapshot_digest:
@@ -427,7 +429,7 @@ async def can_access_asset(
         .order_by(Approval.created_at.desc())
         .limit(1)
     )
-    if approval is None:
+    if approval is None or approval.approved_by not in {"user", "output_reviewer"}:
         return AccessDecision(False, "APPROVAL_MISSING")
     checks = _checks(approval)
     job = await session.scalar(
