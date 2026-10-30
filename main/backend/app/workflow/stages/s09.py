@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -11,7 +12,7 @@ from sqlalchemy import select
 from app.adapters.base import OrganizeImage
 from app.db import read_session, write_transaction
 from app.errors import ApiError
-from app.models import Asset
+from app.models import Asset, Generation
 from app.services.assets import inspect_image, resolve_asset_file
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
@@ -97,6 +98,28 @@ def available(ctx: WorkflowContext) -> list[dict[str, Any]]:
     return ["review_candidate"]
 
 
+def _candidate_expired(generation: Generation, *, now: datetime | None = None) -> bool:
+    """Derive the 24h candidate deadline from immutable completed_at.
+
+    There is no expires_at column: the terminal timestamp is written once and
+    must never be reset by a restart or manual continue.
+    """
+    completed = generation.completed_at
+    if completed is None:
+        # Without the immutable terminal timestamp the candidate cannot prove
+        # that it is still inside its retention window. Fail closed instead of
+        # allowing an old candidate to be reviewed forever.
+        return True
+    if isinstance(completed, str):
+        try:
+            completed = datetime.fromisoformat(completed.replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return True
+    if completed.tzinfo is None:
+        completed = completed.replace(tzinfo=UTC)
+    return (now or datetime.now(UTC)) >= completed + timedelta(hours=24)
+
+
 async def _load_candidate(ctx: WorkflowContext) -> _Candidate:
     async with read_session(ctx.session_factory) as session:
         job = await session.scalar(
@@ -105,23 +128,29 @@ async def _load_candidate(ctx: WorkflowContext) -> _Candidate:
             .order_by(GenerationJob.created_at.desc())
             .limit(1)
         )
-        asset: Asset | None = None
-        if job is not None:
-            # A generation job is the authoritative binding for this run. Never
-            # fall back to an unrelated project asset when the job has no
-            # result: that could review a different image under this run.
-            if job.result_asset_id:
-                asset = await session.get(Asset, job.result_asset_id)
-        else:
-            asset = await session.scalar(
-                select(Asset)
-                .where(
-                    Asset.project_id == ctx.project_id,
-                    Asset.kind == "generated",
-                )
-                .order_by(Asset.created_at.desc())
-                .limit(1)
+        if job is None:
+            # The run must own a generation job that points at exactly one
+            # image. Falling back to any project asset could review an
+            # unrelated image under this run.
+            raise ApiError(
+                409, "CANDIDATE_UNAVAILABLE", templates.render("CANDIDATE_UNAVAILABLE")
             )
+        if not job.result_asset_id or not job.generation_id:
+            raise ApiError(
+                409, "CANDIDATE_UNAVAILABLE", templates.render("CANDIDATE_UNAVAILABLE")
+            )
+        asset = await session.get(Asset, job.result_asset_id)
+        generation = await session.get(Generation, job.generation_id)
+        if generation is None:
+            raise ApiError(
+                409, "CANDIDATE_UNAVAILABLE", templates.render("CANDIDATE_UNAVAILABLE")
+            )
+    if _candidate_expired(generation):
+        # completed_at is the immutable terminal timestamp. Never reset or
+        # rewrite it to extend a candidate's 24-hour retention window.
+        raise ApiError(
+            409, "CANDIDATE_EXPIRED", templates.render("CANDIDATE_EXPIRED")
+        )
     if asset is None or asset.kind != "generated":
         raise ApiError(
             409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
@@ -141,7 +170,7 @@ async def _load_candidate(ctx: WorkflowContext) -> _Candidate:
     path = resolve_asset_file(ctx.settings, asset)
     if path is None:
         raise ApiError(
-            503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE")
+            409, "CANDIDATE_UNAVAILABLE", templates.render("CANDIDATE_UNAVAILABLE")
         )
     try:
         data = path.read_bytes()
@@ -768,8 +797,11 @@ async def _review_and_apply(
     snapshot: dict[str, Any],
     size: str,
     rule_payload: list[dict[str, Any]],
+    existing_artifact: Artifact | None = None,
 ) -> None:
-    artifact = await start_artifact(ctx, "quality_report", quality_data)
+    artifact = existing_artifact
+    if artifact is None:
+        artifact = await start_artifact(ctx, "quality_report", quality_data)
     review_allowed = set(quality_allowed)
     review_allowed.add(f"report:{artifact.id}")
     review_targets = _review_targets(
@@ -809,6 +841,33 @@ async def _review_and_apply(
     except ApiError:
         await _fail_stage(ctx, "REVIEW_UNAVAILABLE", "REVIEW_UNAVAILABLE")
         raise
+    await _apply_review(
+        ctx,
+        artifact=artifact,
+        candidate=candidate,
+        quality_data=quality_data,
+        rules=rules,
+        quality_target=quality_target,
+        image_target=image_target,
+        quality_allowed=quality_allowed,
+        review=review,
+    )
+
+
+async def _apply_review(
+    ctx: WorkflowContext,
+    *,
+    artifact: Artifact,
+    candidate: _Candidate,
+    quality_data: dict[str, Any],
+    rules: list[_RuleSpec],
+    quality_target: str,
+    image_target: str,
+    quality_allowed: set[str],
+    review: RoleOutput,
+) -> None:
+    review_allowed = set(quality_allowed)
+    review_allowed.add(f"report:{artifact.id}")
     if review.status == "blocked":
         # A valid blocked reviewer is a technical/review availability result,
         # not a malformed contract. Never turn it into a pass or a 502.
@@ -1088,4 +1147,4 @@ async def handle(
     )
 
 
-__all__ = ["STAGE", "ACTIONS", "available", "handle"]
+__all__ = ["ACTIONS", "STAGE", "available", "handle"]

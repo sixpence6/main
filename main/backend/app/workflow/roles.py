@@ -123,7 +123,7 @@ async def _record_call(
     return call
 
 
-async def _record_recovery_failure(
+def _recovery_detail(
     ctx: WorkflowContext,
     *,
     role: str,
@@ -133,17 +133,12 @@ async def _record_recovery_failure(
     status: str,
     request_digest: str,
     request_json: str,
-    error_code: str,
+    error_code: str | None,
     role_call_id: str | None,
-) -> None:
-    """Persist the exact safe request needed for an explicit manual continue.
-
-    This row is internal diagnostic state, never a public view field. It stores
-    no provider URL, key, raw exception body or model reasoning; only the
-    already-validated role request, its digest and non-secret error category.
-    """
+    operation_id: str,
+) -> dict[str, Any]:
     detail: dict[str, Any] = {
-        "operation_id": str(uuid4()),
+        "operation_id": operation_id,
         "run_id": ctx.run_id,
         "project_id": ctx.project_id,
         "role": role,
@@ -158,7 +153,9 @@ async def _record_recovery_failure(
         "role_call_id": role_call_id,
         "project_revision": ctx.project.revision,
         "requirement_revision": (
-            ctx.run.requirement_revision if ctx.run is not None else ctx.project.revision
+            ctx.run.requirement_revision
+            if ctx.run is not None
+            else ctx.project.revision
         ),
         "reference_asset_id": ctx.project.reference_asset_id,
     }
@@ -176,7 +173,74 @@ async def _record_recovery_failure(
                 detail["target_kind"] = targets[0].get("target_kind")
     except ValueError:
         detail["input_digest"] = ""
+    return detail
+
+
+async def _record_recovery_checkpoint(
+    ctx: WorkflowContext,
+    *,
+    role: str,
+    stage: str,
+    capability: str,
+    attempt: int,
+    status: str,
+    request_digest: str,
+    request_json: str,
+    error_code: str | None,
+    role_call_id: str | None,
+    operation_id: str,
+) -> None:
+    """Persist one append-only checkpoint around exactly one role request.
+
+    "started" is written before the adapter boundary so a hard process kill can
+    be recognized without guessing the request. A later "completed" row closes
+    the operation. This event is internal diagnostic state and never carries a
+    provider URL, key, raw exception body or model reasoning.
+    """
+    detail = _recovery_detail(
+        ctx,
+        role=role,
+        stage=stage,
+        capability=capability,
+        attempt=attempt,
+        status=status,
+        request_digest=request_digest,
+        request_json=request_json,
+        error_code=error_code,
+        role_call_id=role_call_id,
+        operation_id=operation_id,
+    )
     await record_diagnostic(ctx, "recovery_checkpoint", detail)
+
+
+async def _record_recovery_failure(
+    ctx: WorkflowContext,
+    *,
+    role: str,
+    stage: str,
+    capability: str,
+    attempt: int,
+    status: str,
+    request_digest: str,
+    request_json: str,
+    error_code: str,
+    role_call_id: str | None,
+    operation_id: str | None = None,
+) -> None:
+    """Persist the exact safe request needed for an explicit manual continue."""
+    await _record_recovery_checkpoint(
+        ctx,
+        role=role,
+        stage=stage,
+        capability=capability,
+        attempt=attempt,
+        status=status,
+        request_digest=request_digest,
+        request_json=request_json,
+        error_code=error_code,
+        role_call_id=role_call_id,
+        operation_id=operation_id or str(uuid4()),
+    )
 
 
 async def _run_request(
@@ -209,6 +273,7 @@ async def _run_request(
         sort_keys=True,
     )
     started_at = format_timestamp(utc_now())
+    operation_id = str(uuid4())
 
     llm, reason = _capability_ready(ctx, resolved_capability)
     if llm is None:
@@ -223,6 +288,7 @@ async def _run_request(
             request_json=request_json,
             error_code="CAPABILITY_NOT_READY",
             role_call_id=None,
+            operation_id=operation_id,
         )
         raise _capability_error(resolved_capability, reason)
     adapter = ctx.registry.build_llm(llm, ctx.http)
@@ -238,14 +304,28 @@ async def _run_request(
             request_json=request_json,
             error_code="CAPABILITY_NOT_READY",
             role_call_id=None,
+            operation_id=operation_id,
         )
         raise _capability_error(resolved_capability, "适配器不可用")
 
+    await _record_recovery_checkpoint(
+        ctx,
+        role=role,
+        stage=stage,
+        capability=resolved_capability,
+        attempt=attempt,
+        status="started",
+        request_digest=request_digest,
+        request_json=request_json,
+        error_code=None,
+        role_call_id=None,
+        operation_id=operation_id,
+    )
     try:
         response = await asyncio.wait_for(
             adapter.complete(request), timeout=llm.timeout_seconds
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         call = await _record_call(
             ctx,
             role=role,
@@ -272,6 +352,7 @@ async def _run_request(
             request_json=request_json,
             error_code="LLM_TIMEOUT",
             role_call_id=call.id,
+            operation_id=operation_id,
         )
         raise ApiError(
             503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE")
@@ -305,6 +386,7 @@ async def _run_request(
             request_json=request_json,
             error_code=exc.error_code or "PROVIDER_ERROR",
             role_call_id=call.id,
+            operation_id=operation_id,
         )
         raise ApiError(
             503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE")
@@ -340,6 +422,7 @@ async def _run_request(
             request_json=request_json,
             error_code="CONTRACT_INVALID",
             role_call_id=call.id,
+            operation_id=operation_id,
         )
         raise ApiError(
             503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE")
@@ -360,6 +443,19 @@ async def _run_request(
         error_message=None,
         model_fingerprint=response.model_fingerprint,
         started_at=started_at,
+    )
+    await _record_recovery_checkpoint(
+        ctx,
+        role=role,
+        stage=stage,
+        capability=resolved_capability,
+        attempt=attempt,
+        status="completed",
+        request_digest=request_digest,
+        request_json=request_json,
+        error_code=None,
+        role_call_id=call.id,
+        operation_id=operation_id,
     )
     return RoleOutput(
         role=role,

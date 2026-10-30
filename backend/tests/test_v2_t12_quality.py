@@ -10,7 +10,7 @@ from PIL import Image
 from sqlalchemy import select
 
 from app.db import read_session, write_transaction
-from app.models import Asset, Project
+from app.models import Asset, Generation, Project
 from app.services.assets import inspect_image, write_asset_file
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import state
@@ -265,7 +265,32 @@ async def _seed_project(
     generated_info = inspect_image(generated_bytes)
     asset_id = str(uuid4())
     job_id = str(uuid4())
+    generation_id = str(uuid4())
     async with write_transaction(application.state.session_factory) as session:
+        session.add(
+            Generation(
+                id=generation_id,
+                project_id=project_id,
+                version_no=1,
+                request_id=str(uuid4()),
+                request_canonical="{}",
+                request_digest="b" * 64,
+                confirmed_revision=1,
+                status="succeeded",
+                stage="done",
+                brief_snapshot_json=json.dumps(brief.model_dump(), ensure_ascii=False),
+                prompt="stub prompt",
+                image_size="64x64",
+                reference_asset_id=reference_id,
+                adapter_id="stub",
+                model="stub",
+                service_fingerprint="c" * 64,
+                result_asset_id=asset_id,
+                workflow_job_id=job_id,
+                created_at=now,
+                completed_at=now,
+            )
+        )
         session.add(
             Asset(
                 id=asset_id,
@@ -285,6 +310,7 @@ async def _seed_project(
                 id=job_id,
                 project_id=project_id,
                 run_id=ctx.run.id,
+                generation_id=generation_id,
                 request_id=str(uuid4()),
                 request_digest="b" * 64,
                 confirmed_snapshot_digest=snapshot_digest,

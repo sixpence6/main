@@ -23,7 +23,11 @@ from app.services.generations import (
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import state, templates
 from app.workflow.contracts import ContractError, digest_payload, validate_data
-from app.workflow.stages.s07 import _candidate_errors, _hard_requirements, _require_confirmed
+from app.workflow.stages.s07 import (
+    _candidate_errors,
+    _hard_requirements,
+    _require_confirmed,
+)
 from app.workflow.state import WorkflowContext
 from app.workflow.tables import DiagnosticEvent, GenerationJob
 
@@ -38,17 +42,29 @@ _ACTIVE_JOB_STATUSES = (
     "result_fetched",
 )
 _UNKNOWN_ISSUE = "GENERATION_UNKNOWN"
+_RECOVERABLE_BLOCK_CODES = {"PROCESS_INTERRUPTED", "GENERATION_UNKNOWN"}
+
+
+def _replayable(ctx: WorkflowContext) -> bool:
+    if ctx.run is None or ctx.run.stage != STAGE:
+        return False
+    if ctx.run.status == "active":
+        return True
+    return (
+        ctx.run.status == "blocked"
+        and ctx.run.issue_code in _RECOVERABLE_BLOCK_CODES
+    )
 
 
 def available(ctx: WorkflowContext) -> list[str]:
-    # A blocked S08 may be an unknown provider outcome. The action is still
-    # exposed so the client can replay the original idempotent request or
-    # explicitly acknowledge the risk before creating a new task.
-    if ctx.run is None or ctx.run.stage != STAGE:
+    # A blocked S08 may be a recoverable interruption or an unknown provider
+    # outcome. The action is exposed so the client can replay the original
+    # idempotent request; S12 must be used for the explicit recovery flow.
+    if not _replayable(ctx):
         return []
     if ctx.run.status == "active":
         return list(ACTIONS)
-    if ctx.run.status == "blocked" and ctx.run.issue_code == _UNKNOWN_ISSUE:
+    if ctx.run.status == "blocked" and ctx.run.issue_code in _RECOVERABLE_BLOCK_CODES:
         return list(ACTIONS)
     return []
 
@@ -168,6 +184,21 @@ async def _existing_job(
     if active is not None and active.prompt_artifact_id != prompt_artifact_id:
         raise conflict("GENERATION_IN_PROGRESS", "当前项目已有进行中的生成任务，不能重复提交。")
     return active
+
+
+async def _interrupted_job(
+    ctx: WorkflowContext, prompt_artifact_id: str
+) -> GenerationJob | None:
+    async with read_session(ctx.session_factory) as session:
+        return await session.scalar(
+            select(GenerationJob).where(
+                GenerationJob.project_id == ctx.project_id,
+                GenerationJob.run_id == ctx.run_id,
+                GenerationJob.prompt_artifact_id == prompt_artifact_id,
+                GenerationJob.status == "failed",
+                GenerationJob.error_code == "PROCESS_INTERRUPTED",
+            ).order_by(GenerationJob.created_at.desc()).limit(1)
+        )
 
 
 async def _create_job(
@@ -597,11 +628,14 @@ def _unknown_ack_required() -> ApiError:
 
 
 async def _submit(ctx: WorkflowContext, action_payload: dict[str, Any]) -> None:
-    if ctx.run is None or ctx.run.stage != STAGE:
+    if not _replayable(ctx):
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
     if ctx.run.status not in {"active", "blocked"}:
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
-    if ctx.run.status == "blocked" and ctx.run.issue_code != _UNKNOWN_ISSUE:
+    if (
+        ctx.run.status == "blocked"
+        and ctx.run.issue_code not in _RECOVERABLE_BLOCK_CODES
+    ):
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
 
     final_artifact, brief = await _require_confirmed(ctx)
@@ -672,8 +706,14 @@ async def _submit(ctx: WorkflowContext, action_payload: dict[str, Any]) -> None:
         return
 
     if ctx.run.status == "blocked":
-        # A blocked run without the original job cannot be acknowledged
-        # safely, so no new task may be created.
+        # A recoverable interruption with a provably unsubmitted job is an
+        # idempotent replay: return the stored failed job without a provider
+        # call or a replacement generation. Any other blocked run cannot be
+        # acknowledged safely, so no new task may be created.
+        if ctx.run.issue_code == "PROCESS_INTERRUPTED":
+            interrupted = await _interrupted_job(ctx, prompt_artifact.id)
+            if interrupted is not None:
+                return
         raise _unknown_ack_required()
     existing = await _existing_job(ctx, request_id, prompt_artifact.id)
     if existing is not None:
@@ -711,4 +751,4 @@ async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> 
     await _submit(ctx, payload or {})
 
 
-__all__ = ["STAGE", "ACTIONS", "available", "handle"]
+__all__ = ["ACTIONS", "STAGE", "available", "handle"]

@@ -18,7 +18,7 @@ from app.workflow.roles import (
     run_role,
     run_role_request,
 )
-from app.workflow.stages import s01, s02, s03, s04, s05
+from app.workflow.stages import s01, s02, s03, s04, s05, s09
 from app.workflow.state import (
     WorkflowContext,
     add_review,
@@ -110,8 +110,11 @@ async def _latest_checkpoint(ctx: WorkflowContext) -> dict[str, Any] | None:
         )
     for event in events:
         detail = _json_dict(event.detail_json)
-        if detail.get("run_id") == ctx.run_id:
-            return detail
+        if detail.get("run_id") != ctx.run_id:
+            continue
+        if detail.get("status") not in _RECOVERABLE_CALL_STATUSES | {"capability"}:
+            continue
+        return detail
     return None
 
 
@@ -661,6 +664,225 @@ async def _resume_s05_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
         )
 
 
+async def _s09_recovery_inputs(ctx: WorkflowContext) -> dict[str, Any]:
+    candidate = await s09._load_candidate(ctx)
+    snapshot, snapshot_digest = await s09._confirmed_snapshot(ctx)
+    (
+        reference,
+        reference_usage,
+        reference_bytes,
+    ) = await s09._reference_context(ctx, snapshot)
+    if reference_usage != "none" and (reference is None or reference_bytes is None):
+        await s09._block_stage(ctx, "IMAGE_NOT_APPROVED", "UNREADABLE_IMAGE")
+        raise _fixed_review()
+    size = str(
+        snapshot.get("size")
+        or ctx.project.image_size
+        or ctx.settings.visual().image_size
+        or "unknown"
+    )
+    rules = s09._rule_specs(reference is not None and reference_usage == "product")
+    requirement_text = str(
+        snapshot.get("product_description")
+        or snapshot.get("purpose")
+        or "按确认需求展示商品主体"
+    )
+    forbidden = s09._forbidden_requirement(snapshot)
+    image_target = f"image:{candidate.asset.id}"
+    quality_target = f"quality_report:{candidate.asset.id}"
+    allowed = {
+        image_target,
+        f"requirement:{snapshot_digest}",
+        f"technical:{candidate.asset.id}",
+    }
+    if reference is not None:
+        allowed.add(f"reference:{reference.id}")
+    images = [OrganizeImage(data=candidate.data, mime_type=candidate.mime_type)]
+    if reference_bytes is not None and reference is not None:
+        images.append(
+            OrganizeImage(data=reference_bytes, mime_type=reference.mime_type)
+        )
+    return {
+        "candidate": candidate,
+        "snapshot": snapshot,
+        "reference": reference,
+        "reference_usage": reference_usage,
+        "rules": rules,
+        "size": size,
+        "requirement_text": requirement_text,
+        "forbidden": forbidden,
+        "quality_target": quality_target,
+        "image_target": image_target,
+        "allowed": allowed,
+        "images": images,
+        "rule_payload": s09._rule_payload(rules, requirement_text, forbidden, size),
+    }
+
+
+def _request_parts(
+    checkpoint: dict[str, Any],
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    request_raw = str(checkpoint.get("request_json") or "")
+    request = _json_dict(request_raw)
+    payload = request.get("payload") if isinstance(request.get("payload"), dict) else {}
+    return request_raw, request, payload
+
+
+async def _resume_s09_producer(
+    ctx: WorkflowContext, checkpoint: dict[str, Any]
+) -> None:
+    request_raw, _, payload = _request_parts(checkpoint)
+    task = payload.get("task") if isinstance(payload.get("task"), dict) else {}
+    input_data = (
+        payload.get("input_data") if isinstance(payload.get("input_data"), dict) else {}
+    )
+    technical = (
+        input_data.get("technical")
+        if isinstance(input_data.get("technical"), dict)
+        else {}
+    )
+    if task.get("role") != "quality_compliance" or not request_raw:
+        raise _stale()
+    inputs = await _s09_recovery_inputs(ctx)
+    candidate = inputs["candidate"]
+    reference = inputs["reference"]
+    if input_data.get("asset_id") != candidate.asset.id:
+        raise _stale()
+    if technical.get("sha256") != candidate.sha256:
+        raise _stale()
+    expected_reference = reference.id if reference is not None else None
+    if input_data.get("reference_asset_id") != expected_reference:
+        raise _stale()
+    try:
+        quality = await run_role_request(
+            ctx,
+            "quality_compliance",
+            STAGE,
+            request_raw,
+            images=tuple(inputs["images"]),
+            capability=str(checkpoint.get("capability") or "VISION"),
+            attempt=int(checkpoint.get("attempt") or 1),
+        )
+    except ApiError:
+        await s09._fail_stage(ctx, "SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE")
+        raise _fixed_service() from None
+    if quality.status == "blocked":
+        await s09._set_asset(
+            ctx,
+            candidate.asset,
+            "quarantined",
+            "quality blocked",
+            candidate.sha256,
+        )
+        await s09._set_job(ctx, candidate.job, "quarantined")
+        await s09._block_stage(
+            ctx, "IMAGE_NOT_APPROVED", s09._issue_code(quality, "UNREADABLE_IMAGE")
+        )
+        return
+    try:
+        quality_data = s09._validate_quality(
+            quality,
+            asset=candidate.asset,
+            rules=inputs["rules"],
+            allowed=inputs["allowed"],
+        )
+    except ApiError:
+        await s09._set_asset(
+            ctx,
+            candidate.asset,
+            "quarantined",
+            "quality contract invalid",
+            candidate.sha256,
+        )
+        await s09._fail_stage(ctx, "SERVICE_UNAVAILABLE", "CONTRACT_ERROR")
+        raise _fixed_service() from None
+    quality_data = s09._with_local_technical_result(
+        quality_data,
+        candidate=candidate,
+        size=inputs["size"],
+        technical_evidence=f"technical:{candidate.asset.id}",
+    )
+    existing = await latest_artifact(ctx, "quality_report")
+    if existing is not None and existing.status != "candidate":
+        existing = None
+    await s09._review_and_apply(
+        ctx,
+        candidate=candidate,
+        quality_data=quality_data,
+        rules=inputs["rules"],
+        quality_target=inputs["quality_target"],
+        image_target=inputs["image_target"],
+        quality_allowed=inputs["allowed"],
+        snapshot=inputs["snapshot"],
+        size=inputs["size"],
+        rule_payload=inputs["rule_payload"],
+        existing_artifact=existing,
+    )
+
+
+async def _resume_s09_review(
+    ctx: WorkflowContext, checkpoint: dict[str, Any]
+) -> None:
+    request_raw, _, payload = _request_parts(checkpoint)
+    task = payload.get("task") if isinstance(payload.get("task"), dict) else {}
+    targets = payload.get("review_targets") or []
+    if task.get("role") != "output_reviewer" or not request_raw or not targets:
+        raise _stale()
+    quality_target: dict[str, Any] | None = None
+    image_target: dict[str, Any] | None = None
+    for raw_target in targets:
+        if not isinstance(raw_target, dict):
+            continue
+        if raw_target.get("target_kind") == "quality_report":
+            quality_target = raw_target
+        elif raw_target.get("target_kind") == "image":
+            image_target = raw_target
+    if quality_target is None or image_target is None:
+        raise _stale()
+    artifact = await _artifact_by_id(ctx, str(quality_target.get("artifact_id") or ""))
+    if (
+        artifact is None
+        or artifact.kind != "quality_report"
+        or artifact.status not in {"candidate", "approved"}
+    ):
+        raise _stale()
+    inputs = await _s09_recovery_inputs(ctx)
+    candidate = inputs["candidate"]
+    if artifact.digest != quality_target.get("artifact_digest"):
+        raise _stale()
+    if image_target.get("asset_id") != candidate.asset.id:
+        raise _stale()
+    if image_target.get("sha256") != candidate.sha256:
+        raise _stale()
+    quality_data = _json_dict(artifact.payload_json)
+    if not quality_data:
+        raise _stale()
+    try:
+        review = await run_role_request(
+            ctx,
+            "output_reviewer",
+            STAGE,
+            request_raw,
+            images=tuple(inputs["images"]),
+            capability=str(checkpoint.get("capability") or "VISION"),
+            attempt=int(checkpoint.get("attempt") or 1),
+        )
+    except ApiError:
+        await s09._fail_stage(ctx, "REVIEW_UNAVAILABLE", "REVIEW_UNAVAILABLE")
+        raise _fixed_review() from None
+    await s09._apply_review(
+        ctx,
+        artifact=artifact,
+        candidate=candidate,
+        quality_data=quality_data,
+        rules=inputs["rules"],
+        quality_target=inputs["quality_target"],
+        image_target=inputs["image_target"],
+        quality_allowed=set(inputs["allowed"]) | {f"report:{artifact.id}"},
+        review=review,
+    )
+
+
 async def _resume_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
     stage = str(checkpoint.get("stage"))
     if stage == "S01":
@@ -673,6 +895,8 @@ async def _resume_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> No
         await _resume_s02_review(ctx, checkpoint)
     elif stage == "S05":
         await _resume_s05_review(ctx, checkpoint)
+    elif stage == "S09":
+        await _resume_s09_review(ctx, checkpoint)
     else:
         raise _unavailable()
 
@@ -693,6 +917,9 @@ async def _resume_producer(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> 
         return
     if stage == "S02":
         await s02.analyze(ctx)
+        return
+    if stage == "S09":
+        await _resume_s09_producer(ctx, checkpoint)
         return
     raise _unavailable()
 
@@ -752,6 +979,10 @@ async def _continue(ctx: WorkflowContext) -> None:
     if checkpoint.get("status") not in _RECOVERABLE_CALL_STATUSES | {"capability"}:
         raise _unavailable()
     _verify_checkpoint(ctx, checkpoint)
+    if str(checkpoint.get("stage")) == "S09":
+        # Expired or missing candidate bytes are never re-created, re-fetched
+        # or guessed around. _load_candidate raises the fixed public 409.
+        await s09._load_candidate(ctx)
     await _ensure_budget(ctx, checkpoint)
     capability = str(checkpoint.get("capability") or "TEXT")
     _ensure_capability(ctx, capability)
@@ -771,4 +1002,4 @@ async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> 
     await _continue(ctx)
 
 
-__all__ = ["STAGE", "ACTIONS", "available", "handle"]
+__all__ = ["ACTIONS", "STAGE", "available", "handle"]
