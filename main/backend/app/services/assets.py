@@ -22,6 +22,7 @@ from app.errors import ApiError, conflict
 from app.models import Asset, Generation, Project
 from app.services.projects import require_project
 from app.timeutil import format_timestamp, utc_now
+from app.workflow.tables import Delivery
 
 MIME_EXTENSIONS = {"image/png": "png", "image/jpeg": "jpg"}
 
@@ -218,6 +219,14 @@ async def download_name(session: AsyncSession, asset: Asset) -> str:
     extension = MIME_EXTENSIONS.get(asset.mime_type, "bin")
     if asset.kind == "reference":
         return f"{asset.id}.{extension}"
+    delivery = await session.scalar(
+        select(Delivery)
+        .where(Delivery.asset_id == asset.id, Delivery.status == "published")
+        .order_by(Delivery.published_at.desc())
+        .limit(1)
+    )
+    if delivery is not None and delivery.filename:
+        return delivery.filename
     generation = await session.scalar(
         select(Generation).where(Generation.result_asset_id == asset.id)
     )
