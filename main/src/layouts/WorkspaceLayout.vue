@@ -10,6 +10,7 @@ import StageNav from '@/components/StageNav.vue'
 import StatusAnnouncer from '@/components/StatusAnnouncer.vue'
 import UnsavedChangesDialog from '@/components/UnsavedChangesDialog.vue'
 import { provideWorkspace } from '@/composables/useWorkspace'
+import { legacyNoticeText } from '@/utils/format'
 import '@/styles/workspace.css'
 
 const workspace = provideWorkspace()
@@ -30,6 +31,7 @@ const {
   latestGenerationView,
   confirmGenerationRisk,
   cancelGenerationRisk,
+  currentProject,
 } = workspace
 </script>
 
@@ -65,6 +67,15 @@ const {
           </section>
 
           <StageNav />
+          <section
+            v-if="currentProject?.legacy_unreviewed"
+            class="legacy-isolation-banner"
+            role="status"
+            aria-label="历史内容隔离提示"
+          >
+            <strong>历史内容尚未审查</strong>
+            <p>{{ legacyNoticeText(currentProject.legacy_notice) }}</p>
+          </section>
           <RouterView />
         </div>
       </main>

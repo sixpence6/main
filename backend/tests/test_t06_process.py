@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import json
 import os
 import subprocess
@@ -11,6 +10,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from tests.conftest import BACKEND_DIR, MAIN_BACKEND_DIR, migrate
@@ -165,14 +165,15 @@ def test_real_process_returns_202_before_background_and_download_is_decodable(se
 
         asset_a = final_a["result_asset"]
         assert asset_a["availability"] == "available"
-        with urllib.request.urlopen(
-            f"http://127.0.0.1:{port}/api/assets/{asset_a['id']}?download=true", timeout=10
-        ) as response:
-            disposition = response.headers["Content-Disposition"]
-            downloaded = response.read()
-        assert project_a["id"] in disposition
-        assert "v1.png" in disposition
-        image = Image.open(io.BytesIO(downloaded))
+        # T01：真实进程同样不能绕过未审查门禁；字节仍保留在本地存储中。
+        with pytest.raises(urllib.error.HTTPError) as denied:
+            urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/assets/{asset_a['id']}?download=true", timeout=10
+            )
+        assert denied.value.code == 409
+        denied_body = json.loads(denied.value.read().decode("utf-8"))
+        assert denied_body["error"]["code"] == "ASSET_NOT_REVIEWED"
+        image = Image.open(settings.generated_dir / f"{asset_a['id']}.png")
         image.load()
         assert image.size == (1024, 1024)
     finally:

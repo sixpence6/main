@@ -3,7 +3,13 @@ import { computed, nextTick, ref, watch } from 'vue'
 import BriefCard from './BriefCard.vue'
 import ReferenceUploader from './ReferenceUploader.vue'
 import { useWorkspace } from '@/composables/useWorkspace'
-import { briefStatusLabel, displayProjectTitle, hasSnapshotContent, latestGeneration } from '@/utils/format'
+import {
+  briefStatusLabel,
+  displayProjectTitle,
+  hasSnapshotContent,
+  latestGeneration,
+  legacyNoticeText,
+} from '@/utils/format'
 
 const workspace = useWorkspace()
 const {
@@ -188,9 +194,12 @@ watch(
               <li v-for="message in projectMessages" :key="message.id" class="message-item">
                 <article :aria-label="messageRoleLabel(message.role) + '的消息'">
                   <p class="message-role">{{ messageRoleLabel(message.role) }}</p>
-                  <p class="message-content">{{ message.content }}</p>
+                  <p v-if="message.legacy_unreviewed" class="message-content legacy-placeholder">
+                    {{ legacyNoticeText(message.legacy_notice) }}
+                  </p>
+                  <p v-else class="message-content">{{ message.content }}</p>
                   <BriefCard
-                    v-if="message.role === 'assistant' && hasSnapshotContent(message.brief_snapshot)"
+                    v-if="!message.legacy_unreviewed && message.role === 'assistant' && hasSnapshotContent(message.brief_snapshot)"
                     :brief="message.brief_snapshot!"
                     heading="当时的需求快照"
                     snapshot

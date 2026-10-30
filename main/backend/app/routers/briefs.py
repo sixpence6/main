@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request
 from app.presenters import project_view
 from app.schemas import ERROR_RESPONSE, ConfirmRequest, ProjectView, UpdateBriefRequest
 from app.services.briefs import confirm_brief, update_brief
+from app.workflow.access import load_project_access_policy
 
 router = APIRouter(prefix="/api/projects", tags=["briefs"])
 
@@ -40,7 +41,14 @@ async def patch_brief(
         expected_revision=payload.expected_revision,
         changes=changes,  # type: ignore[arg-type]
     )
-    return project_view(result.project, result.reference_asset, state.settings.resolved_data_dir())
+    async with state.session_factory() as session:
+        policy = await load_project_access_policy(session, project_id)
+    return project_view(
+        result.project,
+        result.reference_asset,
+        state.settings.resolved_data_dir(),
+        policy=policy,
+    )
 
 
 @router.post(
@@ -59,4 +67,8 @@ async def post_confirm(project_id: str, payload: ConfirmRequest, request: Reques
         project_id=project_id,
         revision=payload.revision,
     )
-    return project_view(result.project, result.reference_asset, settings.resolved_data_dir())
+    async with state.session_factory() as session:
+        policy = await load_project_access_policy(session, project_id)
+    return project_view(
+        result.project, result.reference_asset, settings.resolved_data_dir(), policy=policy
+    )

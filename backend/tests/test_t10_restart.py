@@ -230,8 +230,11 @@ async def test_restart_repairs_organizing_queued_and_running_once(full_settings)
                 )
                 assert listed["status"] == "succeeded"
                 asset = await client.get(f"/api/assets/{success_asset_id}")
-                assert asset.status_code == 200
-                assert asset.headers["content-type"] == "image/png"
+                assert asset.status_code == 409
+                assert asset.json()["error"]["code"] == "ASSET_NOT_REVIEWED"
+                stored = full_settings.generated_dir / f"{success_asset_id}.png"
+                with Image.open(stored) as decoded:
+                    assert decoded.size == (1024, 1024)
 
             running = (await client.get(f"/api/generations/{running_id}")).json()
             assert running["status"] == "unknown"
@@ -495,9 +498,14 @@ def test_real_process_restart_preserves_unknown_state_and_respects_ack(full_sett
         success_generation = wait_generation_process(port, created["generation"]["id"])
         success_asset_id = success_generation["result_asset_id"]
         assert success_asset_id
-        status, headers, _body = request_bytes(port, f"/api/assets/{success_asset_id}")
-        assert status == 200
-        assert headers["Content-Type"].startswith("image/png")
+        try:
+            status, _headers, body = request_bytes(port, f"/api/assets/{success_asset_id}")
+        except urllib.error.HTTPError as error:
+            status, body = error.code, error.read()
+        assert status == 409
+        assert json.loads(body.decode("utf-8"))["error"]["code"] == "ASSET_NOT_REVIEWED"
+        with Image.open(full_settings.generated_dir / f"{success_asset_id}.png") as decoded:
+            assert decoded.size == (1024, 1024)
 
         running_project = create_confirmed_project_process(port)
         queued_project = create_confirmed_project_process(port)
@@ -553,9 +561,15 @@ def test_real_process_restart_preserves_unknown_state_and_respects_ack(full_sett
         current = start_restart_server(full_settings, current_port, marker, call_log)
         try:
             wait_for_health(current, current_port)
-            status, _headers, body = request_bytes(current_port, f"/api/assets/{success_asset_id}")
-            assert status == 200
-            with Image.open(io.BytesIO(body)) as decoded:
+            try:
+                status, _headers, body = request_bytes(
+                    current_port, f"/api/assets/{success_asset_id}"
+                )
+            except urllib.error.HTTPError as error:
+                status, body = error.code, error.read()
+            assert status == 409
+            assert json.loads(body.decode("utf-8"))["error"]["code"] == "ASSET_NOT_REVIEWED"
+            with Image.open(full_settings.generated_dir / f"{success_asset_id}.png") as decoded:
                 assert decoded.size == (1024, 1024)
 
             status, running = request_json(current_port, "GET", f"/api/generations/{running_id}")

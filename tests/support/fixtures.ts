@@ -233,6 +233,8 @@ export function sampleProject(overrides: Partial<ProjectView> = {}): ProjectView
     brief: sampleBrief(),
     reference_asset: null,
     brief_error: null,
+    legacy_unreviewed: false,
+    legacy_notice: null,
     created_at: '2026-10-20T02:00:00.000Z',
     updated_at: '2026-10-21T06:30:00.000Z',
     ...overrides,
@@ -245,6 +247,8 @@ export function sampleSummary(overrides: Partial<ProjectSummary> = {}): ProjectS
     title: '春季托特包主图',
     brief_status: 'review',
     latest_generation_status: null,
+    legacy_unreviewed: false,
+    legacy_notice: null,
     updated_at: '2026-10-21T06:30:00.000Z',
     ...overrides,
   }
@@ -258,6 +262,8 @@ export function sampleMessage(overrides: Partial<MessageView> = {}): MessageView
     content: '做一个米色亚麻托特包的电商主图',
     project_revision: 1,
     brief_snapshot: null,
+    legacy_unreviewed: false,
+    legacy_notice: null,
     created_at: '2026-10-20T02:01:00.000Z',
     ...overrides,
   }
@@ -283,6 +289,8 @@ export function sampleGeneration(overrides: Partial<GenerationView> = {}): Gener
     error: null,
     can_retrieve_result: false,
     retrieval_unavailable_reason: null,
+    legacy_unreviewed: false,
+    legacy_notice: null,
     created_at: '2026-10-21T06:00:00.000Z',
     started_at: '2026-10-21T06:00:01.000Z',
     completed_at: '2026-10-21T06:00:30.000Z',
@@ -300,6 +308,7 @@ export function sampleAsset(overrides: Partial<AssetView> = {}): AssetView {
     byte_size: 234_567,
     created_at: '2026-10-20T02:00:00.000Z',
     availability: 'available',
+    review_status: overrides.kind === 'generated' ? 'approved' : 'reference',
     ...overrides,
   }
 }

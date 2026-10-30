@@ -11,13 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.adapters.registry import AdapterRegistry
 from app.config import Settings
 from app.db import ProjectLocks, read_session, write_transaction
-from app.errors import ApiError, conflict, not_found_project
-from app.models import Asset, Generation, Project
+from app.errors import conflict, not_found_project
+from app.models import Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
+from app.workflow.access import load_project_access_policy
 from app.workflow.contracts import digest_payload, validate_data
 from app.workflow.schemas_workflow import (
-    ActionView,
     ApprovalView,
     ArtifactView,
     DeliveryView,
@@ -497,6 +497,21 @@ async def record_diagnostic(
         await session.flush()
 
 
+def _legacy_views(items: list[LegacyItem]) -> list[LegacyItemView]:
+    return [
+        LegacyItemView(
+            id=item.id,
+            kind=item.kind,
+            ref_id=item.ref_id,
+            status=item.status,
+            note=item.note,
+            reviewed_at=item.reviewed_at,
+            created_at=item.created_at,
+        )
+        for item in items
+    ]
+
+
 def _json_dict(value: str | None) -> dict[str, Any]:
     if not value:
         return {}
@@ -511,12 +526,24 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
     from app.workflow import dispatch
 
     if ctx.run is None:
+        # 尚未启动 v2 流程的项目也必须展示旧产物占位，不能因没有 run 而漏掉。
+        async with read_session(ctx.session_factory) as session:
+            legacy = list(
+                (
+                    await session.scalars(
+                        select(LegacyItem)
+                        .where(LegacyItem.project_id == ctx.project_id)
+                        .order_by(LegacyItem.created_at.asc())
+                    )
+                ).all()
+            )
         return WorkflowView(
             project_id=ctx.project_id,
             status="none",
             project_revision=ctx.project.revision,
             requirement_revision=ctx.project.revision,
             available_actions=[dispatch.action_view("submit_request")],
+            legacy=_legacy_views(legacy),
             updated_at=ctx.project.updated_at,
         )
 
@@ -548,6 +575,7 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
             .order_by(GenerationJob.created_at.desc())
             .limit(1)
         )
+        policy = await load_project_access_policy(session, ctx.project_id)
         delivery = None
         if job is not None:
             delivery = await session.scalar(
@@ -622,25 +650,16 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
         artifacts=artifact_views,
         approvals=approval_views,
         available_actions=dispatch.available_actions(ctx),
-        legacy=[
-            LegacyItemView(
-                id=item.id,
-                kind=item.kind,
-                ref_id=item.ref_id,
-                status=item.status,
-                note=item.note,
-                reviewed_at=item.reviewed_at,
-                created_at=item.created_at,
-            )
-            for item in legacy
-        ],
+        legacy=_legacy_views(list(legacy)),
         generation_job=(
             GenerationJobView(
                 id=job.id,
                 status=job.status,
                 request_id=job.request_id,
                 submit_attempted=job.submit_attempted,
-                result_asset_id=job.result_asset_id,
+                result_asset_id=(
+                    None if policy.hides_asset(job.result_asset_id) else job.result_asset_id
+                ),
                 error_code=job.error_code,
                 error_message=job.error_message,
                 created_at=job.created_at,
@@ -659,7 +678,7 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
                 published_at=delivery.published_at,
                 created_at=delivery.created_at,
             )
-            if delivery is not None
+            if delivery is not None and not policy.hides_asset(delivery.asset_id)
             else None
         ),
         updated_at=ctx.run.updated_at,

@@ -12,6 +12,7 @@ from app.errors import ApiError, conflict
 from app.models import Asset, Generation, Project
 from app.services.projects import require_project
 from app.timeutil import format_timestamp, utc_now
+from app.workflow.access import ensure_legacy_entry_available
 
 EDITABLE_FIELDS = ("product_description", "purpose", "style", "composition", "text_content")
 
@@ -57,6 +58,7 @@ async def update_brief(
     async with locks.hold(project_id):
         async with write_transaction(session_factory) as session:
             project = await require_project(session, project_id)
+            await ensure_legacy_entry_available(session, project_id)
             if project.revision != expected_revision:
                 raise conflict("REVISION_CONFLICT", "项目已被其他操作更新，请刷新后重试")
             if await _active_generation_count(session, project_id):
@@ -104,6 +106,7 @@ async def confirm_brief(
     async with locks.hold(project_id):
         async with write_transaction(session_factory) as session:
             project = await require_project(session, project_id)
+            await ensure_legacy_entry_available(session, project_id)
             if project.revision != revision:
                 raise conflict("REVISION_CONFLICT", "项目已被其他操作更新，请刷新后重试")
             if project.confirmed_revision == revision and project.brief_status == "confirmed":

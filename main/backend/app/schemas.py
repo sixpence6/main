@@ -7,6 +7,7 @@ from pydantic import UUID4, BaseModel, ConfigDict, Field, StrictBool, StrictInt,
 BriefStatus = Literal["draft", "organizing", "needs_input", "review", "confirmed"]
 GenerationStatus = Literal["queued", "running", "succeeded", "failed", "unknown"]
 GenerationStage = Literal["waiting_slot", "submitting", "waiting_remote", "fetching_result", "done"]
+AssetReviewStatus = Literal["reference", "quarantined", "approved", "rejected", "legacy_unreviewed"]
 
 
 class Brief(BaseModel):
@@ -29,6 +30,7 @@ class AssetView(BaseModel):
     byte_size: int
     created_at: str
     availability: Literal["available", "missing"]
+    review_status: AssetReviewStatus = "quarantined"
 
 
 class ErrorView(BaseModel):
@@ -55,6 +57,8 @@ class ProjectView(BaseModel):
     brief: Brief
     reference_asset: AssetView | None
     brief_error: ErrorView | None
+    legacy_unreviewed: bool = False
+    legacy_notice: str | None = None
     created_at: str
     updated_at: str
 
@@ -66,6 +70,8 @@ class MessageView(BaseModel):
     content: str
     project_revision: int
     brief_snapshot: Brief | None
+    legacy_unreviewed: bool = False
+    legacy_notice: str | None = None
     created_at: str
 
 
@@ -88,6 +94,8 @@ class GenerationView(BaseModel):
     error: ErrorView | None
     can_retrieve_result: bool
     retrieval_unavailable_reason: str | None
+    legacy_unreviewed: bool = False
+    legacy_notice: str | None = None
     created_at: str
     started_at: str | None
     completed_at: str | None
@@ -98,6 +106,8 @@ class ProjectSummary(BaseModel):
     title: str | None
     brief_status: BriefStatus
     latest_generation_status: GenerationStatus | None
+    legacy_unreviewed: bool = False
+    legacy_notice: str | None = None
     updated_at: str
 
 

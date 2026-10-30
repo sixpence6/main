@@ -193,17 +193,16 @@ async def test_failed_download_can_retrieve_same_version_and_downloads_real_file
         assert len(visual.submit_calls) == 1
 
         asset_id = restored["result_asset_id"]
+        # T01：重取成功不等于批准；公共资源入口保持失败关闭。
         preview = await client.get(f"/api/assets/{asset_id}")
-        assert preview.status_code == 200
-        assert preview.headers["content-type"] == "image/png"
-        with Image.open(io.BytesIO(preview.content)) as decoded:
+        assert preview.status_code == 409
+        assert preview.json()["error"]["code"] == "ASSET_NOT_REVIEWED"
+        stored = full_settings.generated_dir / f"{asset_id}.png"
+        with Image.open(stored) as decoded:
             assert decoded.size == (1024, 1024)
         download = await client.get(f"/api/assets/{asset_id}?download=true")
-        assert download.status_code == 200
-        disposition = download.headers["content-disposition"].lower()
-        assert "attachment" in disposition
-        assert project["id"] in disposition
-        assert "v1.png" in disposition
+        assert download.status_code == 409
+        assert download.json()["error"]["code"] == "ASSET_NOT_REVIEWED"
 
         detail = (await client.get(f"/api/projects/{project['id']}")).json()
         listed = next(item for item in detail["generations"] if item["id"] == failed["id"])
@@ -484,5 +483,8 @@ async def test_existing_success_is_preserved_when_newer_retrieval_fails(full_set
         assert old["result_asset_id"] == first_asset
         assert old["result_asset"]["availability"] == "available"
         preview = await client.get(f"/api/assets/{first_asset}")
-        assert preview.status_code == 200
+        assert preview.status_code == 409
+        assert preview.json()["error"]["code"] == "ASSET_NOT_REVIEWED"
+        with Image.open(full_settings.generated_dir / f"{first_asset}.png") as decoded:
+            assert decoded.size == (1024, 1024)
         assert len(visual.submit_calls) == 2

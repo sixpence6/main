@@ -1,6 +1,12 @@
 export type BriefStatus = 'draft' | 'organizing' | 'needs_input' | 'review' | 'confirmed'
 export type GenerationStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'unknown'
 export type AssetKind = 'reference' | 'generated'
+export type AssetReviewStatus =
+  | 'reference'
+  | 'quarantined'
+  | 'approved'
+  | 'rejected'
+  | 'legacy_unreviewed'
 export type GenerationStage =
   | 'waiting_slot'
   | 'submitting'
@@ -17,6 +23,7 @@ export interface AssetView {
   byte_size: number
   created_at: string
   availability: 'available' | 'missing'
+  review_status: AssetReviewStatus
 }
 
 export interface BriefFields {
@@ -51,6 +58,8 @@ export interface ProjectView {
   brief: Brief
   reference_asset: AssetView | null
   brief_error: ApiIssue | null
+  legacy_unreviewed: boolean
+  legacy_notice: string | null
   created_at: string
   updated_at: string
 }
@@ -62,6 +71,8 @@ export interface MessageView {
   content: string
   project_revision: number
   brief_snapshot: Brief | null
+  legacy_unreviewed: boolean
+  legacy_notice: string | null
   created_at: string
 }
 
@@ -84,6 +95,8 @@ export interface GenerationView {
   error: ApiIssue | null
   can_retrieve_result: boolean
   retrieval_unavailable_reason: string | null
+  legacy_unreviewed: boolean
+  legacy_notice: string | null
   created_at: string
   started_at: string | null
   completed_at: string | null
@@ -104,6 +117,8 @@ export interface ProjectSummary {
   title: string | null
   brief_status: BriefStatus
   latest_generation_status: GenerationStatus | null
+  legacy_unreviewed: boolean
+  legacy_notice: string | null
   updated_at: string
 }
 

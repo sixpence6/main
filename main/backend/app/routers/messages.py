@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request
 from app.presenters import message_view, project_view
 from app.schemas import ERROR_RESPONSE, MessageExchangeResponse, SendMessageRequest
 from app.services.messages import send_message
+from app.workflow.access import load_project_access_policy
 
 router = APIRouter(prefix="/api/projects", tags=["messages"])
 
@@ -36,8 +37,12 @@ async def send_message_endpoint(
         expected_revision=payload.expected_revision,
     )
     data_dir = state.settings.resolved_data_dir()
+    async with state.session_factory() as session:
+        policy = await load_project_access_policy(session, project_id)
     return MessageExchangeResponse(
-        project=project_view(exchange.project, exchange.reference_asset, data_dir),
-        user_message=message_view(exchange.user_message),
-        assistant_message=message_view(exchange.assistant_message),
+        project=project_view(
+            exchange.project, exchange.reference_asset, data_dir, policy=policy
+        ),
+        user_message=message_view(exchange.user_message, policy=policy),
+        assistant_message=message_view(exchange.assistant_message, policy=policy),
     )

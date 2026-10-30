@@ -1,5 +1,12 @@
 import type { Brief, BriefStatus, GenerationStatus, GenerationView } from '@/api/types'
 
+/** 历史模型产物未审查时的固定占位；不展示任何旧正文、提示词或图片。 */
+export const LEGACY_UNREVIEWED_NOTICE = '此历史内容尚未通过 v2 审查，暂不可查看或下载。可以主动发起补审。'
+
+export function legacyNoticeText(notice: string | null | undefined): string {
+  return notice?.trim() || LEGACY_UNREVIEWED_NOTICE
+}
+
 export const editableBriefFields = [
   { key: 'product_description', label: '商品描述' },
   { key: 'purpose', label: '图片用途' },
