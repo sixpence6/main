@@ -202,7 +202,9 @@ async def test_transient_poll_provider_error_retries_without_resubmitting(full_s
 
 @pytest.mark.asyncio
 async def test_total_wait_poll_exhaustion_is_unknown_with_remote_identity(full_settings):
-    settings = full_settings.model_copy(update={"visual_timeout_seconds": 1})
+    # 整套测试并行加载时，1 秒预算可能在首次 poll 前就被事件循环调度耗尽；
+    # 这里保留“总等待耗尽 -> unknown”的语义，同时给首次 poll 留出确定窗口。
+    settings = full_settings.model_copy(update={"visual_timeout_seconds": 3})
     locator = "https://cdn.example/late.png?signature=private"
     visual = VisualStub(
         submit_outcome=ProviderOutcome(state="pending", remote_task_id="task-timeout"),
@@ -218,7 +220,7 @@ async def test_total_wait_poll_exhaustion_is_unknown_with_remote_identity(full_s
     async with environment(settings, visual=visual) as (client, _registry, _llm, _visual):
         project = await create_confirmed_project(client)
         created = await submit(client, project)
-        finished = await wait_status(client, created["id"], {"unknown"}, timeout_seconds=4)
+        finished = await wait_status(client, created["id"], {"unknown"}, timeout_seconds=8)
         assert finished["stage"] == "waiting_remote"
         assert finished["remote_task_id"] == "task-timeout"
         assert finished["error"]["code"] == "VISUAL_OUTCOME_UNKNOWN"
