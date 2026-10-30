@@ -15,6 +15,7 @@ from app.errors import ApiError, not_found_project
 from app.models import Asset, Generation, Message, Project
 from app.schemas import ProjectSummary
 from app.timeutil import format_timestamp, utc_now
+from app.workflow.access import ProjectAccessPolicy, load_project_access_policies
 
 DEFAULT_LIST_LIMIT = 20
 MAX_LIST_LIMIT = 100
@@ -135,20 +136,28 @@ async def list_projects(
         projects = list((await session.scalars(statement)).all())
         page = projects[:limit]
         latest = await _latest_generation_statuses(session, [project.id for project in page])
+        policies = await load_project_access_policies(session, [project.id for project in page])
 
     next_cursor = None
     if len(projects) > limit and page:
         next_cursor = encode_cursor(page[-1].updated_at, page[-1].id)
-    items = [
-        ProjectSummary(
-            id=project.id,
-            title=project.title,
-            brief_status=project.brief_status,  # type: ignore[arg-type]
-            latest_generation_status=latest.get(project.id),  # type: ignore[arg-type]
-            updated_at=project.updated_at,
+    items = []
+    for project in page:
+        policy = policies[project.id]
+        hidden = policy.project_output_hidden
+        items.append(
+            ProjectSummary(
+                id=project.id,
+                title=project.title,
+                brief_status="draft" if hidden else project.brief_status,  # type: ignore[arg-type]
+                latest_generation_status=(
+                    "unknown" if hidden else latest.get(project.id)  # type: ignore[arg-type]
+                ),
+                legacy_unreviewed=hidden,
+                legacy_notice=policy.notice if hidden else None,
+                updated_at=project.updated_at,
+            )
         )
-        for project in page
-    ]
     return items, next_cursor
 
 
@@ -159,6 +168,7 @@ class ProjectDetail:
     generations: list[Generation]
     reference_asset: Asset | None
     result_assets: dict[str, Asset]
+    policy: ProjectAccessPolicy
 
 
 async def get_project_detail(
@@ -198,12 +208,14 @@ async def get_project_detail(
         if result_ids:
             for asset in await session.scalars(select(Asset).where(Asset.id.in_(result_ids))):
                 result_assets[asset.id] = asset
+        policy = await load_project_access_policies(session, [project_id])
     return ProjectDetail(
         project=project,
         messages=messages,
         generations=generations,
         reference_asset=reference_asset,
         result_assets=result_assets,
+        policy=policy[project_id],
     )
 
 

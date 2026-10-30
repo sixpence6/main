@@ -26,6 +26,7 @@ from app.services.assets import resolve_asset_file
 from app.services.projects import DEFAULT_PROJECT_TITLE, require_project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates as workflow_templates
+from app.workflow.access import ensure_legacy_entry_available
 from app.workflow.tables import WorkflowRun
 
 logger = logging.getLogger("app.messages")
@@ -171,6 +172,8 @@ async def send_message(
                 "LEGACY_FLOW_DISABLED",
                 workflow_templates.render("LEGACY_FLOW_DISABLED"),
             )
+        # 旧项目的模型整理入口必须由后端统一暂停，前端禁用不具备授权效力。
+        await ensure_legacy_entry_available(session, project_id)
     role = ensure_llm_ready(settings, registry)
 
     async with locks.hold(project_id):

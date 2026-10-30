@@ -4,6 +4,7 @@ import { assetUrl } from '@/api/client'
 import type { WorkflowAction, WorkflowArtifact } from '@/api/workflow'
 import { useWorkflow } from '@/composables/useWorkflow'
 import { useWorkspace } from '@/composables/useWorkspace'
+import { LEGACY_UNREVIEWED_NOTICE } from '@/utils/format'
 
 const { currentProject } = useWorkspace()
 const projectId = computed(() => currentProject.value?.id ?? null)
@@ -37,6 +38,12 @@ const STATUS_LABELS: Record<string, string> = {
   failed: '已暂停',
 }
 
+const LEGACY_KIND_LABELS: Record<string, string> = {
+  message: '历史消息',
+  generation: '历史生成记录',
+  asset: '历史图片',
+}
+
 const ARTIFACT_LABELS: Record<string, string> = {
   reference_report: '参考图分析',
   brief_draft: '需求草稿',
@@ -68,6 +75,10 @@ const approvedArtifacts = computed<WorkflowArtifact[]>(() => {
 
 function artifactLabel(kind: string): string {
   return ARTIFACT_LABELS[kind] ?? kind
+}
+
+function legacyKindLabel(kind: string): string {
+  return LEGACY_KIND_LABELS[kind] ?? '历史内容'
 }
 
 function payloadLines(payload: Record<string, unknown>): string[] {
@@ -188,8 +199,11 @@ async function submit(action: WorkflowAction): Promise<void> {
       <h4>历史内容</h4>
       <ul>
         <li v-for="item in view.legacy" :key="item.id">
-          <span>{{ item.kind }}</span>
+          <span>{{ legacyKindLabel(item.kind) }}</span>
           <span>{{ item.status === 'legacy_unreviewed' ? '尚未通过 v2 审查' : '已补审' }}</span>
+          <span v-if="item.status === 'legacy_unreviewed'" class="muted">
+            {{ LEGACY_UNREVIEWED_NOTICE }}
+          </span>
         </li>
       </ul>
     </div>

@@ -265,17 +265,17 @@ async def test_reference_bytes_reach_visual_and_feedback_keeps_original_referenc
         assert assistant_snapshots[0]["style"] == "干净明亮"
         assert assistant_snapshots[1]["style"] == "温暖柔和"
 
-        for generation, expected_bytes, expected_version in (
-            (first, first_image, "v1.png"),
-            (second, second_image, "v2.png"),
-        ):
+        # T01：版本历史仍保留，但未审查结果不能从旧下载入口取得。
+        for generation, expected_bytes in ((first, first_image), (second, second_image)):
             download = await client.get(
                 f"/api/assets/{generation['result_asset_id']}?download=true"
             )
-            assert download.status_code == 200
-            assert download.content == expected_bytes
-            assert expected_version in download.headers["content-disposition"].lower()
-            assert download.headers["content-type"] == "image/png"
+            assert download.status_code == 409
+            assert download.json()["error"]["code"] == "ASSET_NOT_REVIEWED"
+            stored = full_settings.generated_dir / f"{generation['result_asset_id']}.png"
+            assert stored.read_bytes() == expected_bytes
+            with Image.open(stored) as decoded:
+                assert decoded.size == (1024, 1024)
 
 
 @pytest.mark.asyncio
@@ -337,8 +337,9 @@ async def test_replacing_reference_invalidates_confirmation_and_new_snapshot_use
         assert old_generation["reference_asset_id"] == old_reference_id
         assert old_generation["result_asset_id"] == old_result_id
         old_download = await client.get(f"/api/assets/{old_result_id}?download=true")
-        assert old_download.status_code == 200
-        assert old_download.content == first_image
+        assert old_download.status_code == 409
+        assert old_download.json()["error"]["code"] == "ASSET_NOT_REVIEWED"
+        assert (full_settings.generated_dir / f"{old_result_id}.png").read_bytes() == first_image
         new_generation = project_detail["generations"][1]
         assert new_generation["reference_asset_id"] == new_reference_id
         assert project_detail["project"]["reference_asset"]["id"] == new_reference_id
@@ -431,8 +432,10 @@ async def test_failure_does_not_reuse_version_and_old_success_stays_downloadable
         assert project_detail["generations"][2]["result_asset_id"] == third["result_asset_id"]
         assert len({item["id"] for item in project_detail["generations"]}) == 3
         old_download = await client.get(f"/api/assets/{first['result_asset_id']}?download=true")
-        assert old_download.status_code == 200
-        assert old_download.content == first_image
+        assert old_download.status_code == 409
+        assert old_download.json()["error"]["code"] == "ASSET_NOT_REVIEWED"
+        stored = full_settings.generated_dir / f"{first['result_asset_id']}.png"
+        assert stored.read_bytes() == first_image
         assert len(visual.submit_calls) == 3
 
 

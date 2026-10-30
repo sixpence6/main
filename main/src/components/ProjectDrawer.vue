@@ -6,6 +6,7 @@ import {
   displayProjectTitle,
   formatDateTime,
   generationStatusLabel,
+  legacyNoticeText,
 } from '@/utils/format'
 
 const workspace = useWorkspace()
@@ -68,7 +69,11 @@ function startNewProject(): void {
           <span class="project-list-meta">
             <time :datetime="project.updated_at">{{ formatDateTime(project.updated_at) }}</time>
           </span>
-          <span class="project-list-badges">
+          <span v-if="project.legacy_unreviewed" class="project-list-badges">
+            <span class="status-badge legacy-badge">历史内容尚未审查</span>
+            <span class="project-list-legacy">{{ legacyNoticeText(project.legacy_notice) }}</span>
+          </span>
+          <span v-else class="project-list-badges">
             <span class="status-badge">{{ briefStatusLabel(project.brief_status) }}</span>
             <span v-if="project.latest_generation_status" class="status-badge">
               生成：{{ generationStatusLabel(project.latest_generation_status) }}

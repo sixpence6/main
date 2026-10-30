@@ -75,10 +75,13 @@ async def get_project_endpoint(request: Request, project_id: str) -> ProjectDeta
                 data_dir,
                 can_retrieve_result=info.can_retrieve,
                 retrieval_unavailable_reason=info.reason,
+                policy=detail.policy,
             )
         )
     return ProjectDetailResponse(
-        project=project_view(detail.project, detail.reference_asset, data_dir),
-        messages=[message_view(message) for message in detail.messages],
+        project=project_view(
+            detail.project, detail.reference_asset, data_dir, policy=detail.policy
+        ),
+        messages=[message_view(message, policy=detail.policy) for message in detail.messages],
         generations=generation_views,
     )

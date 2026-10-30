@@ -24,6 +24,7 @@ from app.services.generations import (
     service_fingerprint,
 )
 from app.timeutil import format_timestamp, utc_now
+from app.workflow.access import ensure_legacy_entry_available
 
 logger = logging.getLogger("app.retrieval")
 
@@ -256,6 +257,8 @@ async def retrieve_result(
     generation, asset, project, active_generation_id = await _load_generation(
         session_factory, generation_id
     )
+    async with read_session(session_factory) as session:
+        await ensure_legacy_entry_available(session, generation.project_id)
     if generation.status == "succeeded":
         return generation, asset
 

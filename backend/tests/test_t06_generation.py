@@ -142,19 +142,18 @@ async def test_confirmed_project_generates_real_local_result(full_settings):
         assert generation["error"] is None
 
         asset_id = generation["result_asset_id"]
+        # T01：新生成资产默认未审查，公共资源入口必须失败关闭。
         preview = await client.get(f"/api/assets/{asset_id}")
-        assert preview.status_code == 200
-        assert preview.headers["content-type"] == "image/png"
-        with Image.open(io.BytesIO(preview.content)) as decoded:
+        assert preview.status_code == 409
+        assert preview.json()["error"]["code"] == "ASSET_NOT_REVIEWED"
+        stored = full_settings.generated_dir / f"{asset_id}.png"
+        with Image.open(stored) as decoded:
             assert decoded.size == (1024, 1024)
 
         download = await client.get(f"/api/assets/{asset_id}?download=true")
-        assert download.status_code == 200
-        disposition = download.headers["content-disposition"].lower()
-        assert "attachment" in disposition
-        assert project["id"] in disposition
-        assert "v1.png" in disposition
-        with Image.open(io.BytesIO(download.content)) as decoded:
+        assert download.status_code == 409
+        assert download.json()["error"]["code"] == "ASSET_NOT_REVIEWED"
+        with Image.open(stored) as decoded:
             assert decoded.size == (1024, 1024)
 
         detail = (await client.get(f"/api/projects/{project['id']}")).json()
@@ -205,7 +204,8 @@ async def test_same_request_idempotent_and_double_click_submits_once(full_settin
         second = await client.post(f"/api/projects/{project['id']}/generations", json=payload)
         assert second.status_code == 200, second.text
         assert second.json()["generation"]["id"] == generation_id
-        assert visual.submit_calls == []
+        # 后台任务可能已进入首次提交，但重复点击不得产生第二次提交。
+        assert len(visual.submit_calls) <= 1
 
         visual.gate.set()
         await wait_status(client, generation_id, {"succeeded"})

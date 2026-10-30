@@ -22,6 +22,12 @@ from app.services.assets import (
     remove_reference,
     require_asset_file,
 )
+from app.workflow import templates
+from app.workflow.access import (
+    can_access_asset,
+    ensure_legacy_entry_available,
+    load_project_access_policy,
+)
 
 router = APIRouter(tags=["assets"])
 
@@ -101,6 +107,10 @@ async def upload_reference(project_id: str, request: Request) -> ProjectView:
     except ImageValidationError as exc:
         raise ApiError(422, exc.code, exc.message) from None
 
+    # 旧项目的写入口必须在落库和写文件之前暂停，不能依赖前端禁用。
+    async with state.session_factory() as session:
+        await ensure_legacy_entry_available(session, project_id)
+
     result = await attach_reference(
         state.session_factory,
         state.locks,
@@ -110,7 +120,11 @@ async def upload_reference(project_id: str, request: Request) -> ProjectView:
         data=data,
         image=image,
     )
-    return project_view(result.project, result.asset, settings.resolved_data_dir())
+    async with state.session_factory() as session:
+        policy = await load_project_access_policy(session, project_id)
+    return project_view(
+        result.project, result.asset, settings.resolved_data_dir(), policy=policy
+    )
 
 
 @router.delete(
@@ -124,13 +138,22 @@ async def delete_reference(
     expected_revision: int = Query(ge=0),
 ) -> ProjectView:
     state = request.app.state
+    async with state.session_factory() as session:
+        await ensure_legacy_entry_available(session, project_id)
     result = await remove_reference(
         state.session_factory,
         state.locks,
         project_id=project_id,
         expected_revision=expected_revision,
     )
-    return project_view(result.project, result.asset, state.settings.resolved_data_dir())
+    async with state.session_factory() as session:
+        policy = await load_project_access_policy(session, project_id)
+    return project_view(
+        result.project,
+        result.asset,
+        state.settings.resolved_data_dir(),
+        policy=policy,
+    )
 
 
 @router.get(
@@ -155,6 +178,16 @@ async def read_asset(
         asset = await session.get(Asset, asset_id)
         if asset is None:
             raise ApiError(404, "ASSET_NOT_FOUND", "资源不存在")
+        decision = await can_access_asset(session, state.settings, asset, download=download)
+        if not decision.allow:
+            code = decision.reason_code or "ASSET_UNAVAILABLE"
+            message = (
+                templates.render("LEGACY_UNREVIEWED")
+                if code == "LEGACY_UNREVIEWED"
+                else templates.render("ASSET_UNAVAILABLE")
+            )
+            # 门禁拒绝发生在读取文件之前，绝不返回任何旧产物字节。
+            raise ApiError(409, code, message)
         filename = await download_name(session, asset)
     path = require_asset_file(state.settings, asset)
     return FileResponse(

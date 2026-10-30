@@ -15,6 +15,7 @@ from app.services.generations import (
     submit_generation_and_schedule,
 )
 from app.services.retrieval import load_retrieval_info, retrieve_result
+from app.workflow.access import load_project_access_policy
 
 router = APIRouter(tags=["generations"])
 
@@ -48,11 +49,14 @@ async def submit_generation_endpoint(
     )
     if not result.created:
         response.status_code = 200
+    async with state.session_factory() as session:
+        policy = await load_project_access_policy(session, project_id)
     return GenerationResponse(
         generation=generation_view(
             result.generation,
             result.result_asset,
             state.settings.resolved_data_dir(),
+            policy=policy,
         )
     )
 
@@ -65,6 +69,8 @@ async def submit_generation_endpoint(
 async def get_generation_endpoint(request: Request, generation_id: str) -> GenerationView:
     state = request.app.state
     generation, result_asset = await load_generation(state.session_factory, generation_id)
+    async with state.session_factory() as session:
+        policy = await load_project_access_policy(session, generation.project_id)
     info = await load_retrieval_info(
         state.session_factory, state.settings, state.registry, generation
     )
@@ -74,6 +80,7 @@ async def get_generation_endpoint(request: Request, generation_id: str) -> Gener
         state.settings.resolved_data_dir(),
         can_retrieve_result=info.can_retrieve,
         retrieval_unavailable_reason=info.reason,
+        policy=policy,
     )
 
 
@@ -92,6 +99,8 @@ async def retrieve_generation_result_endpoint(
 ) -> GenerationView:
     state = request.app.state
     generation, result_asset = await retrieve_result(request.app, generation_id)
+    async with state.session_factory() as session:
+        policy = await load_project_access_policy(session, generation.project_id)
     info = await load_retrieval_info(
         state.session_factory, state.settings, state.registry, generation
     )
@@ -101,4 +110,5 @@ async def retrieve_generation_result_endpoint(
         state.settings.resolved_data_dir(),
         can_retrieve_result=info.can_retrieve,
         retrieval_unavailable_reason=info.reason,
+        policy=policy,
     )

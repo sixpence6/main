@@ -36,6 +36,7 @@ from app.services.assets import (
 )
 from app.services.projects import require_project
 from app.timeutil import format_timestamp, utc_now
+from app.workflow.access import ensure_legacy_entry_available
 
 logger = logging.getLogger("app.generations")
 
@@ -242,6 +243,8 @@ async def submit_generation(
     )
 
     async with read_session(session_factory) as session:
+        # 幂等重放也必须先过门禁，旧 succeeded 记录不能借原请求标识重新暴露。
+        await ensure_legacy_entry_available(session, project_id)
         existing = await _find_by_request(session, project_id, request_id)
     if existing is not None:
         return await _existing_result(session_factory, existing, canonical=canonical)

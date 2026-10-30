@@ -333,6 +333,11 @@ function createWorkspace(): WorkspaceStore {
   let generationQueryFailures = 0
   let pendingGenerationRequest: PendingGenerationRequest | null = null
 
+  // 旧产物即使被错误标成 succeeded，也不得进入结果选择或发起图片请求。
+  function isDisplayableSucceeded(item: GenerationView): boolean {
+    return item.status === 'succeeded' && !item.legacy_unreviewed
+  }
+
   const latestGenerationView = computed<GenerationView | null>(() => {
     let latest: GenerationView | null = null
     for (const item of projectGenerations.value) {
@@ -343,7 +348,7 @@ function createWorkspace(): WorkspaceStore {
   const latestSucceededGeneration = computed<GenerationView | null>(() => {
     let latest: GenerationView | null = null
     for (const item of projectGenerations.value) {
-      if (item.status !== 'succeeded') continue
+      if (!isDisplayableSucceeded(item)) continue
       if (!latest || item.version_no > latest.version_no) latest = item
     }
     return latest
@@ -387,7 +392,7 @@ function createWorkspace(): WorkspaceStore {
 
   const succeededGenerations = computed<GenerationView[]>(() => {
     return projectGenerations.value
-      .filter((item) => item.status === 'succeeded')
+      .filter(isDisplayableSucceeded)
       .slice()
       .sort((a, b) => {
         if (a.version_no !== b.version_no) return a.version_no - b.version_no
@@ -403,7 +408,7 @@ function createWorkspace(): WorkspaceStore {
   const selectedResultGeneration = computed<GenerationView | null>(() => {
     const id = selectedResultGenerationId.value
     if (id) {
-      const match = projectGenerations.value.find((item) => item.id === id && item.status === 'succeeded')
+      const match = projectGenerations.value.find((item) => item.id === id && isDisplayableSucceeded(item))
       if (match) return match
     }
     return latestSucceededGeneration.value
@@ -418,7 +423,7 @@ function createWorkspace(): WorkspaceStore {
     }
     const currentId = selectedResultGenerationId.value
     const currentExists = Boolean(
-      currentId && projectGenerations.value.some((item) => item.id === currentId && item.status === 'succeeded'),
+      currentId && projectGenerations.value.some((item) => item.id === currentId && isDisplayableSucceeded(item)),
     )
     if (followLatest || !currentExists) {
       selectedResultGenerationId.value = latest.id
@@ -427,7 +432,7 @@ function createWorkspace(): WorkspaceStore {
   }
 
   function selectResultGeneration(id: string): void {
-    const target = projectGenerations.value.find((item) => item.id === id && item.status === 'succeeded')
+    const target = projectGenerations.value.find((item) => item.id === id && isDisplayableSucceeded(item))
     if (!target) return
     selectedResultGenerationId.value = target.id
     resultSelectionPinned = true
