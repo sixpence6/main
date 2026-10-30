@@ -7,8 +7,8 @@ from fastapi import APIRouter, Request
 from app.errors import ApiError, conflict
 from app.schemas import ERROR_RESPONSE
 from app.workflow import dispatch, state
-from app.workflow.stages.s01 import validate_text
 from app.workflow.schemas_workflow import WorkflowActionRequest, WorkflowView
+from app.workflow.stages.s01 import validate_text
 
 router = APIRouter(prefix="/api/projects/{project_id}/workflow", tags=["workflow"])
 
@@ -69,13 +69,19 @@ async def run_action(
                 # cannot leave a workflow with no request and no available action.
                 validate_text(data)
                 await state.create_run(ctx, "S01")
+            elif action_id == "review_legacy_item":
+                # A legacy project has no workflow run until the user explicitly
+                # selects one historical target; s11 creates the review run.
+                pass
             else:
                 raise ApiError(
                     409, "ACTION_NOT_AVAILABLE", "当前状态不支持此操作，请先完成提示的步骤。"
                 )
         else:
             module = dispatch.owner_for_stage(ctx.run.stage)
-            if module is None or action_id not in module.ACTIONS:
+            if action_id != "review_legacy_item" and (
+                module is None or action_id not in module.ACTIONS
+            ):
                 # A repeated confirmation may arrive after the first click has
                 # already advanced S06 to S07. Replaying it through S06 is safe
                 # only while S07 is current and an active requirements-card

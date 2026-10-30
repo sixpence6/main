@@ -5,6 +5,7 @@ import type {
   WorkflowAction,
   WorkflowApproval,
   WorkflowArtifact,
+  WorkflowLegacyItem,
 } from '@/api/workflow'
 import { useWorkflow } from '@/composables/useWorkflow'
 import { useWorkspace } from '@/composables/useWorkspace'
@@ -251,9 +252,12 @@ const hasRun = computed(() => Boolean(view.value?.run_id))
 
 const visibleActions = computed(() => {
   const actions = view.value?.available_actions ?? []
-  return actions.filter((action) =>
-    action.id === 'confirm_requirements' ? confirmationState.value === 'pending' : true,
-  )
+  return actions.filter((action) => {
+    if (action.id === 'review_legacy_item') return false
+    return action.id === 'confirm_requirements'
+      ? confirmationState.value === 'pending'
+      : true
+  })
 })
 
 const generationJobPending = computed(() => view.value?.generation_job?.status === 'quarantined')
@@ -330,6 +334,18 @@ function actionPayload(action: WorkflowAction): Record<string, unknown> {
     }
   }
   return {}
+}
+
+async function reviewLegacy(item: WorkflowLegacyItem): Promise<void> {
+  const action: WorkflowAction = {
+    id: 'review_legacy_item',
+    label: '补审历史内容',
+    kind: 'button',
+    requires_text: false,
+    text_label: null,
+    requires_confirmation: false,
+  }
+  await runAction(action, null, { item_id: item.id })
 }
 
 async function submit(action: WorkflowAction): Promise<void> {
@@ -568,6 +584,15 @@ watch(
           <span v-if="item.status === 'legacy_unreviewed'" class="muted">
             {{ LEGACY_UNREVIEWED_NOTICE }}
           </span>
+          <button
+            v-if="item.status === 'legacy_unreviewed'"
+            type="button"
+            class="text-button"
+            :disabled="actionBusy"
+            @click="reviewLegacy(item)"
+          >
+            补审此历史内容
+          </button>
         </li>
       </ul>
     </div>
