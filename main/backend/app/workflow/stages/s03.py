@@ -493,8 +493,13 @@ async def _compose(
                 allowed_evidence_ids=evidence,
                 attempt=attempt,
             )
-        except ApiError:
-            await _fail_run(ctx, "SERVICE_UNAVAILABLE")
+        except ApiError as exc:
+            await _fail_run(
+                ctx,
+                "CAPABILITY_NOT_READY"
+                if exc.code == "CAPABILITY_NOT_READY"
+                else "SERVICE_UNAVAILABLE",
+            )
             raise
 
         if output.status in {"needs_input", "blocked"}:

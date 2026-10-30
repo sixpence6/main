@@ -12,7 +12,7 @@ from app.errors import ApiError
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import prompts, templates
 from app.workflow.contracts import ContractError, digest_payload, validate_role_output
-from app.workflow.state import WorkflowContext, latest_approval
+from app.workflow.state import WorkflowContext, latest_approval, record_diagnostic
 from app.workflow.tables import RoleCall
 
 
@@ -123,59 +123,84 @@ async def _record_call(
     return call
 
 
-async def run_role(
+async def _record_recovery_failure(
+    ctx: WorkflowContext,
+    *,
+    role: str,
+    stage: str,
+    capability: str,
+    attempt: int,
+    status: str,
+    request_digest: str,
+    request_json: str,
+    error_code: str,
+    role_call_id: str | None,
+) -> None:
+    """Persist the exact safe request needed for an explicit manual continue.
+
+    This row is internal diagnostic state, never a public view field. It stores
+    no provider URL, key, raw exception body or model reasoning; only the
+    already-validated role request, its digest and non-secret error category.
+    """
+    detail: dict[str, Any] = {
+        "operation_id": str(uuid4()),
+        "run_id": ctx.run_id,
+        "project_id": ctx.project_id,
+        "role": role,
+        "stage": stage,
+        "capability": capability,
+        "phase": "review" if role == "output_reviewer" else "producer",
+        "attempt": attempt,
+        "status": status,
+        "error_code": error_code,
+        "request_digest": request_digest,
+        "request_json": request_json,
+        "role_call_id": role_call_id,
+        "project_revision": ctx.project.revision,
+        "requirement_revision": (
+            ctx.run.requirement_revision if ctx.run is not None else ctx.project.revision
+        ),
+        "reference_asset_id": ctx.project.reference_asset_id,
+    }
+    try:
+        parsed = json.loads(request_json)
+        payload = parsed.get("payload") if isinstance(parsed, dict) else None
+        if isinstance(payload, dict):
+            detail["input_digest"] = digest_payload(payload.get("input_data"))
+            detail["approved_inputs_digest"] = digest_payload(
+                payload.get("approved_inputs") or []
+            )
+            targets = payload.get("review_targets") or []
+            if targets and isinstance(targets[0], dict):
+                detail["target_id"] = targets[0].get("target_id")
+                detail["target_kind"] = targets[0].get("target_kind")
+    except ValueError:
+        detail["input_digest"] = ""
+    await record_diagnostic(ctx, "recovery_checkpoint", detail)
+
+
+async def _run_request(
     ctx: WorkflowContext,
     role: str,
     stage: str,
-    input_data: Any,
-    approved_inputs: Any = None,
-    review_targets: Any = None,
-    repair_codes: list[str] | None = None,
-    images: tuple[Any, ...] | None = None,
+    system_prompt: str,
+    payload: dict[str, Any],
+    *,
+    images: tuple[Any, ...] = (),
     capability: str | None = None,
     attempt: int = 1,
-    required_rule_ids: tuple[str, ...] = (),
-    allowed_evidence_ids: tuple[str, ...] = (),
 ) -> RoleOutput:
-    """Run exactly one model role call, with strict validation and no retry."""
-    resolved_capability = capability or ("VISION" if images else "TEXT")
-    llm, reason = _capability_ready(ctx, resolved_capability)
-    if llm is None:
-        raise _capability_error(resolved_capability, reason)
-    adapter = ctx.registry.build_llm(llm, ctx.http)
-    if adapter is None:
-        raise _capability_error(resolved_capability, "适配器不可用")
+    """Run exactly one role request with strict validation and no retry.
 
-    generation_authorized = await latest_approval(ctx, "generation_prompt") is not None
-    size = ctx.project.image_size or ctx.settings.visual().image_size
-    payload: dict[str, Any] = {
-        "task": {
-            "run_id": ctx.run_id,
-            "revision": ctx.run.requirement_revision if ctx.run is not None else ctx.project.revision,
-            "stage": stage,
-            "role": role,
-            "attempt": attempt,
-            "required_rule_ids": list(required_rule_ids),
-            "allowed_evidence_ids": list(allowed_evidence_ids),
-        },
-        "state": {
-            "brief_confirmed": (
-                ctx.project.brief_status == "confirmed"
-                and ctx.project.confirmed_revision == ctx.project.revision
-            ),
-            "generation_authorized": generation_authorized,
-        },
-        "capabilities": {"size": size, "count": 1},
-        "input_data": _jsonable(input_data),
-        "approved_inputs": _jsonable(approved_inputs if approved_inputs is not None else []),
-        "review_targets": _jsonable(review_targets or []),
-        "repair_codes": list(repair_codes or []),
-    }
-    system_prompt = prompts.build_system_prompt(role)
+    Capability and adapter checks happen after the request is assembled so a
+    technical capability failure can still be recovered from its persisted
+    request without guessing inputs.
+    """
+    resolved_capability = capability or ("VISION" if images else "TEXT")
     request = RoleRequest(
         system_prompt=system_prompt,
         payload=payload,
-        images=tuple(images or ()),
+        images=tuple(images),
     )
     request_digest = digest_payload({"system": system_prompt, "payload": payload})
     request_json = json.dumps(
@@ -185,12 +210,43 @@ async def run_role(
     )
     started_at = format_timestamp(utc_now())
 
+    llm, reason = _capability_ready(ctx, resolved_capability)
+    if llm is None:
+        await _record_recovery_failure(
+            ctx,
+            role=role,
+            stage=stage,
+            capability=resolved_capability,
+            attempt=attempt,
+            status="error",
+            request_digest=request_digest,
+            request_json=request_json,
+            error_code="CAPABILITY_NOT_READY",
+            role_call_id=None,
+        )
+        raise _capability_error(resolved_capability, reason)
+    adapter = ctx.registry.build_llm(llm, ctx.http)
+    if adapter is None:
+        await _record_recovery_failure(
+            ctx,
+            role=role,
+            stage=stage,
+            capability=resolved_capability,
+            attempt=attempt,
+            status="error",
+            request_digest=request_digest,
+            request_json=request_json,
+            error_code="CAPABILITY_NOT_READY",
+            role_call_id=None,
+        )
+        raise _capability_error(resolved_capability, "适配器不可用")
+
     try:
         response = await asyncio.wait_for(
             adapter.complete(request), timeout=llm.timeout_seconds
         )
     except asyncio.TimeoutError:
-        await _record_call(
+        call = await _record_call(
             ctx,
             role=role,
             stage=stage,
@@ -205,13 +261,25 @@ async def run_role(
             model_fingerprint=None,
             started_at=started_at,
         )
+        await _record_recovery_failure(
+            ctx,
+            role=role,
+            stage=stage,
+            capability=resolved_capability,
+            attempt=attempt,
+            status="timeout",
+            request_digest=request_digest,
+            request_json=request_json,
+            error_code="LLM_TIMEOUT",
+            role_call_id=call.id,
+        )
         raise ApiError(
             503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE")
         ) from None
     except ProviderError as exc:
         timed_out = (exc.error_code or "") == "LLM_TIMEOUT"
         invalid = (exc.error_code or "") == "LLM_RESPONSE_INVALID"
-        await _record_call(
+        call = await _record_call(
             ctx,
             role=role,
             stage=stage,
@@ -226,6 +294,18 @@ async def run_role(
             model_fingerprint=None,
             started_at=started_at,
         )
+        await _record_recovery_failure(
+            ctx,
+            role=role,
+            stage=stage,
+            capability=resolved_capability,
+            attempt=attempt,
+            status=call.status,
+            request_digest=request_digest,
+            request_json=request_json,
+            error_code=exc.error_code or "PROVIDER_ERROR",
+            role_call_id=call.id,
+        )
         raise ApiError(
             503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE")
         ) from None
@@ -234,7 +314,7 @@ async def run_role(
     try:
         envelope = validate_role_output(role, raw)
     except ContractError:
-        await _record_call(
+        call = await _record_call(
             ctx,
             role=role,
             stage=stage,
@@ -248,6 +328,18 @@ async def run_role(
             error_message="模型输出不符合 v2.0.0 契约",
             model_fingerprint=response.model_fingerprint,
             started_at=started_at,
+        )
+        await _record_recovery_failure(
+            ctx,
+            role=role,
+            stage=stage,
+            capability=resolved_capability,
+            attempt=attempt,
+            status="invalid",
+            request_digest=request_digest,
+            request_json=request_json,
+            error_code="CONTRACT_INVALID",
+            role_call_id=call.id,
         )
         raise ApiError(
             503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE")
@@ -281,4 +373,102 @@ async def run_role(
     )
 
 
-__all__ = ["RoleOutput", "run_role"]
+async def run_role(
+    ctx: WorkflowContext,
+    role: str,
+    stage: str,
+    input_data: Any,
+    approved_inputs: Any = None,
+    review_targets: Any = None,
+    repair_codes: list[str] | None = None,
+    images: tuple[Any, ...] | None = None,
+    capability: str | None = None,
+    attempt: int = 1,
+    required_rule_ids: tuple[str, ...] = (),
+    allowed_evidence_ids: tuple[str, ...] = (),
+) -> RoleOutput:
+    """Run exactly one fresh model role call, with strict validation and no retry."""
+    generation_authorized = await latest_approval(ctx, "generation_prompt") is not None
+    size = ctx.project.image_size or ctx.settings.visual().image_size
+    payload: dict[str, Any] = {
+        "task": {
+            "run_id": ctx.run_id,
+            "revision": (
+                ctx.run.requirement_revision if ctx.run is not None else ctx.project.revision
+            ),
+            "stage": stage,
+            "role": role,
+            "attempt": attempt,
+            "required_rule_ids": list(required_rule_ids),
+            "allowed_evidence_ids": list(allowed_evidence_ids),
+        },
+        "state": {
+            "brief_confirmed": (
+                ctx.project.brief_status == "confirmed"
+                and ctx.project.confirmed_revision == ctx.project.revision
+            ),
+            "generation_authorized": generation_authorized,
+        },
+        "capabilities": {"size": size, "count": 1},
+        "input_data": _jsonable(input_data),
+        "approved_inputs": _jsonable(approved_inputs if approved_inputs is not None else []),
+        "review_targets": _jsonable(review_targets or []),
+        "repair_codes": list(repair_codes or []),
+    }
+    return await _run_request(
+        ctx,
+        role,
+        stage,
+        prompts.build_system_prompt(role),
+        payload,
+        images=tuple(images or ()),
+        capability=capability,
+        attempt=attempt,
+    )
+
+
+async def run_role_request(
+    ctx: WorkflowContext,
+    role: str,
+    stage: str,
+    request_json: str,
+    *,
+    images: tuple[Any, ...] = (),
+    capability: str | None = None,
+    attempt: int = 1,
+) -> RoleOutput:
+    """Replay the exact persisted role request after an explicit manual continue.
+
+    This is not an automatic retry: callers must have checked a persisted
+    recovery checkpoint and the user's explicit action first. The stored request
+    is not regenerated from mutable inputs.
+    """
+    try:
+        parsed = json.loads(request_json)
+    except ValueError:
+        raise ApiError(
+            409, "RECOVERY_INVALID", templates.render("ACTION_UNAVAILABLE")
+        ) from None
+    if not isinstance(parsed, dict):
+        raise ApiError(
+            409, "RECOVERY_INVALID", templates.render("ACTION_UNAVAILABLE")
+        )
+    system_prompt = parsed.get("system")
+    payload = parsed.get("payload")
+    if not isinstance(system_prompt, str) or not isinstance(payload, dict):
+        raise ApiError(
+            409, "RECOVERY_INVALID", templates.render("ACTION_UNAVAILABLE")
+        )
+    return await _run_request(
+        ctx,
+        role,
+        stage,
+        system_prompt,
+        payload,
+        images=tuple(images or ()),
+        capability=capability,
+        attempt=attempt,
+    )
+
+
+__all__ = ["RoleOutput", "run_role", "run_role_request"]

@@ -88,12 +88,7 @@ def owner_for_stage(stage: str):
     }.get(stage)
 
 
-def available_actions(ctx: WorkflowContext) -> list[ActionView]:
-    if ctx.run is None:
-        return [action_view("submit_request")]
-    module = owner_for_stage(ctx.run.stage)
-    if module is None:
-        return []
+def _views_for(module: Any, ctx: WorkflowContext) -> list[ActionView]:
     views: list[ActionView] = []
     for item in module.available(ctx):
         if isinstance(item, ActionView):
@@ -118,6 +113,32 @@ def available_actions(ctx: WorkflowContext) -> list[ActionView]:
     return views
 
 
+def recovery_action_available(ctx: WorkflowContext, action_id: str) -> bool:
+    if ctx.run is None or action_id not in s12.ACTIONS:
+        return False
+    if action_id == "continue_workflow":
+        # Allow the idempotent repeat after a successful manual continue. The
+        # stage handler still rejects requests with no persisted checkpoint.
+        return ctx.run.status in {"active", "blocked", "failed"}
+    return action_id in s12.available(ctx)
+
+
+def available_actions(ctx: WorkflowContext) -> list[ActionView]:
+    if ctx.run is None:
+        return [action_view("submit_request")]
+    # A technical failure exposes only the explicit recovery action. The stage
+    # that failed remains current; it never auto-advances or re-calls a model
+    # from a GET/status refresh.
+    if ctx.run.status == "failed" or (
+        ctx.run.status == "blocked" and ctx.run.issue_code == "REVIEW_UNAVAILABLE"
+    ):
+        return _views_for(s12, ctx)
+    module = owner_for_stage(ctx.run.stage)
+    if module is None:
+        return []
+    return _views_for(module, ctx)
+
+
 async def handle_action(
     ctx: WorkflowContext, action: str, payload: dict[str, Any]
 ) -> None:
@@ -130,6 +151,7 @@ async def handle_action(
 __all__ = [
     "ACTION_OWNER",
     "action_view",
+    "recovery_action_available",
     "known_actions",
     "owner",
     "available_actions",

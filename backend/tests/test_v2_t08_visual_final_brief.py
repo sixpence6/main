@@ -607,7 +607,7 @@ async def test_visual_technical_failure_has_zero_automatic_retries(full_settings
         view = await _view(client, project["id"])
         assert view["status"] == "failed"
         assert _artifact(view, "visual_plan") is None
-        assert [action["id"] for action in view["available_actions"]] == ["plan_visual"]
+        assert [action["id"] for action in view["available_actions"]] == ["continue_workflow"]
 
         # A manual retry is allowed; it is a user action, not an automatic replay.
         retry = await _act(client, project["id"], "plan_visual")

@@ -93,7 +93,10 @@ async def run_action(
                     and ctx.run.stage == "S07"
                     and await state.latest_approval(ctx, "requirements_card") is not None
                 )
-                if not (replay_confirmation or revise_after_confirmation):
+                # Technical failures keep the failed stage current; only the
+                # explicit S12 continue action may reopen that same checkpoint.
+                recovery_action = dispatch.recovery_action_available(ctx, action_id)
+                if not (replay_confirmation or revise_after_confirmation or recovery_action):
                     raise ApiError(
                         409, "ACTION_NOT_AVAILABLE", "当前状态不支持此操作，请先完成提示的步骤。"
                     )

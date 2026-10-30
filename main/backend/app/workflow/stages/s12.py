@@ -1,25 +1,774 @@
 from __future__ import annotations
 
+import asyncio
+import json
 from typing import Any
 
-from app.errors import ApiError
+from sqlalchemy import select
+
+from app.adapters.base import OrganizeImage
+from app.db import read_session
+from app.errors import ApiError, conflict
+from app.models import Asset, Message, Project
 from app.workflow import templates
-from app.workflow.state import WorkflowContext
+from app.workflow.roles import (
+    RoleOutput,
+    _capability_error,
+    _capability_ready,
+    run_role,
+    run_role_request,
+)
+from app.workflow.stages import s01, s02, s03, s04, s05
+from app.workflow.state import (
+    WorkflowContext,
+    add_review,
+    latest_artifact,
+    record_diagnostic,
+    set_artifact_status,
+    set_intent,
+    set_stage,
+)
+from app.workflow.tables import (
+    Artifact,
+    DiagnosticEvent,
+    RevisionBudget,
+    RoleCall,
+    WorkflowRun,
+)
 
 STAGE = "S12"
 ACTIONS = [
     "continue_workflow",
     "recover_submission",
     "resume_after_restart",
-    "cleanup_expired"
+    "cleanup_expired",
 ]
+
+_TECHNICAL_RUN_CODES = {"SERVICE_UNAVAILABLE", "REVIEW_UNAVAILABLE", "CAPABILITY_NOT_READY"}
+_RECOVERABLE_CALL_STATUSES = {"error", "timeout"}
+_ARTIFACT_KIND_BY_STAGE = {
+    "S02": "reference_report",
+    "S03": "brief_draft",
+    "S04": "creative_direction",
+    "S05": "visual_plan",
+    "S07": "prompt_plan",
+    "S09": "quality_report",
+    "S10": "delivery_manifest",
+}
 
 
 def available(ctx: WorkflowContext) -> list[dict[str, Any]]:
+    if ctx.run is None:
+        return []
+    if ctx.run.status == "failed":
+        return ["continue_workflow"]
+    if ctx.run.status == "blocked" and ctx.run.issue_code == "REVIEW_UNAVAILABLE":
+        return ["continue_workflow"]
     return []
 
 
-async def handle(
-    ctx: WorkflowContext, action: str, payload: dict[str, Any]
-) -> None:
-    raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+def _fixed_service() -> ApiError:
+    return ApiError(503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE"))
+
+
+def _fixed_review() -> ApiError:
+    return ApiError(503, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
+
+
+def _stale() -> ApiError:
+    return conflict("STALE_RECOVERY", templates.render("RUN_SUPERSEDED"))
+
+
+def _unavailable() -> ApiError:
+    return conflict("ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+
+
+def _json_dict(value: str | None) -> dict[str, Any]:
+    if not value:
+        return {}
+    try:
+        parsed = json.loads(value)
+    except ValueError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+async def _latest_checkpoint(ctx: WorkflowContext) -> dict[str, Any] | None:
+    async with read_session(ctx.session_factory) as session:
+        events = list(
+            (
+                await session.scalars(
+                    select(DiagnosticEvent)
+                    .where(
+                        DiagnosticEvent.project_id == ctx.project_id,
+                        DiagnosticEvent.event == "recovery_checkpoint",
+                    )
+                    .order_by(DiagnosticEvent.created_at.desc())
+                    .limit(64)
+                )
+            ).all()
+        )
+    for event in events:
+        detail = _json_dict(event.detail_json)
+        if detail.get("run_id") == ctx.run_id:
+            return detail
+    return None
+
+
+async def _is_resumed(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> bool:
+    operation_id = checkpoint.get("operation_id")
+    if not operation_id:
+        return False
+    async with read_session(ctx.session_factory) as session:
+        events = list(
+            (
+                await session.scalars(
+                    select(DiagnosticEvent)
+                    .where(
+                        DiagnosticEvent.project_id == ctx.project_id,
+                        DiagnosticEvent.event == "recovery_resumed",
+                    )
+                    .order_by(DiagnosticEvent.created_at.desc())
+                    .limit(64)
+                )
+            ).all()
+        )
+    return any(
+        _json_dict(event.detail_json).get("operation_id") == operation_id for event in events
+    )
+
+
+def _verify_checkpoint(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    if checkpoint.get("stage") != ctx.run.stage:
+        raise _stale()
+    if checkpoint.get("project_revision") != ctx.project.revision:
+        raise _stale()
+    if checkpoint.get("requirement_revision") != ctx.run.requirement_revision:
+        raise _stale()
+    if checkpoint.get("reference_asset_id") != ctx.project.reference_asset_id:
+        raise _stale()
+
+
+async def _ensure_budget(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    if checkpoint.get("phase") == "review":
+        return
+    kind = _ARTIFACT_KIND_BY_STAGE.get(str(checkpoint.get("stage")))
+    if not kind:
+        return
+    async with read_session(ctx.session_factory) as session:
+        budget = await session.get(RevisionBudget, (ctx.run_id, kind))
+    if budget is not None and budget.used >= budget.max_allowed:
+        raise conflict(
+            "REVISION_BUDGET_EXHAUSTED",
+            "该产物已达到最多三次候选的上限，请保留当前结果或重新开始流程",
+        )
+
+
+def _ensure_capability(ctx: WorkflowContext, capability: str) -> None:
+    llm, reason = _capability_ready(ctx, capability)
+    if llm is None:
+        raise _capability_error(capability, reason)
+
+
+async def _vision_images(ctx: WorkflowContext) -> tuple[OrganizeImage, ...]:
+    if not ctx.project.reference_asset_id:
+        return ()
+    async with read_session(ctx.session_factory) as session:
+        asset = await session.get(Asset, ctx.project.reference_asset_id)
+    if asset is None:
+        raise conflict("REFERENCE_NOT_FOUND", templates.render("REFERENCE_INVALID"))
+    from app.services.assets import resolve_asset_file
+
+    path = resolve_asset_file(ctx.settings, asset)
+    if path is None:
+        raise conflict("REFERENCE_NOT_FOUND", templates.render("REFERENCE_INVALID"))
+    try:
+        data = await asyncio.to_thread(path.read_bytes)
+    except OSError:
+        raise conflict("REFERENCE_NOT_FOUND", templates.render("REFERENCE_INVALID")) from None
+    return (OrganizeImage(data=data, mime_type=asset.mime_type),)
+
+
+async def _artifact_by_id(ctx: WorkflowContext, artifact_id: str) -> Artifact | None:
+    async with read_session(ctx.session_factory) as session:
+        artifact = await session.get(Artifact, artifact_id)
+    if artifact is None or artifact.project_id != ctx.project_id or artifact.run_id != ctx.run_id:
+        return None
+    return artifact
+
+
+async def _latest_user_message(ctx: WorkflowContext) -> Message | None:
+    async with read_session(ctx.session_factory) as session:
+        return await session.scalar(
+            select(Message)
+            .where(Message.project_id == ctx.project_id, Message.role == "user")
+            .order_by(Message.sequence_no.desc())
+            .limit(1)
+        )
+
+
+async def _apply_s01_route(ctx: WorkflowContext, target: dict[str, Any]) -> None:
+    route = str(target.get("route"))
+    action = str(target.get("action"))
+    await set_intent(ctx, route, action)
+    message = await _latest_user_message(ctx)
+    revision = message.project_revision if message is not None else ctx.project.revision
+    if route in {"out_of_scope", "mixed"}:
+        await s01._append_assistant(ctx, templates.render("SCOPE_REFUSAL"), revision)
+        await set_stage(
+            ctx,
+            "S01",
+            "blocked",
+            issue_code="MIXED_SCOPE" if route == "mixed" else "OUT_OF_SCOPE",
+            template_id="SCOPE_REFUSAL",
+        )
+        return
+    if route == "unclear":
+        await s01._append_assistant(ctx, templates.render("INTENT_UNCLEAR"), revision)
+        await set_stage(
+            ctx,
+            "S01",
+            "needs_input",
+            issue_code="MISSING_INPUT",
+            template_id="INTENT_UNCLEAR",
+        )
+        return
+    if route == "workflow_action":
+        await s01._append_assistant(ctx, templates.render("INTENT_UNCLEAR"), revision)
+        await set_stage(
+            ctx,
+            "S01",
+            "needs_input",
+            issue_code="UNAUTHORIZED_ACTION",
+            template_id="INTENT_UNCLEAR",
+        )
+        return
+    next_stage = "S02" if ctx.project.reference_asset_id else "S03"
+    await set_stage(ctx, next_stage, "active")
+
+
+async def _resume_s01_producer(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    message = await _latest_user_message(ctx)
+    if message is None:
+        raise _unavailable()
+    text = message.content
+    evidence_id = message.id
+    available_actions = (
+        ["answer_intent_clarification"]
+        if ctx.run is not None and ctx.run.status in {"needs_input", "blocked"}
+        else ["submit_request"]
+    )
+    try:
+        intent = await run_role(
+            ctx,
+            "intent_router",
+            "S01",
+            {
+                "user_text": text,
+                "current_stage": ctx.run.stage if ctx.run else "S01",
+                "current_status": ctx.run.status if ctx.run else "none",
+                "reference_asset_id": ctx.project.reference_asset_id,
+                "available_actions": available_actions,
+            },
+            required_rule_ids=s01._REQUIRED_RULES,
+            allowed_evidence_ids=(evidence_id,),
+            attempt=int(checkpoint.get("attempt") or 1),
+        )
+        route, action = s01._validate_intent(intent, evidence_id)
+        review = await run_role(
+            ctx,
+            "output_reviewer",
+            "S01",
+            {"reviewed_role": "intent_router", "target_kind": "intent_route"},
+            review_targets=[
+                {
+                    "target_id": evidence_id,
+                    "target_kind": "intent_route",
+                    "user_text": text,
+                    "route": route,
+                    "action": action,
+                }
+            ],
+            required_rule_ids=s01._REQUIRED_RULES,
+            allowed_evidence_ids=(evidence_id,),
+            attempt=int(checkpoint.get("attempt") or 1),
+        )
+        s01._validate_review(review, evidence_id)
+    except ApiError as exc:
+        template_id = (
+            "CAPABILITY_NOT_READY"
+            if exc.code == "CAPABILITY_NOT_READY"
+            else (
+                "REVIEW_UNAVAILABLE" if exc.code == "REVIEW_UNAVAILABLE" else "SERVICE_UNAVAILABLE"
+            )
+        )
+        await set_stage(ctx, "S01", "failed", issue_code=template_id, template_id=template_id)
+        raise
+    await _apply_s01_route(ctx, {"route": route, "action": action, "target_id": evidence_id})
+
+
+async def _resume_s01_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    request_raw = str(checkpoint.get("request_json") or "")
+    request = _json_dict(request_raw)
+    payload = request.get("payload") if isinstance(request.get("payload"), dict) else {}
+    targets = payload.get("review_targets") or []
+    if not targets or not isinstance(targets[0], dict):
+        raise _unavailable()
+    target = targets[0]
+    target_id = str(target.get("target_id") or "")
+    try:
+        output = await run_role_request(
+            ctx,
+            "output_reviewer",
+            "S01",
+            request_raw,
+            capability="TEXT",
+            attempt=int(checkpoint.get("attempt") or 1),
+        )
+        s01._validate_review(output, target_id)
+    except ApiError as exc:
+        template_id = (
+            "CAPABILITY_NOT_READY" if exc.code == "CAPABILITY_NOT_READY" else "REVIEW_UNAVAILABLE"
+        )
+        await set_stage(ctx, "S01", "failed", issue_code=template_id, template_id=template_id)
+        raise
+    await _apply_s01_route(ctx, target)
+
+
+async def _resume_s03_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    request_raw = str(checkpoint.get("request_json") or "")
+    request = _json_dict(request_raw)
+    payload = request.get("payload") if isinstance(request.get("payload"), dict) else {}
+    targets = payload.get("review_targets") or []
+    target = targets[0] if targets and isinstance(targets[0], dict) else {}
+    target_id = str(target.get("target_id") or "")
+    artifact = await _artifact_by_id(ctx, target_id)
+    if artifact is not None:
+        latest = await latest_artifact(ctx, "brief_draft")
+        if latest is None or latest.id != artifact.id or artifact.status != "candidate":
+            if artifact.status == "candidate":
+                await set_artifact_status(ctx, artifact.id, "superseded")
+            raise _stale()
+        allowed = set(payload.get("task", {}).get("allowed_evidence_ids") or []) | {target_id}
+        try:
+            output = await run_role_request(
+                ctx,
+                "output_reviewer",
+                "S03",
+                request_raw,
+                capability="TEXT",
+                attempt=int(checkpoint.get("attempt") or 1),
+            )
+            decision, checks, _repair = s03._validate_review(
+                output, target_id=target_id, allowed_evidence=allowed
+            )
+        except ApiError:
+            await set_stage(
+                ctx,
+                "S03",
+                "failed",
+                issue_code="REVIEW_UNAVAILABLE",
+                template_id="REVIEW_UNAVAILABLE",
+            )
+            raise _fixed_review() from None
+        if ctx.project.revision != checkpoint.get(
+            "project_revision"
+        ) or ctx.run.requirement_revision != checkpoint.get("requirement_revision"):
+            await set_artifact_status(ctx, artifact.id, "superseded")
+            raise _stale()
+        await add_review(
+            ctx,
+            artifact,
+            reviewer_role="output_reviewer",
+            decision=decision,
+            checks=checks,
+            raw=output.data,
+        )
+        if decision == "pass":
+            await set_stage(ctx, "S04", "active")
+        else:
+            await set_stage(
+                ctx,
+                "S03",
+                "blocked",
+                issue_code=f"REVIEW_{decision.upper()}",
+                template_id="REVIEW_UNAVAILABLE",
+            )
+        return
+
+    # A needs_input candidate has no artifact. Replay its review, then show the
+    # already-produced questions only after the reviewer passes.
+    async with read_session(ctx.session_factory) as session:
+        producer_call = await session.scalar(
+            select(RoleCall)
+            .where(
+                RoleCall.run_id == ctx.run_id,
+                RoleCall.role == "requirements_consultant",
+                RoleCall.status == "ok",
+            )
+            .order_by(RoleCall.started_at.desc())
+            .limit(1)
+        )
+    if producer_call is None or not producer_call.response_json:
+        raise _unavailable()
+    response = _json_dict(producer_call.response_json)
+    try:
+        output = await run_role_request(
+            ctx,
+            "output_reviewer",
+            "S03",
+            request_raw,
+            capability="TEXT",
+            attempt=int(checkpoint.get("attempt") or 1),
+        )
+        decision, _checks, _repair = s03._validate_review(
+            output,
+            target_id=target_id,
+            allowed_evidence=set(payload.get("task", {}).get("allowed_evidence_ids") or [])
+            | {target_id},
+        )
+    except ApiError:
+        await set_stage(
+            ctx,
+            "S03",
+            "failed",
+            issue_code="REVIEW_UNAVAILABLE",
+            template_id="REVIEW_UNAVAILABLE",
+        )
+        raise _fixed_review() from None
+    if decision != "pass":
+        await set_stage(
+            ctx,
+            "S03",
+            "blocked",
+            issue_code=f"REVIEW_{decision.upper()}",
+            template_id="REVIEW_UNAVAILABLE",
+        )
+        return
+    role_output = RoleOutput(
+        role="requirements_consultant",
+        status=str(response.get("status") or ""),
+        data=response.get("data") if isinstance(response.get("data"), dict) else None,
+        issues=response.get("issues") or [],
+        questions=response.get("questions") or [],
+    )
+    if role_output.status != "needs_input":
+        raise _stale()
+    await set_stage(
+        ctx,
+        "S03",
+        "needs_input",
+        issue_code="MISSING_INPUT",
+        message=s03._joined_questions(role_output),
+    )
+
+
+async def _resume_s04_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    request_raw = str(checkpoint.get("request_json") or "")
+    request = _json_dict(request_raw)
+    payload = request.get("payload") if isinstance(request.get("payload"), dict) else {}
+    targets = payload.get("review_targets") or []
+    target = targets[0] if targets and isinstance(targets[0], dict) else {}
+    target_id = str(target.get("target_id") or "")
+    artifact = await _artifact_by_id(ctx, target_id)
+    if artifact is None or artifact.kind != "creative_direction" or artifact.status != "candidate":
+        raise _stale()
+    latest = await latest_artifact(ctx, "creative_direction")
+    if latest is None or latest.id != artifact.id:
+        raise _stale()
+    allowed = set(payload.get("task", {}).get("allowed_evidence_ids") or []) | {target_id}
+    try:
+        output = await run_role_request(
+            ctx,
+            "output_reviewer",
+            "S04",
+            request_raw,
+            capability="TEXT",
+            attempt=int(checkpoint.get("attempt") or 1),
+        )
+        decision, checks = s04._validate_review_shape(output, target_id, allowed)
+    except ApiError:
+        await set_stage(
+            ctx,
+            "S04",
+            "blocked",
+            issue_code="REVIEW_UNAVAILABLE",
+            template_id="REVIEW_UNAVAILABLE",
+        )
+        raise _fixed_review() from None
+    if ctx.project.revision != checkpoint.get("project_revision"):
+        await set_artifact_status(ctx, artifact.id, "superseded")
+        raise _stale()
+    await add_review(
+        ctx,
+        artifact,
+        reviewer_role="output_reviewer",
+        decision=decision,
+        checks={"checks": checks, "rule_ids": list(s04.REQUIRED_RULES)},
+    )
+    if decision == "pass":
+        await set_stage(ctx, "S05", "active")
+        return
+    if decision == "revise":
+        await set_stage(
+            ctx,
+            "S04",
+            "blocked",
+            issue_code="REVIEW_REVISE",
+            template_id="ACTION_UNAVAILABLE",
+        )
+    elif decision == "unknown":
+        await set_stage(
+            ctx,
+            "S04",
+            "blocked",
+            issue_code="REVIEW_UNKNOWN",
+            template_id="REVIEW_UNAVAILABLE",
+        )
+    else:
+        await set_stage(
+            ctx,
+            "S04",
+            "blocked",
+            issue_code="REVIEW_REJECTED",
+            template_id="ACTION_UNAVAILABLE",
+        )
+
+
+async def _resume_s02_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    request_raw = str(checkpoint.get("request_json") or "")
+    request = _json_dict(request_raw)
+    payload = request.get("payload") if isinstance(request.get("payload"), dict) else {}
+    targets = payload.get("review_targets") or []
+    target = targets[0] if targets and isinstance(targets[0], dict) else {}
+    target_id = str(target.get("target_id") or "")
+    artifact = await latest_artifact(ctx, "reference_report")
+    if artifact is None or artifact.id != target_id or artifact.status != "candidate":
+        raise _stale()
+    try:
+        asset, _data, image = await s02._load_reference(ctx)
+    except Exception:
+        raise conflict("REFERENCE_NOT_FOUND", templates.render("REFERENCE_INVALID")) from None
+    image_evidence = s02.image_evidence_id(asset.id)
+    try:
+        review = await run_role_request(
+            ctx,
+            "output_reviewer",
+            "S02",
+            request_raw,
+            images=(image,),
+            capability="VISION",
+            attempt=int(checkpoint.get("attempt") or 1),
+        )
+        decision, checks = s02._validate_review(review, target_id, image_evidence)
+    except ApiError as exc:
+        template_id = (
+            "CAPABILITY_NOT_READY" if exc.code == "CAPABILITY_NOT_READY" else "REVIEW_UNAVAILABLE"
+        )
+        await set_stage(ctx, "S02", "failed", issue_code=template_id, template_id=template_id)
+        raise (
+            _fixed_review()
+            if template_id == "REVIEW_UNAVAILABLE"
+            else _capability_error("VISION", "未配置")
+        ) from None
+    if (
+        ctx.project.revision != checkpoint.get("project_revision")
+        or ctx.run.requirement_revision != checkpoint.get("requirement_revision")
+        or ctx.project.reference_asset_id != checkpoint.get("reference_asset_id")
+    ):
+        await set_artifact_status(ctx, artifact.id, "superseded")
+        raise _stale()
+    await add_review(
+        ctx,
+        artifact,
+        reviewer_role="output_reviewer",
+        decision=decision,
+        checks=checks,
+        target_kind="artifact",
+        raw={"results": review.data.get("results") if review.data else []},
+    )
+    if decision == "pass":
+        await s02._advance_after_usage(ctx)
+    else:
+        await set_stage(
+            ctx,
+            "S02",
+            "blocked",
+            issue_code="G02_" + decision.upper(),
+            template_id="REVIEW_UNAVAILABLE",
+        )
+
+
+async def _resume_s05_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    request_raw = str(checkpoint.get("request_json") or "")
+    request = _json_dict(request_raw)
+    payload = request.get("payload") if isinstance(request.get("payload"), dict) else {}
+    targets = payload.get("review_targets") or []
+    target = targets[0] if targets and isinstance(targets[0], dict) else {}
+    target_id = str(target.get("target_id") or "")
+    artifact = await _artifact_by_id(ctx, target_id)
+    if artifact is None or artifact.status != "candidate":
+        raise _stale()
+    required_rules = tuple(payload.get("task", {}).get("required_rule_ids") or [])
+    allowed = set(payload.get("task", {}).get("allowed_evidence_ids") or []) | {artifact.id}
+    try:
+        output = await run_role_request(
+            ctx,
+            "output_reviewer",
+            "S05",
+            request_raw,
+            capability="TEXT",
+            attempt=int(checkpoint.get("attempt") or 1),
+        )
+        decision, checks = s05._validate_review(output, artifact.id, required_rules, allowed)
+        dependencies = target.get("dependencies") or []
+        if dependencies:
+            await s05._verify_dependencies(
+                ctx, dependencies, int(checkpoint.get("project_revision") or ctx.project.revision)
+            )
+    except ApiError:
+        await set_stage(
+            ctx,
+            "S05",
+            "blocked",
+            issue_code="REVIEW_UNAVAILABLE",
+            template_id="REVIEW_UNAVAILABLE",
+        )
+        raise _fixed_review() from None
+    if ctx.project.revision != checkpoint.get("project_revision"):
+        await set_artifact_status(ctx, artifact.id, "superseded")
+        raise _stale()
+    await add_review(
+        ctx,
+        artifact,
+        reviewer_role="output_reviewer",
+        decision=decision,
+        checks={"checks": checks},
+        raw={"results": output.data.get("results") if output.data else []},
+    )
+    if decision == "pass":
+        if artifact.kind == "final_brief":
+            await set_stage(ctx, "S06", "active")
+        else:
+            await set_stage(ctx, "S05", "active")
+    else:
+        await set_stage(
+            ctx,
+            "S05",
+            "blocked",
+            issue_code="REVIEW_" + decision.upper(),
+            template_id="REVIEW_UNAVAILABLE",
+        )
+
+
+async def _resume_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    stage = str(checkpoint.get("stage"))
+    if stage == "S01":
+        await _resume_s01_review(ctx, checkpoint)
+    elif stage == "S03":
+        await _resume_s03_review(ctx, checkpoint)
+    elif stage == "S04":
+        await _resume_s04_review(ctx, checkpoint)
+    elif stage == "S02":
+        await _resume_s02_review(ctx, checkpoint)
+    elif stage == "S05":
+        await _resume_s05_review(ctx, checkpoint)
+    else:
+        raise _unavailable()
+
+
+async def _resume_producer(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    stage = str(checkpoint.get("stage"))
+    if stage == "S01":
+        await _resume_s01_producer(ctx, checkpoint)
+        return
+    if stage == "S03":
+        await s03._compose(ctx, "compose_brief", None)
+        return
+    if stage == "S04":
+        await s04._plan(ctx)
+        return
+    if stage == "S05":
+        await s05._plan_visual(ctx, {})
+        return
+    if stage == "S02":
+        await s02.analyze(ctx)
+        return
+    raise _unavailable()
+
+
+async def _guard_after_recovery(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    async with read_session(ctx.session_factory) as session:
+        project = await session.get(Project, ctx.project_id)
+        run = await session.get(WorkflowRun, ctx.run_id)
+    if project is None or run is None:
+        raise _stale()
+    if project.revision != checkpoint.get(
+        "project_revision"
+    ) or run.requirement_revision != checkpoint.get("requirement_revision"):
+        kind = _ARTIFACT_KIND_BY_STAGE.get(str(checkpoint.get("stage")))
+        if kind:
+            latest = await latest_artifact(ctx, kind)
+            if latest is not None and latest.status in {"candidate", "approved"}:
+                await set_artifact_status(ctx, latest.id, "superseded")
+        await set_stage(
+            ctx,
+            str(checkpoint.get("stage")),
+            "blocked",
+            issue_code="RUN_SUPERSEDED",
+            template_id="RUN_SUPERSEDED",
+        )
+        raise _stale()
+
+
+async def _record_resumed(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    await record_diagnostic(
+        ctx,
+        "recovery_resumed",
+        {
+            "operation_id": checkpoint.get("operation_id"),
+            "run_id": ctx.run_id,
+            "stage": checkpoint.get("stage"),
+            "role": checkpoint.get("role"),
+            "phase": checkpoint.get("phase"),
+        },
+    )
+
+
+async def _continue(ctx: WorkflowContext) -> None:
+    if ctx.run is None:
+        raise _unavailable()
+    checkpoint = await _latest_checkpoint(ctx)
+    if checkpoint is None:
+        raise _unavailable()
+    # A repeated click or HTTP resend after a successful manual continue is a
+    # no-op returning the current view; it never invokes a model again.
+    if await _is_resumed(ctx, checkpoint) and ctx.run.status != "failed":
+        return
+    if str(checkpoint.get("stage")) != str(ctx.run.stage):
+        raise _stale()
+    if ctx.run.status not in {"failed", "blocked"}:
+        raise _unavailable()
+    if checkpoint.get("status") not in _RECOVERABLE_CALL_STATUSES | {"capability"}:
+        raise _unavailable()
+    _verify_checkpoint(ctx, checkpoint)
+    await _ensure_budget(ctx, checkpoint)
+    capability = str(checkpoint.get("capability") or "TEXT")
+    _ensure_capability(ctx, capability)
+    if checkpoint.get("phase") == "review":
+        await _resume_review(ctx, checkpoint)
+    else:
+        await _resume_producer(ctx, checkpoint)
+    await _guard_after_recovery(ctx, checkpoint)
+    await _record_resumed(ctx, checkpoint)
+
+
+async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
+    if action not in ACTIONS:
+        raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    if action != "continue_workflow":
+        raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    await _continue(ctx)
+
+
+__all__ = ["STAGE", "ACTIONS", "available", "handle"]

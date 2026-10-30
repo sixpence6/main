@@ -279,9 +279,14 @@ async def _route(ctx: WorkflowContext, text: str) -> None:
             attempt=1,
         )
         _validate_review(review, evidence_id)
-    except ApiError:
+    except ApiError as exc:
         # Technical failure never turns into a guessed route or an auto retry.
-        template_id = "REVIEW_UNAVAILABLE" if phase == "review" else "SERVICE_UNAVAILABLE"
+        if exc.code == "CAPABILITY_NOT_READY":
+            template_id = "CAPABILITY_NOT_READY"
+        else:
+            template_id = (
+                "REVIEW_UNAVAILABLE" if phase == "review" else "SERVICE_UNAVAILABLE"
+            )
         await set_stage(
             ctx,
             STAGE,
