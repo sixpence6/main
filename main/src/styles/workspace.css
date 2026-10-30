@@ -2267,6 +2267,27 @@ body,
   margin-left: auto;
 }
 
+.workflow-reference {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-page);
+}
+
+.workflow-reference h4 {
+  margin: 0;
+}
+
+.workflow-reference-image {
+  width: 160px;
+  max-width: 100%;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--color-border);
+}
+
 .workflow-loading,
 .workflow-issue {
   margin: 0;

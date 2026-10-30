@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { assetUrl } from '@/api/client'
 import type { WorkflowAction, WorkflowArtifact } from '@/api/workflow'
 import { useWorkflow } from '@/composables/useWorkflow'
@@ -12,6 +12,7 @@ const { view, loading, error, actionBusy, refresh, runAction } = useWorkflow(pro
 
 const actionText = ref<Record<string, string>>({})
 const actionConfirmed = ref<Record<string, boolean>>({})
+const actionUsage = ref<Record<string, string>>({})
 const actionError = ref('')
 
 const STAGE_LABELS: Record<string, string> = {
@@ -56,6 +57,7 @@ const ARTIFACT_LABELS: Record<string, string> = {
 }
 
 const visible = computed(() => Boolean(view.value))
+const referenceAsset = computed(() => currentProject.value?.reference_asset ?? null)
 const stageLabel = computed(() =>
   view.value?.stage ? STAGE_LABELS[view.value.stage] ?? view.value.stage : '',
 )
@@ -99,6 +101,14 @@ function payloadLines(payload: Record<string, unknown>): string[] {
   })
 }
 
+function usageValue(action: WorkflowAction): string {
+  return actionUsage.value[action.id] ?? 'product'
+}
+
+function onUsageChange(action: WorkflowAction, event: Event): void {
+  actionUsage.value[action.id] = (event.target as HTMLSelectElement).value
+}
+
 function canSubmit(action: WorkflowAction): boolean {
   if (actionBusy.value) return false
   if (action.requires_text && !(actionText.value[action.id] ?? '').trim()) return false
@@ -114,12 +124,30 @@ async function submit(action: WorkflowAction): Promise<void> {
   }
   const text = action.requires_text ? (actionText.value[action.id] ?? '').trim() : null
   const payload: Record<string, unknown> = {}
+  if (action.id === 'confirm_reference_usage') {
+    payload.usage = usageValue(action)
+  }
   const ok = await runAction(action, text, payload)
   if (ok) {
     delete actionText.value[action.id]
     delete actionConfirmed.value[action.id]
   }
 }
+
+// After an upload the workflow view is refreshed once, then the v2 UI asks the
+// server for the independent S02 analysis immediately. A missing or failing
+// adapter leaves the original image and the fixed stage status visible; there
+// is no text-only fallback and no automatic retry loop.
+watch(
+  () => currentProject.value?.reference_asset?.id ?? null,
+  async (id, previous) => {
+    if (!id || id === previous || !view.value) return
+    await refresh()
+    if (view.value?.status !== 'none') return
+    const action = view.value?.available_actions.find((item) => item.id === 'analyze_reference')
+    if (action) await runAction(action, null, {})
+  },
+)
 </script>
 
 <template>
@@ -140,6 +168,18 @@ async function submit(action: WorkflowAction): Promise<void> {
     <p v-if="loading" class="workflow-loading" role="status">正在读取流程状态…</p>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
 
+    <div v-if="referenceAsset && view?.stage === 'S02'" class="workflow-reference">
+      <h4>参考图预览</h4>
+      <img
+        v-if="referenceAsset.availability === 'available'"
+        :src="assetUrl(referenceAsset.id)"
+        alt="你的参考图"
+        class="workflow-reference-image"
+      />
+      <p v-else class="form-error">参考图文件不可读，请重新上传或移除。</p>
+      <p class="muted">报告完成审查前只显示原图预览和阶段状态。</p>
+    </div>
+
     <div v-if="view?.issue" class="workflow-issue" role="status">
       <p class="eyebrow">{{ issueHeading }}</p>
       <strong>{{ view.issue.message }}</strong>
@@ -157,6 +197,20 @@ async function submit(action: WorkflowAction): Promise<void> {
           rows="2"
           :disabled="actionBusy"
         />
+        <label v-if="action.id === 'confirm_reference_usage'" :for="`workflow-${action.id}-usage`">
+          参考图用途
+        </label>
+        <select
+          v-if="action.id === 'confirm_reference_usage'"
+          :id="`workflow-${action.id}-usage`"
+          :value="usageValue(action)"
+          :disabled="actionBusy"
+          @change="onUsageChange(action, $event)"
+        >
+          <option value="product">商品外观</option>
+          <option value="style">风格参考</option>
+          <option value="composition">构图参考</option>
+        </select>
         <label v-if="action.requires_confirmation" class="workflow-confirm">
           <input v-model="actionConfirmed[action.id]" type="checkbox" :disabled="actionBusy" />
           我已核对当前内容并确认继续

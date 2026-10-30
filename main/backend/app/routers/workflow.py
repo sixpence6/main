@@ -53,14 +53,26 @@ async def run_action(
             data["text"] = body.text
 
         if ctx.run is None:
-            if action_id != "submit_request":
+            if action_id == "analyze_reference":
+                # Independent upload path: a valid reference file is the only
+                # requirement for opening S02. No text is needed and no model
+                # call happens until this explicit action.
+                if not ctx.project.reference_asset_id:
+                    raise ApiError(
+                        409,
+                        "ACTION_NOT_AVAILABLE",
+                        "当前状态不支持此操作，请先完成提示的步骤。",
+                    )
+                await state.create_run(ctx, "S02")
+            elif action_id == "submit_request":
+                # Validate before creating the run so a malformed first message
+                # cannot leave a workflow with no request and no available action.
+                validate_text(data)
+                await state.create_run(ctx, "S01")
+            else:
                 raise ApiError(
                     409, "ACTION_NOT_AVAILABLE", "当前状态不支持此操作，请先完成提示的步骤。"
                 )
-            # Validate before creating the run so a malformed first message
-            # cannot leave a workflow with no request and no available action.
-            validate_text(data)
-            await state.create_run(ctx, "S01")
         else:
             module = dispatch.owner_for_stage(ctx.run.stage)
             if module is None or action_id not in module.ACTIONS:

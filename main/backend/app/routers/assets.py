@@ -25,13 +25,45 @@ from app.services.assets import (
 from app.workflow import templates
 from app.workflow.access import (
     can_access_asset,
-    ensure_legacy_entry_available,
     load_project_access_policy,
 )
 
 router = APIRouter(tags=["assets"])
 
 _REVISION_PATTERN = re.compile(r"^\d+$")
+
+
+async def _sync_reference_workflow(
+    app, project_id: str, *, removed: bool
+) -> None:
+    """Keep an existing v2 run aligned with an upload or an explicit removal.
+
+    Fresh projects keep the legacy upload-only behaviour until the client asks
+    for S02; this avoids creating a workflow run that would silently block the
+    v1 message endpoint for clients that never entered v2. Once a run exists,
+    a replacement immediately invalidates old reports and runs the new visual
+    analysis exactly once. Any technical failure is reflected in the run state
+    and never fails the already-persisted upload.
+    """
+    from app.workflow import state as workflow_state
+    from app.workflow.stages import s02
+
+    async with app.state.locks.hold(project_id):
+        ctx = await workflow_state.load_context(app, project_id)
+        if ctx.run is None:
+            return
+        if removed:
+            await s02.prepare_after_reference_removal(ctx)
+            return
+        await s02.prepare_after_reference_change(ctx)
+        if not ctx.project.reference_asset_id:
+            return
+        try:
+            await s02.analyze(ctx)
+        except ApiError:
+            # The upload itself succeeded; the workflow view carries the fixed
+            # failure template and the user's input is preserved.
+            pass
 
 
 async def _parse_multipart(request: Request, limit: int):
@@ -108,8 +140,12 @@ async def upload_reference(project_id: str, request: Request) -> ProjectView:
         raise ApiError(422, exc.code, exc.message) from None
 
     # 旧项目的写入口必须在落库和写文件之前暂停，不能依赖前端禁用。
+    # 已启动 v2 流程的项目允许参考图变更（T04 的 S02 输入），但仍由
+    # access.py 的统一策略决定旧产物访问；这里只放行参考图写入口。
     async with state.session_factory() as session:
-        await ensure_legacy_entry_available(session, project_id)
+        policy = await load_project_access_policy(session, project_id)
+        if policy.old_entries_paused and not policy.has_workflow_run:
+            raise ApiError(409, "LEGACY_FLOW_DISABLED", templates.render("LEGACY_FLOW_DISABLED"))
 
     result = await attach_reference(
         state.session_factory,
@@ -120,6 +156,7 @@ async def upload_reference(project_id: str, request: Request) -> ProjectView:
         data=data,
         image=image,
     )
+    await _sync_reference_workflow(request.app, project_id, removed=False)
     async with state.session_factory() as session:
         policy = await load_project_access_policy(session, project_id)
     return project_view(
@@ -139,13 +176,16 @@ async def delete_reference(
 ) -> ProjectView:
     state = request.app.state
     async with state.session_factory() as session:
-        await ensure_legacy_entry_available(session, project_id)
+        policy = await load_project_access_policy(session, project_id)
+        if policy.old_entries_paused and not policy.has_workflow_run:
+            raise ApiError(409, "LEGACY_FLOW_DISABLED", templates.render("LEGACY_FLOW_DISABLED"))
     result = await remove_reference(
         state.session_factory,
         state.locks,
         project_id=project_id,
         expected_revision=expected_revision,
     )
+    await _sync_reference_workflow(request.app, project_id, removed=True)
     async with state.session_factory() as session:
         policy = await load_project_access_policy(session, project_id)
     return project_view(
