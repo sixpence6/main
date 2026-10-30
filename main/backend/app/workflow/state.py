@@ -586,13 +586,15 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
             )
 
     issue = None
-    if ctx.run.template_id:
-        params = _json_dict(ctx.run.template_params_json)
+    if ctx.run.template_id or ctx.run.issue_message:
+        params = (
+            _json_dict(ctx.run.template_params_json) if ctx.run.template_id else {}
+        )
         message = ctx.run.issue_message or templates.render(
-            ctx.run.template_id, **params
+            ctx.run.template_id or "SERVICE_UNAVAILABLE", **params
         )
         issue = IssueView(
-            code=ctx.run.issue_code or ctx.run.template_id,
+            code=ctx.run.issue_code or ctx.run.template_id or "ISSUE",
             message=message,
             template_id=ctx.run.template_id,
             params={key: str(value) for key, value in params.items()},

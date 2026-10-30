@@ -73,6 +73,17 @@ const approvedArtifacts = computed<WorkflowArtifact[]>(() => {
   return [...latest.values()]
 })
 
+const approvedBriefDraft = computed(() =>
+  approvedArtifacts.value.some((artifact) => artifact.kind === 'brief_draft'),
+)
+
+const issueHeading = computed(() => {
+  if (!view.value?.issue) return ''
+  if (view.value.status === 'needs_input') return '需要补充的信息'
+  if (view.value.status === 'failed') return '处理暂停'
+  return '流程提示'
+})
+
 function artifactLabel(kind: string): string {
   return ARTIFACT_LABELS[kind] ?? kind
 }
@@ -130,6 +141,7 @@ async function submit(action: WorkflowAction): Promise<void> {
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
 
     <div v-if="view?.issue" class="workflow-issue" role="status">
+      <p class="eyebrow">{{ issueHeading }}</p>
       <strong>{{ view.issue.message }}</strong>
     </div>
 
@@ -172,6 +184,10 @@ async function submit(action: WorkflowAction): Promise<void> {
         </ul>
       </article>
     </div>
+
+    <p v-if="approvedBriefDraft" class="muted workflow-draft-note" role="note">
+      需求草稿已通过独立审查，仅表示可进入后续审核；尚未成为最终需求卡，也未获得用户确认或生成授权。
+    </p>
 
     <div v-if="view?.generation_job" class="workflow-job">
       <strong>生成任务</strong>

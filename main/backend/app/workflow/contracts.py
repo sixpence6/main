@@ -176,7 +176,7 @@ def _envelope(role: str, statuses: tuple[str, ...], data_type: type[BaseModel]):
         role.title().replace("_", "") + "Envelope",
         (BaseModel,),
         {
-            "__config__": ConfigDict(extra="forbid"),
+            "model_config": ConfigDict(extra="forbid"),
             "__annotations__": {
                 "role": Literal[role],  # type: ignore[valid-type]
                 "status": Literal[statuses],  # type: ignore[valid-type]
@@ -244,10 +244,13 @@ def _validate_envelope(role: str, obj: object) -> BaseModel:
     elif status == "needs_input":
         if role not in NEEDS_INPUT_ROLES:
             raise ContractError("当前角色不允许 needs_input")
-        if data is not None or not issues:
-            raise ContractError("needs_input 必须 data 为空且至少一个 issue")
-        if role != "requirements_consultant" and questions:
-            raise ContractError("只有需求顾问可以提出自由问题")
+        if not issues:
+            raise ContractError("needs_input 必须至少一个 issue")
+        if role != "requirements_consultant":
+            if data is not None or questions:
+                raise ContractError("该角色 needs_input 必须 data 为空且 questions 为空")
+        elif not questions:
+            raise ContractError("需求顾问的 needs_input 必须提出至少一个澄清问题")
     else:
         raise ContractError("未知状态")
     return model

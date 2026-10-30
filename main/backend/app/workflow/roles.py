@@ -167,7 +167,7 @@ async def run_role(
         },
         "capabilities": {"size": size, "count": 1},
         "input_data": _jsonable(input_data),
-        "approved_inputs": _jsonable(approved_inputs or {}),
+        "approved_inputs": _jsonable(approved_inputs if approved_inputs is not None else []),
         "review_targets": _jsonable(review_targets or []),
         "repair_codes": list(repair_codes or []),
     }
