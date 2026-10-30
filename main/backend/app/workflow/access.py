@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 from dataclasses import dataclass
 
@@ -108,6 +110,7 @@ async def _matches_asset(
         return False
     return payload.get("asset_digest") == asset.sha256
 
+
 async def load_project_access_policies(
     session: AsyncSession, project_ids: list[str]
 ) -> dict[str, ProjectAccessPolicy]:
@@ -116,9 +119,7 @@ async def load_project_access_policies(
     if not unique_ids:
         return {}
     items = (
-        await session.scalars(
-            select(LegacyItem).where(LegacyItem.project_id.in_(unique_ids))
-        )
+        await session.scalars(select(LegacyItem).where(LegacyItem.project_id.in_(unique_ids)))
     ).all()
     # 即使历史数据缺少 legacy_items 行，只要资产本身被标记为未审查也必须隐藏。
     legacy_assets = (
@@ -142,10 +143,13 @@ async def load_project_access_policies(
     message_ids: dict[str, set[str]] = {project_id: set() for project_id in unique_ids}
     generation_ids: dict[str, set[str]] = {project_id: set() for project_id in unique_ids}
     asset_ids: dict[str, set[str]] = {project_id: set() for project_id in unique_ids}
+    approved_generation_ids: set[str] = set()
     item_counts: dict[str, int] = {project_id: 0 for project_id in unique_ids}
     for item in items:
         if item.status != "legacy_unreviewed":
             # 已补审的历史项不再触发默认隔离，否则项目会永久无法恢复。
+            if item.kind == "generation":
+                approved_generation_ids.add(item.ref_id)
             continue
         item_counts[item.project_id] = item_counts.get(item.project_id, 0) + 1
         if item.kind == "message":
@@ -170,6 +174,8 @@ async def load_project_access_policies(
             )
         ).all()
         for generation in generations:
+            if generation.id in approved_generation_ids:
+                continue
             generation_ids.setdefault(generation.project_id, set()).add(generation.id)
 
     return {
@@ -185,9 +191,7 @@ async def load_project_access_policies(
     }
 
 
-async def load_project_access_policy(
-    session: AsyncSession, project_id: str
-) -> ProjectAccessPolicy:
+async def load_project_access_policy(session: AsyncSession, project_id: str) -> ProjectAccessPolicy:
     policies = await load_project_access_policies(session, [project_id])
     return policies[project_id]
 
@@ -202,6 +206,14 @@ async def ensure_legacy_entry_available(
     return policy
 
 
+def _asset_path(settings: Settings, asset: Asset):
+    base = settings.resolved_data_dir().resolve()
+    candidate = (base / asset.relative_path).resolve()
+    if not candidate.is_relative_to(base):
+        return None
+    return candidate if candidate.is_file() else None
+
+
 async def can_access_asset(
     session: AsyncSession,
     settings: Settings,
@@ -213,7 +225,6 @@ async def can_access_asset(
 
     The workflow may evolve, but no route may bypass this fail-closed check.
     """
-    del settings  # reserved for path roots and future policy inputs
     if asset.review_status == "legacy_unreviewed":
         return AccessDecision(False, "LEGACY_UNREVIEWED")
     if asset.review_status == "rejected":
@@ -226,6 +237,18 @@ async def can_access_asset(
         return AccessDecision(False, "ASSET_UNAVAILABLE")
     if asset.review_status != "approved":
         return AccessDecision(False, "ASSET_NOT_REVIEWED")
+
+    path = _asset_path(settings, asset)
+    if path is None:
+        return AccessDecision(False, "ASSET_FILE_MISSING")
+    try:
+        actual_digest = await asyncio.to_thread(
+            lambda: hashlib.sha256(path.read_bytes()).hexdigest()
+        )
+    except OSError:
+        return AccessDecision(False, "ASSET_FILE_MISSING")
+    if not asset.sha256 or actual_digest != asset.sha256:
+        return AccessDecision(False, "DIGEST_MISMATCH")
 
     approval = await session.scalar(
         select(Approval)
@@ -240,6 +263,8 @@ async def can_access_asset(
     if approval is None:
         return AccessDecision(False, "APPROVAL_MISSING")
     checks = _checks(approval)
+    if "legacy_item_id" in checks and approval.rules_version != "2.0.0":
+        return AccessDecision(False, "RULES_MISMATCH")
     if not await _matches_asset(session, asset, approval, checks):
         return AccessDecision(False, "DIGEST_MISMATCH")
 

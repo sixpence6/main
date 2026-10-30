@@ -144,11 +144,9 @@ def generation_view(
     retrieval_unavailable_reason: str | None = None,
     policy: ProjectAccessPolicy | None = None,
 ) -> GenerationView:
-    hidden = policy is not None and (
-        policy.hides_generation(generation.id)
-        or policy.hides_asset(generation.result_asset_id)
-    )
-    if hidden:
+    hidden_generation = policy is not None and policy.hides_generation(generation.id)
+    hidden_asset = policy is not None and policy.hides_asset(generation.result_asset_id)
+    if hidden_generation:
         # 旧 succeeded/confirmed 不是审查通过：状态、提示词、远端任务与结果标识
         # 一律不返回，只保留版本号等安全元信息。
         return GenerationView(
@@ -194,8 +192,8 @@ def generation_view(
         adapter_id=generation.adapter_id,
         model=generation.model,
         remote_task_id=generation.remote_task_id,
-        result_asset_id=generation.result_asset_id,
-        result_asset=asset_view(result_asset, data_dir),
+        result_asset_id=None if hidden_asset else generation.result_asset_id,
+        result_asset=None if hidden_asset else asset_view(result_asset, data_dir),
         error=error_view(generation.error_code, generation.error_message),
         can_retrieve_result=can_retrieve_result,
         retrieval_unavailable_reason=retrieval_unavailable_reason,
