@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import uuid4
 
@@ -11,7 +12,12 @@ from app.models import Message, Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
 from app.workflow.roles import RoleOutput, run_role
-from app.workflow.state import WorkflowContext, set_intent, set_stage
+from app.workflow.stages import s02
+from app.workflow.state import (
+    WorkflowContext,
+    set_intent,
+    set_stage,
+)
 
 STAGE = "S01"
 ACTIONS = [
@@ -58,6 +64,9 @@ def available(ctx: WorkflowContext) -> list[dict[str, Any]]:
         return ["submit_request"]
     if ctx.run.stage != STAGE:
         return []
+    if ctx.run.intent_route is None:
+        # Upload-first projects return from S02 to S01 without an intent yet.
+        return ["submit_request"]
     if ctx.run.status in {"needs_input", "blocked"}:
         return ["answer_intent_clarification"]
     return []
@@ -221,6 +230,12 @@ async def _route(ctx: WorkflowContext, text: str) -> None:
         if ctx.run is not None and ctx.run.status in {"needs_input", "blocked"}
         else ["submit_request"]
     )
+    approved_report = await s02.approved_report_for_current_asset(ctx)
+    approved_inputs = (
+        {"reference_report": json.loads(approved_report.payload_json)}
+        if approved_report is not None
+        else {}
+    )
     phase = "intent"
     try:
         intent = await run_role(
@@ -234,6 +249,7 @@ async def _route(ctx: WorkflowContext, text: str) -> None:
                 "reference_asset_id": ctx.project.reference_asset_id,
                 "available_actions": available_actions,
             },
+            approved_inputs=approved_inputs,
             required_rule_ids=_REQUIRED_RULES,
             allowed_evidence_ids=(evidence_id,),
         )
@@ -248,6 +264,7 @@ async def _route(ctx: WorkflowContext, text: str) -> None:
                 "reviewed_role": "intent_router",
                 "target_kind": "intent_route",
             },
+            approved_inputs=approved_inputs,
             review_targets=[
                 {
                     "target_id": evidence_id,
@@ -313,8 +330,13 @@ async def _route(ctx: WorkflowContext, text: str) -> None:
         )
         return
 
-    next_stage = "S02" if ctx.project.reference_asset_id else "S03"
-    await set_stage(ctx, next_stage, "active")
+    if ctx.project.reference_asset_id:
+        current_report = await s02.approved_report_for_current_asset(ctx)
+        if current_report is None:
+            await set_stage(ctx, "S02", "active")
+            await s02.analyze(ctx)
+            return
+    await set_stage(ctx, "S03", "active")
 
 
 async def handle(

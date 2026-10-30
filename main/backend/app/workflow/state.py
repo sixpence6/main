@@ -537,12 +537,18 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
                     )
                 ).all()
             )
+        # A valid reference upload immediately makes S02 available. Until the
+        # report is approved the user only sees the original image preview and
+        # the fixed stage status; no report payload is exposed.
+        initial_action = (
+            "analyze_reference" if ctx.project.reference_asset_id else "submit_request"
+        )
         return WorkflowView(
             project_id=ctx.project_id,
             status="none",
             project_revision=ctx.project.revision,
             requirement_revision=ctx.project.revision,
-            available_actions=[dispatch.action_view("submit_request")],
+            available_actions=[dispatch.action_view(initial_action)],
             legacy=_legacy_views(legacy),
             updated_at=ctx.project.updated_at,
         )
