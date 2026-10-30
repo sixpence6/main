@@ -69,7 +69,7 @@ async def run_action(
                 # cannot leave a workflow with no request and no available action.
                 validate_text(data)
                 await state.create_run(ctx, "S01")
-            elif action_id == "review_legacy_item":
+            elif action_id in {"review_legacy_item", "retrieve_original_result"}:
                 # A legacy project has no workflow run until the user explicitly
                 # selects one historical target; s11 creates the review run.
                 pass
@@ -79,7 +79,7 @@ async def run_action(
                 )
         else:
             module = dispatch.owner_for_stage(ctx.run.stage)
-            if action_id != "review_legacy_item" and (
+            if action_id not in {"review_legacy_item", "retrieve_original_result"} and (
                 module is None or action_id not in module.ACTIONS
             ):
                 # A repeated confirmation may arrive after the first click has

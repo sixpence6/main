@@ -73,7 +73,7 @@ def available(ctx: WorkflowContext) -> list[str]:
     if ctx.run is None or ctx.run.stage != STAGE:
         return []
     if ctx.run.status in {"active", "blocked", "failed"}:
-        return ["review_legacy_item"]
+        return ["retrieve_original_result", "review_legacy_item"]
     return []
 
 
@@ -1171,6 +1171,11 @@ async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> 
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
     if action == "review_legacy_item":
         await _review_legacy_item(ctx, payload)
+        return
+    if action == "retrieve_original_result":
+        from app.workflow.stages import s11_retrieval
+
+        await s11_retrieval.retrieve(ctx, payload)
         return
     raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
 
