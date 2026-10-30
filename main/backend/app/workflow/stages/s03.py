@@ -12,19 +12,25 @@ from app.errors import ApiError, conflict, validation_error
 from app.models import Message, Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
-from app.workflow.contracts import BriefData
+from app.workflow.contracts import (
+    BriefData,
+    ContractError,
+    ReferenceData,
+    digest_payload,
+)
 from app.workflow.roles import RoleOutput, run_role
 from app.workflow.state import (
     WorkflowContext,
     add_review,
     approved_artifact,
     latest_artifact,
+    record_diagnostic,
     revoke_downstream_approvals,
     set_artifact_status,
     set_stage,
     start_artifact,
 )
-from app.workflow.tables import WorkflowRun
+from app.workflow.tables import Artifact, WorkflowRun
 
 STAGE = "S03"
 ACTIONS = [
@@ -47,6 +53,43 @@ REVIEW_RULE_IDS = (
 
 _MAX_QUESTIONS_CHARS = 800
 _MAX_CANDIDATES = 3
+
+REFERENCE_USAGES = ("product", "style", "composition")
+_REFERENCE_EVIDENCE_PREFIX = "reference:"
+
+_COLOR_TERMS = (
+    "白色",
+    "黑色",
+    "红色",
+    "蓝色",
+    "绿色",
+    "黄色",
+    "灰色",
+    "粉色",
+    "紫色",
+    "橙色",
+    "棕色",
+    "米色",
+    "金色",
+    "银色",
+)
+_COUNT_WORDS = {
+    "一个": 1,
+    "一只": 1,
+    "一件": 1,
+    "一瓶": 1,
+    "一杯": 1,
+    "两个": 2,
+    "两只": 2,
+    "两件": 2,
+    "两瓶": 2,
+    "两杯": 2,
+    "三个": 3,
+    "三只": 3,
+    "三件": 3,
+    "三瓶": 3,
+    "三杯": 3,
+}
 
 
 def available(ctx: WorkflowContext) -> list[dict[str, Any]]:
@@ -133,7 +176,9 @@ async def _record_user_text(ctx: WorkflowContext, text: str) -> Message:
         project.revision += 1
         project.updated_at = now
         highest = await session.scalar(
-            select(func.max(Message.sequence_no)).where(Message.project_id == ctx.project_id)
+            select(func.max(Message.sequence_no)).where(
+                Message.project_id == ctx.project_id
+            )
         )
         message = Message(
             id=str(uuid4()),
@@ -227,44 +272,223 @@ def _text_authorized(messages: list[Message]) -> bool:
     return bool(re.search(r"[“\"'][^”\"']{1,200}[”\"']", text))
 
 
-async def _approved_inputs(
+def _json_dict(value: str | None) -> dict[str, Any]:
+    if not value:
+        return {}
+    try:
+        parsed = json.loads(value)
+    except ValueError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _normalize_text(value: str) -> str:
+    return " ".join(value.split()).casefold()
+
+
+def _artifact_payload(artifact: Artifact) -> dict[str, Any]:
+    return _json_dict(artifact.payload_json)
+
+
+def _reference_evidence_texts(payload: dict[str, Any]) -> dict[str, list[str]]:
+    """Map image evidence ids to the clear observations the report actually made.
+
+    Only clear observations may support an image_observed fact. An uncertain
+    observation stays an uncertainty and can never be promoted to a fact.
+    """
+    mapping: dict[str, list[str]] = {}
+    for bucket in ("observations", "texts"):
+        items = payload.get(bucket)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if bucket == "observations" and item.get("confidence") != "clear":
+                continue
+            if bucket == "texts" and item.get("legibility") != "clear":
+                continue
+            text = (
+                item.get("description")
+                if bucket == "observations"
+                else item.get("text")
+            )
+            if not isinstance(text, str) or not text.strip():
+                continue
+            for evidence_id in item.get("evidence_ids") or []:
+                if isinstance(evidence_id, str) and evidence_id:
+                    mapping.setdefault(evidence_id, []).append(text)
+    return mapping
+
+
+def _reference_evidence_ids(payload: dict[str, Any]) -> list[str]:
+    ids: list[str] = []
+    for bucket in ("observations", "texts"):
+        items = payload.get(bucket)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            values = item.get("evidence_ids")
+            if isinstance(values, list):
+                ids.extend(value for value in values if isinstance(value, str))
+    return ids
+
+
+async def current_reference_report(
     ctx: WorkflowContext,
-) -> tuple[list[dict[str, Any]], Any]:
-    reference = await approved_artifact(ctx, "reference_report")
-    inputs: list[dict[str, Any]] = []
-    if reference is not None:
-        inputs.append(
+) -> tuple[Artifact, dict[str, Any]] | None:
+    """Return the approved report only when it describes the current image.
+
+    The report binds itself to the original file through the server-issued
+    evidence id reference:<asset_id>. Every observation and text item must cite
+    that exact id, so replacing the image cannot leave an older report usable.
+    An approved older revision never overrides a newer report candidate.
+    """
+    asset_id = ctx.project.reference_asset_id
+    if not asset_id:
+        return None
+    artifact = await approved_artifact(ctx, "reference_report")
+    if artifact is None:
+        return None
+    expected = _REFERENCE_EVIDENCE_PREFIX + asset_id
+    latest = await latest_artifact(ctx, "reference_report")
+    if latest is not None and latest.id != artifact.id:
+        # A newer candidate for the current image means the approved report is
+        # no longer current. A late candidate from an older image is irrelevant
+        # and must not disable the valid current approval.
+        latest_ids = _reference_evidence_ids(_artifact_payload(latest))
+        if any(item == expected for item in latest_ids):
+            return None
+    try:
+        data = ReferenceData.model_validate(_artifact_payload(artifact)).model_dump(
+            mode="json"
+        )
+    except ContractError:
+        return None
+    if digest_payload(data) != artifact.digest:
+        return None
+    usage = data.get("reference_usage")
+    if usage not in REFERENCE_USAGES:
+        return None
+    observations = data.get("observations")
+    if not isinstance(observations, list) or not observations:
+        return None
+    evidence = _reference_evidence_ids(data)
+    if not evidence or any(item != expected for item in evidence):
+        return None
+    return artifact, data
+
+
+def _reference_approved_input(
+    artifact: Artifact, payload: dict[str, Any], reference_asset_id: str | None
+) -> dict[str, Any]:
+    return {
+        "kind": "reference_report",
+        "artifact_id": artifact.id,
+        "digest": artifact.digest,
+        "reference_asset_id": reference_asset_id,
+        "payload": payload,
+    }
+
+
+def _reference_conflict_hints(
+    messages: list[Message], payload: dict[str, Any] | None
+) -> list[dict[str, Any]]:
+    """Surface obvious color/quantity disagreements to the requirements role.
+
+    The hint is not evidence and never becomes a fact by itself. It only tells
+    the role that both sources must be clarified instead of silently choosing
+    one as the confirmed value.
+    """
+    if not payload:
+        return []
+    user_text = "\n".join(message.content for message in messages)
+    hints: list[dict[str, Any]] = []
+    reference_colors: set[str] = set()
+    for item in payload.get("observations") or []:
+        if not isinstance(item, dict) or item.get("kind") != "color":
+            continue
+        if item.get("confidence") != "clear":
+            continue
+        description = item.get("description")
+        if isinstance(description, str):
+            reference_colors.update(
+                color for color in _COLOR_TERMS if color in description
+            )
+    user_colors = {color for color in _COLOR_TERMS if color in user_text}
+    if reference_colors and user_colors and not reference_colors & user_colors:
+        hints.append(
             {
-                "kind": "reference_report",
-                "artifact_id": reference.id,
-                "digest": reference.digest,
-                "payload": json.loads(reference.payload_json),
+                "kind": "color",
+                "reference_values": sorted(reference_colors),
+                "user_values": sorted(user_colors),
+                "instruction": "颜色不一致，必须集中询问用户，不得直接选定一方。",
             }
         )
-    return inputs, reference
+    reference_counts: set[int] = set()
+    for item in payload.get("observations") or []:
+        if not isinstance(item, dict) or item.get("kind") != "quantity":
+            continue
+        description = item.get("description")
+        if not isinstance(description, str):
+            continue
+        for word, count in _COUNT_WORDS.items():
+            if word in description:
+                reference_counts.add(count)
+        for match in re.finditer(r"(?<![0-9])([1-9])(?![0-9])", description):
+            reference_counts.add(int(match.group(1)))
+    user_counts: set[int] = set()
+    for word, count in _COUNT_WORDS.items():
+        if word in user_text:
+            user_counts.add(count)
+    for match in re.finditer(r"(?<![0-9])([1-9])(?![0-9])", user_text):
+        user_counts.add(int(match.group(1)))
+    if reference_counts and user_counts and not reference_counts & user_counts:
+        hints.append(
+            {
+                "kind": "quantity",
+                "reference_values": sorted(reference_counts),
+                "user_values": sorted(user_counts),
+                "instruction": "数量不一致，必须集中询问用户，不得直接选定一方。",
+            }
+        )
+    return hints
 
 
-def _allowed_evidence(messages: list[Message], reference: Any) -> tuple[str, ...]:
-    ids = [message.id for message in messages]
-    if reference is not None:
-        ids.append(reference.id)
-    return tuple(ids)
-
-
-def _reference_usage(reference: Any) -> str:
-    if reference is None:
-        return "none"
-    payload = json.loads(reference.payload_json)
-    usage = payload.get("reference_usage")
-    return usage if usage in {"product", "style", "composition"} else "none"
-
-
-def _validate_facts(data: BriefData, allowed: set[str], *, has_reference: bool) -> None:
+def _validate_facts(
+    data: BriefData,
+    allowed: set[str],
+    *,
+    has_reference: bool,
+    message_ids: set[str],
+    reference_evidence: str | None,
+    reference_texts: dict[str, list[str]],
+) -> None:
     for fact in data.facts:
         if not set(fact.evidence_ids) <= allowed:
             raise _invalid_service()
-        if fact.basis == "image_observed" and not has_reference:
-            raise _invalid_service()
+        if fact.basis == "image_observed":
+            if not has_reference or reference_evidence is None:
+                raise _invalid_service()
+            if any(item != reference_evidence for item in fact.evidence_ids):
+                raise _invalid_service()
+            supported = [
+                text
+                for item in fact.evidence_ids
+                for text in reference_texts.get(item, [])
+            ]
+            if not any(
+                _normalize_text(fact.text) in _normalize_text(text)
+                for text in supported
+            ):
+                raise _invalid_service()
+        else:
+            # user_declared facts cite the actual user message, never the image
+            # report artifact or an image evidence id.
+            if any(item not in message_ids for item in fact.evidence_ids):
+                raise _invalid_service()
 
 
 def _validate_partial_draft(
@@ -276,6 +500,9 @@ def _validate_partial_draft(
     reference_usage: str,
     has_reference: bool,
     text_authorized: bool,
+    message_ids: set[str],
+    reference_evidence: str | None,
+    reference_texts: dict[str, list[str]],
 ) -> None:
     if data.size != size:
         raise _invalid_service()
@@ -285,7 +512,14 @@ def _validate_partial_draft(
         raise _invalid_service()
     if data.texts and not text_authorized:
         raise _invalid_service()
-    _validate_facts(data, allowed, has_reference=has_reference)
+    _validate_facts(
+        data,
+        allowed,
+        has_reference=has_reference,
+        message_ids=message_ids,
+        reference_evidence=reference_evidence,
+        reference_texts=reference_texts,
+    )
 
 
 def _validate_ready_draft(
@@ -297,6 +531,9 @@ def _validate_ready_draft(
     reference_usage: str,
     has_reference: bool,
     text_authorized: bool,
+    message_ids: set[str],
+    reference_evidence: str | None,
+    reference_texts: dict[str, list[str]],
 ) -> None:
     if not data.product_description or not data.product_description.strip():
         raise _invalid_service()
@@ -312,6 +549,9 @@ def _validate_ready_draft(
         reference_usage=reference_usage,
         has_reference=has_reference,
         text_authorized=text_authorized,
+        message_ids=message_ids,
+        reference_evidence=reference_evidence,
+        reference_texts=reference_texts,
     )
 
 
@@ -357,7 +597,9 @@ def _validate_review(
         if (
             not isinstance(evidence, list)
             or not evidence
-            or not all(isinstance(item, str) and item in allowed_evidence for item in evidence)
+            or not all(
+                isinstance(item, str) and item in allowed_evidence for item in evidence
+            )
         ):
             raise _review_unavailable()
         note = check.get("note")
@@ -397,7 +639,9 @@ async def _run_review(
         )
     except ApiError:
         raise _review_unavailable() from None
-    return _validate_review(output, target_id=target_id, allowed_evidence=set(allowed_evidence))
+    return _validate_review(
+        output, target_id=target_id, allowed_evidence=set(allowed_evidence)
+    )
 
 
 async def _fail_run(ctx: WorkflowContext, template_id: str) -> None:
@@ -421,7 +665,9 @@ async def _stop_review(ctx: WorkflowContext) -> None:
 
 
 def _blocked_template(output: RoleOutput) -> tuple[str, str]:
-    codes = {str(issue.get("code")) for issue in output.issues if isinstance(issue, dict)}
+    codes = {
+        str(issue.get("code")) for issue in output.issues if isinstance(issue, dict)
+    }
     if "UNSAFE_REQUEST" in codes:
         return "UNSAFE_REQUEST", "SAFETY_REFUSAL"
     if codes & {"OUT_OF_SCOPE", "MIXED_SCOPE"}:
@@ -454,12 +700,80 @@ async def _compose(
     messages = await _user_messages(ctx)
     if not messages:
         raise conflict("MISSING_INPUT", "尚未收到用户需求描述")
-    approved_inputs, reference = await _approved_inputs(ctx)
-    evidence = _allowed_evidence(messages, reference)
+
+    reference_pair = await current_reference_report(ctx)
     reference_asset_id = ctx.project.reference_asset_id
-    expected_usage = _reference_usage(reference)
+    if reference_asset_id and reference_pair is None:
+        # A present image without an approved report must never silently
+        # downgrade to the text-only path.
+        await set_stage(
+            ctx,
+            STAGE,
+            "blocked",
+            issue_code="REFERENCE_REPORT_NOT_APPROVED",
+            template_id="ACTION_UNAVAILABLE",
+        )
+        raise conflict(
+            "REFERENCE_REPORT_NOT_APPROVED",
+            "参考图报告尚未通过独立审查，不能进入需求整理",
+        )
+    reference = reference_pair[0] if reference_pair is not None else None
+    reference_payload = reference_pair[1] if reference_pair is not None else None
+    expected_usage = (
+        str(reference_payload.get("reference_usage"))
+        if reference_payload is not None
+        else "none"
+    )
+    reference_evidence = (
+        f"{_REFERENCE_EVIDENCE_PREFIX}{reference_asset_id}"
+        if reference_payload is not None
+        else None
+    )
+    reference_texts = (
+        _reference_evidence_texts(reference_payload)
+        if reference_payload is not None
+        else {}
+    )
+    approved_inputs: list[dict[str, Any]] = (
+        [_reference_approved_input(reference, reference_payload, reference_asset_id)]
+        if reference is not None and reference_payload is not None
+        else []
+    )
+    evidence = tuple(message.id for message in messages) + (
+        (reference_evidence,) if reference_evidence is not None else ()
+    )
+    message_ids = {message.id for message in messages}
     text_authorized = _text_authorized(messages)
     user_text = "\n\n".join(message.content for message in messages)
+    conflict_hints = _reference_conflict_hints(messages, reference_payload)
+
+    previous = await latest_artifact(ctx, "brief_draft")
+    previous_payload = _json_dict(previous.payload_json) if previous is not None else {}
+    if previous is not None and (
+        previous_payload.get("reference_asset_id") != reference_asset_id
+        or previous_payload.get("reference_usage") != expected_usage
+    ):
+        # A changed image or usage creates a new requirement version. The old
+        # draft and every downstream approval must not survive it.
+        await set_artifact_status(ctx, previous.id, "superseded")
+        await revoke_downstream_approvals(ctx, "reference_changed")
+        await record_diagnostic(
+            ctx,
+            "reference_requirement_changed",
+            {
+                "artifact_id": previous.id,
+                "reference_asset_id": reference_asset_id,
+                "reference_usage": expected_usage,
+            },
+        )
+
+    if current_requirement is None:
+        current_brief = await approved_artifact(ctx, "brief_draft")
+        current_requirement = (
+            _json_dict(current_brief.payload_json)
+            if current_brief is not None
+            else None
+        )
 
     latest = await latest_artifact(ctx, "brief_draft")
     attempt = (latest.revision_no if latest is not None else 0) + 1
@@ -480,12 +794,20 @@ async def _compose(
                     "instruction": action,
                     "user_text": user_text,
                     "user_messages": [
-                        {"message_id": message.id, "text": message.content} for message in messages
+                        {"message_id": message.id, "text": message.content}
+                        for message in messages
                     ],
                     "configured_size": size,
                     "reference_asset_id": reference_asset_id,
                     "reference_usage": expected_usage,
-                    "current_requirement": current_requirement or (approved_inputs[-1] if approved_inputs else None),
+                    "reference_report": reference_payload,
+                    "reference_uncertainties": (
+                        reference_payload.get("uncertainties")
+                        if reference_payload
+                        else []
+                    ),
+                    "reference_conflict_hints": conflict_hints,
+                    "current_requirement": current_requirement,
                 },
                 approved_inputs=approved_inputs,
                 repair_codes=repair_codes,
@@ -507,12 +829,16 @@ async def _compose(
                     reference_usage=expected_usage,
                     has_reference=reference is not None,
                     text_authorized=text_authorized,
+                    message_ids=message_ids,
+                    reference_evidence=reference_evidence,
+                    reference_texts=reference_texts,
                 )
             for issue in output.issues:
                 if isinstance(issue, dict):
                     issue_evidence = issue.get("evidence_ids") or []
                     if not all(
-                        isinstance(item, str) and item in evidence for item in issue_evidence
+                        isinstance(item, str) and item in evidence
+                        for item in issue_evidence
                     ):
                         await _fail_run(ctx, "SERVICE_UNAVAILABLE")
                         raise _invalid_service()
@@ -581,10 +907,29 @@ async def _compose(
                 reference_usage=expected_usage,
                 has_reference=reference is not None,
                 text_authorized=text_authorized,
+                message_ids=message_ids,
+                reference_evidence=reference_evidence,
+                reference_texts=reference_texts,
             )
         except ApiError:
             await _fail_run(ctx, "SERVICE_UNAVAILABLE")
             raise
+
+        if conflict_hints:
+            # The role must not turn one side of an obvious color/quantity
+            # conflict into a confirmed fact. A ready draft is therefore
+            # stopped before it becomes a candidate.
+            await set_stage(
+                ctx,
+                STAGE,
+                "blocked",
+                issue_code="CONFLICTING_INPUT",
+                template_id="ACTION_UNAVAILABLE",
+            )
+            raise conflict(
+                "CONFLICTING_INPUT",
+                "用户描述与参考图观察存在冲突，请先集中确认",
+            )
 
         try:
             artifact = await start_artifact(ctx, "brief_draft", data)
@@ -625,10 +970,30 @@ async def _compose(
             reviewer_role="output_reviewer",
             decision=decision,
             checks=checks,
-            raw={"results": [{"target_id": artifact.id, "decision": decision, "checks": checks}]},
+            raw={
+                "results": [
+                    {"target_id": artifact.id, "decision": decision, "checks": checks}
+                ]
+            },
         )
 
         if decision == "pass":
+            await record_diagnostic(
+                ctx,
+                "requirements_brief_approved",
+                {
+                    "artifact_id": artifact.id,
+                    "artifact_digest": artifact.digest,
+                    "reference_artifact_id": reference.id
+                    if reference is not None
+                    else None,
+                    "reference_digest": reference.digest
+                    if reference is not None
+                    else None,
+                    "reference_asset_id": reference_asset_id,
+                    "reference_usage": expected_usage,
+                },
+            )
             await set_stage(ctx, "S04", "active")
             return
         if decision == "revise" and artifact.revision_no < _MAX_CANDIDATES:
@@ -671,15 +1036,19 @@ async def start_requirements_revision(
 
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
     if action not in ACTIONS:
-        raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
-    text = _optional_text(payload) if action == "compose_brief" else _require_text(payload)
+        raise ApiError(
+            409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
+        )
+    text = (
+        _optional_text(payload) if action == "compose_brief" else _require_text(payload)
+    )
     await _compose(ctx, action, text)
 
 
 __all__ = [
-    "STAGE",
     "ACTIONS",
     "REVIEW_RULE_IDS",
+    "STAGE",
     "available",
     "handle",
     "start_requirements_revision",
