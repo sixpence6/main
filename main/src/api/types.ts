@@ -76,6 +76,8 @@ export interface MessageView {
   created_at: string
 }
 
+export type GenerationRetentionStatus = 'active' | 'preserved' | 'expired'
+
 export interface GenerationView {
   id: string
   project_id: string
@@ -95,6 +97,8 @@ export interface GenerationView {
   error: ApiIssue | null
   can_retrieve_result: boolean
   retrieval_unavailable_reason: string | null
+  retention_status: GenerationRetentionStatus | null
+  retention_expires_at: string | null
   legacy_unreviewed: boolean
   legacy_notice: string | null
   created_at: string

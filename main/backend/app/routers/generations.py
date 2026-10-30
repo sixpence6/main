@@ -14,6 +14,7 @@ from app.services.generations import (
     load_generation,
     submit_generation_and_schedule,
 )
+from app.services.retention import generation_retention
 from app.services.retrieval import load_retrieval_info, retrieve_result
 from app.workflow.access import load_project_access_policy
 
@@ -74,6 +75,7 @@ async def get_generation_endpoint(request: Request, generation_id: str) -> Gener
     info = await load_retrieval_info(
         state.session_factory, state.settings, state.registry, generation
     )
+    retention = await generation_retention(request.app, generation)
     return generation_view(
         generation,
         result_asset,
@@ -81,6 +83,7 @@ async def get_generation_endpoint(request: Request, generation_id: str) -> Gener
         can_retrieve_result=info.can_retrieve,
         retrieval_unavailable_reason=info.reason,
         policy=policy,
+        retention=retention,
     )
 
 

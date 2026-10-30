@@ -13,6 +13,7 @@ from app.schemas import (
     MessageView,
     ProjectView,
 )
+from app.services.retention import GenerationRetention
 from app.workflow.access import ProjectAccessPolicy
 
 PROJECT_FIELDS = (
@@ -143,6 +144,7 @@ def generation_view(
     can_retrieve_result: bool = False,
     retrieval_unavailable_reason: str | None = None,
     policy: ProjectAccessPolicy | None = None,
+    retention: GenerationRetention | None = None,
 ) -> GenerationView:
     hidden_generation = policy is not None and policy.hides_generation(generation.id)
     hidden_asset = policy is not None and policy.hides_asset(generation.result_asset_id)
@@ -170,6 +172,8 @@ def generation_view(
             retrieval_unavailable_reason=None,
             legacy_unreviewed=True,
             legacy_notice=policy.notice if policy is not None else None,
+            retention_status=retention.status if retention is not None else None,
+            retention_expires_at=retention.expires_at if retention is not None else None,
             created_at=generation.created_at,
             started_at=generation.started_at,
             completed_at=generation.completed_at,
@@ -197,6 +201,8 @@ def generation_view(
         error=error_view(generation.error_code, generation.error_message),
         can_retrieve_result=can_retrieve_result,
         retrieval_unavailable_reason=retrieval_unavailable_reason,
+        retention_status=retention.status if retention is not None else None,
+        retention_expires_at=retention.expires_at if retention is not None else None,
         created_at=generation.created_at,
         started_at=generation.started_at,
         completed_at=generation.completed_at,

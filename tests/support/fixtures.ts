@@ -289,6 +289,8 @@ export function sampleGeneration(overrides: Partial<GenerationView> = {}): Gener
     error: null,
     can_retrieve_result: false,
     retrieval_unavailable_reason: null,
+    retention_status: null,
+    retention_expires_at: null,
     legacy_unreviewed: false,
     legacy_notice: null,
     created_at: '2026-10-21T06:00:00.000Z',

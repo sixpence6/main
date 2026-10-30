@@ -22,6 +22,7 @@ from app.services.assets import (
     remove_reference,
     require_asset_file,
 )
+from app.services.retention import asset_is_retention_expired
 from app.workflow import templates
 from app.workflow.access import (
     can_access_asset,
@@ -223,6 +224,9 @@ async def read_asset(
         asset = await session.get(Asset, asset_id)
         if asset is None:
             raise ApiError(404, "ASSET_NOT_FOUND", "资源不存在")
+        # T20：即使候选文件尚未被物理清理，到期候选也不能通过任何资产出口读取。
+        if await asset_is_retention_expired(request.app, asset):
+            raise ApiError(409, "ASSET_UNAVAILABLE", templates.render("ASSET_UNAVAILABLE"))
         decision = await can_access_asset(session, state.settings, asset, download=download)
         if not decision.allow:
             code = decision.reason_code or "ASSET_UNAVAILABLE"

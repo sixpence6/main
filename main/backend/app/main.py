@@ -27,9 +27,27 @@ from app.routers import (
     workflow,
 )
 from app.services.recovery import repair_leftover_state
+from app.services.retention import run_retention_cleanup
 from app.startup import ensure_data_dir, prepare_database
 
 logger = logging.getLogger("app")
+
+# T20：运行中的到期清理间隔。启动时先执行一次，之后按固定周期复核。
+RETENTION_INTERVAL_SECONDS = 15 * 60
+
+
+async def _run_retention_cleanup(app: FastAPI) -> None:
+    """保留期清理失败不能阻断服务启动，也不能向调用方泄露内部信息。"""
+    try:
+        await run_retention_cleanup(app)
+    except Exception:
+        logger.exception("retention cleanup failed")
+
+
+async def _retention_loop(app: FastAPI) -> None:
+    while True:
+        await asyncio.sleep(RETENTION_INTERVAL_SECONDS)
+        await _run_retention_cleanup(app)
 
 
 def build_http_client() -> httpx.AsyncClient:
@@ -57,12 +75,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.generation_tasks = set()
         app.state.http = build_http_client()
         await repair_leftover_state(app)
+        # T20：修复遗留状态后先清理一次，再启动周期清理任务。
+        await _run_retention_cleanup(app)
+        app.state.retention_task = asyncio.create_task(_retention_loop(app))
         logger.info("backend ready on data dir %s", settings.resolved_data_dir())
         yield
     except StartupError:
         logger.error("startup aborted: %s", "see previous log entry")
         raise
     finally:
+        retention_task = getattr(app.state, "retention_task", None)
+        if retention_task is not None:
+            retention_task.cancel()
+            await asyncio.gather(retention_task, return_exceptions=True)
         tasks = getattr(app.state, "generation_tasks", set())
         for task in list(tasks):
             task.cancel()
