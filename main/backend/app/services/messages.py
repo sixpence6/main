@@ -25,6 +25,8 @@ from app.presenters import brief_from_project, snapshot_json
 from app.services.assets import resolve_asset_file
 from app.services.projects import DEFAULT_PROJECT_TITLE, require_project
 from app.timeutil import format_timestamp, utc_now
+from app.workflow import templates as workflow_templates
+from app.workflow.tables import WorkflowRun
 
 logger = logging.getLogger("app.messages")
 
@@ -159,6 +161,16 @@ async def send_message(
         raise validation_error("消息内容不能为空")
     async with read_session(session_factory) as session:
         await require_project(session, project_id)
+        workflow_started = await session.scalar(
+            select(WorkflowRun.id)
+            .where(WorkflowRun.project_id == project_id)
+            .limit(1)
+        )
+        if workflow_started is not None:
+            raise conflict(
+                "LEGACY_FLOW_DISABLED",
+                workflow_templates.render("LEGACY_FLOW_DISABLED"),
+            )
     role = ensure_llm_ready(settings, registry)
 
     async with locks.hold(project_id):

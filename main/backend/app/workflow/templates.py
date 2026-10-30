@@ -27,6 +27,7 @@ CAPABILITY_LABELS: Final[dict[str, str]] = {
 
 TEMPLATES: Final[dict[str, str]] = {
     "SCOPE_REFUSAL": "抱歉无法回答此内容",
+    "LEGACY_FLOW_DISABLED": "此项目已进入 v2 工作流，请在工作台继续操作。",
     "INTENT_UNCLEAR": "请说明你要制作的商品图片及用途。",
     "ACTION_UNAVAILABLE": "当前状态不支持此操作，请先完成提示的步骤。",
     "WAIT_STAGE": "正在{stage_label}，请稍候。",

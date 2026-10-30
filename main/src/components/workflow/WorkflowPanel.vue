@@ -48,7 +48,7 @@ const ARTIFACT_LABELS: Record<string, string> = {
   delivery_manifest: '交付清单',
 }
 
-const visible = computed(() => Boolean(view.value && view.value.status !== 'none'))
+const visible = computed(() => Boolean(view.value))
 const stageLabel = computed(() =>
   view.value?.stage ? STAGE_LABELS[view.value.stage] ?? view.value.stage : '',
 )

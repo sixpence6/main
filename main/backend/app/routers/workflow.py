@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request
 from app.errors import ApiError, conflict
 from app.schemas import ERROR_RESPONSE
 from app.workflow import dispatch, state
+from app.workflow.stages.s01 import validate_text
 from app.workflow.schemas_workflow import WorkflowActionRequest, WorkflowView
 
 router = APIRouter(prefix="/api/projects/{project_id}/workflow", tags=["workflow"])
@@ -47,11 +48,18 @@ async def run_action(
         if ctx.project.revision != body.expected_revision:
             raise conflict("REVISION_CONFLICT", "项目已被其他操作更新，请刷新后重试")
 
+        data: dict[str, Any] = dict(body.payload or {})
+        if body.text is not None:
+            data["text"] = body.text
+
         if ctx.run is None:
             if action_id != "submit_request":
                 raise ApiError(
                     409, "ACTION_NOT_AVAILABLE", "当前状态不支持此操作，请先完成提示的步骤。"
                 )
+            # Validate before creating the run so a malformed first message
+            # cannot leave a workflow with no request and no available action.
+            validate_text(data)
             await state.create_run(ctx, "S01")
         else:
             module = dispatch.owner_for_stage(ctx.run.stage)
@@ -59,10 +67,6 @@ async def run_action(
                 raise ApiError(
                     409, "ACTION_NOT_AVAILABLE", "当前状态不支持此操作，请先完成提示的步骤。"
                 )
-
-        data: dict[str, Any] = dict(body.payload or {})
-        if body.text is not None:
-            data["text"] = body.text
         await dispatch.handle_action(ctx, action_id, data)
         fresh = await state.reload_context(ctx)
         return await state.build_workflow_view(fresh)
