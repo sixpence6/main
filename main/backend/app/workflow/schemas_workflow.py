@@ -80,6 +80,23 @@ class DeliveryView(BaseModel):
     created_at: str
 
 
+class WorkflowVersionView(BaseModel):
+    run_id: str
+    sequence_no: int
+    requirement_revision: int
+    status: str
+    generation_job_id: str | None = None
+    asset_id: str | None = None
+    filename: str | None = None
+    caption: str | None = None
+    published_at: str | None = None
+    brief: dict[str, Any] | None = None
+    prompt: dict[str, Any] | None = None
+    quality: dict[str, Any] | None = None
+    can_download: bool = False
+    created_at: str
+
+
 class WorkflowView(BaseModel):
     project_id: str
     run_id: str | None = None
@@ -96,6 +113,7 @@ class WorkflowView(BaseModel):
     legacy: list[LegacyItemView] = Field(default_factory=list)
     generation_job: GenerationJobView | None = None
     delivery: DeliveryView | None = None
+    versions: list[WorkflowVersionView] = Field(default_factory=list)
     updated_at: str | None = None
 
 

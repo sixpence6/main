@@ -12,7 +12,7 @@ from app.adapters.registry import AdapterRegistry
 from app.config import Settings
 from app.db import ProjectLocks, read_session, write_transaction
 from app.errors import conflict, not_found_project
-from app.models import Project
+from app.models import Asset, Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
 from app.workflow.access import load_project_access_policy
@@ -24,6 +24,7 @@ from app.workflow.schemas_workflow import (
     GenerationJobView,
     IssueView,
     LegacyItemView,
+    WorkflowVersionView,
     WorkflowView,
 )
 from app.workflow.tables import (
@@ -126,6 +127,42 @@ async def create_run(ctx: WorkflowContext, stage: str = "S01") -> WorkflowRun:
             stage=stage,
             status="active",
             requirement_revision=ctx.project.revision,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(run)
+        await session.flush()
+    ctx.run = run
+    return run
+
+
+async def start_new_run(
+    ctx: WorkflowContext, stage: str = "S03", *, requirement_revision: int | None = None
+) -> WorkflowRun:
+    """Create the next immutable workflow run for a new version.
+
+    The previous run is never mutated: its artifacts, approvals and delivery
+    bytes stay attached to their own snapshot. This is what makes history
+    access independent from the current requirement revision.
+    """
+    now = format_timestamp(utc_now())
+    async with write_transaction(ctx.session_factory) as session:
+        highest = await session.scalar(
+            select(func.max(WorkflowRun.sequence_no)).where(
+                WorkflowRun.project_id == ctx.project_id
+            )
+        )
+        run = WorkflowRun(
+            id=str(uuid4()),
+            project_id=ctx.project_id,
+            sequence_no=(highest or 0) + 1,
+            stage=stage,
+            status="active",
+            requirement_revision=(
+                requirement_revision
+                if requirement_revision is not None
+                else ctx.project.revision
+            ),
             created_at=now,
             updated_at=now,
         )
@@ -242,6 +279,21 @@ async def start_artifact(
 
 # Compatibility alias for callers that use the architecture's start_artifact wording.
 add_artifact = start_artifact
+
+
+async def latest_project_artifact(
+    ctx: WorkflowContext, kind: str, *, status: str | None = "approved"
+) -> Artifact | None:
+    """Read the newest artifact of a kind across every run in the project."""
+    async with read_session(ctx.session_factory) as session:
+        statement = select(Artifact).where(
+            Artifact.project_id == ctx.project_id, Artifact.kind == kind
+        )
+        if status is not None:
+            statement = statement.where(Artifact.status == status)
+        return await session.scalar(
+            statement.order_by(Artifact.created_at.desc()).limit(1)
+        )
 
 
 async def latest_artifact(
@@ -408,7 +460,10 @@ async def add_approval(
             and existing.requirement_snapshot_digest == req_digest
         ):
             return existing
-        if existing is not None:
+        # Image and delivery approvals are version-scoped evidence. A new
+        # published version must not revoke the approvals that keep older
+        # published assets readable.
+        if existing is not None and approval_type in {"requirements_card", "generation_prompt"}:
             existing.revoked_at = now
             existing.revocation_reason = "superseded"
         approval = Approval(
@@ -431,6 +486,60 @@ async def add_approval(
     return approval
 
 
+async def revoke_active_approval_types(
+    ctx: WorkflowContext, approval_types: tuple[str, ...], reason: str
+) -> int:
+    """Revoke only the named active approvals; published history is untouched."""
+    now = format_timestamp(utc_now())
+    revoked = 0
+    async with write_transaction(ctx.session_factory) as session:
+        approvals = (
+            await session.scalars(
+                select(Approval).where(
+                    Approval.project_id == ctx.project_id,
+                    Approval.approval_type.in_(approval_types),
+                    Approval.revoked_at.is_(None),
+                )
+            )
+        ).all()
+        for approval in approvals:
+            approval.revoked_at = now
+            approval.revocation_reason = reason[:64]
+            revoked += 1
+        await session.flush()
+    return revoked
+
+
+async def _approval_protected_by_published_delivery(
+    session: AsyncSession, approval: Approval
+) -> bool:
+    if approval.approval_type not in {"image", "delivery_manifest"}:
+        return False
+    if approval.approval_type == "delivery_manifest":
+        if not approval.artifact_id:
+            return False
+        delivery = await session.scalar(
+            select(Delivery).where(
+                Delivery.project_id == approval.project_id,
+                Delivery.manifest_artifact_id == approval.artifact_id,
+                Delivery.status == "published",
+            )
+        )
+        return delivery is not None
+    checks = _json_dict(approval.checks_json)
+    asset_id = checks.get("asset_id")
+    if not isinstance(asset_id, str) or not asset_id:
+        return False
+    delivery = await session.scalar(
+        select(Delivery).where(
+            Delivery.project_id == approval.project_id,
+            Delivery.asset_id == asset_id,
+            Delivery.status == "published",
+        )
+    )
+    return delivery is not None
+
+
 async def revoke_downstream_approvals(
     ctx: WorkflowContext,
     reason: str,
@@ -451,6 +560,8 @@ async def revoke_downstream_approvals(
         for approval in approvals:
             if approval.approval_type in keep_types:
                 continue
+            if await _approval_protected_by_published_delivery(session, approval):
+                continue
             approval.revoked_at = now
             approval.revocation_reason = reason[:64]
             revoked += 1
@@ -459,7 +570,7 @@ async def revoke_downstream_approvals(
                 await session.scalars(
                     select(Delivery).where(
                         Delivery.project_id == ctx.project_id,
-                        Delivery.status.in_(("approved", "published")),
+                        Delivery.status == "approved",
                     )
                 )
             ).all()
@@ -522,6 +633,98 @@ def _json_dict(value: str | None) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
+async def _build_versions(session: AsyncSession, project_id: str) -> list[WorkflowVersionView]:
+    """Build the immutable published-version history for the workspace.
+
+    Only a published delivery whose asset is approved and whose digest still
+    matches may appear. Candidate or approved-but-unpublished assets never
+    enter the history list, and no artifact payload is exposed unless that
+    artifact is approved.
+    """
+    jobs = (
+        await session.scalars(
+            select(GenerationJob)
+            .where(GenerationJob.project_id == project_id)
+            .order_by(GenerationJob.created_at.asc())
+        )
+    ).all()
+    versions: list[WorkflowVersionView] = []
+    for job in jobs:
+        delivery = await session.scalar(
+            select(Delivery)
+            .where(
+                Delivery.project_id == project_id,
+                Delivery.generation_job_id == job.id,
+                Delivery.status == "published",
+            )
+            .order_by(Delivery.published_at.desc())
+            .limit(1)
+        )
+        if delivery is None:
+            continue
+        run = await session.get(WorkflowRun, job.run_id)
+        if run is None:
+            continue
+        asset = await session.get(Asset, job.result_asset_id) if job.result_asset_id else None
+        brief_artifact = await session.scalar(
+            select(Artifact)
+            .where(
+                Artifact.run_id == job.run_id,
+                Artifact.kind == "final_brief",
+                Artifact.status == "approved",
+            )
+            .order_by(Artifact.revision_no.desc())
+            .limit(1)
+        )
+        prompt_artifact = await session.scalar(
+            select(Artifact)
+            .where(
+                Artifact.run_id == job.run_id,
+                Artifact.kind == "prompt_plan",
+                Artifact.status == "approved",
+            )
+            .order_by(Artifact.revision_no.desc())
+            .limit(1)
+        )
+        quality_artifact = await session.scalar(
+            select(Artifact)
+            .where(
+                Artifact.run_id == job.run_id,
+                Artifact.kind == "quality_report",
+                Artifact.status == "approved",
+            )
+            .order_by(Artifact.revision_no.desc())
+            .limit(1)
+        )
+        can_download = bool(
+            asset is not None
+            and asset.review_status == "approved"
+            and asset.sha256
+            and delivery.asset_digest
+            and delivery.asset_digest == asset.sha256
+            and delivery.filename
+        )
+        versions.append(
+            WorkflowVersionView(
+                run_id=job.run_id,
+                sequence_no=run.sequence_no,
+                requirement_revision=run.requirement_revision,
+                status="published",
+                generation_job_id=job.id,
+                asset_id=job.result_asset_id if can_download else None,
+                filename=delivery.filename if can_download else None,
+                caption=delivery.caption,
+                published_at=delivery.published_at,
+                brief=_json_dict(brief_artifact.payload_json) if brief_artifact else None,
+                prompt=_json_dict(prompt_artifact.payload_json) if prompt_artifact else None,
+                quality=_json_dict(quality_artifact.payload_json) if quality_artifact else None,
+                can_download=can_download,
+                created_at=job.created_at,
+            )
+        )
+    return versions
+
+
 async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
     from app.workflow import dispatch
 
@@ -581,6 +784,7 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
             .order_by(GenerationJob.created_at.desc())
             .limit(1)
         )
+        versions = await _build_versions(session, ctx.project_id)
         policy = await load_project_access_policy(session, ctx.project_id)
         delivery = None
         if job is not None:
@@ -676,6 +880,7 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
             if job is not None
             else None
         ),
+        versions=versions,
         delivery=(
             DeliveryView(
                 id=delivery.id,

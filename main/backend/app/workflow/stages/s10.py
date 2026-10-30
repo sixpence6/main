@@ -7,12 +7,12 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.adapters.base import OrganizeImage
-from app.db import write_transaction
-from app.errors import ApiError
-from app.models import Asset
+from app.db import read_session, write_transaction
+from app.errors import ApiError, validation_error
+from app.models import Asset, Message, Project
 from app.services.assets import (
     ImageValidationError,
     delete_asset_file,
@@ -31,10 +31,12 @@ from app.workflow.state import (
     add_review,
     approved_artifact,
     latest_approval,
+    latest_artifact,
+    revoke_active_approval_types,
     set_stage,
     start_artifact,
 )
-from app.workflow.tables import Approval, Artifact, Delivery, GenerationJob
+from app.workflow.tables import Approval, Artifact, Delivery, GenerationJob, WorkflowRun
 
 STAGE = "S10"
 ACTIONS = [
@@ -596,15 +598,227 @@ async def _publish(ctx: WorkflowContext) -> None:
     )
 
 
+
+
+def _feedback_text(payload: dict[str, Any]) -> str:
+    if set(payload) - {"text"}:
+        raise validation_error("请求参数不合法")
+    value = payload.get("text")
+    if not isinstance(value, str) or not value.strip():
+        raise validation_error("请说明本次修改要求")
+    if len(value) > 20_000:
+        raise validation_error("修改说明过长")
+    return value
+
+
+def _run_of(ctx: WorkflowContext) -> WorkflowRun:
+    if ctx.run is None:
+        raise _action_unavailable()
+    return ctx.run
+
+
+async def _current_delivery(
+    ctx: WorkflowContext,
+) -> tuple[GenerationJob, Asset, Delivery]:
+    async with read_session(ctx.session_factory) as session:
+        job = await session.scalar(
+            select(GenerationJob)
+            .where(GenerationJob.run_id == ctx.run_id)
+            .order_by(GenerationJob.created_at.desc())
+            .limit(1)
+        )
+        if job is None or not job.result_asset_id:
+            raise _image_not_approved()
+        asset = await session.get(Asset, job.result_asset_id)
+        delivery = await session.scalar(
+            select(Delivery)
+            .where(
+                Delivery.project_id == ctx.project_id,
+                Delivery.generation_job_id == job.id,
+            )
+            .order_by(Delivery.created_at.desc())
+            .limit(1)
+        )
+    if (
+        asset is None
+        or asset.project_id != ctx.project_id
+        or asset.kind != "generated"
+        or asset.review_status != "approved"
+        or not asset.sha256
+        or job.status not in {"approved", "published"}
+        or delivery is None
+        or delivery.status not in {"approved", "published"}
+    ):
+        raise _image_not_approved()
+    if not delivery.asset_digest or delivery.asset_digest != asset.sha256:
+        raise _image_not_approved()
+    return job, asset, delivery
+
+
+def _payload(artifact: Artifact) -> dict[str, Any]:
+    try:
+        value = json.loads(artifact.payload_json)
+    except ValueError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _report_matches_asset(report: Artifact, asset_id: str | None) -> bool:
+    if not asset_id:
+        return False
+    payload = _payload(report)
+    if payload.get("reference_usage") not in {"product", "style", "composition"}:
+        return False
+    expected = "reference:" + asset_id
+    observations = payload.get("observations")
+    if not isinstance(observations, list) or not observations:
+        return False
+    for item in observations:
+        if not isinstance(item, dict):
+            return False
+        ids = item.get("evidence_ids")
+        if not isinstance(ids, list) or not ids or any(value != expected for value in ids):
+            return False
+    texts = payload.get("texts")
+    if not isinstance(texts, list):
+        return False
+    for item in texts:
+        if not isinstance(item, dict):
+            return False
+        ids = item.get("evidence_ids")
+        if not isinstance(ids, list) or not ids or any(value != expected for value in ids):
+            return False
+    return True
+
+
+async def _copy_reference_report(ctx: WorkflowContext, old_run_id: str) -> bool:
+    asset_id = ctx.project.reference_asset_id
+    if not asset_id:
+        return False
+    async with read_session(ctx.session_factory) as session:
+        reports = (
+            await session.scalars(
+                select(Artifact)
+                .where(
+                    Artifact.project_id == ctx.project_id,
+                    Artifact.kind == "reference_report",
+                    Artifact.status == "approved",
+                )
+                .order_by(Artifact.created_at.desc())
+            )
+        ).all()
+    source = next(
+        (
+            report
+            for report in reports
+            if report.run_id != ctx.run_id and _report_matches_asset(report, asset_id)
+        ),
+        None,
+    )
+    if source is None:
+        return False
+    payload = _payload(source)
+    copied = await start_artifact(ctx, "reference_report", payload)
+    await add_review(
+        ctx,
+        copied,
+        reviewer_role="output_reviewer",
+        decision="pass",
+        checks={
+            "carried_from_report": source.id,
+            "carried_from_run": old_run_id,
+            "checks": [],
+        },
+        raw={"target_kind": "reference_report", "carried_from_run": old_run_id},
+    )
+    return True
+
+
+async def _request_new_version(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
+    text = _feedback_text(payload)
+    _job, _asset, delivery = await _current_delivery(ctx)
+    old_run = _run_of(ctx)
+    if delivery.status not in {"approved", "published"}:
+        raise _image_not_approved()
+
+    now = format_timestamp(utc_now())
+    async with write_transaction(ctx.session_factory) as session:
+        project = await session.get(Project, ctx.project_id)
+        if project is None:
+            raise conflict("PROJECT_NOT_FOUND", "项目不存在")
+        project.revision += 1
+        project.prompt_revision = None
+        project.confirmed_revision = None
+        project.brief_status = "draft"
+        project.updated_at = now
+        highest_message = await session.scalar(
+            select(func.max(Message.sequence_no)).where(
+                Message.project_id == ctx.project_id
+            )
+        )
+        session.add(
+            Message(
+                id=str(uuid4()),
+                project_id=ctx.project_id,
+                sequence_no=(highest_message or 0) + 1,
+                role="user",
+                content=text,
+                project_revision=project.revision,
+                brief_snapshot_json=None,
+                operation_id=None,
+                created_at=now,
+            )
+        )
+        highest_run = await session.scalar(
+            select(func.max(WorkflowRun.sequence_no)).where(
+                WorkflowRun.project_id == ctx.project_id
+            )
+        )
+        new_run = WorkflowRun(
+            id=str(uuid4()),
+            project_id=ctx.project_id,
+            sequence_no=(highest_run or 0) + 1,
+            stage="S03",
+            status="active",
+            requirement_revision=project.revision,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(new_run)
+        await session.flush()
+    ctx.project = project
+    ctx.project.revision = project.revision
+    ctx.run = new_run
+
+    # The current feedback cycle's confirmation and execution authorization
+    # cannot carry into a new version. Published image/delivery approvals are
+    # deliberately left active; they belong to immutable history snapshots.
+    await revoke_active_approval_types(
+        ctx, ("requirements_card", "generation_prompt"), "new_version"
+    )
+
+    has_reference = ctx.project.reference_asset_id is not None
+    if has_reference:
+        copied = await _copy_reference_report(ctx, old_run.id)
+        if not copied:
+            # A changed reference must be analysed again before a new
+            # requirement version can use it. No text-only fallback exists.
+            from app.workflow.stages import s02
+
+            await s02.analyze(ctx)
+
+
 def available(ctx: WorkflowContext) -> list[dict[str, Any]]:
     if ctx.run is None or ctx.run.stage != STAGE:
         return []
     if ctx.run.status == "completed":
+        if ctx.run.issue_code == "DELIVERY_PUBLISHED":
+            return ["request_new_version"]
         return []
     if ctx.run.issue_code == "DELIVERY_MANIFEST_READY":
         return ["approve_delivery"]
     if ctx.run.issue_code == "DELIVERY_APPROVED":
-        return ["publish_delivery"]
+        return ["publish_delivery", "request_new_version"]
     if ctx.run.issue_code is None:
         return ["prepare_delivery"]
     return []
@@ -620,7 +834,9 @@ async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> 
     if action == "publish_delivery":
         await _publish(ctx)
         return
-    # request_new_version 属于 T14 的反馈闭环，T13 不伪造未完成的入口。
+    if action == "request_new_version":
+        await _request_new_version(ctx, payload)
+        return
     raise _action_unavailable()
 
 
