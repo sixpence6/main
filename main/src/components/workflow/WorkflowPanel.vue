@@ -49,6 +49,20 @@ const LEGACY_KIND_LABELS: Record<string, string> = {
   asset: '历史图片',
 }
 
+const GENERATION_JOB_LABELS: Record<string, string> = {
+  created: '已创建',
+  submit_pending: '提交中',
+  submitted: '已提交',
+  remote_pending: '生成中',
+  result_fetched: '已获取结果',
+  quarantined: '待人工审核',
+  failed: '已暂停',
+  unknown: '结果未确认',
+  approved: '已通过审核',
+  rejected: '未通过审核',
+  published: '已发布',
+}
+
 const ARTIFACT_LABELS: Record<string, string> = {
   reference_report: '参考图分析',
   brief_draft: '需求草稿',
@@ -232,6 +246,8 @@ const visibleActions = computed(() => {
     action.id === 'confirm_requirements' ? confirmationState.value === 'pending' : true,
   )
 })
+
+const generationJobPending = computed(() => view.value?.generation_job?.status === 'quarantined')
 
 function artifactLabel(kind: string): string {
   return ARTIFACT_LABELS[kind] ?? kind
@@ -499,7 +515,10 @@ watch(
     </p>
     <div v-if="view?.generation_job" class="workflow-job">
       <strong>生成任务</strong>
-      <span>{{ GENERATION_STATUS_LABELS[view.generation_job.status] ?? view.generation_job.status }}</span>
+      <span>{{ GENERATION_STATUS_LABELS[view.generation_job.status] ?? GENERATION_JOB_LABELS[view.generation_job.status] ?? view.generation_job.status }}</span>
+      <p v-if="generationJobPending" class="muted" role="note">
+        候选图片已保存在后台，待人工审核；当前不展示预览、链接或下载。
+      </p>
       <p v-if="view.generation_job.error_message" class="form-error" role="alert">
         {{ view.generation_job.error_message }}
       </p>
