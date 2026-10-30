@@ -148,6 +148,9 @@ describe('T01 只读模型状态抽屉', () => {
     })
 
     await harness.waitFor(() => expect(harness!.fetch.count('GET', '/api/config/status')).toBe(1))
+    await harness.waitFor(() => expect(screen.getByRole('button', { name: '模型状态' })).toHaveTextContent('模型状态：读取失败'))
+    expect(screen.getAllByText('模型配置读取失败，请确认后端服务已启动后重试。').length).toBeGreaterThan(0)
+    expect(screen.queryByText('正在读取模型配置，请稍候。')).not.toBeInTheDocument()
     const dialog = await openModelDrawer(harness)
     let alert = await within(dialog).findByRole('alert')
     expect(alert).toHaveTextContent('配置状态读取失败')
@@ -168,6 +171,24 @@ describe('T01 只读模型状态抽屉', () => {
     expect(within(reopened).queryByRole('alert')).not.toBeInTheDocument()
     expect(harness.fetch.count('GET', '/api/config/status')).toBe(2)
     expect(harness.fetch.writes).toHaveLength(0)
+  })
+
+  it('配置读取失败后返回页面会自动重试并恢复状态', async () => {
+    harness = await mountWorkspace({
+      configResponses: [
+        { status: 502, body: { error: { code: 'BAD_GATEWAY', message: 'upstream unavailable' } } },
+        { body: configuredConfig() },
+      ],
+    })
+
+    await harness.waitFor(() => expect(screen.getByRole('button', { name: '模型状态' })).toHaveTextContent('模型状态：读取失败'))
+    expect(harness.fetch.count('GET', '/api/config/status')).toBe(1)
+
+    harness.visibility.hide()
+    harness.visibility.show()
+
+    await harness.waitFor(() => expect(harness!.fetch.count('GET', '/api/config/status')).toBe(2))
+    await harness.waitFor(() => expect(screen.getByRole('button', { name: '模型状态' })).toHaveTextContent('模型状态：配置完整'))
   })
 
   it('刷新防重入，进行中只保留一个 GET，完成后更新内容', async () => {

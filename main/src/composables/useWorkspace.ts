@@ -244,6 +244,11 @@ function createWorkspace(): WorkspaceStore {
   const configStatus = ref<ConfigStatus | null>(null)
   const configError = ref('')
   const configLoading = ref(false)
+  const configUnavailableReason = computed(() =>
+    configError.value
+      ? '模型配置读取失败，请确认后端服务已启动后重试。'
+      : '正在读取模型配置，请稍候。',
+  )
   const healthStatus = ref<'ok' | 'error' | null>(null)
   let configController: AbortController | null = null
   let lastAnnouncement = ''
@@ -462,6 +467,9 @@ function createWorkspace(): WorkspaceStore {
     if (project.reference_asset.availability === 'missing') {
       return '参考图文件缺失；请重新上传或移除参考图后再生成图片。'
     }
+    if (configError.value) {
+      return '模型配置读取失败，暂时无法确认参考图能力；请确认后端服务已启动后重试。'
+    }
     if (referenceCapability.value === false) {
       return '当前模型明确不支持参考图；请先移除参考图再生成图片。'
     }
@@ -475,7 +483,7 @@ function createWorkspace(): WorkspaceStore {
     if (referenceBusy.value) return '正在处理参考图，请稍候。'
     if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
     if (referenceConflict.value) return '参考图已在别处更新，请先加载最新项目。'
-    if (!configStatus.value) return '正在读取模型配置，请稍候。'
+    if (!configStatus.value) return configUnavailableReason.value
     if (referenceCapability.value === false) return '当前模型明确不支持参考图。'
     if (!referenceMimeTypes.value.length) return '当前模型未声明支持 PNG 或 JPEG 参考图。'
     return ''
@@ -533,7 +541,7 @@ function createWorkspace(): WorkspaceStore {
     if (briefDirty.value) return '有未保存的需求修改，请先保存或取消修改，再发送消息。'
     if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
     const llm = configStatus.value?.llm
-    if (!llm) return '正在读取模型配置，请稍候。'
+    if (!llm) return configUnavailableReason.value
     if (!llm.configured) return 'LLM 尚未配置，当前无法整理需求；输入内容会保留。'
     if (!llm.ready) return 'LLM 当前不可用，当前无法整理需求；输入内容会保留。'
     if (!draft.value.trim()) return '请输入商品与图片需求。'
@@ -599,7 +607,7 @@ function createWorkspace(): WorkspaceStore {
     }
     if (!project.brief.prompt.trim()) return '完整提示词尚未生成，请先重新整理需求。'
     const visual = configStatus.value?.visual
-    if (!visual) return '正在读取模型配置，请稍候。'
+    if (!visual) return configUnavailableReason.value
     if (!visual.configured) return '图片模型尚未配置，当前无法生成图片。'
     if (!visual.ready) return '图片模型当前不可用，请稍后重试。'
     if (visual.capabilities?.text_to_image === false) return '当前模型不支持文生图，不能生成图片。'
@@ -1029,7 +1037,7 @@ function createWorkspace(): WorkspaceStore {
 
   function modelConfigReason(): string {
     const llm = configStatus.value?.llm
-    if (!llm) return '正在读取模型配置，请稍候。'
+    if (!llm) return configUnavailableReason.value
     if (!llm.configured) return 'LLM 尚未配置，当前无法整理需求；输入内容会保留。'
     if (!llm.ready) return 'LLM 当前不可用，当前无法整理需求；输入内容会保留。'
     return ''
@@ -2783,7 +2791,9 @@ function createWorkspace(): WorkspaceStore {
       if (isAbortError(error) || controller.signal.aborted) return
       configError.value =
         error instanceof ApiError
-          ? error.message
+          ? error.status === 502 || error.status === 503 || error.status === 504
+            ? '后端服务不可用，请确认后端已启动后重试。'
+            : error.message
           : '配置状态读取失败，请稍后重试。'
       announce('配置状态读取失败。')
     } finally {
@@ -2811,6 +2821,10 @@ function createWorkspace(): WorkspaceStore {
     if (pageIsHidden()) {
       pauseStatusQueriesForHiddenPage()
       return
+    }
+    if (!configStatus.value) {
+      void checkHealth()
+      void refreshConfig()
     }
     if (generationQueryError.value) return
     if (organizing.value || activeGeneration.value) scheduleStatusQuery(0)

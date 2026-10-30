@@ -5,7 +5,7 @@ import { useWorkspace } from '@/composables/useWorkspace'
 const props = withDefaults(defineProps<{ mobile?: boolean }>(), { mobile: false })
 const emit = defineEmits<{ navigate: [] }>()
 const workspace = useWorkspace()
-const { sidebarExpanded, configStatus, createNewProject, openProjectDrawer, openModelDrawer } = workspace
+const { sidebarExpanded, configStatus, configError, createNewProject, openProjectDrawer, openModelDrawer } = workspace
 
 const expanded = computed(() => (props.mobile ? true : sidebarExpanded.value))
 const toggleLabel = computed(() => (expanded.value ? '收起侧栏' : '展开侧栏'))
@@ -13,6 +13,7 @@ const toggleHint = computed(() =>
   expanded.value ? '收起侧栏后，工作区将获得更多空间。' : '展开侧栏以查看新建项目和已有项目入口。',
 )
 const configLabel = computed(() => {
+  if (configError.value) return '模型状态：读取失败'
   if (!configStatus.value) return '模型状态'
   return configStatus.value.llm.configured && configStatus.value.visual.configured
     ? '模型状态：配置完整'
@@ -78,7 +79,7 @@ function modelStatus(): void {
     <div class="sidebar-bottom">
       <button type="button" class="side-action model-status-entry" aria-label="模型状态" :title="configLabel" @click="modelStatus">
         <span class="model-dot" :class="{ 'is-ready': configStatus?.llm.configured && configStatus?.visual.configured }" aria-hidden="true" />
-        <span class="side-label">模型状态</span>
+        <span class="side-label">{{ configLabel }}</span>
         <span class="side-tip" aria-hidden="true">{{ configLabel }}</span>
       </button>
     </div>
