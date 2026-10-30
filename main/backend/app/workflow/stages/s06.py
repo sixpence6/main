@@ -5,8 +5,9 @@ from typing import Any
 
 from sqlalchemy import select
 
-from app.db import read_session
+from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict, validation_error
+from app.models import Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
 from app.workflow.stages import s03
@@ -403,6 +404,21 @@ async def _confirm(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
         material_digest=material,
         model_fingerprint="not_applicable",
     )
+    # The immutable approval is the authoritative record; these project
+    # fields are the current-state projection used by S07/S08 gate checks.
+    now_state = format_timestamp(utc_now())
+    async with write_transaction(ctx.session_factory) as session:
+        project = await session.get(Project, ctx.project_id)
+        if project is None:
+            raise _changed_error()
+        project.brief_status = "confirmed"
+        project.confirmed_revision = project.revision
+        project.updated_at = now_state
+        await session.flush()
+    ctx.project.brief_status = "confirmed"
+    ctx.project.confirmed_revision = ctx.project.revision
+    ctx.project.updated_at = now_state
+
     await record_diagnostic(
         ctx,
         "requirements_confirmed",

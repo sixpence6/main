@@ -391,6 +391,18 @@ async def _still_current(
     return approval.requirement_snapshot_digest == snapshot_digest
 
 
+async def _advance_to_review(app, job_id: str) -> None:
+    async with read_session(app.state.session_factory) as session:
+        job = await session.get(GenerationJob, job_id)
+        if job is None:
+            return
+        project_id = job.project_id
+        run_id = job.run_id
+    ctx = await state.load_context(app, project_id)
+    if ctx.run is not None and ctx.run.id == run_id and ctx.run.stage == STAGE:
+        await state.set_stage(ctx, "S09", "active")
+
+
 async def _run_job(
     app,
     job_id: str,
@@ -506,6 +518,7 @@ async def _run_job(
                     remote_task_id=generation.remote_task_id,
                     submit_attempted=1,
                 )
+                await _advance_to_review(app, job_id)
                 return
 
         status = generation.status if generation.status in {"failed", "unknown"} else "unknown"

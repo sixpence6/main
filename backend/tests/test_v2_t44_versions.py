@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import io
 import json
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, AsyncIterator
 from uuid import uuid4
 
@@ -13,6 +14,7 @@ from httpx import ASGITransport, AsyncClient
 from PIL import Image
 from sqlalchemy import select
 
+from app.adapters.base import ProviderOutcome
 from app.main import create_app
 from app.models import Asset, Project
 from app.timeutil import format_timestamp, utc_now
@@ -390,9 +392,11 @@ async def _env(
     with_reference: bool = False,
     job_status: str = "published",
     delivery_status: str = "published",
+    stub: LLMStub | None = None,
+    visual: VisualStub | None = None,
 ) -> AsyncIterator[tuple[Any, AsyncClient, Seed, LLMStub, VisualStub]]:
-    stub = LLMStub()
-    visual = VisualStub()
+    stub = stub or LLMStub()
+    visual = visual or VisualStub()
     registry = build_test_registry(llm=stub, visual=visual)
     migrate(settings)
     application = create_app(settings=settings, registry=registry)
@@ -908,3 +912,333 @@ async def test_late_old_run_artifact_cannot_replace_current_version(full_setting
         assert len(view.get("versions") or []) == 1
         assert view["versions"][0]["run_id"] == seed.run_id
         assert view["versions"][0]["brief"]["product_description"] == "米色托特包"
+
+
+def _coverage(brief: dict[str, Any], reference_id: str | None) -> list[dict[str, Any]]:
+    items = [
+        ("hard:subject", "positive_prompt", brief["product_description"]),
+        ("hard:purpose", "positive_prompt", brief["purpose"]),
+        ("hard:creative", "positive_prompt", brief["creative_direction"]),
+        ("hard:style", "positive_prompt", "、".join(brief["style_keywords"])),
+        ("hard:composition", "positive_prompt", brief["composition"]),
+        ("hard:lighting", "positive_prompt", brief["lighting"]),
+    ]
+    for index, text in enumerate(brief.get("texts") or []):
+        items.append((f"hard:text:{index}", "positive_prompt", text))
+    for index, fact in enumerate(brief.get("facts") or []):
+        items.append((f"hard:fact:{index}", "positive_prompt", fact["text"]))
+    for index, value in enumerate(brief.get("must_include") or []):
+        items.append((f"hard:must_include:{index}", "positive_prompt", value))
+    for index, value in enumerate(brief.get("must_preserve") or []):
+        items.append((f"hard:must_preserve:{index}", "positive_prompt", value))
+    for index, value in enumerate(brief.get("forbidden") or []):
+        items.append((f"hard:forbidden:{index}", "negative_prompt", value))
+    items.append(("hard:size", "size", brief["size"]))
+    items.append(("hard:count", "count", "1"))
+    if reference_id:
+        items.append(("hard:reference_asset_id", "reference_asset_id", reference_id))
+    return [{"rule_id": rule, "binding": binding, "value": value} for rule, binding, value in items]
+
+
+def _evidence_for(rule: dict[str, Any], allowed: list[str]) -> list[str]:
+    evidence: list[str] = []
+    for evidence_type in rule.get("evidence_types", []):
+        match = next((item for item in allowed if item.startswith(f"{evidence_type}:")), None)
+        if match is not None:
+            evidence.append(match)
+    return evidence or allowed[:1]
+
+
+def _full_chain_responder(seed: Seed, brief: dict[str, Any]):
+    visual_plan = {
+        "style_keywords": ["简洁"],
+        "composition": "正面居中",
+        "lighting": "柔光",
+        "background": "浅色背景",
+        "palette": ["米色"],
+        "text_layout": "无画面文字",
+        "reference_treatment": "保留参考图的商品外观",
+        "preservation_rules": ["米色", "一只托特包"],
+    }
+    prompt = {
+        "positive_prompt": "米色托特包，电商主图，简洁棚拍，简洁，正面居中，柔光，一只托特包，米色，保留参考图的商品外观",
+        "negative_prompt": "",
+        "size": "8x8",
+        "count": 1,
+        "reference_asset_id": seed.reference_asset_id,
+        "requirement_coverage": _coverage(brief, seed.reference_asset_id),
+    }
+
+    def responder(request: Any) -> dict[str, Any]:
+        task = request.payload["task"]
+        role = task["role"]
+        input_data = request.payload.get("input_data") or {}
+        if role == "requirements_consultant":
+            data = dict(brief)
+            data["reference_asset_id"] = seed.reference_asset_id
+            data["reference_usage"] = "product" if seed.reference_asset_id else "none"
+            return {
+                "role": role,
+                "status": "ready",
+                "data": data,
+                "issues": [],
+                "questions": [],
+            }
+        if role == "creative_planner":
+            return {
+                "role": role,
+                "status": "ready",
+                "data": {
+                    "direction": "简洁背景突出托特包",
+                    "selling_points": [],
+                    "copy_lines": [],
+                },
+                "issues": [],
+                "questions": [],
+            }
+        if role == "visual_director":
+            return {"role": role, "status": "ready", "data": visual_plan, "issues": [], "questions": []}
+        if role == "generation_engineer":
+            requirements = input_data.get("hard_requirements") or []
+            positive_parts: list[str] = []
+            negative_parts: list[str] = []
+            coverage: list[dict[str, Any]] = []
+            for item in requirements:
+                binding = (item.get("allowed_bindings") or ["positive_prompt"])[0]
+                value = str(item["requirement"])
+                coverage.append(
+                    {"rule_id": item["rule_id"], "binding": binding, "value": value}
+                )
+                if binding == "positive_prompt":
+                    positive_parts.append(value)
+                elif binding == "negative_prompt":
+                    negative_parts.append(value)
+            data = {
+                "positive_prompt": "；".join(positive_parts),
+                "negative_prompt": "；".join(negative_parts),
+                "size": next(
+                    (
+                        item["requirement"]
+                        for item in requirements
+                        if item["rule_id"] == "hard:size"
+                    ),
+                    "8x8",
+                ),
+                "count": 1,
+                "reference_asset_id": (
+                    next(
+                        (
+                            item["requirement"]
+                            for item in requirements
+                            if item["rule_id"] == "hard:reference_asset_id"
+                        ),
+                        None,
+                    )
+                ),
+                "requirement_coverage": coverage,
+            }
+            return {"role": role, "status": "ready", "data": data, "issues": [], "questions": []}
+        if role == "quality_compliance":
+            rules = input_data.get("rules") or []
+            allowed = list(task.get("allowed_evidence_ids") or [])
+            checks = [
+                {
+                    "rule_id": rule["rule_id"],
+                    "outcome": "pass",
+                    "evidence_ids": _evidence_for(rule, allowed),
+                    "note": "已核对",
+                }
+                for rule in rules
+                if rule.get("applicability") == "applicable"
+            ]
+            return {
+                "role": role,
+                "status": "ready",
+                "data": {
+                    "asset_id": input_data.get("asset_id"),
+                    "decision": "pass",
+                    "checks": checks,
+                    "soft_feedback": [],
+                    "limitations": [],
+                    "user_summary": "图片符合确认要求。",
+                },
+                "issues": [],
+                "questions": [],
+            }
+        if role == "delivery_manager":
+            target_asset = input_data.get("target_asset") or {}
+            requirement = input_data.get("requirement") or {}
+            return {
+                "role": role,
+                "status": "ready",
+                "data": {
+                    "asset_id": target_asset.get("asset_id"),
+                    "requirement_revision": requirement.get("revision"),
+                    "filename_hint": "bag-main.png",
+                    "caption": "已按当前需求完成检查。",
+                },
+                "issues": [],
+                "questions": [],
+            }
+        if role == "output_reviewer":
+            targets = request.payload.get("review_targets") or []
+            allowed = list(task.get("allowed_evidence_ids") or [])
+            results = []
+            for target in targets:
+                target_id = str(target["target_id"])
+                if target.get("target_kind") == "quality_report":
+                    checks = [
+                        {
+                            "rule_id": "review:quality_report",
+                            "outcome": "pass",
+                            "evidence_ids": [f"report:{target.get('artifact_id')}"],
+                            "note": "报告与检查一致",
+                        }
+                    ]
+                else:
+                    rule_ids = list(target.get("required_rule_ids") or task.get("required_rule_ids") or [])
+                    by_id = {
+                        rule["rule_id"]: rule
+                        for rule in (target.get("rules") or [])
+                        if isinstance(rule, dict) and "rule_id" in rule
+                    }
+                    checks = [
+                        {
+                            "rule_id": rule_id,
+                            "outcome": "pass",
+                            "evidence_ids": _evidence_for(by_id.get(rule_id, {}), allowed)
+                            or allowed[:1]
+                            or [target_id],
+                            "note": "已核对",
+                        }
+                        for rule_id in rule_ids
+                    ]
+                results.append(
+                    {"target_id": target_id, "decision": "pass", "checks": checks}
+                )
+            return {
+                "role": role,
+                "status": "ready",
+                "data": {"results": results},
+                "issues": [],
+                "questions": [],
+            }
+        raise AssertionError(f"unexpected role {role!r}")
+
+    return responder
+
+
+@pytest.mark.asyncio
+async def test_full_new_version_chain_preserves_old_and_publishes_new(full_settings):
+    capabilities = replace(
+        VisualStub().capabilities,
+        supported_image_sizes=("8x8",),
+        provider_max_reference_bytes=5_000_000,
+    )
+    visual = VisualStub(
+        capabilities=capabilities,
+        submit_outcome=ProviderOutcome(
+            state="succeeded", image_bytes=_png_bytes((30, 120, 220), 8), image_count=1
+        ),
+    )
+    settings = full_settings.model_copy(update={"visual_image_size": "8x8"})
+    stub = LLMStub()
+    async with _env(
+        settings, with_reference=True, stub=stub, visual=visual
+    ) as (application, client, seed, stub, visual):
+        old_brief = _brief_payload()
+        old_brief["reference_asset_id"] = seed.reference_asset_id
+        old_brief["reference_usage"] = "product"
+        respond = _full_chain_responder(seed, old_brief)
+        stub.role_responder = respond
+
+        started = await _post(
+            client,
+            seed.project_id,
+            "request_new_version",
+            revision=1,
+            text="更换更简洁的背景",
+        )
+        assert started.status_code == 200, started.text
+        view = started.json()
+        assert view["stage"] == "S03"
+        new_run_id = view["run_id"]
+        assert new_run_id != seed.run_id
+        assert visual.submit_calls == []
+
+        async def act(action: str, *, text: str | None = None, payload: dict[str, Any] | None = None):
+            nonlocal view
+            response = await _post(
+                client,
+                seed.project_id,
+                action,
+                revision=view["project_revision"],
+                text=text,
+                payload=payload,
+            )
+            assert response.status_code == 200, (action, response.text)
+            view = response.json()
+            return view
+
+        view = await act("compose_brief")
+        assert view["stage"] == "S04"
+        view = await act("plan_creative")
+        assert view["stage"] == "S05"
+        view = await act("plan_visual")
+        view = await act("finalize_requirements")
+        assert view["stage"] == "S06"
+        view = await act("confirm_requirements")
+        assert view["stage"] == "S07"
+        view = await act("compile_prompt")
+        assert view["stage"] == "S08"
+
+        async with application.state.session_factory() as session:
+            jobs_before = (await session.scalars(select(GenerationJob))).all()
+        assert len(jobs_before) == 1
+        assert visual.submit_calls == []
+
+        view = await act("submit_generation")
+        for _ in range(200):
+            tasks = list(application.state.generation_tasks)
+            if not tasks:
+                break
+            await asyncio.gather(*tasks, return_exceptions=True)
+        fetched = (await client.get(f"/api/projects/{seed.project_id}/workflow")).json()
+        assert fetched["stage"] == "S09"
+        view = fetched
+        view = await act("review_candidate")
+        assert view["stage"] == "S10"
+        view = await act("prepare_delivery")
+        view = await act("approve_delivery")
+        view = await act("publish_delivery")
+        assert view["stage"] == "S10"
+        assert view["status"] == "completed"
+
+        versions = view.get("versions") or []
+        assert len(versions) == 2
+        assert versions[0]["run_id"] == seed.run_id
+        assert versions[1]["run_id"] == new_run_id
+        assert versions[1]["can_download"] is True
+        assert versions[0]["can_download"] is True
+        new_asset_id = versions[1]["asset_id"]
+        assert new_asset_id and new_asset_id != seed.asset_id
+        old_preview = await client.get(f"/api/assets/{seed.asset_id}")
+        old_download = await client.get(f"/api/assets/{seed.asset_id}?download=true")
+        new_preview = await client.get(f"/api/assets/{new_asset_id}")
+        new_download = await client.get(f"/api/assets/{new_asset_id}?download=true")
+        assert old_preview.status_code == 200 and old_preview.content == seed.asset_bytes
+        assert old_download.status_code == 200 and old_download.content == seed.asset_bytes
+        assert new_preview.status_code == 200
+        assert new_download.status_code == 200
+        assert new_download.content != seed.asset_bytes
+        assert len(visual.submit_calls) == 1
+
+        async with application.state.session_factory() as session:
+            new_job = await session.scalar(
+                select(GenerationJob).where(GenerationJob.run_id == new_run_id)
+            )
+            old_run = await session.get(WorkflowRun, seed.run_id)
+            new_run = await session.get(WorkflowRun, new_run_id)
+        assert new_job is not None and new_job.status == "published"
+        assert old_run is not None and old_run.status == "completed"
+        assert new_run is not None and new_run.status == "completed"
