@@ -23,7 +23,7 @@ def _role() -> RoleConfig:
         api_key=SecretStr("sk-test-secret"),
         model="image-model",
         timeout_seconds=30,
-        image_size="1024x1024",
+        image_size="3840x2160",
     )
 
 
@@ -38,7 +38,7 @@ def _request(reference_path: Path | None = None) -> GenerationRequest:
         version_no=1,
         prompt="生成一张商品图",
         brief=BriefData(),
-        image_size="1024x1024",
+        image_size="3840x2160",
         reference_path=reference_path,
         reference_mime_type="image/png" if reference_path else None,
     )
@@ -68,6 +68,7 @@ async def test_text_to_image_requests_and_returns_base64():
     body = json.loads(str(seen["body"]))
     assert body["response_format"] == "b64_json"
     assert body["n"] == 1
+    assert body["size"] == "3840x2160"
     assert outcome.state == "succeeded"
     assert outcome.image_bytes == b"image-bytes"
     assert outcome.image_count == 1
@@ -95,6 +96,8 @@ async def test_reference_image_uses_edits_endpoint(tmp_path: Path):
     assert str(seen["content_type"]).startswith("multipart/form-data; boundary=")
     assert b'name="image"' in seen["body"]
     assert b'name="response_format"' in seen["body"]
+    assert b'name="size"' in seen["body"]
+    assert b"3840x2160" in seen["body"]
     assert b"reference-bytes" in seen["body"]
     assert outcome.image_bytes == b"edited"
 
@@ -247,7 +250,7 @@ def test_builtin_registry_exposes_openai_images_and_config_is_ready():
     assert capabilities.text_to_image is True
     assert capabilities.reference_image is True
     assert capabilities.asynchronous is False
-    assert capabilities.supported_image_sizes == ("1024x1024",)
+    assert capabilities.supported_image_sizes == ("3840x2160",)
 
     settings = Settings(
         _env_file=None,
@@ -255,7 +258,7 @@ def test_builtin_registry_exposes_openai_images_and_config_is_ready():
         visual_base_url="https://visual.example/v1",
         visual_api_key="sk-test",
         visual_model="image-model",
-        visual_image_size="1024x1024",
+        visual_image_size="3840x2160",
     )
     status = build_config_status(settings, registry)
     assert status.visual.configured is True

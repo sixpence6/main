@@ -10,8 +10,16 @@ from PIL import Image
 
 from app.adapters.base import BriefData, OrganizeRequest, OrganizeResult, ProviderOutcome
 from app.config import Settings
+from app.services.generations import parse_image_size
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
 from tests.support.apps import run_client
+
+
+def test_parse_image_size_accepts_landscape_and_rejects_noncanonical_values():
+    assert parse_image_size("3840x2160") == (3840, 2160)
+    assert parse_image_size("3840×2160") is None
+    assert parse_image_size("3840 x 2160") is None
+    assert parse_image_size("0x2160") is None
 
 
 def png_bytes(width: int = 1024, height: int = 1024, color=(240, 240, 240)) -> bytes:

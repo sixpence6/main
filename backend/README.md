@@ -45,8 +45,10 @@ http://127.0.0.1:8000/api/docs for the API documentation. Useful commands:
 The production registry already contains the `openai-chat` language-model
 adapter and the `openai-images` visual adapter. Point both base URLs at
 OpenAI-compatible API roots ending in `/v1`, set the model names, and choose a
-supported `VISUAL_IMAGE_SIZE` (currently `1024x1024`). No code edits or
-per-machine adapter registration are required.
+supported `VISUAL_IMAGE_SIZE` (currently `3840x2160`). No code edits or
+per-machine adapter registration are required. Saved projects keep the size
+captured in their brief; after changing `VISUAL_IMAGE_SIZE`, re-organize and
+confirm an existing project before generating again.
 
 The chat adapter handles requirement organization through `POST /chat/completions`
 with JSON-object responses; it returns either a clarifying

@@ -17,7 +17,7 @@ from app.adapters.base import (
 )
 from app.config import RoleConfig
 
-_IMAGE_SIZES = ("1024x1024",)
+_IMAGE_SIZES = ("3840x2160",)
 _REFERENCE_MIME_TYPES = ("image/png", "image/jpeg")
 _MAX_ERROR_MESSAGE_LENGTH = 200
 _MAX_REDIRECTS = 5

@@ -124,7 +124,7 @@ def parse_image_size(value: str | None) -> tuple[int, int] | None:
     if match is None:
         return None
     width, height = int(match.group(1)), int(match.group(2))
-    if width <= 0 or height <= 0 or width != height:
+    if width <= 0 or height <= 0:
         return None
     return width, height
 
