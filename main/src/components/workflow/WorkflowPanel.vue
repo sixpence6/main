@@ -29,8 +29,8 @@ const STAGE_LABELS: Record<string, string> = {
   S07: '编制生图提示词',
   S08: '生成图片',
   S09: '检查图片',
-  S10: '审查输出',
-  S11: '准备交付',
+  S10: '准备交付',
+  S11: '反馈新版本',
   S12: '恢复流程',
 }
 
@@ -108,6 +108,15 @@ const finalBrief = computed<WorkflowArtifact | null>(() => {
   return latest
 })
 
+const DELIVERY_STATUS_LABELS: Record<string, string> = {
+  approved: '待发布',
+  published: '已发布',
+  revoked: '不可用',
+}
+
+function deliveryStatusLabel(status: string): string {
+  return DELIVERY_STATUS_LABELS[status] ?? '不可用'
+}
 const approvedArtifacts = computed<WorkflowArtifact[]>(() => {
   if (!view.value) return []
   const latest = new Map<string, WorkflowArtifact>()
@@ -506,7 +515,10 @@ watch(
     </div>
 
     <div v-if="view?.delivery" class="workflow-delivery">
-      <strong>交付：{{ view.delivery.filename }}</strong>
+      <div class="workflow-delivery-heading">
+        <strong>交付：{{ view.delivery.filename }}</strong>
+        <span class="status-badge">{{ deliveryStatusLabel(view.delivery.status) }}</span>
+      </div>
       <p v-if="view.delivery.caption">{{ view.delivery.caption }}</p>
       <template v-if="view.delivery.status === 'published'">
         <img
@@ -516,10 +528,15 @@ watch(
         />
         <a
           class="workflow-download"
-          :href="assetUrl(view.delivery.asset_id)"
-          download
-        >下载已发布图片</a>
+          :href="assetUrl(view.delivery.asset_id) + '?download=true'"
+          :download="view.delivery.filename"
+        >
+          下载已发布图片
+        </a>
       </template>
+      <p v-else-if="view.delivery.status === 'revoked'" class="muted">
+        当前内容不可访问或批准已失效，请检查状态或重新审查。
+      </p>
       <p v-else class="muted">交付尚未发布，暂不提供查看或下载。</p>
     </div>
 

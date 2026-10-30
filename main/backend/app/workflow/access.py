@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 from dataclasses import dataclass
 
@@ -10,7 +12,15 @@ from app.config import Settings
 from app.errors import ApiError
 from app.models import Asset, Generation
 from app.workflow import templates
-from app.workflow.tables import Approval, Artifact, Delivery, LegacyItem, WorkflowRun
+from app.workflow.contracts import digest_payload
+from app.workflow.tables import (
+    Approval,
+    Artifact,
+    Delivery,
+    GenerationJob,
+    LegacyItem,
+    WorkflowRun,
+)
 
 
 @dataclass(frozen=True)
@@ -108,6 +118,12 @@ async def _matches_asset(
         return False
     return payload.get("asset_digest") == asset.sha256
 
+
+async def asset_approval_matches(session: AsyncSession, asset: Asset, approval: Approval) -> bool:
+    """供交付阶段复用同一套资产/审批绑定校验。"""
+    return await _matches_asset(session, asset, approval, _checks(approval))
+
+
 async def load_project_access_policies(
     session: AsyncSession, project_ids: list[str]
 ) -> dict[str, ProjectAccessPolicy]:
@@ -116,9 +132,7 @@ async def load_project_access_policies(
     if not unique_ids:
         return {}
     items = (
-        await session.scalars(
-            select(LegacyItem).where(LegacyItem.project_id.in_(unique_ids))
-        )
+        await session.scalars(select(LegacyItem).where(LegacyItem.project_id.in_(unique_ids)))
     ).all()
     # 即使历史数据缺少 legacy_items 行，只要资产本身被标记为未审查也必须隐藏。
     legacy_assets = (
@@ -185,9 +199,7 @@ async def load_project_access_policies(
     }
 
 
-async def load_project_access_policy(
-    session: AsyncSession, project_id: str
-) -> ProjectAccessPolicy:
+async def load_project_access_policy(session: AsyncSession, project_id: str) -> ProjectAccessPolicy:
     policies = await load_project_access_policies(session, [project_id])
     return policies[project_id]
 
@@ -202,6 +214,136 @@ async def ensure_legacy_entry_available(
     return policy
 
 
+async def _active_approval(
+    session: AsyncSession, project_id: str, approval_type: str
+) -> Approval | None:
+    return await session.scalar(
+        select(Approval)
+        .where(
+            Approval.project_id == project_id,
+            Approval.approval_type == approval_type,
+            Approval.revoked_at.is_(None),
+        )
+        .order_by(Approval.created_at.desc())
+        .limit(1)
+    )
+
+
+def _artifact_payload(artifact: Artifact) -> dict[str, object]:
+    try:
+        payload = json.loads(artifact.payload_json)
+    except ValueError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+async def _v2_access(
+    session: AsyncSession,
+    settings: Settings,
+    asset: Asset,
+    job: GenerationJob,
+    *,
+    download: bool,
+) -> AccessDecision:
+    """v2 交付资产的统一 G08 门禁。
+
+    只要资产被 GenerationJob 引用，就必须同时满足：图片批准、交付清单批准、
+    原确认需求快照、规则版本、已发布交付记录、真实文件摘要与尺寸。任一条件
+    不满足都固定拒绝，绝不回退到“文件存在即可读”。
+    """
+    # 延迟导入，避免与项目服务形成循环依赖。
+    from app.services.assets import inspect_image, resolve_asset_file
+
+    if (
+        job.result_asset_id != asset.id
+        or job.project_id != asset.project_id
+        or job.status != "published"
+    ):
+        return AccessDecision(False, "ASSET_UNAVAILABLE")
+
+    image_approval = await _active_approval(session, asset.project_id, "image")
+    if image_approval is None:
+        return AccessDecision(False, "APPROVAL_MISSING")
+    if image_approval.rules_version != "2.0.0" or image_approval.prompt_version != "2.0.0":
+        return AccessDecision(False, "ASSET_UNAVAILABLE")
+    if image_approval.requirement_snapshot_digest != job.confirmed_snapshot_digest:
+        return AccessDecision(False, "REQUIREMENT_CHANGED")
+    checks = _checks(image_approval)
+    if not await _matches_asset(session, asset, image_approval, checks):
+        return AccessDecision(False, "DIGEST_MISMATCH")
+
+    manifest_approval = await _active_approval(session, asset.project_id, "delivery_manifest")
+    if manifest_approval is None:
+        return AccessDecision(False, "APPROVAL_MISSING")
+    if (
+        manifest_approval.approved_by != "output_reviewer"
+        or manifest_approval.rules_version != "2.0.0"
+        or manifest_approval.prompt_version != "2.0.0"
+        or manifest_approval.requirement_snapshot_digest != job.confirmed_snapshot_digest
+    ):
+        return AccessDecision(False, "ASSET_UNAVAILABLE")
+    if not manifest_approval.artifact_id:
+        return AccessDecision(False, "APPROVAL_MISSING")
+    manifest = await session.get(Artifact, manifest_approval.artifact_id)
+    if (
+        manifest is None
+        or manifest.project_id != asset.project_id
+        or manifest.status != "approved"
+        or not manifest_approval.artifact_digest
+        or manifest.digest != manifest_approval.artifact_digest
+    ):
+        return AccessDecision(False, "DIGEST_MISMATCH")
+    payload = _artifact_payload(manifest)
+    if digest_payload(payload) != manifest.digest:
+        return AccessDecision(False, "DIGEST_MISMATCH")
+    if payload.get("asset_id") != asset.id:
+        return AccessDecision(False, "DIGEST_MISMATCH")
+    run = await session.get(WorkflowRun, job.run_id)
+    if (
+        run is None
+        or run.project_id != asset.project_id
+        or payload.get("requirement_revision") != run.requirement_revision
+    ):
+        return AccessDecision(False, "REQUIREMENT_CHANGED")
+
+    delivery = await session.scalar(
+        select(Delivery)
+        .where(
+            Delivery.project_id == asset.project_id,
+            Delivery.generation_job_id == job.id,
+            Delivery.asset_id == asset.id,
+            Delivery.status == "published",
+        )
+        .order_by(Delivery.published_at.desc())
+        .limit(1)
+    )
+    if delivery is None:
+        return AccessDecision(False, "NOT_PUBLISHED")
+    if (
+        not delivery.asset_digest
+        or delivery.asset_digest != asset.sha256
+        or not delivery.filename
+        or delivery.manifest_artifact_id != manifest.id
+    ):
+        return AccessDecision(False, "DIGEST_MISMATCH")
+    if download and not delivery.filename:
+        return AccessDecision(False, "NOT_PUBLISHED")
+
+    path = resolve_asset_file(settings, asset)
+    if path is None:
+        return AccessDecision(False, "ASSET_UNAVAILABLE")
+    data = await asyncio.to_thread(path.read_bytes)
+    if not asset.sha256 or hashlib.sha256(data).hexdigest() != asset.sha256:
+        return AccessDecision(False, "DIGEST_MISMATCH")
+    try:
+        info = inspect_image(data)
+    except Exception:
+        return AccessDecision(False, "ASSET_UNAVAILABLE")
+    if info.width != asset.width or info.height != asset.height:
+        return AccessDecision(False, "DIGEST_MISMATCH")
+    return AccessDecision(True)
+
+
 async def can_access_asset(
     session: AsyncSession,
     settings: Settings,
@@ -213,7 +355,6 @@ async def can_access_asset(
 
     The workflow may evolve, but no route may bypass this fail-closed check.
     """
-    del settings  # reserved for path roots and future policy inputs
     if asset.review_status == "legacy_unreviewed":
         return AccessDecision(False, "LEGACY_UNREVIEWED")
     if asset.review_status == "rejected":
@@ -240,6 +381,15 @@ async def can_access_asset(
     if approval is None:
         return AccessDecision(False, "APPROVAL_MISSING")
     checks = _checks(approval)
+    job = await session.scalar(
+        select(GenerationJob)
+        .where(GenerationJob.result_asset_id == asset.id)
+        .order_by(GenerationJob.created_at.desc())
+        .limit(1)
+    )
+    if job is not None:
+        return await _v2_access(session, settings, asset, job, download=download)
+
     if not await _matches_asset(session, asset, approval, checks):
         return AccessDecision(False, "DIGEST_MISMATCH")
 
@@ -267,6 +417,7 @@ __all__ = [
     "AccessDecision",
     "ProjectAccessPolicy",
     "can_access_asset",
+    "asset_approval_matches",
     "ensure_legacy_entry_available",
     "load_project_access_policies",
     "load_project_access_policy",

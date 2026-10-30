@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
@@ -333,6 +334,7 @@ async def retrieve_result(
                     width=info_image.width,
                     height=info_image.height,
                     byte_size=len(data),
+                    sha256=hashlib.sha256(data).hexdigest(),
                     created_at=now,
                 )
                 session.add(asset)
