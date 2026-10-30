@@ -15,9 +15,12 @@ export function useWorkflow(projectId: WorkflowProjectId) {
   const error = ref('')
   const actionBusy = ref(false)
   let controller: AbortController | null = null
+  let loadSequence = 0
+  let actionSequence = 0
 
   async function load(): Promise<void> {
     const id = projectId.value
+    const sequence = ++loadSequence
     controller?.abort()
     if (!id) {
       view.value = null
@@ -25,16 +28,20 @@ export function useWorkflow(projectId: WorkflowProjectId) {
       loading.value = false
       return
     }
-    controller = new AbortController()
+    const currentController = new AbortController()
+    controller = currentController
     loading.value = true
     error.value = ''
     try {
-      view.value = await getWorkflow(id, controller.signal)
+      const next = await getWorkflow(id, currentController.signal)
+      if (sequence !== loadSequence || projectId.value !== id) return
+      view.value = next
     } catch (caught) {
+      if (sequence !== loadSequence || projectId.value !== id) return
       if (caught instanceof DOMException && caught.name === 'AbortError') return
       error.value = caught instanceof ApiError ? caught.message : '流程状态读取失败，请稍后重试。'
     } finally {
-      loading.value = false
+      if (sequence === loadSequence) loading.value = false
     }
   }
 
@@ -45,16 +52,19 @@ export function useWorkflow(projectId: WorkflowProjectId) {
   ): Promise<boolean> {
     const id = projectId.value
     if (!id || !view.value || actionBusy.value) return false
+    const sequence = ++actionSequence
     actionBusy.value = true
     error.value = ''
     try {
-      view.value = await runWorkflowAction(id, action.id, {
+      const next = await runWorkflowAction(id, action.id, {
         expected_revision: view.value.project_revision,
         text,
         payload,
       })
+      if (sequence === actionSequence && projectId.value === id) view.value = next
       return true
     } catch (caught) {
+      if (sequence !== actionSequence || projectId.value !== id) return false
       error.value = caught instanceof ApiError ? caught.message : '操作未能完成，请稍后重试。'
       if (caught instanceof ApiError && caught.status === 409) {
         const message = caught.message
@@ -63,11 +73,15 @@ export function useWorkflow(projectId: WorkflowProjectId) {
       }
       return false
     } finally {
-      actionBusy.value = false
+      if (sequence === actionSequence) actionBusy.value = false
     }
   }
 
-  watch(projectId, () => void load(), { immediate: true })
+  watch(projectId, () => {
+    actionSequence += 1
+    actionBusy.value = false
+    void load()
+  }, { immediate: true })
   onBeforeUnmount(() => controller?.abort())
 
   return { view, loading, error, actionBusy, load, refresh: load, runAction }
