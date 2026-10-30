@@ -868,3 +868,75 @@ async def test_missing_reference_file_blocks_without_vision_call(full_settings):
         assert (await client.get(f"/api/projects/{project['id']}")).json()["project"][
             "reference_asset"
         ]["id"] == asset_id
+
+
+@pytest.mark.asyncio
+async def test_selected_usage_survives_failed_reanalysis_and_retry(full_settings):
+    base = responder()
+    failed_once = {"value": False}
+
+    def flaky(request: Any) -> dict[str, Any]:
+        task = request.payload["task"]
+        if (
+            task["role"] == "reference_analyst"
+            and request.payload["input_data"]["reference_usage"] == "style"
+            and not failed_once["value"]
+        ):
+            failed_once["value"] = True
+            raise ProviderError(
+                "语言模型服务暂时不可用",
+                evidence="uncertain",
+                error_code="LLM_UPSTREAM_ERROR",
+            )
+        return base(request)
+
+    async with environment(full_settings, flaky) as (application, client, stub, _):
+        project = await create_project(client)
+        uploaded = await upload_ok(client, project["id"], 0, png_bytes())
+        first = await act(
+            client,
+            project["id"],
+            "analyze_reference",
+            expected_revision=uploaded["revision"],
+        )
+        assert first.status_code == 200
+
+        failed = await act(
+            client,
+            project["id"],
+            "confirm_reference_usage",
+            expected_revision=uploaded["revision"],
+            payload={"usage": "style"},
+        )
+        assert failed.status_code == 503, failed.text
+        view = await workflow(client, project["id"])
+        assert view["status"] == "failed"
+        assert [action["id"] for action in view["available_actions"]] == ["analyze_reference"]
+
+        retried = await act(
+            client,
+            project["id"],
+            "analyze_reference",
+            expected_revision=uploaded["revision"],
+        )
+        assert retried.status_code == 200, retried.text
+        assert stub.role_calls_received[-2].payload["input_data"]["reference_usage"] == "style"
+        report = next(
+            item
+            for item in retried.json()["artifacts"]
+            if item["kind"] == "reference_report" and item["status"] == "approved"
+        )
+        assert report["payload"]["reference_usage"] == "style"
+        events = None
+        async with application.state.session_factory() as session:
+            from app.workflow.tables import DiagnosticEvent
+
+            events = (
+                await session.scalars(
+                    select(DiagnosticEvent).where(
+                        DiagnosticEvent.project_id == project["id"],
+                        DiagnosticEvent.event == "reference_usage_selected",
+                    )
+                )
+            ).all()
+        assert events

@@ -23,11 +23,12 @@ from app.workflow.state import (
     approved_artifact,
     create_run,
     invalidate_requirements,
+    record_diagnostic,
     set_artifact_status,
     set_stage,
     start_artifact,
 )
-from app.workflow.tables import Artifact
+from app.workflow.tables import Artifact, DiagnosticEvent
 
 STAGE = "S02"
 ACTIONS = [
@@ -130,18 +131,39 @@ async def approved_report_for_current_asset(ctx: WorkflowContext) -> Artifact | 
 
 async def current_reference_usage(ctx: WorkflowContext) -> str:
     artifact = await approved_report_for_current_asset(ctx)
-    if artifact is None:
-        return DEFAULT_REFERENCE_USAGE
-    usage = _payload(artifact).get("reference_usage")
-    return str(usage) if usage in REFERENCE_USAGES else DEFAULT_REFERENCE_USAGE
+    if artifact is not None:
+        usage = _payload(artifact).get("reference_usage")
+        if usage in REFERENCE_USAGES:
+            return str(usage)
+    # A usage change can fail before the new report exists. The selected usage
+    # is still a durable requirement choice and must survive a manual retry.
+    async with read_session(ctx.session_factory) as session:
+        event = await session.scalar(
+            select(DiagnosticEvent)
+            .where(
+                DiagnosticEvent.project_id == ctx.project_id,
+                DiagnosticEvent.event == "reference_usage_selected",
+            )
+            .order_by(DiagnosticEvent.created_at.desc())
+            .limit(1)
+        )
+    if event is not None:
+        usage = _json_dict(event.detail_json).get("usage")
+        if usage in REFERENCE_USAGES:
+            return str(usage)
+    return DEFAULT_REFERENCE_USAGE
 
 
-def _resolve_usage(value: object) -> str:
-    if value is None:
-        return DEFAULT_REFERENCE_USAGE
+def _validate_usage(value: object) -> str:
     if not isinstance(value, str) or value not in REFERENCE_USAGES:
         raise validation_error("参考图用途不合法")
     return value
+
+
+async def _resolve_usage(ctx: WorkflowContext, value: object) -> str:
+    if value is None:
+        return await current_reference_usage(ctx)
+    return _validate_usage(value)
 
 
 class _ReferenceUnusable(Exception):
@@ -331,7 +353,7 @@ async def analyze(ctx: WorkflowContext, usage: object = None) -> None:
     if ctx.run is not None and ctx.run.status == "blocked":
         raise conflict("ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
 
-    resolved_usage = _resolve_usage(usage)
+    resolved_usage = await _resolve_usage(ctx, usage)
     try:
         asset, data, image = await _load_reference(ctx)
     except _ReferenceUnusable:
@@ -446,6 +468,11 @@ async def prepare_after_reference_change(ctx: WorkflowContext) -> None:
     """Invalidate prior reports and dependent confirmations after a new upload."""
     if ctx.run is None:
         return
+    await record_diagnostic(
+        ctx,
+        "reference_usage_selected",
+        {"usage": DEFAULT_REFERENCE_USAGE, "asset_id": ctx.project.reference_asset_id},
+    )
     await invalidate_requirements(ctx, "reference_changed")
     await _supersede_reports(ctx)
     await set_stage(ctx, STAGE, "active")
@@ -482,7 +509,7 @@ async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> 
         return
 
     if action == "confirm_reference_usage":
-        usage = _resolve_usage(payload.get("usage"))
+        usage = _validate_usage(payload.get("usage"))
         report = await approved_report_for_current_asset(ctx)
         if report is None:
             raise conflict(
@@ -491,6 +518,11 @@ async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> 
             )
         current = _payload(report).get("reference_usage")
         if current != usage:
+            await record_diagnostic(
+                ctx,
+                "reference_usage_selected",
+                {"usage": usage, "asset_id": ctx.project.reference_asset_id},
+            )
             await invalidate_requirements(ctx, "reference_usage_changed")
             await _supersede_reports(ctx)
             await analyze(ctx, usage=usage)
