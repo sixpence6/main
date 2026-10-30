@@ -14,6 +14,26 @@ migrations, the SQLite database, runtime image data and tests.
     uv run alembic upgrade head
     uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1 --app-dir ../main/backend
 
+## Docker Compose
+
+From the repository root, build and start the complete stack:
+
+    docker compose up -d --build
+
+The `backend` service builds from `docker/backend.Dockerfile`, reads provider
+settings from `backend/.env` at runtime (the file is not copied into the image),
+runs `alembic upgrade head` before starting Uvicorn, and mounts
+`backend/data` so the SQLite database and generated images survive container
+recreation. The `frontend` service waits for the backend health check and
+proxies relative `/api/` requests to the Compose service name `backend`.
+
+Open http://127.0.0.1:8090 for the workspace and
+http://127.0.0.1:8000/api/docs for the API documentation. Useful commands:
+
+    docker compose ps
+    docker compose logs -f backend
+    docker compose down
+
 ## Deploying on another machine
 
 1. Install dependencies with `uv sync`.
