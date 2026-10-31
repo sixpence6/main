@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { RouterView } from 'vue-router'
+import { currentAccount, sessionEstablished, sessionInvalidated } from '@/auth/session'
 import AppHeader from '@/components/AppHeader.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import GenerationRiskDialog from '@/components/GenerationRiskDialog.vue'
@@ -13,6 +15,11 @@ import { provideWorkspace } from '@/composables/useWorkspace'
 import { legacyNoticeText } from '@/utils/format'
 import '@/styles/workspace.css'
 
+const businessVisible = computed(
+  () =>
+    currentAccount.value !== null ||
+    (!sessionEstablished.value && !sessionInvalidated.value),
+)
 const workspace = provideWorkspace()
 const {
   isMobile,
@@ -39,6 +46,7 @@ const {
   <div class="workspace-shell">
     <AppHeader />
 
+    <template v-if="businessVisible">
     <div class="workspace-body">
       <AppSidebar v-if="!isMobile" />
 
@@ -99,5 +107,9 @@ const {
       @confirm="confirmNavigation"
     />
     <StatusAnnouncer />
+    </template>
+    <div v-else class="workspace-session-lost" role="status">
+      正在重新验证登录状态…
+    </div>
   </div>
 </template>
