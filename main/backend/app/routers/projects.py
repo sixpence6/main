@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Request
 
+from app.auth.principal import require_principal
 from app.presenters import generation_view, message_view, project_view
 from app.schemas import (
     ERROR_RESPONSE,
@@ -30,23 +31,34 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
     "",
     response_model=ProjectView,
     status_code=201,
-    responses={422: ERROR_RESPONSE},
+    responses={401: ERROR_RESPONSE, 422: ERROR_RESPONSE},
 )
 async def create_project_endpoint(request: Request, _payload: CreateProjectRequest) -> ProjectView:
     state = request.app.state
-    project = await create_project(state.session_factory)
+    principal = require_principal(request)
+    project = await create_project(
+        state.session_factory, owner_account_id=principal.account_id
+    )
     return project_view(project, None, state.settings.resolved_data_dir())
 
 
-@router.get("", response_model=ProjectListResponse, responses={422: ERROR_RESPONSE})
+@router.get(
+    "",
+    response_model=ProjectListResponse,
+    responses={401: ERROR_RESPONSE, 422: ERROR_RESPONSE},
+)
 async def list_projects_endpoint(
     request: Request,
     limit: Annotated[int, Query(ge=1, le=MAX_LIST_LIMIT)] = DEFAULT_LIST_LIMIT,
     cursor: Annotated[str | None, Query()] = None,
 ) -> ProjectListResponse:
     state = request.app.state
+    principal = require_principal(request)
     items, next_cursor = await list_projects(
-        state.session_factory, limit=limit, cursor=decode_cursor(cursor)
+        state.session_factory,
+        limit=limit,
+        cursor=decode_cursor(cursor),
+        principal=principal,
     )
     return ProjectListResponse(items=items, next_cursor=next_cursor)
 
@@ -54,11 +66,14 @@ async def list_projects_endpoint(
 @router.get(
     "/{project_id}",
     response_model=ProjectDetailResponse,
-    responses={404: ERROR_RESPONSE, 422: ERROR_RESPONSE},
+    responses={401: ERROR_RESPONSE, 404: ERROR_RESPONSE, 422: ERROR_RESPONSE},
 )
 async def get_project_endpoint(request: Request, project_id: str) -> ProjectDetailResponse:
     state = request.app.state
-    detail = await get_project_detail(state.session_factory, project_id)
+    principal = require_principal(request)
+    detail = await get_project_detail(
+        state.session_factory, project_id, principal=principal
+    )
     data_dir = state.settings.resolved_data_dir()
     retrieval = evaluate_generations_retrieval(
         detail.generations,

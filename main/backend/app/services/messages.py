@@ -17,13 +17,15 @@ from app.adapters.base import (
     OrganizeResult,
 )
 from app.adapters.registry import AdapterRegistry
+from app.auth.principal import Principal
 from app.config import Settings
 from app.db import ProjectLocks, read_session, write_transaction
 from app.errors import ApiError, conflict, validation_error
 from app.models import Asset, Generation, Message, Project
+from app.ownership import require_project_scope
 from app.presenters import brief_from_project, snapshot_json
 from app.services.assets import resolve_asset_file
-from app.services.projects import DEFAULT_PROJECT_TITLE, require_project
+from app.services.projects import DEFAULT_PROJECT_TITLE
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates as workflow_templates
 from app.workflow.access import ensure_legacy_entry_available
@@ -131,7 +133,7 @@ async def _mark_failure(
     error_message: str,
 ) -> None:
     async with write_transaction(session_factory) as session:
-        project = await require_project(session, project_id)
+        project = await require_project_scope(session, project_id, None)
         if (
             project.revision != start_revision
             or project.brief_status != "organizing"
@@ -157,11 +159,12 @@ async def send_message(
     project_id: str,
     content: str,
     expected_revision: int,
+    principal: Principal | None = None,
 ) -> MessageExchange:
     if not content.strip():
         raise validation_error("消息内容不能为空")
     async with read_session(session_factory) as session:
-        await require_project(session, project_id)
+        await require_project_scope(session, project_id, principal)
         workflow_started = await session.scalar(
             select(WorkflowRun.id)
             .where(WorkflowRun.project_id == project_id)
@@ -180,7 +183,7 @@ async def send_message(
         now = format_timestamp(utc_now())
         operation_id = str(uuid4())
         async with write_transaction(session_factory) as session:
-            project = await require_project(session, project_id)
+            project = await require_project_scope(session, project_id, principal)
             if project.revision != expected_revision:
                 raise conflict("REVISION_CONFLICT", "项目已被其他操作更新，请刷新后重试")
             active = await session.scalar(
@@ -306,7 +309,7 @@ async def send_message(
             raise
 
         async with write_transaction(session_factory) as session:
-            project = await require_project(session, project_id)
+            project = await require_project_scope(session, project_id, principal)
             if (
                 project.revision != start_revision
                 or project.brief_status != "organizing"

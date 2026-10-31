@@ -22,7 +22,7 @@ from app.workflow.stages import s10
 from app.workflow.tables import Approval, Artifact, Delivery, GenerationJob, WorkflowRun
 from tests.conftest import migrate
 from tests.support.adapters import LLMStub, build_test_registry
-from tests.support.auth import authenticated_client
+from tests.support.auth import admin_account_id_for_seed, authenticated_client, ensure_test_admin
 
 
 def _png_bytes(color: tuple[int, int, int] = (20, 80, 160)) -> bytes:
@@ -82,6 +82,7 @@ async def _seed_ready_state(
     job_id = str(uuid4())
     asset_id = str(uuid4())
     now = format_timestamp(utc_now())
+    owner_account_id = await admin_account_id_for_seed(session)
     image_bytes = _png_bytes()
     digest = hashlib.sha256(image_bytes).hexdigest()
     relative_path = f"generated/{asset_id}.png"
@@ -94,6 +95,7 @@ async def _seed_ready_state(
     confirmed_digest = digest_payload(snapshot)
     project = Project(
         id=project_id,
+        owner_account_id=owner_account_id,
         title="T13 交付测试项目",
         revision=1,
         prompt_revision=1,
@@ -279,6 +281,7 @@ async def _delivery_env(
     registry = build_test_registry(llm=stub)
     application = create_app(settings=settings, registry=registry)
     async with application.router.lifespan_context(application):
+        await ensure_test_admin(application)
         async with application.state.session_factory() as session:
             ids = await seed(settings, session)
             await session.commit()

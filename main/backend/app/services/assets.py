@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.adapters.registry import AdapterRegistry
+from app.auth.principal import Principal
 from app.config import (
     LOCAL_REFERENCE_MAX_BYTES,
     Settings,
@@ -21,7 +22,7 @@ from app.db import ProjectLocks, write_transaction
 from app.errors import ApiError, conflict
 from app.maintenance.coordinator import file_publication_guard
 from app.models import Asset, Generation, Project
-from app.services.projects import require_project
+from app.ownership import require_project_scope
 from app.timeutil import format_timestamp, utc_now
 from app.workflow.tables import Delivery
 
@@ -147,6 +148,7 @@ async def attach_reference(
     expected_revision: int,
     data: bytes,
     image: ImageInfo,
+    principal: Principal | None = None,
 ) -> ReferenceMutation:
     async with locks.hold(project_id):
         asset_id = str(uuid4())
@@ -155,7 +157,7 @@ async def attach_reference(
         await asyncio.to_thread(write_asset_file, settings, relative_path, data)
         try:
             async with write_transaction(session_factory) as session:
-                project = await require_project(session, project_id)
+                project = await require_project_scope(session, project_id, principal)
                 if project.revision != expected_revision:
                     raise conflict("REVISION_CONFLICT", "项目已被其他操作更新，请刷新后重试")
                 if await _active_count(session, project_id):
@@ -191,10 +193,11 @@ async def remove_reference(
     *,
     project_id: str,
     expected_revision: int,
+    principal: Principal | None = None,
 ) -> ReferenceMutation:
     async with locks.hold(project_id):
         async with write_transaction(session_factory) as session:
-            project = await require_project(session, project_id)
+            project = await require_project_scope(session, project_id, principal)
             if project.revision != expected_revision:
                 raise conflict("REVISION_CONFLICT", "项目已被其他操作更新，请刷新后重试")
             if not project.reference_asset_id:

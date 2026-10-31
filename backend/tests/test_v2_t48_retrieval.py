@@ -5,13 +5,16 @@ import uuid
 from contextlib import asynccontextmanager
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 
 from app.adapters.base import ProviderOutcome
 from app.main import create_app
 from app.services.generations import service_fingerprint
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
 from tests.support.apps import migrate
+from tests.support.auth import (
+    assign_projects_to_test_admin_sync,
+    authenticated_client,
+)
 from tests.test_v2_t01_legacy import (
     OLD_BRIEF,
     OLD_PROMPT,
@@ -21,7 +24,6 @@ from tests.test_v2_t01_legacy import (
     _upgrade,
 )
 from tests.test_v2_t49_legacy_review import Script
-from tests.support.auth import authenticated_client
 
 
 def _seed_failed_generation(
@@ -78,11 +80,12 @@ def _registry(settings, script=None):
 
 
 @asynccontextmanager
-async def _client(settings, registry):
+async def _client(settings, registry, project_ids=()):
     migrate(settings)
     app = create_app(settings=settings, registry=registry)
     async with app.router.lifespan_context(app):
         async with authenticated_client(app) as client:
+            assign_projects_to_test_admin_sync(settings, list(project_ids))
             yield client, app
 
 
@@ -106,7 +109,7 @@ async def test_retrieve_failed_result_updates_same_generation_after_gates(settin
     finally:
         connection.close()
     registry, visual, png = _registry(full_settings)
-    async with _client(full_settings, registry) as (client, app):
+    async with _client(full_settings, registry, [project_id]) as (client, app):
         response = await _post(
             client,
             project_id,
@@ -152,7 +155,7 @@ async def test_retrieve_failed_result_updates_same_generation_after_gates(settin
 async def test_unknown_task_is_not_polled_or_fetched(settings, full_settings):
     project_id, generation_id = _seed_failed_generation(settings, status="unknown", locator=None)
     registry, visual, _ = _registry(full_settings)
-    async with _client(full_settings, registry) as (client, app):
+    async with _client(full_settings, registry, [project_id]) as (client, app):
         response = await _post(
             client,
             project_id,
@@ -176,7 +179,7 @@ async def test_g06_unknown_keeps_retrieved_asset_quarantined(settings, full_sett
     finally:
         connection.close()
     registry, visual, png = _registry(full_settings, Script(decisions={"image": "unknown"}))
-    async with _client(full_settings, registry) as (client, app):
+    async with _client(full_settings, registry, [project_id]) as (client, app):
         response = await _post(
             client,
             project_id,
@@ -214,7 +217,7 @@ async def test_unsupported_adapter_and_fetch_failure_do_not_retry(settings, full
     finally:
         connection.close()
     registry, visual, _ = _registry(full_settings)
-    async with _client(full_settings, registry) as (client, app):
+    async with _client(full_settings, registry, [project_id]) as (client, app):
         response = await _post(
             client,
             project_id,
@@ -241,7 +244,7 @@ async def test_fetch_failure_keeps_original_task_without_automatic_retry(setting
     from app.adapters.base import ProviderError
 
     visual.fetch_error = ProviderError("获取失败", evidence="not_submitted")
-    async with _client(full_settings, registry) as (client, app):
+    async with _client(full_settings, registry, [project_id]) as (client, app):
         response = await _post(
             client,
             project_id,

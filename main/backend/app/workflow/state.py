@@ -9,10 +9,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.adapters.registry import AdapterRegistry
+from app.auth.principal import Principal
 from app.config import Settings
 from app.db import ProjectLocks, read_session, write_transaction
 from app.errors import conflict, not_found_project
 from app.models import Asset, Project
+from app.ownership import revalidate_principal
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
 from app.workflow.access import can_access_asset, load_project_access_policy
@@ -73,6 +75,7 @@ class WorkflowContext:
     registry: AdapterRegistry
     http: Any
     locks: ProjectLocks
+    principal: Principal | None = None
 
     @property
     def project_id(self) -> str:
@@ -89,9 +92,20 @@ class WorkflowContext:
         return self.project.revision
 
 
-async def load_context(app: Any, project_id: str) -> WorkflowContext:
+async def load_context(
+    app: Any, project_id: str, *, principal: Principal | None = None
+) -> WorkflowContext:
     async with read_session(app.state.session_factory) as session:
-        project = await session.get(Project, project_id)
+        if principal is None:
+            project = await session.get(Project, project_id)
+        else:
+            await revalidate_principal(session, principal)
+            project = await session.scalar(
+                select(Project).where(
+                    Project.id == project_id,
+                    Project.owner_account_id == principal.account_id,
+                )
+            )
         if project is None:
             raise not_found_project()
         run = await session.scalar(
@@ -109,11 +123,12 @@ async def load_context(app: Any, project_id: str) -> WorkflowContext:
         registry=app.state.registry,
         http=app.state.http,
         locks=app.state.locks,
+        principal=principal,
     )
 
 
 async def reload_context(ctx: WorkflowContext) -> WorkflowContext:
-    fresh = await load_context(ctx.app, ctx.project_id)
+    fresh = await load_context(ctx.app, ctx.project_id, principal=ctx.principal)
     fresh.locks = ctx.locks
     return fresh
 

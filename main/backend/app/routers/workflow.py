@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 
+from app.auth.principal import require_principal
 from app.errors import ApiError, conflict
 from app.schemas import ERROR_RESPONSE
 from app.workflow import dispatch, state
@@ -16,10 +17,11 @@ router = APIRouter(prefix="/api/projects/{project_id}/workflow", tags=["workflow
 @router.get(
     "",
     response_model=WorkflowView,
-    responses={404: ERROR_RESPONSE, 422: ERROR_RESPONSE},
+    responses={401: ERROR_RESPONSE, 404: ERROR_RESPONSE, 422: ERROR_RESPONSE},
 )
 async def get_workflow(project_id: str, request: Request) -> WorkflowView:
-    ctx = await state.load_context(request.app, project_id)
+    principal = require_principal(request)
+    ctx = await state.load_context(request.app, project_id, principal=principal)
     return await state.build_workflow_view(ctx)
 
 
@@ -43,8 +45,9 @@ async def run_action(
         raise ApiError(404, "ACTION_NOT_FOUND", "操作不存在")
 
     app = request.app
+    principal = require_principal(request)
     async with app.state.locks.hold(project_id):
-        ctx = await state.load_context(app, project_id)
+        ctx = await state.load_context(app, project_id, principal=principal)
         if ctx.project.revision != body.expected_revision:
             raise conflict("REVISION_CONFLICT", "项目已被其他操作更新，请刷新后重试")
 

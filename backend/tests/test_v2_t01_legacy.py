@@ -16,6 +16,10 @@ from PIL import Image
 from app.workflow import templates
 from tests.support.adapters import build_test_registry
 from tests.support.apps import run_client
+from tests.support.auth import (
+    assign_projects_to_test_admin_sync,
+    bind_projects_to_test_admin,
+)
 
 BACKEND_DIR = __import__("pathlib").Path(__file__).resolve().parents[1]
 NOW = "2026-01-01T00:00:00.000000Z"
@@ -241,6 +245,7 @@ async def legacy_env(settings, full_settings):
     _upgrade(settings, "0001")
     ids = _seed_v1(settings)
     _upgrade(settings, "head")
+    await bind_projects_to_test_admin(settings, [ids["project_id"]])
     registry = build_test_registry()
     async with run_client(full_settings, registry) as client:
         yield LegacyEnv(client=client, registry=registry, settings=settings, ids=ids)
@@ -313,6 +318,7 @@ def _seed_missing_approval_assets(settings) -> dict[str, str]:
         connection.commit()
     finally:
         connection.close()
+    assign_projects_to_test_admin_sync(settings, [project_id])
     return {
         "project_id": project_id,
         "no_approval_id": no_approval_id,
@@ -411,6 +417,9 @@ def _seed_missing_metadata_assets(settings) -> dict[str, str]:
         connection.commit()
     finally:
         connection.close()
+    assign_projects_to_test_admin_sync(
+        settings, [value for key, value in ids.items() if key.endswith("_project")]
+    )
     return ids
 
 
@@ -498,6 +507,9 @@ def _seed_artifact_binding_assets(settings) -> dict[str, str]:
         connection.commit()
     finally:
         connection.close()
+    assign_projects_to_test_admin_sync(
+        settings, [value for key, value in ids.items() if key.endswith("_project")]
+    )
     return ids
 
 

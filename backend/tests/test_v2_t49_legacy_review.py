@@ -14,6 +14,7 @@ from app.workflow import templates
 from app.workflow.stages import s11
 from tests.support.adapters import LLMStub, build_test_registry
 from tests.support.apps import run_client
+from tests.support.auth import bind_projects_to_test_admin
 from tests.test_v2_t01_legacy import (
     NOW,
     OLD_ASSISTANT_TEXT,
@@ -122,6 +123,7 @@ async def _environment(settings, full_settings, script: Script):
     _upgrade(settings, "0001")
     ids = _seed_v1(settings)
     _upgrade(settings, "head")
+    await bind_projects_to_test_admin(settings, [ids["project_id"]])
     stub = LLMStub(role_responder=script)
     registry = build_test_registry(llm=stub)
     async with run_client(full_settings, registry) as client:
@@ -396,6 +398,7 @@ async def test_missing_snapshot_and_reference_block_without_model(settings, full
     finally:
         connection.close()
     _upgrade(settings, "head")
+    await bind_projects_to_test_admin(settings, [ids["project_id"]])
     stub = LLMStub(role_responder=script)
     registry = build_test_registry(llm=stub)
     async with run_client(full_settings, registry) as client:

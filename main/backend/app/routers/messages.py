@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
+from app.auth.principal import require_principal
 from app.presenters import message_view, project_view
 from app.schemas import ERROR_RESPONSE, MessageExchangeResponse, SendMessageRequest
 from app.services.messages import send_message
@@ -14,6 +15,7 @@ router = APIRouter(prefix="/api/projects", tags=["messages"])
     "/{project_id}/messages",
     response_model=MessageExchangeResponse,
     responses={
+        401: ERROR_RESPONSE,
         404: ERROR_RESPONSE,
         409: ERROR_RESPONSE,
         422: ERROR_RESPONSE,
@@ -26,6 +28,7 @@ async def send_message_endpoint(
     request: Request, project_id: str, payload: SendMessageRequest
 ) -> MessageExchangeResponse:
     state = request.app.state
+    principal = require_principal(request)
     exchange = await send_message(
         state.session_factory,
         state.locks,
@@ -35,6 +38,7 @@ async def send_message_endpoint(
         project_id=project_id,
         content=payload.content,
         expected_revision=payload.expected_revision,
+        principal=principal,
     )
     data_dir = state.settings.resolved_data_dir()
     async with state.session_factory() as session:

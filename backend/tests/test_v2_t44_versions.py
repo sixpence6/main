@@ -29,7 +29,7 @@ from app.workflow.tables import (
 )
 from tests.conftest import migrate
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
-from tests.support.auth import authenticated_client
+from tests.support.auth import admin_account_id_for_seed, authenticated_client, ensure_test_admin
 
 
 def _png_bytes(color: tuple[int, int, int] = (20, 80, 160), size: int = 8) -> bytes:
@@ -148,6 +148,7 @@ async def _seed_published(
     prompt_id = str(uuid4())
     quality_id = str(uuid4())
     now = format_timestamp(utc_now())
+    owner_account_id = await admin_account_id_for_seed(session)
     asset_bytes = _png_bytes()
     digest = hashlib.sha256(asset_bytes).hexdigest()
     relative_path = f"generated/{asset_id}.png"
@@ -157,6 +158,7 @@ async def _seed_published(
 
     project = Project(
         id=project_id,
+        owner_account_id=owner_account_id,
         title="T14 历史版本项目",
         revision=1,
         prompt_revision=1,
@@ -402,6 +404,7 @@ async def _env(
     migrate(settings)
     application = create_app(settings=settings, registry=registry)
     async with application.router.lifespan_context(application):
+        await ensure_test_admin(application)
         async with application.state.session_factory() as session:
             seed = await _seed_published(
                 settings,
