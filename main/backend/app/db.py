@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.config import Settings
+from app.maintenance.coordinator import BUSINESS_WRITE, get_active_coordinator
 
 
 def build_dsn(settings: Settings) -> str:
@@ -46,10 +47,9 @@ async def read_session(factory: async_sessionmaker[AsyncSession]) -> AsyncIterat
 
 
 @asynccontextmanager
-async def write_transaction(
+async def _open_write_transaction(
     factory: async_sessionmaker[AsyncSession],
 ) -> AsyncIterator[AsyncSession]:
-    """Short write transaction. BEGIN IMMEDIATE serialises writers at the SQLite level."""
     async with factory() as session:
         await session.execute(text("BEGIN IMMEDIATE"))
         try:
@@ -58,6 +58,27 @@ async def write_transaction(
         except BaseException:
             await session.rollback()
             raise
+
+
+@asynccontextmanager
+async def write_transaction(
+    factory: async_sessionmaker[AsyncSession],
+) -> AsyncIterator[AsyncSession]:
+    """Short write transaction. BEGIN IMMEDIATE serialises writers at the SQLite level.
+
+    The maintenance gate is checked before the transaction begins. A writer that
+    already holds a lease is allowed to finish; a new writer is rejected while a
+    backup window is active. This is the single commit boundary every business
+    write passes through.
+    """
+    coordinator = get_active_coordinator()
+    if coordinator is None:
+        async with _open_write_transaction(factory) as session:
+            yield session
+        return
+    async with coordinator.guard(BUSINESS_WRITE):
+        async with _open_write_transaction(factory) as session:
+            yield session
 
 
 async def check_database_writable(engine: AsyncEngine) -> None:

@@ -19,6 +19,7 @@ from app.config import (
 )
 from app.db import ProjectLocks, write_transaction
 from app.errors import ApiError, conflict
+from app.maintenance.coordinator import file_publication_guard
 from app.models import Asset, Generation, Project
 from app.services.projects import require_project
 from app.timeutil import format_timestamp, utc_now
@@ -92,11 +93,12 @@ def inspect_image(data: bytes) -> ImageInfo:
 
 
 def write_asset_file(settings: Settings, relative_path: str, data: bytes) -> None:
-    destination = settings.resolved_data_dir() / relative_path
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = settings.temp_dir / f"{uuid4()}.part"
-    temporary.write_bytes(data)
-    temporary.replace(destination)
+    with file_publication_guard():
+        destination = settings.resolved_data_dir() / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = settings.temp_dir / f"{uuid4()}.part"
+        temporary.write_bytes(data)
+        temporary.replace(destination)
 
 
 def delete_asset_file(settings: Settings, relative_path: str) -> None:
