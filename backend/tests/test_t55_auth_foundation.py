@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 from argon2 import PasswordHasher
-from httpx import ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 
 from app.auth.audit import write_audit
@@ -446,6 +446,15 @@ async def test_forged_session_cookie_is_rejected(app, anonymous_client):
     )
     assert session.status_code == 401
     assert session.json()["error"]["code"] == "AUTH_REQUIRED"
+
+
+@pytest.mark.asyncio
+async def test_anonymous_unsafe_business_request_gets_401_before_origin(app):
+    app.state.clock = FrozenClock(FROZEN)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url=TEST_ORIGIN) as raw:
+        response = await raw.post("/api/projects", json={})
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "AUTH_REQUIRED"
 
 
 @pytest.mark.asyncio

@@ -147,27 +147,22 @@ class AuthMiddleware:
         if not is_api:
             await self.app(scope, receive, send)
             return
-        if method not in SAFE_METHODS:
-            origin = headers.get("origin")
-            if not check_origin(origin, self.settings):
-                await _send_json(send, 403, "ORIGIN_INVALID", "请求来源校验失败")
-                return
-            if path.startswith("/api/auth/"):
-                content_length = headers.get("content-length")
-                if content_length:
-                    try:
-                        declared = int(content_length)
-                    except ValueError:
-                        await _send_json(send, 400, "INVALID_REQUEST", "请求格式不合法")
-                        return
-                    if declared > AUTH_JSON_BODY_LIMIT:
-                        await _send_json(send, 413, "AUTH_BODY_TOO_LARGE", "请求体过大")
-                        return
-                replay = await _read_limited_body(receive, AUTH_JSON_BODY_LIMIT)
-                if replay is None:
+        if method not in SAFE_METHODS and path.startswith("/api/auth/"):
+            content_length = headers.get("content-length")
+            if content_length:
+                try:
+                    declared = int(content_length)
+                except ValueError:
+                    await _send_json(send, 400, "INVALID_REQUEST", "请求格式不合法")
+                    return
+                if declared > AUTH_JSON_BODY_LIMIT:
                     await _send_json(send, 413, "AUTH_BODY_TOO_LARGE", "请求体过大")
                     return
-                receive = replay
+            replay = await _read_limited_body(receive, AUTH_JSON_BODY_LIMIT)
+            if replay is None:
+                await _send_json(send, 413, "AUTH_BODY_TOO_LARGE", "请求体过大")
+                return
+            receive = replay
         state = scope.setdefault("state", {})
         context = None
         raw_cookie = headers.get("cookie") or ""
@@ -207,6 +202,10 @@ class AuthMiddleware:
             await _send_json(send, 401, "AUTH_REQUIRED", "请先登录")
             return
         if method not in SAFE_METHODS:
+            origin = headers.get("origin")
+            if not check_origin(origin, self.settings):
+                await _send_json(send, 403, "ORIGIN_INVALID", "请求来源校验失败")
+                return
             if path == "/api/auth/login":
                 presented = headers.get("x-csrf-token")
                 cookie_token = cookie_map.get(PREAUTH_CSRF_COOKIE)
