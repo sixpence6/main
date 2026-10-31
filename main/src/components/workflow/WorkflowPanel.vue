@@ -150,6 +150,7 @@ const approvedArtifacts = computed<WorkflowArtifact[]>(() => {
   for (const artifact of view.value.artifacts) {
     if (
       artifact.kind === 'final_brief' ||
+      artifact.kind === 'prompt_plan' ||
       artifact.status !== 'approved' ||
       !artifact.payload
     ) {
@@ -160,6 +161,24 @@ const approvedArtifacts = computed<WorkflowArtifact[]>(() => {
   }
   return [...latest.values()]
 })
+
+const executionPrompt = computed<WorkflowArtifact | null>(() => {
+  if (!view.value) return null
+  let latest: WorkflowArtifact | null = null
+  for (const artifact of view.value.artifacts) {
+    if (
+      artifact.kind !== 'prompt_plan' ||
+      artifact.status !== 'approved' ||
+      !artifact.payload
+    ) continue
+    if (!latest || latest.revision_no < artifact.revision_no) latest = artifact
+  }
+  return latest
+})
+
+const executionPromptLines = computed(() =>
+  executionPrompt.value?.payload ? payloadLines(executionPrompt.value.payload) : [],
+)
 
 const approvedBriefDraft = computed(() =>
   approvedArtifacts.value.some((artifact) => artifact.kind === 'brief_draft'),
@@ -240,15 +259,144 @@ const generationIntent = computed(() => view.value?.intent ?? null)
 
 const visibleActions = computed(() => {
   const actions = view.value?.available_actions ?? []
-  return actions.filter((action) => {
-    if (action.id === 'review_legacy_item') return false
-    return action.id === 'confirm_requirements'
-      ? confirmationState.value === 'pending'
-      : true
-  })
+  return actions
+    .filter((action) => {
+      if (action.id === 'review_legacy_item') return false
+      return action.id === 'confirm_requirements'
+        ? confirmationState.value === 'pending'
+        : true
+    })
+    .sort((left, right) => (
+      Number(RECOVERY_ACTION_IDS.has(left.id)) - Number(RECOVERY_ACTION_IDS.has(right.id))
+    ))
 })
 
 const generationJobPending = computed(() => view.value?.generation_job?.status === 'quarantined')
+
+const EXECUTION_STEPS: Array<{ id: string; label: string; stage: string }> = [
+  { id: 'prompt', label: '编制提示词', stage: 'S07' },
+  { id: 'generate', label: '生成图片', stage: 'S08' },
+  { id: 'review', label: '检查图片', stage: 'S09' },
+  { id: 'delivery', label: '准备交付', stage: 'S10' },
+]
+
+const EXECUTION_STATE_LABELS: Record<string, string> = {
+  done: '已完成',
+  current: '进行中',
+  waiting: '等待',
+  blocked: '等待处理',
+  failed: '已暂停',
+  unknown: '结果未确认',
+}
+
+const RECOVERY_ACTION_IDS = new Set([
+  'verify_generation',
+  'recover_generation',
+  'retrieve_original_result',
+  'recover_submission',
+  'resume_after_restart',
+  'continue_workflow',
+  'close_generation_tracking',
+  'start_new_generation',
+])
+
+const recoveryActions = computed(() =>
+  visibleActions.value.filter((action) => RECOVERY_ACTION_IDS.has(action.id)),
+)
+const hasSafeRecoveryAction = computed(() =>
+  recoveryActions.value.some((action) => action.id !== 'start_new_generation'),
+)
+
+function executionStepState(stage: string): string {
+  const current = view.value
+  if (!current) return 'waiting'
+  if (current.status === 'completed') return 'done'
+  const currentIndex = EXECUTION_STEPS.findIndex((step) => step.stage === current.stage)
+  const stepIndex = EXECUTION_STEPS.findIndex((step) => step.stage === stage)
+  if (currentIndex >= 0 && stepIndex < currentIndex) return 'done'
+  if (currentIndex >= 0 && stepIndex > currentIndex) return 'waiting'
+  if (currentIndex < 0) return 'waiting'
+  if (current.status === 'failed') return 'failed'
+  if (current.status === 'blocked') {
+    if (
+      current.generation_job?.status === 'unknown' ||
+      current.issue?.code === 'GENERATION_UNKNOWN' ||
+      current.issue?.code === 'RESULT_RETRIEVAL_PENDING'
+    ) return 'unknown'
+    return 'blocked'
+  }
+  if (current.status === 'needs_input') return 'blocked'
+  if (current.status === 'active') return 'current'
+  return 'waiting'
+}
+
+function executionStepDetail(stage: string, state: string): string {
+  if (state === 'unknown') {
+    return '原任务结果尚未确认，受理次数与占用保留；系统不会自动重发，也不会把未知当成未受理。'
+  }
+  if (state === 'failed') return '当前步骤已暂停，请按服务端提示处理。'
+  if (state === 'blocked') return '当前步骤等待处理，完成后才会继续。'
+  if (state === 'done') return ''
+  if (state !== 'current') return ''
+  if (stage === 'S07') return '正在按已确认需求独立编制并审查执行提示词。'
+  if (stage === 'S08') {
+    return view.value?.generation_job
+      ? '生成任务状态：' + imageStatus.value
+      : '已受理，等待提交生成。'
+  }
+  if (stage === 'S09') return '候选图片正在独立检查，通过前不会展示预览。'
+  if (stage === 'S10') return '正在整理交付清单；发布仍需人工确认。'
+  return ''
+}
+
+const executionSteps = computed(() =>
+  EXECUTION_STEPS.map((step) => {
+    const state = executionStepState(step.stage)
+    return {
+      ...step,
+      state,
+      stateLabel: EXECUTION_STATE_LABELS[state] ?? state,
+      detail: executionStepDetail(step.stage, state),
+    }
+  }),
+)
+
+const executionVisible = computed(() => {
+  if (!hasRun.value) return false
+  if (view.value?.delivery) return true
+  if (generationIntent.value) return true
+  return ['S07', 'S08', 'S09', 'S10'].includes(view.value?.stage ?? '')
+})
+
+function actionHelp(action: WorkflowAction): string {
+  switch (action.id) {
+    case 'verify_generation':
+      return '只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。'
+    case 'recover_generation':
+      return '只在原任务已有可找回结果时读取原结果，不提交新生成、不新增计数。'
+    case 'retrieve_original_result':
+      return '只找回原任务的结果，不新增计数。'
+    case 'recover_submission':
+      return '查询原提交状态，不会重复提交。'
+    case 'resume_after_restart':
+      return '恢复中断前的原任务并继续，不会自动补发已提交的请求。'
+    case 'continue_workflow':
+      return '从已保存的检查点继续原流程，不新建生成意图。'
+    case 'close_generation_tracking':
+      return '只结束本地跟踪并释放已证实占用；不会声称远端已取消，已计入的受理次数不变。'
+    case 'start_new_generation':
+      return '这是新任务，会重新计数并占用槽位；旧任务仍可能在远端执行或计费。'
+    default:
+      return ''
+  }
+}
+
+function actionDisabledReason(action: WorkflowAction): string {
+  if (loading.value || actionBusy.value) return '正在读取或处理，请稍候。'
+  if (action.requires_text && !(actionText.value[action.id] ?? '').trim()) return '请先填写说明。'
+  if (action.requires_confirmation && !actionConfirmed.value[action.id]) return '请先勾选确认。'
+  return ''
+}
 
 function artifactLabel(kind: string): string {
   return ARTIFACT_LABELS[kind] ?? kind
@@ -458,10 +606,10 @@ async function submit(action: WorkflowAction): Promise<void> {
   }
 }
 
-// After an upload the workflow view is refreshed once, then the v2 UI asks the
-// server for the independent S02 analysis immediately. A missing or failing
-// adapter leaves the original image and the fixed stage status visible; there
-// is no text-only fallback and no automatic retry loop.
+// A newly uploaded reference asks the server for the independent S02
+// analysis immediately. A missing or failing adapter leaves the original image
+// and the fixed stage status visible; there is no text-only fallback and no
+// automatic retry loop.
 watch(
   () => currentProject.value?.reference_asset?.id ?? null,
   async (id, previous) => {
@@ -568,6 +716,45 @@ watch(
     </div>
 
     <section
+      v-if="executionVisible"
+      class="workflow-execution"
+      aria-labelledby="workflow-execution-title"
+      role="region"
+    >
+      <header>
+        <p class="eyebrow">生成流程</p>
+        <h4 id="workflow-execution-title">执行进度</h4>
+        <p class="muted">
+          以下状态来自服务端真实记录，不显示虚构百分比；页面刷新或轮询只读取状态，不会再次调用模型。
+        </p>
+      </header>
+      <ol class="workflow-execution-steps">
+        <li
+          v-for="step in executionSteps"
+          :key="step.id"
+          :class="'execution-step execution-step-' + step.state"
+          :aria-current="step.state === 'current' ? 'step' : undefined"
+        >
+          <div class="workflow-execution-heading">
+            <strong>{{ step.label }}</strong>
+            <span class="status-badge">{{ step.stateLabel }}</span>
+          </div>
+          <p v-if="step.detail" class="muted">{{ step.detail }}</p>
+        </li>
+      </ol>
+    </section>
+
+    <details v-if="executionPrompt" class="workflow-execution-prompt">
+      <summary>查看已批准的执行提示词（第 {{ executionPrompt.revision_no }} 次）</summary>
+      <p class="muted">
+        这里只展示实际产生并已通过独立审查、用于本次生成任务的提示词；确认前不会提前展示最终提示词。
+      </p>
+      <ul>
+        <li v-for="line in executionPromptLines" :key="line">{{ line }}</li>
+      </ul>
+    </details>
+
+    <section
       v-if="hasRun && finalBrief"
       class="workflow-brief"
       aria-labelledby="workflow-brief-title"
@@ -590,10 +777,18 @@ watch(
     </section>
 
     <div v-if="visibleActions.length" class="workflow-actions">
+      <p
+        v-if="hasSafeRecoveryAction"
+        class="muted workflow-recovery-note"
+        role="note"
+      >
+        安全恢复：以下核实、找回、继续或结束跟踪操作不会自动提交新的生成请求，也不会自动新增受理次数。
+      </p>
       <div
         v-for="action in visibleActions"
         :key="action.id"
         class="workflow-action"
+        :class="{ 'workflow-recovery-action': RECOVERY_ACTION_IDS.has(action.id) }"
       >
         <label v-if="action.requires_text" :for="`workflow-${action.id}`">
           {{ action.text_label || action.label }}
@@ -628,10 +823,15 @@ watch(
           :class="actionClass(action)"
           :disabled="!canSubmit(action)"
           :aria-busy="actionBusy || loading"
+          :title="actionDisabledReason(action) || undefined"
           @click="submit(action)"
         >
           {{ actionBusy ? '处理中…' : actionLabel(action) }}
         </button>
+        <p v-if="actionHelp(action)" class="muted workflow-action-help">{{ actionHelp(action) }}</p>
+        <p v-if="actionDisabledReason(action)" class="muted workflow-action-reason">
+          {{ actionDisabledReason(action) }}
+        </p>
       </div>
       <p v-if="actionError" class="form-error" role="alert">{{ actionError }}</p>
       <p v-if="view?.available_actions.some((item) => item.id === 'request_new_version')" class="muted workflow-version-note" role="note">

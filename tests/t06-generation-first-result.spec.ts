@@ -73,7 +73,7 @@ async function mountProject(
   harness = await mountWorkspace({
     config: configuredConfig(),
     viewportWidth: 1440,
-    url: '/?project=' + PROJECT_A,
+    url: '/generate?project=' + PROJECT_A,
     routes: [{ method: 'GET', url: detailPath, responses: detailResponses }],
   })
   const nav = await screen.findByRole('navigation', { name: '工作阶段' })
@@ -123,7 +123,7 @@ describe('T06 生成首图与结果', () => {
       config: configuredConfig(),
       fakeClock: true,
       viewportWidth: 1440,
-      url: '/?project=' + PROJECT_A,
+      url: '/generate?project=' + PROJECT_A,
       routes: [
         {
           method: 'GET',
@@ -242,7 +242,7 @@ describe('T06 生成首图与结果', () => {
     harness = await mountWorkspace({
       config: configuredConfig(),
       viewportWidth: 1440,
-      url: '/?project=' + PROJECT_A,
+      url: '/results?project=' + PROJECT_A,
       routes: [{ method: 'GET', url: detailPath, responses: [{ body: detail(confirmedProject(), [succeededGeneration()]) }] }],
     })
     expect(await screen.findByRole('heading', { name: '查看结果' })).toBeVisible()
@@ -260,7 +260,7 @@ describe('T06 生成首图与结果', () => {
       config: configuredConfig(),
       fakeClock: true,
       viewportWidth: 1440,
-      url: '/?project=' + PROJECT_A,
+      url: '/generate?project=' + PROJECT_A,
       setup(fetch) {
         fetch.route('GET', detailPath, () => ({
           body: verifiedGeneration
@@ -293,7 +293,7 @@ describe('T06 生成首图与结果', () => {
       config: configuredConfig(),
       fakeClock: true,
       viewportWidth: 1440,
-      url: '/?project=' + PROJECT_A,
+      url: '/generate?project=' + PROJECT_A,
       routes: [{ method: 'GET', url: detailPath, responses: [{ body: detail(confirmedProject()) }] }],
     })
     await screen.findByRole('button', { name: '生成首图' })
@@ -339,7 +339,7 @@ describe('T06 生成首图与结果', () => {
     harness = await mountWorkspace({
       config: unknownCapabilitiesConfig(),
       viewportWidth: 1440,
-      url: '/?project=' + PROJECT_A,
+      url: '/generate?project=' + PROJECT_A,
       routes: [{ method: 'GET', url: detailPath, responses: [{ body: detail(confirmedProject()) }] }],
     })
     await screen.findByRole('button', { name: '生成首图' })
@@ -394,7 +394,7 @@ describe('T06 生成首图与结果', () => {
       config: configuredConfig(),
       fakeClock: true,
       viewportWidth: 1440,
-      url: '/?project=' + PROJECT_A,
+      url: '/generate?project=' + PROJECT_A,
       routes: [{ method: 'GET', url: detailPath, responses: [{ body: detail(confirmedProject()) }] }],
     })
     await screen.findByRole('button', { name: '生成首图' })

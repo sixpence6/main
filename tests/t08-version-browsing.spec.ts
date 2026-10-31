@@ -439,7 +439,7 @@ describe('T08 版本浏览与反馈重生', () => {
       config: configuredConfig(),
       fakeClock: true,
       viewportWidth: 1440,
-      url: '/?project=' + PROJECT_A,
+      url: '/results?project=' + PROJECT_A,
       routes: [{ method: 'GET', url: detailPathA, responses: [{ body: detail(initial, [oldVersion]) }] }],
     })
     await waitFor(() => expect(harness!.router.currentRoute.value.name).toBe('results'))

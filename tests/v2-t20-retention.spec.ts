@@ -54,7 +54,7 @@ describe('T20 保留期', () => {
     harness = await mountWorkspace({
       config: configuredConfig(),
       viewportWidth: 1440,
-      url: '/?project=' + PROJECT_A,
+      url: '/results?project=' + PROJECT_A,
       routes: [{ method: 'GET', url: detailPath, responses: [{ body: detail(expiredGeneration()) }] }],
     })
 

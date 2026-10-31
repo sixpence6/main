@@ -52,11 +52,16 @@ function succeededGeneration(overrides: Partial<GenerationView> = {}): Generatio
   })
 }
 
-async function mountProject(project: ProjectView, generations: GenerationView[] = [], config = configuredConfig()) {
+async function mountProject(
+  project: ProjectView,
+  generations: GenerationView[] = [],
+  config = configuredConfig(),
+  initialPage: 'describe' | 'results' = 'describe',
+) {
   harness = await mountWorkspace({
     config,
     viewportWidth: 1440,
-    url: '/?project=' + PROJECT_A,
+    url: (initialPage === 'results' ? '/results' : '/describe') + '?project=' + PROJECT_A,
     routes: [{ method: 'GET', url: detailPathA, responses: [{ body: detail(project, generations) }] }],
   })
   return harness
@@ -91,9 +96,9 @@ async function chooseFile(file: File): Promise<void> {
 }
 
 describe('代码审查修复回归', () => {
-  it('打开有成功版本的项目默认展示最新结果，而不是先回到对话', async () => {
+  it('打开有成功版本的项目直接进入结果页时展示最新结果', async () => {
     const generation = succeededGeneration()
-    await mountProject(confirmedProject(), [generation])
+    await mountProject(confirmedProject(), [generation], configuredConfig(), 'results')
 
     expect(await screen.findByRole('heading', { name: '查看结果' })).toBeVisible()
     expect(await screen.findByRole('img', { name: '生成结果图' })).toHaveAttribute(
@@ -119,7 +124,7 @@ describe('代码审查修复回归', () => {
   })
 
   it('有生成记录时生成图片阶段解锁，并把焦点移到生成概览', async () => {
-    await mountProject(sampleProject({ brief_status: 'draft' }), [succeededGeneration()])
+    await mountProject(sampleProject({ brief_status: 'draft' }), [succeededGeneration()], configuredConfig(), 'results')
     await screen.findByRole('heading', { name: '查看结果' })
 
     const nav = screen.getByRole('navigation', { name: '工作阶段' })

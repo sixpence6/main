@@ -121,7 +121,7 @@ describe('T17 本地跟踪结案与风险确认新任务', () => {
     })
 
     await harness.waitFor(() => {
-      expect(harness?.fetch.count('GET', /\/workflow$/)).toBe(2)
+      expect(harness?.fetch.count('GET', /\/workflow$/)).toBe(1)
     })
     const closeConfirm = await screen.findByLabelText(/原受理计数保留/)
     await harness.user.click(closeConfirm)

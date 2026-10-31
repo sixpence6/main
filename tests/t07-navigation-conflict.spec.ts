@@ -345,7 +345,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     window.history.pushState({}, '', `/?project=${PROJECT_A}`)
     window.dispatchEvent(new PopStateEvent('popstate'))
     await screen.findByRole('heading', { name: '春季托特包主图' })
-    await screen.findByRole('heading', { name: '确认需求' })
+    await goToStage('确认需求')
     expect(within(currentCard()).getByText('米色亚麻托特包')).toBeVisible()
     expect(harness.fetch.count('PATCH', briefPathA)).toBe(1)
     expect(harness.fetch.count('GET', detailPathA)).toBe(2)

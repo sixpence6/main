@@ -60,7 +60,7 @@ async function mountReviewProject(
   harness = await mountWorkspace({
     config: configuredConfig(),
     viewportWidth: 1440,
-    url: `/?project=${PROJECT_A}`,
+    url: `/confirm?project=${PROJECT_A}`,
     routes: [{ method: 'GET', url: detailPath, responses: getResponses }],
   })
   await screen.findByRole('region', { name: '当前需求' })
