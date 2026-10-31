@@ -7,9 +7,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.auth.audit import write_audit
 from app.auth.models import Account, AuditEvent
 from app.auth.tokens import token_digest
-from app.db import read_session
+from app.db import read_session, write_transaction
 
 SECURITY_EVENT_TYPES = frozenset(
     {
@@ -200,6 +201,33 @@ def _admin_view(row: AuditEvent, known: dict[str, Account]) -> AdminSecurityEven
         after=_safe_object(row.after_json, SAFE_STATE_KEYS),
         detail=_safe_object(row.detail_json, SAFE_DETAIL_KEYS),
     )
+
+
+async def record_permission_denied(
+    factory: async_sessionmaker[AsyncSession],
+    *,
+    account_id: str,
+    method: str,
+    path: str,
+    now: Any,
+    source_ref_value: str | None = None,
+) -> None:
+    """Record an authenticated role denial without storing request bodies or credentials."""
+    async with write_transaction(factory) as session:
+        write_audit(
+            session,
+            event_type="permission_denied",
+            result="denied",
+            now=now,
+            actor_kind="account",
+            actor_account_id=account_id,
+            target_account_id=account_id,
+            target_kind="route",
+            target_id=path[:64],
+            reason_code="ADMIN_REQUIRED",
+            source_ref=source_ref_value,
+            detail={"method": method[:16]},
+        )
 
 
 async def list_personal_security_events(

@@ -49,7 +49,7 @@ class IssueLinkResponse(BaseModel):
 
 @router.get("/accounts", response_model=AccountListResponse)
 async def accounts(request: Request) -> AccountListResponse:
-    require_admin(request)
+    await require_admin(request)
     accounts_list = await list_accounts(request.app.state.session_factory)
     return AccountListResponse(items=[account_view(account) for account in accounts_list])
 
@@ -63,7 +63,7 @@ async def accounts(request: Request) -> AccountListResponse:
 async def create_account_endpoint(
     request: Request, payload: CreateAccountRequest
 ) -> CreateAccountResponse:
-    principal = require_admin(request)
+    principal = await require_admin(request)
     account = await create_account(
         request.app.state.session_factory,
         admin_account_id=principal.account_id,
@@ -87,7 +87,7 @@ async def create_account_endpoint(
 async def issue_link_endpoint(
     request: Request, account_id: str, payload: IssueLinkRequest
 ) -> IssueLinkResponse:
-    principal = require_admin(request)
+    principal = await require_admin(request)
     issued = await issue_link(
         request.app.state.session_factory,
         admin_account_id=principal.account_id,
@@ -120,7 +120,7 @@ def _request_source(request: Request) -> str:
     },
 )
 async def disable_account_endpoint(request: Request, account_id: str) -> AccountResponse:
-    principal = require_admin(request)
+    principal = await require_admin(request)
     account = await disable_account(
         request.app.state.session_factory,
         admin_account_id=principal.account_id,
@@ -142,7 +142,7 @@ async def disable_account_endpoint(request: Request, account_id: str) -> Account
     },
 )
 async def restore_account_endpoint(request: Request, account_id: str) -> AccountResponse:
-    principal = require_admin(request)
+    principal = await require_admin(request)
     account = await restore_account(
         request.app.state.session_factory,
         admin_account_id=principal.account_id,
@@ -159,6 +159,6 @@ async def restore_account_endpoint(request: Request, account_id: str) -> Account
     responses={401: ERROR_RESPONSE, 403: ERROR_RESPONSE, 503: ERROR_RESPONSE},
 )
 async def admin_security_events(request: Request) -> AdminSecurityEventListResponse:
-    require_admin(request)
+    await require_admin(request)
     items = await list_admin_security_events(request.app.state.session_factory)
     return AdminSecurityEventListResponse(items=items)

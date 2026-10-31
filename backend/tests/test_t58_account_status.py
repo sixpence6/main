@@ -430,3 +430,50 @@ async def test_ordinary_user_cannot_read_admin_security_events(settings, registr
             assert response.json()["error"]["code"] == "FORBIDDEN"
         finally:
             await user.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_role_fields_do_not_authorize_admin_calls(settings, registry):
+    async with _fresh_app(settings, registry) as app:
+        app.state.clock = FrozenClock(FROZEN)
+        admin = _new_client(app)
+        user = _new_client(app)
+        try:
+            await login(admin)
+            account = await _add_account(app, "role-fields@example.com", USER_PASSWORD)
+            assert (
+                await _try_login(user, "role-fields@example.com", USER_PASSWORD)
+            ).status_code == 200
+
+            denied_create = await user.post(
+                "/api/admin/accounts",
+                json={"email": "sneaky@example.com", "is_admin": True, "role": "admin"},
+            )
+            assert denied_create.status_code == 422
+            async with read_session(app.state.session_factory) as session:
+                created = await session.scalar(
+                    select(Account).where(
+                        Account.email_normalized == normalize_email("sneaky@example.com")
+                    )
+                )
+            assert created is None
+
+            denied_read = await user.get(
+                "/api/admin/security-events", params={"is_admin": "true", "role": "admin"}
+            )
+            assert denied_read.status_code == 403
+            assert denied_read.json()["error"]["code"] == "FORBIDDEN"
+
+            events = await _audit(app, "permission_denied")
+            assert len(events) == 1
+            assert events[0].actor_account_id == account.id
+            assert events[0].target_account_id == account.id
+            assert events[0].result == "denied"
+            personal = await user.get("/api/auth/security-events")
+            assert personal.status_code == 200
+            assert any(
+                item["event_type"] == "permission_denied" for item in personal.json()["items"]
+            )
+        finally:
+            await admin.aclose()
+            await user.aclose()
