@@ -11,6 +11,7 @@ from app.maintenance.backup import (
     restore_verify,
     verify_backup,
 )
+from app.maintenance.claim import CLAIM_CONFIRMATION, claim_legacy, inspect_legacy_projects
 from app.maintenance.errors import BackupError
 
 
@@ -59,6 +60,39 @@ def build_parser() -> argparse.ArgumentParser:
     restore_parser.add_argument("--output", required=True)
     restore_parser.add_argument("--confirm-restore", required=True)
     restore_parser.add_argument("--json", action="store_true")
+
+    inspect_legacy_parser = subparsers.add_parser(
+        "inspect-legacy", help="list unowned projects that contain legacy evidence"
+    )
+    inspect_legacy_parser.add_argument("--source", required=True)
+    inspect_legacy_parser.add_argument("--confirm-source-digest", default=None)
+    inspect_legacy_parser.add_argument(
+        "--candidate-root", action="append", dest="candidate_roots", default=None
+    )
+    inspect_legacy_parser.add_argument("--json", action="store_true")
+
+    claim_parser = subparsers.add_parser(
+        "claim-legacy", help="claim explicitly selected legacy projects for the initial admin"
+    )
+    claim_parser.add_argument("--source", required=True)
+    claim_parser.add_argument("--backup", required=True)
+    claim_parser.add_argument("--admin-email", required=True)
+    claim_parser.add_argument("--project", action="append", dest="projects", required=True)
+    claim_parser.add_argument("--confirm-source-digest", default=None)
+    claim_parser.add_argument(
+        "--confirm-claim",
+        required=True,
+        help=f"explicit confirmation; must be {CLAIM_CONFIRMATION}",
+    )
+    claim_parser.add_argument(
+        "--service-stopped",
+        action="store_true",
+        help="required acknowledgement that the application process is stopped",
+    )
+    claim_parser.add_argument(
+        "--candidate-root", action="append", dest="candidate_roots", default=None
+    )
+    claim_parser.add_argument("--json", action="store_true")
     return parser
 
 
@@ -95,6 +129,33 @@ def main(argv: Sequence[str] | None = None) -> int:
                 output=args.output,
                 confirmation=args.confirm_restore,
             ).as_dict()
+        elif args.command == "inspect-legacy":
+            payload = asyncio.run(
+                inspect_legacy_projects(
+                    source=args.source,
+                    candidate_roots=args.candidate_roots,
+                    confirm_source_digest=args.confirm_source_digest,
+                )
+            )
+        elif args.command == "claim-legacy":
+            if not args.service_stopped:
+                raise BackupError(
+                    "SERVICE_MUST_BE_STOPPED",
+                    "CLI claim is offline-only; stop the service and pass --service-stopped",
+                )
+            result = asyncio.run(
+                claim_legacy(
+                    source=args.source,
+                    backup=args.backup,
+                    admin_email=args.admin_email,
+                    project_ids=args.projects,
+                    confirmation=args.confirm_claim,
+                    service_stopped=True,
+                    candidate_roots=args.candidate_roots,
+                    confirm_source_digest=args.confirm_source_digest,
+                )
+            )
+            payload = result.as_dict()
         else:
             raise BackupError("COMMAND_REQUIRED", "a subcommand is required")
     except BackupError as exc:
