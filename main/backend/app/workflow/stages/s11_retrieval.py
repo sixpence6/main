@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict, validation_error
+from app.generation_guard import job_authorization_ref
 from app.models import Asset, Generation, Project
 from app.services.assets import delete_asset_file
 from app.services.generations import _decode_outcome_image, _validate_result_bytes, parse_image_size
@@ -252,6 +253,15 @@ async def retrieve(ctx, payload: dict[str, Any]) -> None:
     digest = hashlib.sha256(data).hexdigest()
     snapshot_digest = s11._snapshot_digest(snapshot)
     start_revision = ctx.project.revision
+    request_id = str(uuid4())
+    request_digest = digest_payload({"generation_id": generation.id, "asset_id": asset_id})
+    authorization_ref = job_authorization_ref(
+        project_id=ctx.project_id,
+        run_id=ctx.run_id,
+        request_id=request_id,
+        request_digest=request_digest,
+        confirmed_snapshot_digest=snapshot_digest,
+    )
     now = format_timestamp(utc_now())
     try:
         async with write_transaction(ctx.session_factory) as session:
@@ -292,10 +302,13 @@ async def retrieve(ctx, payload: dict[str, Any]) -> None:
                 project_id=ctx.project_id,
                 run_id=ctx.run_id,
                 generation_id=current.id,
-                request_id=str(uuid4()),
-                request_digest=digest_payload({"generation_id": current.id, "asset_id": asset_id}),
+                request_id=request_id,
+                request_digest=request_digest,
                 prompt_artifact_id=None,
                 confirmed_snapshot_digest=snapshot_digest,
+                owner_account_id=ctx.project.owner_account_id,
+                operator_account_id=ctx.principal.account_id if ctx.principal else None,
+                authorization_ref=authorization_ref,
                 status="result_fetched",
                 submit_attempted=0,
                 remote_task_id=None,

@@ -3,14 +3,22 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 from typing import Any
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.auth.audit import write_audit
+from app.auth.tokens import token_digest
 from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict
+from app.generation_guard import (
+    GenerationGuardError,
+    ensure_job_active,
+    job_authorization_ref,
+)
 from app.models import Asset, Generation
 from app.presenters import brief_from_project, dumps_json, snapshot_json
 from app.services.assets import resolve_asset_file
@@ -33,6 +41,7 @@ from app.workflow.tables import DiagnosticEvent, GenerationJob
 
 STAGE = "S08"
 ACTIONS = ["submit_generation"]
+logger = logging.getLogger(__name__)
 
 _ACTIVE_JOB_STATUSES = (
     "created",
@@ -233,6 +242,15 @@ async def _create_job(
         canonical_payload["previous_request_id"] = previous.request_id
     canonical = dumps_json(canonical_payload)
     digest = request_digest(canonical)
+    owner_account_id = ctx.project.owner_account_id
+    operator_account_id = ctx.principal.account_id if ctx.principal is not None else None
+    authorization_ref = job_authorization_ref(
+        project_id=ctx.project_id,
+        run_id=ctx.run_id,
+        request_id=request_id,
+        request_digest=digest,
+        confirmed_snapshot_digest=snapshot_digest,
+    )
     now = _now()
     async with write_transaction(ctx.session_factory) as session:
         highest = await session.scalar(
@@ -263,6 +281,9 @@ async def _create_job(
             id=str(uuid4()),
             project_id=ctx.project_id,
             run_id=ctx.run_id,
+            owner_account_id=owner_account_id,
+            operator_account_id=operator_account_id,
+            authorization_ref=authorization_ref,
             request_id=request_id,
             request_digest=digest,
             prompt_artifact_id=prompt_artifact.id,
@@ -338,6 +359,80 @@ async def _mark_job(
             job.submit_attempted = submit_attempted
         job.updated_at = _now()
         await session.flush()
+
+
+async def _block_for_account(app, job_id: str, error: GenerationGuardError) -> None:
+    """Stop a persisted task without pretending a remote request was cancelled."""
+
+    async with read_session(app.state.session_factory) as session:
+        job = await session.get(GenerationJob, job_id)
+        if job is None:
+            return
+        project_id = job.project_id
+        run_id = job.run_id
+        owner_account_id = job.owner_account_id
+        request_id = job.request_id
+        generation = await session.get(Generation, job.generation_id) if job.generation_id else None
+        remote_started = bool(generation is not None and generation.remote_task_id)
+        asset_id = generation.result_asset_id if generation is not None else None
+    now = _now()
+    status = "unknown" if remote_started else "failed"
+    async with write_transaction(app.state.session_factory) as session:
+        stored_job = await session.get(GenerationJob, job_id)
+        if stored_job is not None:
+            stored_job.status = status
+            stored_job.error_code = error.code
+            stored_job.error_message = error.message
+            stored_job.updated_at = now
+        stored_generation = (
+            await session.get(Generation, stored_job.generation_id)
+            if stored_job is not None and stored_job.generation_id
+            else None
+        )
+        if stored_generation is not None:
+            stored_generation.status = status
+            stored_generation.stage = "done"
+            stored_generation.error_code = error.code
+            stored_generation.error_message = error.message
+            stored_generation.completed_at = now
+        if asset_id:
+            stored_asset = await session.get(Asset, asset_id)
+            if stored_asset is not None:
+                stored_asset.review_status = "rejected"
+                stored_asset.review_note = "账号已停用，结果未发布"
+        await session.flush()
+    ctx = await state.load_context(app, project_id)
+    if (
+        ctx.run is not None
+        and ctx.run.id == run_id
+        and ctx.run.stage == STAGE
+        and ctx.run.status in {"active", "blocked"}
+    ):
+        await state.set_stage(
+                ctx,
+                STAGE,
+                "blocked",
+                issue_code="ACCOUNT_DISABLED",
+                message="账号已停用，后台生成已安全停止；恢复后不会自动续发。",
+            )
+    try:
+        audit_now = app.state.clock.now()
+        async with write_transaction(app.state.session_factory) as session:
+            write_audit(
+                session,
+                event_type="generation_account_blocked",
+                result="denied",
+                now=audit_now,
+                actor_kind="system",
+                target_account_id=owner_account_id,
+                target_kind="generation_job",
+                target_id=job_id,
+                subject_ref=token_digest("generation-job:" + request_id)[:48],
+                reason_code=error.code,
+                detail={"stage": "background", "remote_task_recorded": remote_started},
+            )
+    except Exception:  # pragma: no cover - audit outage must not mask the stop
+        logger.exception("failed to audit blocked generation job %s", job_id)
 
 
 async def _mark_unknown(
@@ -423,6 +518,11 @@ async def _still_current(
 
 
 async def _advance_to_review(app, job_id: str) -> None:
+    try:
+        await ensure_job_active(app.state.session_factory, job_id)
+    except GenerationGuardError as exc:
+        await _block_for_account(app, job_id, exc)
+        return
     async with read_session(app.state.session_factory) as session:
         job = await session.get(GenerationJob, job_id)
         if job is None:
@@ -443,6 +543,11 @@ async def _run_job(
     snapshot_digest: str,
 ) -> None:
     try:
+        try:
+            await ensure_job_active(app.state.session_factory, job_id)
+        except GenerationGuardError as exc:
+            await _block_for_account(app, job_id, exc)
+            return
         if not await _still_current(
             app, job_id, prompt_artifact_id, prompt_digest, snapshot_digest
         ):
@@ -504,6 +609,19 @@ async def _run_job(
 
         async with read_session(app.state.session_factory) as session:
             generation = await session.get(Generation, generation_id)
+        if generation is not None and generation.error_code in {
+            "ACCOUNT_DISABLED",
+            "ACCOUNT_INACTIVE",
+        }:
+            await _block_for_account(
+                app,
+                job_id,
+                GenerationGuardError(
+                    generation.error_code,
+                    generation.error_message or "账号当前不可用，后台任务已安全停止。",
+                ),
+            )
+            return
         if generation is None:
             await _mark_unknown(
                 app,

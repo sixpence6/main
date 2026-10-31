@@ -10,6 +10,7 @@ from sqlalchemy import select
 from app.adapters.base import OrganizeImage
 from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict, validation_error
+from app.generation_guard import job_authorization_ref
 from app.models import Asset, Generation, Message
 from app.schemas import Brief
 from app.services.assets import ImageValidationError, inspect_image, resolve_asset_file
@@ -927,14 +928,30 @@ async def _publish_legacy_image(
             .order_by(GenerationJob.created_at.desc())
             .limit(1)
         )
+        request_id = str(uuid4())
+        request_digest_value = digest_payload(
+            {"asset_id": asset.id, "snapshot": snapshot_digest}
+        )
+        authorization_ref = job_authorization_ref(
+            project_id=ctx.project_id,
+            run_id=ctx.run_id,
+            request_id=request_id,
+            request_digest=request_digest_value,
+            confirmed_snapshot_digest=snapshot_digest,
+        )
         if job is None:
             job = GenerationJob(
                 id=str(uuid4()),
                 project_id=ctx.project_id,
                 run_id=ctx.run_id,
+                owner_account_id=ctx.project.owner_account_id,
+                operator_account_id=(
+                    ctx.principal.account_id if ctx.principal is not None else None
+                ),
+                authorization_ref=authorization_ref,
                 generation_id=None,
-                request_id=str(uuid4()),
-                request_digest=digest_payload({"asset_id": asset.id, "snapshot": snapshot_digest}),
+                request_id=request_id,
+                request_digest=request_digest_value,
                 prompt_artifact_id=None,
                 confirmed_snapshot_digest=snapshot_digest,
                 status="published",
@@ -952,6 +969,11 @@ async def _publish_legacy_image(
             job.status = "published"
             job.result_asset_id = asset.id
             job.confirmed_snapshot_digest = snapshot_digest
+            job.owner_account_id = ctx.project.owner_account_id
+            job.operator_account_id = (
+                ctx.principal.account_id if ctx.principal is not None else None
+            )
+            job.authorization_ref = authorization_ref
             job.updated_at = now
 
         delivery = await session.scalar(

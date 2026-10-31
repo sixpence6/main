@@ -30,6 +30,7 @@ SECURITY_EVENT_TYPES = frozenset(
         "admin_recovered",
         "account_disabled",
         "account_restored",
+        "generation_account_blocked",
         "permission_denied",
     }
 )
@@ -43,6 +44,8 @@ SAFE_DETAIL_KEYS = frozenset(
         "sessions_revoked",
         "links_revoked",
         "method",
+        "stage",
+        "remote_task_recorded",
     }
 )
 SAFE_STATE_KEYS = frozenset({"status", "is_admin", "is_disabled", "session_epoch"})

@@ -25,6 +25,12 @@ from app.auth.principal import Principal
 from app.config import LOCAL_RESULT_MAX_BYTES, RoleConfig, Settings
 from app.db import ProjectLocks, read_session, write_transaction
 from app.errors import ApiError, conflict, not_found_generation
+from app.generation_guard import (
+    GenerationGuardError,
+    ensure_generation_active,
+    ensure_generation_active_in_session,
+    generation_authorization_ref,
+)
 from app.models import Asset, Generation, Project
 from app.ownership import require_project_scope, revalidate_principal
 from app.presenters import brief_from_project, dumps_json, snapshot_json
@@ -377,13 +383,24 @@ async def submit_generation(
                 now = format_timestamp(utc_now())
                 version_no = 1 if latest is None else latest.version_no + 1
                 brief = brief_from_project(project)
+                digest = request_digest(canonical)
                 generation = Generation(
                     id=str(uuid4()),
                     project_id=project_id,
+                    owner_account_id=project.owner_account_id,
+                    operator_account_id=(
+                        principal.account_id if principal is not None else None
+                    ),
+                    authorization_ref=generation_authorization_ref(
+                        project_id=project_id,
+                        request_id=request_id,
+                        request_digest=digest,
+                        confirmed_revision=confirmed_revision,
+                    ),
                     version_no=version_no,
                     request_id=request_id,
                     request_canonical=canonical,
-                    request_digest=request_digest(canonical),
+                    request_digest=digest,
                     confirmed_revision=confirmed_revision,
                     status="queued",
                     stage="waiting_slot",
@@ -818,6 +835,18 @@ async def _deliver_result(
         return
 
     if data is None and locator:
+        try:
+            await ensure_generation_active(session_factory, claimed.id)
+        except GenerationGuardError as exc:
+            await _stop_for_generation_guard(
+                session_factory,
+                claimed,
+                exc,
+                remote_task_id=remote_task_id,
+                result_locator=locator,
+                result_expires_at=result_expires_at,
+            )
+            return
         await _set_stage(session_factory, claimed.id, "fetching_result")
         try:
             fetched = await adapter.fetch_result(locator)
@@ -861,6 +890,7 @@ async def _deliver_result(
 
     try:
         async with write_transaction(session_factory) as session:
+            await ensure_generation_active_in_session(session, claimed.id)
             generation = await session.get(Generation, claimed.id)
             if generation is None or generation.status != "running":
                 raise LookupError("generation is no longer running")
@@ -912,6 +942,18 @@ async def _poll_until_result(
     interval = _poll_interval_seconds(adapter)
     while True:
         try:
+            await ensure_generation_active(session_factory, claimed.id)
+        except GenerationGuardError as exc:
+            await _stop_for_generation_guard(
+                session_factory,
+                claimed,
+                exc,
+                remote_task_id=remote_task_id,
+                result_locator=result_locator,
+                result_expires_at=result_expires_at,
+            )
+            return
+        try:
             outcome = await adapter.poll(remote_task_id)
         except ProviderError as exc:
             if exc.evidence in ("not_submitted", "rejected", "result_available"):
@@ -955,10 +997,36 @@ async def _poll_until_result(
         await asyncio.sleep(interval)
 
 
+async def _stop_for_generation_guard(
+    session_factory: async_sessionmaker[AsyncSession],
+    claimed: ClaimedGeneration,
+    error: GenerationGuardError,
+    *,
+    remote_task_id: str | None = None,
+    result_locator: str | None = None,
+    result_expires_at: str | None = None,
+) -> None:
+    await _finish_generation(
+        session_factory,
+        claimed.id,
+        status="unknown" if remote_task_id else "failed",
+        error_code=error.code,
+        error_message=error.message,
+        remote_task_id=remote_task_id,
+        result_locator=result_locator,
+        result_expires_at=result_expires_at,
+    )
+
+
 async def _execute_claimed(app: FastAPI, claimed: ClaimedGeneration) -> None:
     settings: Settings = app.state.settings
     registry: AdapterRegistry = app.state.registry
     session_factory = app.state.session_factory
+    try:
+        await ensure_generation_active(session_factory, claimed.id)
+    except GenerationGuardError as exc:
+        await _stop_for_generation_guard(session_factory, claimed, exc)
+        return
     role = settings.visual()
     adapter = registry.build_visual(role, app.state.http)
     if adapter is None:
@@ -1116,6 +1184,8 @@ async def execute_generation(app: FastAPI, generation_id: str) -> None:
         try:
             async with asyncio.timeout(settings.visual().timeout_seconds):
                 await _execute_claimed(app, claimed)
+        except GenerationGuardError as exc:
+            await _stop_for_generation_guard(session_factory, claimed, exc)
         except TimeoutError:
             await _finish_generation(
                 session_factory,

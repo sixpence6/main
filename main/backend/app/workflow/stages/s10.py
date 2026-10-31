@@ -11,7 +11,12 @@ from sqlalchemy import func, select
 
 from app.adapters.base import OrganizeImage
 from app.db import read_session, write_transaction
-from app.errors import ApiError, validation_error
+from app.errors import ApiError, conflict, validation_error
+from app.generation_guard import (
+    GenerationGuardError,
+    ensure_job_active,
+    ensure_job_active_in_session,
+)
 from app.models import Asset, Message, Project
 from app.services.assets import (
     ImageValidationError,
@@ -526,6 +531,10 @@ async def _approve(ctx: WorkflowContext) -> None:
 
 async def _publish(ctx: WorkflowContext) -> None:
     job, asset = await _load_job_and_asset(ctx)
+    try:
+        await ensure_job_active(ctx.session_factory, job.id)
+    except GenerationGuardError as exc:
+        raise ApiError(409, exc.code, exc.message) from exc
     artifact, _approval, payload = await _require_manifest_evidence(ctx, asset, job)
     data, _info = await _verify_image_file(ctx, asset)
     async with ctx.session_factory() as session:
@@ -565,6 +574,7 @@ async def _publish(ctx: WorkflowContext) -> None:
     now = format_timestamp(utc_now())
     try:
         async with write_transaction(ctx.session_factory) as session:
+            await ensure_job_active_in_session(session, job.id)
             stored_delivery = await session.get(Delivery, delivery.id)
             stored_asset = await session.get(Asset, asset.id)
             stored_job = await session.get(GenerationJob, job.id)
@@ -583,6 +593,8 @@ async def _publish(ctx: WorkflowContext) -> None:
             await session.flush()
     except BaseException as exc:
         await asyncio.to_thread(delete_asset_file, ctx.settings, destination)
+        if isinstance(exc, GenerationGuardError):
+            raise ApiError(409, exc.code, exc.message) from exc
         if isinstance(exc, ApiError):
             raise
         # 数据库失败也固定返回不可用，不能把底层异常或半发布状态暴露给调用方。
