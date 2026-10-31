@@ -2557,3 +2557,91 @@ body,
     width: 100%;
   }
 }
+
+
+/* T21 U1 连续需求工作台 */
+.workflow-next-step {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
+  border-radius: var(--radius-control);
+  background: var(--color-page);
+}
+
+.workflow-next-step h4,
+.workflow-next-step p {
+  margin: 0;
+}
+
+.workflow-next-step h4 {
+  font-size: var(--text-section);
+  line-height: var(--text-section-line);
+}
+
+.workflow-version-preview {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.workflow-version-preview img {
+  width: 180px;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.workflow-version-preview figcaption,
+.history-preview figcaption {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.history-preview {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+  box-shadow: var(--shadow-panel);
+}
+
+.history-preview h3,
+.history-preview p {
+  margin: 0;
+}
+
+.history-preview h3 {
+  font-size: var(--text-section);
+  line-height: var(--text-section-line);
+}
+
+.history-preview-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-preview-list figure {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.history-preview-list img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-page);
+}

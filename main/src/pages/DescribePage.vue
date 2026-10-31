@@ -2,6 +2,7 @@
 import PageTemplate from '@/components/PageTemplate.vue'
 import WorkflowPanel from '@/components/workflow/WorkflowPanel.vue'
 import ConversationPanel from '@/components/ConversationPanel.vue'
+import HistoryPreview from '@/components/HistoryPreview.vue'
 </script>
 
 <template>
@@ -17,12 +18,44 @@ import ConversationPanel from '@/components/ConversationPanel.vue'
         你在工作台提交的文字描述、需求卡信息和参考图会发送给已配置的外部模型服务，用于需求整理、图片生成和结果核验。请勿在描述或图片中填写密码、会话凭证、恢复链接或其他秘密信息。模型服务可能按其自身政策处理数据，本应用不承诺供应商零保留。
       </p>
     </section>
-    <WorkflowPanel />
-    <ConversationPanel />
+    <section class="u1-workbench" aria-label="需求工作台">
+      <div class="u1-column u1-conversation">
+        <ConversationPanel />
+      </div>
+      <div class="u1-column u1-requirement">
+        <WorkflowPanel />
+        <HistoryPreview />
+      </div>
+    </section>
   </PageTemplate>
 </template>
 
 <style scoped>
+.u1-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.u1-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.u1-column :deep(.conversation-panel),
+.u1-column :deep(.workflow-panel) {
+  max-width: none;
+  margin: 0;
+}
+
+@media (max-width: 1023px) {
+  .u1-workbench {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .model-data-notice {
   display: grid;
   gap: var(--space-1);
