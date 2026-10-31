@@ -47,6 +47,7 @@ class ImageInfo:
 class ReferenceMutation:
     project: Project
     asset: Asset | None
+    removed: bool = False
 
 
 def effective_reference_max_bytes(settings: Settings, registry: AdapterRegistry) -> int:
@@ -211,7 +212,7 @@ async def remove_reference(
             now = format_timestamp(utc_now())
             await _bump_revision(session, project, now)
             await session.flush()
-            return ReferenceMutation(project, None)
+            return ReferenceMutation(project, None, removed=True)
 
 
 async def load_asset(session: AsyncSession, asset_id: str | None) -> Asset | None:
