@@ -1,5 +1,6 @@
 import { onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { ApiError } from '@/api/client'
+import { sessionRevision } from '@/auth/session'
 import {
   getWorkflow,
   runWorkflowAction,
@@ -21,6 +22,7 @@ export function useWorkflow(projectId: WorkflowProjectId) {
 
   async function load(): Promise<void> {
     const id = projectId.value
+    const sessionAtStart = sessionRevision.value
     const sequence = ++loadSequence
     controller?.abort()
     if (!id) {
@@ -37,10 +39,18 @@ export function useWorkflow(projectId: WorkflowProjectId) {
     errorCode.value = ''
     try {
       const next = await getWorkflow(id, currentController.signal)
-      if (sequence !== loadSequence || projectId.value !== id) return
+      if (
+        sessionAtStart !== sessionRevision.value ||
+        sequence !== loadSequence ||
+        projectId.value !== id
+      ) return
       view.value = next
     } catch (caught) {
-      if (sequence !== loadSequence || projectId.value !== id) return
+      if (
+        sessionAtStart !== sessionRevision.value ||
+        sequence !== loadSequence ||
+        projectId.value !== id
+      ) return
       if (caught instanceof DOMException && caught.name === 'AbortError') return
       error.value = caught instanceof ApiError ? caught.message : '流程状态读取失败，请稍后重试。'
       errorCode.value = caught instanceof ApiError ? caught.code : ''
@@ -56,6 +66,7 @@ export function useWorkflow(projectId: WorkflowProjectId) {
   ): Promise<boolean> {
     const id = projectId.value
     if (!id || !view.value || actionBusy.value) return false
+    const sessionAtStart = sessionRevision.value
     const sequence = ++actionSequence
     actionBusy.value = true
     error.value = ''
@@ -66,10 +77,18 @@ export function useWorkflow(projectId: WorkflowProjectId) {
         text,
         payload,
       })
-      if (sequence === actionSequence && projectId.value === id) view.value = next
+      if (
+        sessionAtStart === sessionRevision.value &&
+        sequence === actionSequence &&
+        projectId.value === id
+      ) view.value = next
       return true
     } catch (caught) {
-      if (sequence !== actionSequence || projectId.value !== id) return false
+      if (
+        sessionAtStart !== sessionRevision.value ||
+        sequence !== actionSequence ||
+        projectId.value !== id
+      ) return false
       error.value = caught instanceof ApiError ? caught.message : '操作未能完成，请稍后重试。'
       errorCode.value = caught instanceof ApiError ? caught.code : ''
       if (caught instanceof ApiError && caught.status === 409) {

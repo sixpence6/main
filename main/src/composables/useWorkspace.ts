@@ -28,6 +28,8 @@ import type {
 } from '@/api/types'
 import { editableBriefFields, isUuid, type EditableBriefKey } from '@/utils/format'
 import { useRoute, useRouter } from 'vue-router'
+import { sessionRevision } from '@/auth/session'
+import { clearPrivateBrowserState } from '@/auth/privateData'
 import { useViewport } from './useViewport'
 
 const CAPABILITY_NAMES: Record<string, string> = {
@@ -238,6 +240,7 @@ function createWorkspace(): WorkspaceStore {
   const { breakpoint, isMobile } = useViewport()
   const router = useRouter()
   const route = useRoute()
+  let workspaceSessionRevision = sessionRevision.value
 
   const draft = ref('')
   const projectParam = ref<string | null>(currentProjectParam())
@@ -797,6 +800,43 @@ function createWorkspace(): WorkspaceStore {
     projectErrorKind.value = null
   }
 
+  function clearPrivateWorkspace(): void {
+    navigationConfirmOpen.value = false
+    navigationIntent.value = null
+    sideDrawerOpen.value = false
+    projectDrawerOpen.value = false
+    modelDrawerOpen.value = false
+    creationUnknown.value = false
+    sendBusy.value = false
+    sendError.value = ''
+    briefAction.value = null
+    listController?.abort()
+    listController = null
+    moreController?.abort()
+    moreController = null
+    clearProjectDetail()
+    projectList.value = []
+    projectListLoading.value = false
+    projectListError.value = ''
+    projectListMoreError.value = ''
+    nextCursor.value = null
+    projectListLoadingMore.value = false
+    draft.value = ''
+    projectParam.value = null
+    stage.value = 'describe'
+    clearPrivateBrowserState()
+  }
+
+  // flush: sync 保证在旧请求的回调恢复到微任务前先递增全部请求序号。
+  watch(
+    sessionRevision,
+    () => {
+      workspaceSessionRevision = sessionRevision.value
+      clearPrivateWorkspace()
+    },
+    { flush: 'sync' },
+  )
+
   function createNewProject(): void {
     if (hasUnsavedChanges.value) {
       openNavigationConfirm({ kind: 'new' })
@@ -859,6 +899,7 @@ function createWorkspace(): WorkspaceStore {
 
   async function loadProjects(): Promise<void> {
     if (projectListLoading.value) return
+    const sessionAtStart = sessionRevision.value
     listController?.abort()
     moreController?.abort()
     const controller = new AbortController()
@@ -869,11 +910,11 @@ function createWorkspace(): WorkspaceStore {
     projectListMoreError.value = ''
     try {
       const response = await api.listProjects({ limit: 20 }, controller.signal)
-      if (controller.signal.aborted) return
+      if (sessionAtStart !== sessionRevision.value || controller.signal.aborted) return
       projectList.value = dedupeProjects(response.items)
       nextCursor.value = response.next_cursor
     } catch (error) {
-      if (isAbortError(error) || controller.signal.aborted) return
+      if (sessionAtStart !== sessionRevision.value || isAbortError(error) || controller.signal.aborted) return
       projectListError.value =
         error instanceof ApiError ? error.message : '项目列表读取失败，请稍后重试。'
     } finally {
@@ -886,6 +927,7 @@ function createWorkspace(): WorkspaceStore {
 
   async function appendPage(cursor: string): Promise<void> {
     if (projectListLoadingMore.value || !cursor) return
+    const sessionAtStart = sessionRevision.value
     moreController?.abort()
     const controller = new AbortController()
     moreController = controller
@@ -893,11 +935,11 @@ function createWorkspace(): WorkspaceStore {
     projectListMoreError.value = ''
     try {
       const response = await api.listProjects({ limit: 20, cursor }, controller.signal)
-      if (controller.signal.aborted) return
+      if (sessionAtStart !== sessionRevision.value || controller.signal.aborted) return
       projectList.value = dedupeProjects([...projectList.value, ...response.items])
       nextCursor.value = response.next_cursor
     } catch (error) {
-      if (isAbortError(error) || controller.signal.aborted) return
+      if (sessionAtStart !== sessionRevision.value || isAbortError(error) || controller.signal.aborted) return
       projectListMoreError.value =
         error instanceof ApiError ? error.message : '加载更多项目失败，请稍后重试。'
     } finally {
@@ -928,6 +970,7 @@ function createWorkspace(): WorkspaceStore {
       projectError.value = '项目链接无效，请检查地址或从项目列表重新选择。'
       return
     }
+    const sessionAtStart = sessionRevision.value
     const restoredCredential = readGenerationCredential(id)
     detailController?.abort()
     const controller = new AbortController()
@@ -949,7 +992,11 @@ function createWorkspace(): WorkspaceStore {
     clearReferenceState()
     try {
       const response = await api.getProject(id, controller.signal)
-      if (controller.signal.aborted || token !== detailToken) return
+      if (
+        sessionAtStart !== sessionRevision.value ||
+        controller.signal.aborted ||
+        token !== detailToken
+      ) return
       currentProject.value = response.project
       projectMessages.value = response.messages
       projectGenerations.value = response.generations
@@ -974,7 +1021,12 @@ function createWorkspace(): WorkspaceStore {
         scheduleStatusQuery()
       }
     } catch (error) {
-      if (isAbortError(error) || controller.signal.aborted || token !== detailToken) return
+      if (
+        sessionAtStart !== sessionRevision.value ||
+        isAbortError(error) ||
+        controller.signal.aborted ||
+        token !== detailToken
+      ) return
       if (error instanceof ApiError) {
         if (error.status === 404) {
           projectErrorKind.value = 'not-found'

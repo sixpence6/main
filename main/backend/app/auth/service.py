@@ -57,6 +57,7 @@ class InvalidEmail(ValueError):
 @dataclass(frozen=True)
 class LoginResult:
     account: Account
+    session_id: str
     csrf_token: str
     expires_at: str
     raw_token: str
@@ -378,6 +379,7 @@ async def login(
                 )
                 return LoginResult(
                     account=current,
+                    session_id=record.id,
                     csrf_token=csrf_token,
                     expires_at=record.absolute_expires_at,
                     raw_token=raw_token,

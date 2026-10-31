@@ -39,12 +39,14 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     account: AccountView
+    session_id: str
     csrf_token: str
     expires_at: str
 
 
 class SessionResponse(BaseModel):
     account: AccountView
+    session_id: str
     csrf_token: str
     expires_at: str
 
@@ -146,6 +148,7 @@ async def login_endpoint(request: Request, payload: LoginRequest) -> JSONRespons
     response = JSONResponse(
         LoginResponse(
             account=account_view(result.account),
+            session_id=result.session_id,
             csrf_token=result.csrf_token,
             expires_at=result.expires_at,
         ).model_dump()
@@ -176,6 +179,7 @@ async def session_endpoint(request: Request) -> SessionResponse:
         raise ApiError(401, "AUTH_REQUIRED", "请先登录")
     return SessionResponse(
         account=account_view(account),
+        session_id=auth_session.id,
         csrf_token=csrf_token,
         expires_at=auth_session.absolute_expires_at,
     )

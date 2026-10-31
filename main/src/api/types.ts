@@ -272,6 +272,7 @@ export interface AccountGenerationLimitsResponse {
 
 export interface AuthSessionResponse {
   account: AccountView
+  session_id?: string
   csrf_token: string
   expires_at: string
 }

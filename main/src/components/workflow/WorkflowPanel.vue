@@ -8,6 +8,7 @@ import type {
   WorkflowLegacyItem,
   WorkflowVersion,
 } from '@/api/workflow'
+import { currentSessionId } from '@/auth/session'
 import { useWorkflow } from '@/composables/useWorkflow'
 import { useWorkspace } from '@/composables/useWorkspace'
 import { LEGACY_UNREVIEWED_NOTICE } from '@/utils/format'
@@ -399,13 +400,16 @@ function confirmationStorageKey(): string | null {
   const current = view.value
   const brief = finalBrief.value
   if (!current || !brief) return null
-  return [
+  const parts = [
     'v3-generation-request',
     current.project_id,
     current.run_id ?? '',
     current.requirement_revision,
     brief.digest,
-  ].join(':')
+  ]
+  // 生产环境把稳定请求标识绑定到登录生命周期；旧测试模式没有会话时保持旧键。
+  if (currentSessionId.value) parts.push('session', currentSessionId.value)
+  return parts.join(':')
 }
 
 function confirmationRequestId(): string {
