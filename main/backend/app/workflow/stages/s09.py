@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
+from app.acceptance import GenerationIntent, release_slots_in_session
 from app.adapters.base import OrganizeImage
 from app.db import read_session, write_transaction
 from app.errors import ApiError
@@ -660,6 +661,16 @@ async def _set_job(
         stored.error_code = error_code
         stored.error_message = error_message[:512] if error_message else None
         stored.updated_at = format_timestamp(utc_now())
+        if status in {"rejected", "failed"} and stored.intent_id:
+            intent = await session.get(GenerationIntent, stored.intent_id)
+            if intent is not None:
+                intent.status = "failed"
+                intent.updated_at = stored.updated_at
+            await release_slots_in_session(
+                session,
+                intent_id=stored.intent_id,
+                reason="generation_terminal",
+            )
         await session.flush()
 
 

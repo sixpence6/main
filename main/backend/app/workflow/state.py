@@ -8,6 +8,7 @@ from uuid import uuid4
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.acceptance import latest_intent, usage_snapshot
 from app.adapters.registry import AdapterRegistry
 from app.auth.principal import Principal
 from app.config import Settings
@@ -23,7 +24,9 @@ from app.workflow.schemas_workflow import (
     ApprovalView,
     ArtifactView,
     DeliveryView,
+    GenerationIntentView,
     GenerationJobView,
+    GenerationUsageView,
     IssueView,
     LegacyItemView,
     WorkflowVersionView,
@@ -835,6 +838,32 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
                 .limit(1)
             )
 
+    usage = None
+    intent_view = None
+    if ctx.project.owner_account_id is not None:
+        intent = await latest_intent(
+            ctx.session_factory,
+            project_id=ctx.project_id,
+            run_id=ctx.run.id,
+        )
+        if intent is not None:
+            intent_view = GenerationIntentView(
+                id=intent.id,
+                request_id=intent.request_id,
+                status=intent.status,
+                artifact_digest=intent.artifact_digest,
+                requirement_revision=intent.requirement_revision,
+                created_at=intent.created_at,
+            )
+        usage = GenerationUsageView(
+            **await usage_snapshot(
+                ctx.session_factory,
+                settings=ctx.settings,
+                account_id=ctx.project.owner_account_id,
+                project_id=ctx.project_id,
+            )
+        )
+
     issue = None
     if ctx.run.template_id or ctx.run.issue_message:
         params = (
@@ -921,6 +950,8 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
             else None
         ),
         versions=versions,
+        usage=usage,
+        intent=intent_view,
         delivery=(
             DeliveryView(
                 id=delivery.id,

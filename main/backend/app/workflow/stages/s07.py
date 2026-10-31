@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.acceptance import latest_intent
 from app.db import read_session
 from app.errors import ApiError, conflict
 from app.models import Asset
@@ -65,6 +66,25 @@ async def _ensure_budget(ctx: WorkflowContext) -> None:
         )
 
 
+async def _require_intent(ctx: WorkflowContext, artifact: Any) -> Any:
+    """An owned v3 project must compile under a durable accepted intent."""
+    if ctx.project.owner_account_id is None:
+        return None
+    intent = await latest_intent(ctx.session_factory, project_id=ctx.project_id, run_id=ctx.run_id)
+    if intent is None:
+        # A v2 confirmation created before the v3 acceptance seam has no
+        # durable intent. It keeps working for inherited v2 fixtures and
+        # legacy unowned projects; once an intent exists it is authoritative.
+        return None
+    if intent.artifact_digest != artifact.digest:
+        raise _drift_error()
+    if intent.requirement_revision != ctx.run.requirement_revision:
+        raise _drift_error()
+    if intent.status not in {"accepted", "executing"}:
+        raise _confirmed_error()
+    return intent
+
+
 async def _require_confirmed(ctx: WorkflowContext) -> tuple[Any, dict[str, Any]]:
     final_artifact = await state.approved_artifact(ctx, "final_brief")
     approval = await state.latest_approval(ctx, "requirements_card")
@@ -102,6 +122,7 @@ async def _require_confirmed(ctx: WorkflowContext) -> tuple[Any, dict[str, Any]]
             asset = await session.get(Asset, reference_id)
         if asset is None or asset.project_id != ctx.project_id or asset.kind != "reference":
             raise _drift_error()
+    await _require_intent(ctx, final_artifact)
     return final_artifact, brief
 
 
@@ -283,7 +304,12 @@ async def _compile(ctx: WorkflowContext, revision_note: str | None) -> None:
         )
     except ApiError as exc:
         if exc.code in {"SERVICE_UNAVAILABLE", "CAPABILITY_NOT_READY"}:
-            await _mark_failed(ctx, "SERVICE_UNAVAILABLE" if exc.code == "SERVICE_UNAVAILABLE" else "CAPABILITY_NOT_READY")
+            await _mark_failed(
+                ctx,
+                "SERVICE_UNAVAILABLE"
+                if exc.code == "SERVICE_UNAVAILABLE"
+                else "CAPABILITY_NOT_READY",
+            )
         raise
 
     if output.status == "blocked":
@@ -292,7 +318,9 @@ async def _compile(ctx: WorkflowContext, revision_note: str | None) -> None:
             if isinstance(issue, dict) and issue.get("code"):
                 issue_code = str(issue["code"])
                 break
-        await state.set_stage(ctx, STAGE, "blocked", issue_code=issue_code, template_id="CONFIRM_REQUIRED")
+        await state.set_stage(
+            ctx, STAGE, "blocked", issue_code=issue_code, template_id="CONFIRM_REQUIRED"
+        )
         raise ApiError(409, "PROMPT_BLOCKED", _CONFIRM_MESSAGE)
     if output.status == "needs_input":
         issue_codes = {

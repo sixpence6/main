@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from PIL import Image
 from sqlalchemy import select
 
+from app.acceptance import accept_in_session
 from app.adapters.base import ProviderError, ProviderOutcome
 from app.config import Settings
 from app.db import read_session, write_transaction
@@ -106,6 +108,12 @@ async def environment(settings: Settings, *, visual: VisualStub | None = None):
     registry = build_test_registry(llm=llm, visual=visual)
     migrate(settings)
     application = create_app(settings=settings, registry=registry)
+    # v2 scenarios predate the R2 acceptance ledger and reuse one database
+    # across several environments; keep their focus on generation semantics.
+    application.state.settings.generation_daily_limit = 1000
+    application.state.settings.generation_personal_slots = 100
+    application.state.settings.generation_instance_slots = 100
+    application.state.settings.generation_project_slots = 100
     async with application.router.lifespan_context(application):
         async with authenticated_client(application) as client:
             yield application, client, llm, visual, registry
@@ -166,7 +174,7 @@ async def setup_ready_project(
     )
     approved_final = await state.latest_artifact(ctx, "final_brief", status="approved")
     assert approved_final is not None
-    await state.add_approval(
+    requirements_approval = await state.add_approval(
         ctx,
         approval_type="requirements_card",
         artifact=approved_final,
@@ -192,6 +200,25 @@ async def setup_ready_project(
         checks={"checks": []},
         requirement_digest=approved_final.digest,
     )
+    async with write_transaction(app.state.session_factory) as session:
+        project_row = await session.get(Project, project_id)
+        run_row = await session.get(state.WorkflowRun, ctx.run.id)
+        artifact_row = await session.get(state.Artifact, approved_final.id)
+        assert project_row is not None and run_row is not None and artifact_row is not None
+        assert project_row.owner_account_id is not None
+        await accept_in_session(
+            session,
+            settings=app.state.settings,
+            project=project_row,
+            run=run_row,
+            operator_account_id=project_row.owner_account_id,
+            artifact=artifact_row,
+            requirement_revision=revision,
+            reference_usage=brief["reference_usage"],
+            image_size=image_size,
+            request_id=str(uuid.uuid4()),
+            approval_id=requirements_approval.id,
+        )
     return {
         "project_id": project_id,
         "revision": revision,

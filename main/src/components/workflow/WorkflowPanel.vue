@@ -255,6 +255,8 @@ const imageStatus = computed(() => {
 })
 
 const hasRun = computed(() => Boolean(view.value?.run_id))
+const usage = computed(() => view.value?.usage ?? null)
+const generationIntent = computed(() => view.value?.intent ?? null)
 
 const visibleActions = computed(() => {
   const actions = view.value?.available_actions ?? []
@@ -349,13 +351,51 @@ function actionClass(action: WorkflowAction): string {
   return action.kind === 'confirm' ? 'primary-button' : 'secondary-button'
 }
 
+function actionLabel(action: WorkflowAction): string {
+  if (action.id === 'confirm_requirements' && usage.value) {
+    return '确认以上需求并生成图片'
+  }
+  return action.label
+}
+
+function randomRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (token) => {
+    const value = Math.floor(Math.random() * 16)
+    const digit = token === 'x' ? value : (value & 0x3) | 0x8
+    return digit.toString(16)
+  })
+}
+
+function confirmationRequestId(): string {
+  const current = view.value
+  const brief = finalBrief.value
+  if (!current || !brief) return randomRequestId()
+  const key = [
+    'v3-generation-request',
+    current.project_id,
+    current.run_id ?? '',
+    current.requirement_revision,
+    brief.digest,
+  ].join(':')
+  const stored = window.sessionStorage.getItem(key)
+  if (stored) return stored
+  const generated = randomRequestId()
+  window.sessionStorage.setItem(key, generated)
+  return generated
+}
+
 function actionPayload(action: WorkflowAction): Record<string, unknown> {
   if (action.id === 'confirm_requirements' && finalBrief.value && view.value) {
-    return {
+    const payload: Record<string, unknown> = {
       artifact_id: finalBrief.value.id,
       artifact_digest: finalBrief.value.digest,
       requirement_revision: view.value.requirement_revision,
     }
+    if (usage.value) payload.request_id = confirmationRequestId()
+    return payload
   }
   return {}
 }
@@ -476,6 +516,21 @@ watch(
         需求内容、参考图或需求版本已经变化，原确认已失效；请在审查通过后重新确认当前卡片。
       </p>
       <p class="muted">图片状态：{{ imageStatus }}</p>
+      <div v-if="usage" class="workflow-usage" role="status">
+        <p>
+          今日已受理 <strong>{{ usage.used }}</strong> / {{ usage.daily_limit }} 次，剩余
+          <strong>{{ usage.remaining }}</strong> 次（滚动 24 小时）。
+        </p>
+        <p>
+          进行中：个人 {{ usage.personal_active }} / {{ usage.personal_limit }} · 实例
+          {{ usage.instance_active }} / {{ usage.instance_limit }} · 本项目
+          {{ usage.project_active }} / {{ usage.project_limit }}
+        </p>
+        <p v-if="generationIntent" class="muted">
+          本次生成已受理，请求标识 {{ generationIntent.request_id.slice(0, 8) }}…，
+          状态 {{ generationIntent.status }}。重复点击不会再次计数。
+        </p>
+      </div>
     </div>
 
     <section
@@ -541,7 +596,7 @@ watch(
           :aria-busy="actionBusy || loading"
           @click="submit(action)"
         >
-          {{ actionBusy ? '处理中…' : action.label }}
+          {{ actionBusy ? '处理中…' : actionLabel(action) }}
         </button>
       </div>
       <p v-if="actionError" class="form-error" role="alert">{{ actionError }}</p>

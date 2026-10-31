@@ -140,6 +140,9 @@ class Generation(Base):
         ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True
     )
     authorization_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    intent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("generation_intents.id", ondelete="SET NULL"), nullable=True
+    )
     version_no: Mapped[int] = mapped_column(Integer, nullable=False)
     request_id: Mapped[str] = mapped_column(String(36), nullable=False)
     request_canonical: Mapped[str] = mapped_column(Text, nullable=False)
@@ -175,6 +178,7 @@ class Generation(Base):
     __table_args__ = (
         UniqueConstraint("project_id", "version_no", name="uq_generations_project_version"),
         UniqueConstraint("project_id", "request_id", name="uq_generations_project_request"),
+        Index("ix_generations_intent", "intent_id"),
         CheckConstraint(
             "status IN ('queued','running','succeeded','failed','unknown')",
             name="ck_generations_status",

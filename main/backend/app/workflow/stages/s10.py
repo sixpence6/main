@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from sqlalchemy import func, select
 
+from app.acceptance import GenerationIntent, release_slots_in_session
 from app.adapters.base import OrganizeImage
 from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict, validation_error
@@ -590,6 +591,14 @@ async def _publish(ctx: WorkflowContext) -> None:
             stored_delivery.published_at = now
             stored_job.status = "published"
             stored_job.updated_at = now
+            if stored_job.intent_id:
+                intent = await session.get(GenerationIntent, stored_job.intent_id)
+                if intent is not None:
+                    intent.status = "delivered"
+                    intent.updated_at = now
+                    await release_slots_in_session(
+                        session, intent_id=intent.id, reason="delivery_published"
+                    )
             await session.flush()
     except BaseException as exc:
         await asyncio.to_thread(delete_asset_file, ctx.settings, destination)
