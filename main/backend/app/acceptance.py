@@ -612,6 +612,46 @@ async def abandon_intent(
     return changed
 
 
+async def terminate_intent(
+    factory: async_sessionmaker[AsyncSession],
+    *,
+    intent_id: str,
+    reason: str,
+    now: datetime | None = None,
+) -> bool:
+    """Record a proven terminal generation failure and release live slots.
+
+    The usage ledger is deliberately untouched: an accepted generation remains
+    counted exactly once even when the provider or local validation proves that
+    it can no longer produce a deliverable result.
+    """
+    from app.db import write_transaction
+
+    changed = False
+    async with write_transaction(factory) as session:
+        intent = await session.get(GenerationIntent, intent_id)
+        if intent is None or intent.status not in {"accepted", "executing"}:
+            return False
+        timestamp = format_timestamp(now or utc_now())
+        intent.status = "failed"
+        intent.updated_at = timestamp
+        await release_slots_in_session(session, intent_id=intent.id, reason=reason, now=now)
+        write_audit(
+            session,
+            event_type="generation_intent_failed",
+            result="failure",
+            now=now or utc_now(),
+            actor_kind="system",
+            target_kind="generation_intent",
+            target_id=intent.id,
+            reason_code=reason[:64],
+            detail={"intent_id": intent.id, "reason": reason[:120]},
+        )
+        await session.flush()
+        changed = True
+    return changed
+
+
 async def set_intent_status(
     factory: async_sessionmaker[AsyncSession],
     *,
@@ -650,5 +690,6 @@ __all__ = [
     "release_slots_in_session",
     "set_executing_in_session",
     "set_intent_status",
+    "terminate_intent",
     "usage_snapshot",
 ]

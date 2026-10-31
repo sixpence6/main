@@ -10,7 +10,7 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.acceptance import GenerationIntent, latest_intent
+from app.acceptance import GenerationIntent, latest_intent, terminate_intent
 from app.auth.audit import write_audit
 from app.auth.tokens import token_digest
 from app.db import read_session, write_transaction
@@ -21,6 +21,7 @@ from app.generation_guard import (
     generation_authorization_ref,
     job_authorization_ref,
 )
+from app.generation_recovery import recover_remote, resume_interrupted
 from app.models import Asset, Generation
 from app.presenters import brief_from_project, dumps_json, snapshot_json
 from app.services.assets import resolve_asset_file
@@ -43,7 +44,7 @@ from app.workflow.state import WorkflowContext
 from app.workflow.tables import DiagnosticEvent, GenerationJob
 
 STAGE = "S08"
-ACTIONS = ["submit_generation"]
+ACTIONS = ["submit_generation", "verify_generation", "recover_generation"]
 logger = logging.getLogger(__name__)
 
 _ACTIVE_JOB_STATUSES = (
@@ -55,6 +56,10 @@ _ACTIVE_JOB_STATUSES = (
 )
 _UNKNOWN_ISSUE = "GENERATION_UNKNOWN"
 _RECOVERABLE_BLOCK_CODES = {"PROCESS_INTERRUPTED", "GENERATION_UNKNOWN"}
+_RECOVERY_BLOCK_CODES = _RECOVERABLE_BLOCK_CODES | {
+    "RESULT_RETRIEVAL_PENDING",
+    "GENERATION_FAILED",
+}
 
 
 def _replayable(ctx: WorkflowContext) -> bool:
@@ -69,15 +74,17 @@ def _replayable(ctx: WorkflowContext) -> bool:
 
 
 def available(ctx: WorkflowContext) -> list[str]:
-    # A blocked S08 may be a recoverable interruption or an unknown provider
-    # outcome. The action is exposed so the client can replay the original
-    # idempotent request; S12 must be used for the explicit recovery flow.
-    if not _replayable(ctx):
+    if ctx.run is None or ctx.run.stage != STAGE:
         return []
     if ctx.run.status == "active":
-        return list(ACTIONS)
-    if ctx.run.status == "blocked" and ctx.run.issue_code in _RECOVERABLE_BLOCK_CODES:
-        return list(ACTIONS)
+        return ["submit_generation"]
+    if ctx.run.status != "blocked":
+        return []
+    issue = ctx.run.issue_code
+    if issue in _RECOVERABLE_BLOCK_CODES or issue == "RESULT_RETRIEVAL_PENDING":
+        return ["verify_generation", "recover_generation"]
+    if issue == "GENERATION_FAILED":
+        return ["verify_generation"]
     return []
 
 
@@ -258,10 +265,14 @@ async def _create_job(
     now = _now()
     async with write_transaction(ctx.session_factory) as session:
         if intent is not None:
-            if intent.status == "accepted":
+            stored_intent = await session.get(GenerationIntent, intent.id)
+            if stored_intent is None:
+                raise conflict("INTENT_STATE_INVALID", "生成授权已结束，不能提交新任务。")
+            if stored_intent.status == "accepted":
+                stored_intent.status = "executing"
+                stored_intent.updated_at = now
                 intent.status = "executing"
-                intent.updated_at = now
-            elif intent.status != "executing":
+            elif stored_intent.status != "executing":
                 raise conflict("INTENT_STATE_INVALID", "生成授权已结束，不能提交新任务。")
         highest = await session.scalar(
             select(func.max(Generation.version_no)).where(Generation.project_id == ctx.project_id)
@@ -581,6 +592,109 @@ async def _advance_to_review(app, job_id: str) -> None:
         logger.exception("post-generation review chain failed for job %s", job_id)
 
 
+async def _latest_job(app, run_id: str) -> GenerationJob | None:
+    async with read_session(app.state.session_factory) as session:
+        return await session.scalar(
+            select(GenerationJob)
+            .where(GenerationJob.run_id == run_id)
+            .order_by(GenerationJob.created_at.desc(), GenerationJob.id.desc())
+            .limit(1)
+        )
+
+
+async def _settle_terminal(app, job_id: str, error_code: str | None) -> None:
+    """Keep one count and release slots only on proven terminal failure."""
+    if error_code in {"RESULT_FETCH_FAILED", "ACCOUNT_DISABLED", "ACCOUNT_INACTIVE"}:
+        if error_code == "RESULT_FETCH_FAILED":
+            await _set_recovery_issue(app, job_id, "RESULT_RETRIEVAL_PENDING")
+        return
+    async with read_session(app.state.session_factory) as session:
+        job = await session.get(GenerationJob, job_id)
+        if job is None:
+            return
+        intent_id = job.intent_id
+    if intent_id is not None:
+        await terminate_intent(
+            app.state.session_factory,
+            intent_id=intent_id,
+            reason=f"generation_terminal:{error_code or 'VISUAL_TASK_FAILED'}"[:64],
+        )
+    await _set_recovery_issue(app, job_id, "GENERATION_FAILED")
+
+
+async def _set_recovery_issue(app, job_id: str, issue: str, message: str | None = None) -> None:
+    async with read_session(app.state.session_factory) as session:
+        job = await session.get(GenerationJob, job_id)
+        if job is None:
+            return
+        project_id = job.project_id
+        run_id = job.run_id
+    ctx = await state.load_context(app, project_id)
+    if ctx.run is None or ctx.run.id != run_id or ctx.run.stage != STAGE:
+        return
+    await state.set_stage(
+        ctx,
+        STAGE,
+        "blocked",
+        issue_code=issue,
+        message=message or templates.render(issue),
+        template_id=issue,
+    )
+
+
+async def _verify(ctx: WorkflowContext) -> None:
+    if (
+        ctx.run is None
+        or ctx.run.status != "blocked"
+        or ctx.run.issue_code not in _RECOVERY_BLOCK_CODES
+    ):
+        raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    # Read-only: no provider call, no new intent, no count, no slot change.
+
+
+async def _recover(ctx: WorkflowContext) -> None:
+    if (
+        ctx.run is None
+        or ctx.run.status != "blocked"
+        or ctx.run.issue_code not in _RECOVERY_BLOCK_CODES
+    ):
+        raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    job = await _latest_job(ctx.app, ctx.run_id)
+    if job is None or job.generation_id is None:
+        raise ApiError(409, "RECOVERY_NOT_AVAILABLE", "没有可恢复的原生成任务。")
+    resumed = await resume_interrupted(ctx.app, job.id)
+    if resumed is not None:
+        await state.set_stage(ctx, STAGE, "active")
+        _schedule(
+            ctx.app,
+            job.id,
+            resumed["generation_id"],
+            resumed["prompt_artifact_id"],
+            resumed["prompt_digest"],
+            resumed["snapshot_digest"],
+        )
+        return
+    outcome = await recover_remote(ctx.app, job.id)
+    if outcome == "succeeded":
+        await _advance_to_review(ctx.app, job.id)
+    elif outcome == "failed":
+        await _settle_terminal(ctx.app, job.id, "VISUAL_TASK_FAILED")
+    elif outcome == "retryable":
+        await _set_recovery_issue(
+            ctx.app,
+            job.id,
+            "RESULT_RETRIEVAL_PENDING",
+            "结果文件暂时无法找回，原任务与一次计数已保留，可稍后再次核实。",
+        )
+    elif outcome == "unknown":
+        await _set_recovery_issue(
+            ctx.app,
+            job.id,
+            _UNKNOWN_ISSUE,
+            templates.render(_UNKNOWN_ISSUE),
+        )
+
+
 async def _run_job(
     app,
     job_id: str,
@@ -605,6 +719,7 @@ async def _run_job(
                 error_code="SUPERSEDED",
                 error_message="需求或执行提示词已更新，旧生成任务未提交。",
             )
+            await _settle_terminal(app, job_id, "SUPERSEDED")
             async with write_transaction(app.state.session_factory) as session:
                 generation = await session.get(Generation, generation_id)
                 if generation is not None and generation.status == "queued":
@@ -652,6 +767,7 @@ async def _run_job(
                 remote_task_id=stale_generation.remote_task_id if stale_generation else None,
                 submit_attempted=1,
             )
+            await _settle_terminal(app, job_id, "SUPERSEDED")
             return
 
         async with read_session(app.state.session_factory) as session:
@@ -698,6 +814,7 @@ async def _run_job(
                         error_code="RESULT_FILE_MISSING",
                         error_message="结果图片文件不可用，未发布。",
                     )
+                    await _settle_terminal(app, job_id, "RESULT_FILE_MISSING")
                     return
                 async with write_transaction(app.state.session_factory) as session:
                     stored = await session.get(Asset, asset_id)
@@ -736,6 +853,7 @@ async def _run_job(
                 remote_task_id=generation.remote_task_id,
                 submit_attempted=1,
             )
+            await _settle_terminal(app, job_id, generation.error_code)
     except asyncio.CancelledError:
         raise
     except Exception:
@@ -927,7 +1045,13 @@ async def _submit(ctx: WorkflowContext, action_payload: dict[str, Any]) -> None:
 
 
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
-    if action not in ACTIONS:
+    if action == "verify_generation":
+        await _verify(ctx)
+        return
+    if action == "recover_generation":
+        await _recover(ctx)
+        return
+    if action != "submit_generation":
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
     await _submit(ctx, payload or {})
 
