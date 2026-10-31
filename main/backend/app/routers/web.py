@@ -7,6 +7,8 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 from app.config import Settings
 
+SECURITY_HEADERS = {"Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff"}
+
 MISSING_BUILD_PAGE = """<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>工作台尚未构建</title></head>
 <body style="font-family: sans-serif; padding: 2rem">
@@ -38,13 +40,17 @@ def register_web_routes(app: FastAPI, settings: Settings) -> None:
         dist = settings.resolved_web_dist_dir()
         index = dist / "index.html"
         if not index.is_file():
-            return HTMLResponse(MISSING_BUILD_PAGE, status_code=503)
+            return HTMLResponse(MISSING_BUILD_PAGE, status_code=503, headers=SECURITY_HEADERS)
         if full_path:
             target = _safe_target(dist, full_path)
             if target is None:
-                return HTMLResponse(NOT_FOUND_PAGE, status_code=404)
+                return HTMLResponse(NOT_FOUND_PAGE, status_code=404, headers=SECURITY_HEADERS)
             if target.is_file():
                 return FileResponse(target)
             if "." in Path(full_path).name:
                 return HTMLResponse(NOT_FOUND_PAGE, status_code=404)
-        return FileResponse(index, media_type="text/html", headers={"Cache-Control": "no-store"})
+        return FileResponse(
+            index,
+            media_type="text/html",
+            headers={"Cache-Control": "no-store", **SECURITY_HEADERS},
+        )

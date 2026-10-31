@@ -176,3 +176,39 @@ class RateLimitFact(Base):
         Index("ix_rate_expiry", "expires_at"),
         Index("ix_rate_class_key", "bucket_class", "bucket_key"),
     )
+
+
+class AccountLink(Base):
+    """One-time setup/reset credential; only the SHA-256 digest is stored."""
+
+    __tablename__ = "account_links"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    account_id: Mapped[str] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
+    )
+    purpose: Mapped[str] = mapped_column(String(16), nullable=False)
+    token_digest: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)
+    expires_at: Mapped[str] = mapped_column(String(32), nullable=False)
+    used_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    revoked_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    revoked_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_by: Mapped[str | None] = mapped_column(
+        ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True
+    )
+
+    __table_args__ = (
+        CheckConstraint("purpose IN ('setup','reset')", name="ck_account_links_purpose"),
+        CheckConstraint("expires_at > created_at", name="ck_account_links_expiry"),
+        CheckConstraint(
+            "revoked_at IS NULL OR revoked_reason IS NOT NULL",
+            name="ck_account_links_revocation_reason",
+        ),
+        CheckConstraint(
+            "used_at IS NULL OR revoked_at IS NULL",
+            name="ck_account_links_single_terminal_state",
+        ),
+        Index("ix_account_links_account_purpose", "account_id", "purpose", "created_at"),
+        Index("ix_account_links_expiry", "expires_at"),
+    )

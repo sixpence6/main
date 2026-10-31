@@ -12,7 +12,9 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.adapters.registry import AdapterRegistry, build_default_registry
+from app.auth.admin_router import router as admin_router
 from app.auth.clock import Clock
+from app.auth.link_router import router as link_router
 from app.auth.middleware import AuthMiddleware
 from app.auth.passwords import HashGate
 from app.auth.router import router as auth_router
@@ -186,6 +188,8 @@ def create_app(
 
     app.include_router(health.router)
     app.include_router(auth_router)
+    app.include_router(link_router)
+    app.include_router(admin_router)
     app.include_router(config_status.router)
     app.include_router(projects.router)
     app.include_router(messages.router)

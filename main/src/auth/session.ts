@@ -68,11 +68,18 @@ export async function logout(): Promise<void> {
 
 export function installAuthGuard(router: Router): void {
   router.beforeEach(async (to) => {
+    // 设置密码页是一次性链接入口，不能因为匿名访问被登录守卫拦截。
+    if (to.meta.public) return true
     const authenticated = await ensureSession(true)
     if (to.name === 'login') {
       return authenticated ? { name: 'describe' } : true
     }
-    if (authenticated) return true
-    return { name: 'login', query: { redirect: to.fullPath } }
+    if (!authenticated) {
+      return { name: 'login', query: { redirect: to.fullPath } }
+    }
+    if (to.meta.requiresAdmin && !currentAccount.value?.is_admin) {
+      return { name: 'describe' }
+    }
+    return true
   })
 }

@@ -14,6 +14,12 @@ import type {
   GenerationView,
   PatchBriefRequest,
   SubmitGenerationRequest,
+  AccountListResponse,
+  CreateAccountResponse,
+  LinkIssueResponse,
+  LinkPurpose,
+  LinkStatusResponse,
+  LinkPasswordResponse,
 } from './types'
 import { getCsrfToken, setCsrfToken } from './csrf'
 
@@ -175,6 +181,37 @@ export const api = {
   },
   logout(): Promise<void> {
     return requestJson<void>('/api/auth/logout', { method: 'POST', body: '{}' })
+  },
+  listAccounts(signal?: AbortSignal): Promise<AccountListResponse> {
+    return requestJson<AccountListResponse>('/api/admin/accounts', { signal })
+  },
+  createAccount(email: string): Promise<CreateAccountResponse> {
+    return requestJson<CreateAccountResponse>('/api/admin/accounts', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    })
+  },
+  issueAccountLink(accountId: string, purpose: LinkPurpose): Promise<LinkIssueResponse> {
+    return requestJson<LinkIssueResponse>(
+      `/api/admin/accounts/${encodeURIComponent(accountId)}/links`,
+      { method: 'POST', body: JSON.stringify({ purpose }) },
+    )
+  },
+  getLinkStatus(token: string, signal?: AbortSignal): Promise<LinkStatusResponse> {
+    return requestJson<LinkStatusResponse>('/api/auth/link', {
+      signal,
+      headers: { 'X-Link-Token': token },
+    })
+  },
+  setPasswordWithLink(
+    token: string,
+    password: string,
+    purpose: LinkPurpose,
+  ): Promise<LinkPasswordResponse> {
+    return requestJson<LinkPasswordResponse>('/api/auth/link', {
+      method: 'POST',
+      body: JSON.stringify({ token, password, purpose }),
+    })
   },
   getHealth(signal?: AbortSignal): Promise<HealthStatus> {
     return requestJson<HealthStatus>('/api/health', { signal })

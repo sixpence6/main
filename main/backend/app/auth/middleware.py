@@ -25,6 +25,7 @@ PUBLIC_API_PATHS = frozenset(
         "/api/auth/logout",
         "/api/auth/session",
         "/api/auth/csrf",
+        "/api/auth/link",
     }
 )
 AUTH_JSON_BODY_LIMIT = 16 * 1024
@@ -206,7 +207,7 @@ class AuthMiddleware:
             if not check_origin(origin, self.settings):
                 await _send_json(send, 403, "ORIGIN_INVALID", "请求来源校验失败")
                 return
-            if path == "/api/auth/login":
+            if path in {"/api/auth/login", "/api/auth/link"}:
                 presented = headers.get("x-csrf-token")
                 cookie_token = cookie_map.get(PREAUTH_CSRF_COOKIE)
                 if not presented or not cookie_token or not constant_time_equals(

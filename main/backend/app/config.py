@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -73,6 +74,7 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = Field(default_factory=list)
     allow_loopback_http: bool = False
     auth_cookie_secure: bool = True
+    app_public_url: str | None = None
 
     llm_adapter: str | None = None
     llm_base_url: str | None = None
@@ -94,6 +96,34 @@ class Settings(BaseSettings):
             "VISUAL_TASK_TIMEOUT_SECONDS", "VISUAL_TIMEOUT_SECONDS"
         ),
     )
+
+    @field_validator("app_public_url", mode="before")
+    @classmethod
+    def _validate_app_public_url(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("APP_PUBLIC_URL must be a string")
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            parts = urlsplit(text)
+            # Accessing port catches malformed ports such as ':abc'.
+            _ = parts.port
+        except ValueError as exc:
+            raise ValueError("APP_PUBLIC_URL must be a valid absolute URL") from exc
+        if parts.scheme.lower() not in {"http", "https"}:
+            raise ValueError("APP_PUBLIC_URL must use http or https")
+        if not parts.netloc or not parts.hostname:
+            raise ValueError("APP_PUBLIC_URL must include a host")
+        if parts.username is not None or parts.password is not None:
+            raise ValueError("APP_PUBLIC_URL must not contain credentials")
+        if parts.query or parts.fragment:
+            raise ValueError("APP_PUBLIC_URL must not contain a query or fragment")
+        if parts.path not in {"", "/"}:
+            raise ValueError("APP_PUBLIC_URL must not contain a path")
+        return f"{parts.scheme.lower()}://{parts.netloc.lower()}"
 
     @field_validator("data_dir", "web_dist_dir", mode="before")
     @classmethod

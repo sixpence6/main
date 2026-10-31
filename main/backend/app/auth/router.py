@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Literal
-
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
@@ -15,6 +13,7 @@ from app.auth.sessions import (
     SESSION_COOKIE,
 )
 from app.auth.tokens import constant_time_equals, new_token, token_digest
+from app.auth.views import AccountView, account_view
 from app.config import Settings
 from app.errors import ApiError
 from app.schemas import ERROR_RESPONSE
@@ -31,15 +30,6 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class AccountView(BaseModel):
-    id: str
-    email: str
-    is_admin: bool
-    status: Literal["pending_setup", "active", "disabled"]
-    created_at: str
-    last_login_at: str | None
-
-
 class LoginResponse(BaseModel):
     account: AccountView
     csrf_token: str
@@ -54,17 +44,6 @@ class SessionResponse(BaseModel):
 
 class CsrfResponse(BaseModel):
     csrf_token: str
-
-
-def account_view(account: Account) -> AccountView:
-    return AccountView(
-        id=account.id,
-        email=account.email_normalized,
-        is_admin=bool(account.is_admin),
-        status=account.status,  # type: ignore[arg-type]
-        created_at=account.created_at,
-        last_login_at=account.last_login_at,
-    )
 
 
 def _set_session_cookie(response: Response, token: str, settings: Settings) -> None:
@@ -153,8 +132,6 @@ async def session_endpoint(request: Request) -> SessionResponse:
     if account is None or auth_session is None:
         raise ApiError(401, "AUTH_REQUIRED", "请先登录")
     csrf_token = request.cookies.get(PREAUTH_CSRF_COOKIE)
-    from app.auth.tokens import constant_time_equals, token_digest
-
     if not csrf_token or not constant_time_equals(
         auth_session.csrf_digest, token_digest(csrf_token)
     ):
