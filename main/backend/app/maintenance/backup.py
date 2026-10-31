@@ -172,19 +172,23 @@ def _validate_output(source: Path, output: Path, candidates: Sequence[CandidateI
     return resolved
 
 
-def _source_db_uri(path: Path) -> str:
-    return path.as_uri() + "?mode=ro"
+def _source_db_uri(path: Path, *, immutable: bool) -> str:
+    query = "mode=ro&immutable=1" if immutable else "mode=ro"
+    return path.as_uri() + "?" + query
 
 
 def _snapshot_database(source_db: Path, destination: Path) -> DatabaseSnapshot:
     source_root = source_db.parent
-    if (source_root / WAL_NAME).exists() and not (source_root / SHM_NAME).exists():
+    has_wal = (source_root / WAL_NAME).exists()
+    if has_wal and not (source_root / SHM_NAME).exists():
         raise BackupError(
             "SOURCE_WAL_UNREADABLE",
             "source has a WAL file without shared memory; refusing to touch it",
         )
     try:
-        source_connection = sqlite3.connect(_source_db_uri(source_db), uri=True, timeout=5.0)
+        source_connection = sqlite3.connect(
+            _source_db_uri(source_db, immutable=not has_wal), uri=True, timeout=5.0
+        )
     except sqlite3.Error as exc:
         raise BackupError(
             "SOURCE_DATABASE_UNREADABLE", f"could not open source database: {type(exc).__name__}"

@@ -281,6 +281,23 @@ def _open_immutable(path):
 
 
 @pytest.mark.asyncio
+async def test_backup_leaves_clean_source_content_digest_unchanged(tmp_path):
+    source = tmp_path / "data"
+    data = b"reference-payload"
+    _create_source(
+        source,
+        rows=[_asset_row("asset-1", "references/ref.bin", data)],
+        files={"references/ref.bin": data},
+    )
+    before = inspect_candidate(source).content_digest
+    await create_backup(source=source, output=tmp_path / "backups", timeout=2)
+    after = inspect_candidate(source)
+    assert after.content_digest == before
+    assert not (source / "app.db-wal").exists()
+    assert not (source / "app.db-shm").exists()
+
+
+@pytest.mark.asyncio
 async def test_single_source_backup_includes_wal_commit_and_verified_manifest(tmp_path):
     source = tmp_path / "data"
     reference = b"reference-payload"
