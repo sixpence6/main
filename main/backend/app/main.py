@@ -19,6 +19,14 @@ from app.auth.router import router as auth_router
 from app.config import Settings
 from app.db import ProjectLocks, build_session_factory, create_engine
 from app.errors import ApiError, StartupError
+from app.maintenance.coordinator import (
+    BUSINESS_WRITE,
+    EXPIRY_DELETION,
+    MaintenanceBlocked,
+    MaintenanceCoordinator,
+    get_active_coordinator,
+    set_active_coordinator,
+)
 from app.routers import (
     assets,
     briefs,
@@ -42,8 +50,16 @@ RETENTION_INTERVAL_SECONDS = 15 * 60
 
 async def _run_retention_cleanup(app: FastAPI) -> None:
     """保留期清理失败不能阻断服务启动，也不能向调用方泄露内部信息。"""
+    coordinator = getattr(app.state, "maintenance", None)
     try:
-        await run_retention_cleanup(app)
+        if coordinator is None:
+            await run_retention_cleanup(app)
+        else:
+            async with coordinator.guard(EXPIRY_DELETION):
+                await run_retention_cleanup(app)
+    except MaintenanceBlocked:
+        # A maintenance window owns the data root; skip this pass entirely.
+        return
     except Exception:
         logger.exception("retention cleanup failed")
 
@@ -68,6 +84,7 @@ def build_http_client() -> httpx.AsyncClient:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
+    set_active_coordinator(app.state.maintenance)
     ensure_data_dir(settings)
     engine = create_engine(settings)
     app.state.engine = engine
@@ -101,6 +118,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if client is not None:
             await client.aclose()
         await engine.dispose()
+        if get_active_coordinator() is app.state.maintenance:
+            set_active_coordinator(None)
 
 
 def create_app(
@@ -116,12 +135,20 @@ def create_app(
     )
     app.state.settings = resolved
     app.state.registry = registry or build_default_registry()
+    app.state.maintenance = MaintenanceCoordinator()
     app.state.clock = Clock()
     app.state.hash_gate = HashGate()
 
     @app.exception_handler(ApiError)
     async def _api_error(_request: Request, exc: ApiError) -> JSONResponse:
         return JSONResponse(exc.as_body(), status_code=exc.status_code, headers=exc.headers)
+
+    @app.exception_handler(MaintenanceBlocked)
+    async def _maintenance_blocked(_request: Request, exc: MaintenanceBlocked) -> JSONResponse:
+        return JSONResponse(
+            {"error": {"code": exc.code, "message": "服务维护中，请稍后重试"}},
+            status_code=503,
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -174,6 +201,21 @@ def create_app(
     )
     async def unknown_api(rest: str):  # noqa: ARG001 - path is only used for matching
         raise ApiError(404, "ROUTE_NOT_FOUND", "接口不存在")
+
+    @app.middleware("http")
+    async def _maintenance_write_gate(request: Request, call_next):
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"} and request.url.path.startswith(
+            "/api/"
+        ):
+            try:
+                async with app.state.maintenance.guard(BUSINESS_WRITE):
+                    return await call_next(request)
+            except MaintenanceBlocked as exc:
+                return JSONResponse(
+                    {"error": {"code": exc.code, "message": "服务维护中，请稍后重试"}},
+                    status_code=503,
+                )
+        return await call_next(request)
 
     web.register_web_routes(app, resolved)
     app.add_middleware(AuthMiddleware, settings=resolved)
