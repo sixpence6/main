@@ -6,6 +6,7 @@ import GeneratePage from '@/pages/GeneratePage.vue'
 import ResultsPage from '@/pages/ResultsPage.vue'
 import LoginPage from '@/pages/LoginPage.vue'
 import AdminAccountsPage from '@/pages/AdminAccountsPage.vue'
+import AccountSecurityPage from '@/pages/AccountSecurityPage.vue'
 import SetPasswordPage from '@/pages/SetPasswordPage.vue'
 
 export const STAGE_ROUTE_NAMES = ['describe', 'confirm', 'generate', 'results'] as const
@@ -16,6 +17,7 @@ export function createAppRouter(history?: RouterHistory): Router {
     routes: [
       { path: '/login', name: 'login', component: LoginPage },
       { path: '/set-password', name: 'set-password', component: SetPasswordPage, meta: { public: true } },
+      { path: '/account/security', name: 'account-security', component: AccountSecurityPage },
       {
         path: '/admin/accounts',
         name: 'admin-accounts',

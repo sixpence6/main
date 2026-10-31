@@ -20,6 +20,7 @@ import type {
   LinkPurpose,
   LinkStatusResponse,
   LinkPasswordResponse,
+  SessionListResponse,
 } from './types'
 import { getCsrfToken, setCsrfToken } from './csrf'
 
@@ -211,6 +212,26 @@ export const api = {
     return requestJson<LinkPasswordResponse>('/api/auth/link', {
       method: 'POST',
       body: JSON.stringify({ token, password, purpose }),
+    })
+  },
+  changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    return requestJson<void>('/api/auth/password/change', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    })
+  },
+  listSessions(signal?: AbortSignal): Promise<SessionListResponse> {
+    return requestJson<SessionListResponse>('/api/auth/sessions', { signal })
+  },
+  revokeSession(sessionId: string): Promise<void> {
+    return requestJson<void>('/api/auth/sessions/' + encodeURIComponent(sessionId), {
+      method: 'DELETE',
+    })
+  },
+  revokeOtherSessions(): Promise<void> {
+    return requestJson<void>('/api/auth/sessions/revoke-others', {
+      method: 'POST',
+      body: '{}'
     })
   },
   getHealth(signal?: AbortSignal): Promise<HealthStatus> {

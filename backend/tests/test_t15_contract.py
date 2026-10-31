@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from typing import Any
 
-EXPECTED_OPERATIONS = 25
+EXPECTED_OPERATIONS = 29
 EXPECTED_AUTH_OPERATIONS = {
     ("GET", "/api/auth/csrf"),
     ("GET", "/api/auth/session"),
     ("POST", "/api/auth/login"),
     ("POST", "/api/auth/logout"),
+    ("POST", "/api/auth/password/change"),
+    ("GET", "/api/auth/sessions"),
+    ("DELETE", "/api/auth/sessions/{session_id}"),
+    ("POST", "/api/auth/sessions/revoke-others"),
 }
 
 
