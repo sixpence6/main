@@ -37,7 +37,7 @@ python -m app.auth.cli init-admin admin@example.com
 
 - 该入口不监听网络，也不存在 `POST /api/...init-admin` 之类的 HTTP 路由。
 - 密码、哈希和会话 token 不写入命令行、URL、普通日志或前端存储。
-- 本入口只在空库创建首管理员；普通账号创建、一次性设置链接、禁用／恢复、改密和管理员遗失恢复属于后续票（#56／#57／#58），不要通过数据库手工插入绕过。
+- 本入口只在空库创建首管理员；普通账号创建与一次性链接见 `#56`／`docs/operations/r1-account-links.md`，本人改密与多端会话见 `#57`／`docs/acceptance/r1-personal-sessions.md`，管理员遗失恢复见 `docs/operations/r1-local-admin-recovery.md`，禁用／恢复见 `#58`；不要通过数据库手工插入绕过。
 - 正式环境使用 HTTPS；`AUTH_COOKIE_SECURE=true` 是默认值。只有显式本机回环开发才可设置 `ALLOW_LOOPBACK_HTTP=true` 与 `AUTH_COOKIE_SECURE=false`，不得用于局域网或生产。
 
 ## 失败处理
