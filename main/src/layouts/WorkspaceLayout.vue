@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterView } from 'vue-router'
-import { currentAccount, sessionEstablished, sessionInvalidated } from '@/auth/session'
+import { currentAccount, sessionEstablished, sessionInvalidated, sessionRevalidating } from '@/auth/session'
 import AppHeader from '@/components/AppHeader.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import GenerationRiskDialog from '@/components/GenerationRiskDialog.vue'
@@ -17,8 +17,9 @@ import '@/styles/workspace.css'
 
 const businessVisible = computed(
   () =>
-    currentAccount.value !== null ||
-    (!sessionEstablished.value && !sessionInvalidated.value),
+    !sessionRevalidating.value &&
+    (currentAccount.value !== null ||
+      (!sessionEstablished.value && !sessionInvalidated.value)),
 )
 const workspace = provideWorkspace()
 const {
