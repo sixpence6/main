@@ -229,6 +229,47 @@ export interface AccountView {
   last_login_at: string | null
 }
 
+
+export interface GenerationLimitPolicy {
+  daily_limit: number | null
+  personal_slots: number | null
+  instance_slots: number | null
+  updated_at: string | null
+}
+
+export interface EffectiveGenerationLimits {
+  daily_limit: number
+  personal_slots: number
+  instance_slots: number
+  project_slots: number
+}
+
+export interface InstanceGenerationLimitsResponse {
+  policy: GenerationLimitPolicy
+  effective: EffectiveGenerationLimits
+  defaults: EffectiveGenerationLimits
+}
+
+export interface AccountGenerationUsage {
+  used: number
+  remaining: number
+  daily_limit: number
+  personal_active: number
+  personal_limit: number
+  instance_active: number
+  instance_limit: number
+  window_started_at: string | null
+  window_expires_at: string | null
+}
+
+export interface AccountGenerationLimitsResponse {
+  account_id: string
+  email: string
+  policy: GenerationLimitPolicy
+  effective: EffectiveGenerationLimits
+  usage: AccountGenerationUsage
+}
+
 export interface AuthSessionResponse {
   account: AccountView
   csrf_token: string

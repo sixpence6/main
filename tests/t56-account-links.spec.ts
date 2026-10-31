@@ -92,6 +92,11 @@ describe('T56 账号创建与一次性设置链接', () => {
 
   it('管理员列表可创建账号并只显示一次链接，关闭后从页面丢弃', async () => {
     fetchController = new FetchController().install()
+    fetchController.json('GET', '/api/admin/generation-limits', {
+  policy: { daily_limit: null, personal_slots: null, instance_slots: null, updated_at: null },
+  effective: { daily_limit: 20, personal_slots: 1, instance_slots: 2, project_slots: 1 },
+  defaults: { daily_limit: 20, personal_slots: 1, instance_slots: 2, project_slots: 1 },
+})
     fetchController.json('GET', '/api/admin/accounts', { items: [pending, active] })
     fetchController.json('POST', '/api/admin/accounts', {
       account: {

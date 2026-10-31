@@ -73,7 +73,7 @@ async def test_registered_route_inventory_is_exact_and_default_deny_closes_unkno
             for method in node
             if method in {"get", "post", "patch", "delete", "put"}
         }
-        assert len(operations) == 33
+        assert len(operations) == 37
         assert operations == EXPECTED_OPERATIONS
 
         async with _new_client(app) as anon:

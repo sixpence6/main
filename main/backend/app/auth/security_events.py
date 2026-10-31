@@ -31,6 +31,7 @@ SECURITY_EVENT_TYPES = frozenset(
         "account_disabled",
         "account_restored",
         "generation_account_blocked",
+        "generation_limits_updated",
         "legacy_projects_claimed",
         "permission_denied",
     }
@@ -50,7 +51,21 @@ SAFE_DETAIL_KEYS = frozenset(
         "project_count",
     }
 )
-SAFE_STATE_KEYS = frozenset({"status", "is_admin", "is_disabled", "session_epoch"})
+SAFE_STATE_KEYS = frozenset(
+    {
+        "status",
+        "is_admin",
+        "is_disabled",
+        "session_epoch",
+        "daily_limit",
+        "personal_slots",
+        "instance_slots",
+        "effective_daily_limit",
+        "effective_personal_slots",
+        "effective_instance_slots",
+        "effective_project_slots",
+    }
+)
 EVENT_RESULT = Literal["success", "failure", "denied", "limited"]
 ACTOR_LABELS = {
     "anonymous": "匿名",
