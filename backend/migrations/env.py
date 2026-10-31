@@ -8,9 +8,12 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
+# Repository layout keeps the importable app package under main/backend; the
+# standalone package keeps it right beside the migrations directory.
 MAIN_BACKEND_DIR = BACKEND_DIR.parent / "main" / "backend"
-if str(MAIN_BACKEND_DIR) not in sys.path:
-    sys.path.insert(0, str(MAIN_BACKEND_DIR))
+IMPORT_ROOT = MAIN_BACKEND_DIR if MAIN_BACKEND_DIR.is_dir() else BACKEND_DIR
+if str(IMPORT_ROOT) not in sys.path:
+    sys.path.insert(0, str(IMPORT_ROOT))
 
 from app.config import Settings  # noqa: E402
 from app.models import Base  # noqa: E402

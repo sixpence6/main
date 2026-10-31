@@ -1,0 +1,20 @@
+.git
+.gitignore
+node_modules
+dist
+.scratch
+.local
+.worktrees
+tests
+docs
+*.md
+
+# Never send runtime secrets or local environment state to the build daemon.
+backend/.env
+backend/.venv
+backend/data
+backend/.pytest_cache
+backend/.ruff_cache
+backend/.scratch
+**/__pycache__
+**/*.pyc

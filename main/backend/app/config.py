@@ -9,7 +9,14 @@ from sqlalchemy.engine import make_url
 
 APP_DIR = Path(__file__).resolve().parent
 MAIN_DIR = APP_DIR.parent.parent
-REPO_ROOT = MAIN_DIR.parent
+
+# Two layouts are supported: the repository, where the backend workspace lives
+# beside main/, and the standalone package, where main/ itself is the project
+# root (the docker image uses /app). The workspace marker decides.
+_REPO_CANDIDATE = MAIN_DIR.parent
+REPO_ROOT = (
+    _REPO_CANDIDATE if (_REPO_CANDIDATE / "backend" / "alembic.ini").is_file() else MAIN_DIR
+)
 
 BACKEND_DIR = REPO_ROOT / "backend"
 DEFAULT_DATA_DIR = BACKEND_DIR / "data"

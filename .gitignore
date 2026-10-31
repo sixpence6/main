@@ -30,3 +30,9 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 backend/data/
+main/backend/data/
+
+# local tool credentials/state and pytest temporary databases
+/.config/gh/
+/.local/
+/pytest-of-*/

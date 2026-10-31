@@ -1,4 +1,4 @@
-import type { Brief, BriefStatus, GenerationStatus, GenerationView } from '@/api/types'
+import type { Brief, BriefStatus, GenerationStatus } from '@/api/types'
 
 /** 历史模型产物未审查时的固定占位；不展示任何旧正文、提示词或图片。 */
 export const LEGACY_UNREVIEWED_NOTICE = '此历史内容尚未通过 v2 审查，暂不可查看或下载。可以主动发起补审。'
@@ -62,18 +62,6 @@ export function briefFieldValue(brief: Brief | null | undefined, key: EditableBr
 export function hasSnapshotContent(brief: Brief | null): boolean {
   if (!brief) return false
   return editableBriefFields.some((field) => Boolean(brief[field.key]?.trim())) || Boolean(brief.prompt?.trim())
-}
-
-export function snapshotFields(brief: Brief | null) {
-  if (!brief) return []
-  return editableBriefFields
-    .filter((field) => Boolean(brief[field.key]?.trim()))
-    .map((field) => ({ ...field, value: brief[field.key] }))
-}
-
-export function latestGeneration(generations: GenerationView[]): GenerationView | null {
-  if (!generations.length) return null
-  return generations.reduce((latest, item) => (item.version_no > latest.version_no ? item : latest))
 }
 
 export function extensionForMime(mime: string): string {

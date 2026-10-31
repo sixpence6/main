@@ -12,8 +12,9 @@ from httpx import ASGITransport, AsyncClient
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 MAIN_BACKEND_DIR = BACKEND_DIR.parent / "main" / "backend"
-if str(MAIN_BACKEND_DIR) not in sys.path:
-    sys.path.insert(0, str(MAIN_BACKEND_DIR))
+IMPORT_ROOT = MAIN_BACKEND_DIR if MAIN_BACKEND_DIR.is_dir() else BACKEND_DIR
+if str(IMPORT_ROOT) not in sys.path:
+    sys.path.insert(0, str(IMPORT_ROOT))
 
 from app.adapters.registry import AdapterRegistry  # noqa: E402
 from app.config import Settings  # noqa: E402

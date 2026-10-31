@@ -15,3 +15,7 @@ Five canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### v3 architecture
+
+For v3 implementation, cleanup, or release work, read `docs/architecture/hld_v3.md`: R1 → R2 → R3 is serial and each stage has an acceptance gate. Read `docs/architecture/v3-refactor-plan.md` for candidate rationale only; neither document is evidence that v3 has shipped.

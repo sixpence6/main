@@ -7,7 +7,6 @@ import {
   briefStatusLabel,
   displayProjectTitle,
   hasSnapshotContent,
-  latestGeneration,
   legacyNoticeText,
 } from '@/utils/format'
 

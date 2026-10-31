@@ -31,7 +31,6 @@ from app.workflow.state import (
     add_review,
     approved_artifact,
     latest_approval,
-    latest_artifact,
     revoke_active_approval_types,
     set_stage,
     start_artifact,
