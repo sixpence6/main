@@ -32,6 +32,7 @@ SECURITY_EVENT_TYPES = frozenset(
         "account_restored",
         "generation_account_blocked",
         "generation_limits_updated",
+        "generation_tracking_closed",
         "legacy_projects_claimed",
         "permission_denied",
     }
@@ -49,6 +50,9 @@ SAFE_DETAIL_KEYS = frozenset(
         "stage",
         "remote_task_recorded",
         "project_count",
+        "intent_id",
+        "reason",
+        "remote_cancelled",
     }
 )
 SAFE_STATE_KEYS = frozenset(
@@ -64,6 +68,7 @@ SAFE_STATE_KEYS = frozenset(
         "effective_personal_slots",
         "effective_instance_slots",
         "effective_project_slots",
+        "active_slots",
     }
 )
 EVENT_RESULT = Literal["success", "failure", "denied", "limited"]

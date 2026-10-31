@@ -74,7 +74,7 @@ class GenerationIntent(Base):
     __table_args__ = (
         UniqueConstraint("project_id", "request_id", name="uq_generation_intents_project_request"),
         CheckConstraint(
-            "status IN ('accepted','executing','delivered','failed','abandoned')",
+            "status IN ('accepted','executing','delivered','failed','abandoned','closed')",
             name="ck_generation_intents_status",
         ),
         CheckConstraint(
@@ -652,6 +652,70 @@ async def terminate_intent(
     return changed
 
 
+async def close_intent_tracking(
+    factory: async_sessionmaker[AsyncSession],
+    *,
+    intent_id: str,
+    operator_account_id: str,
+    reason: str,
+    now: datetime | None = None,
+) -> bool:
+    """End local tracking without claiming the remote task was cancelled.
+
+    The usage ledger is deliberately untouched: the original acceptance remains
+    counted exactly once. Only the live occupancy is released, with an explicit
+    audit fact that the remote provider was not cancelled.
+    """
+
+    from app.db import write_transaction
+
+    changed = False
+    async with write_transaction(factory) as session:
+        intent = await session.get(GenerationIntent, intent_id)
+        if intent is None or intent.status not in {"accepted", "executing"}:
+            return False
+        if intent.operator_account_id not in {None, operator_account_id}:
+            raise conflict("OWNERSHIP_MISMATCH", "生成授权与当前账号不一致。")
+        timestamp = format_timestamp(now or utc_now())
+        active_slots = await session.scalar(
+            select(func.count())
+            .select_from(GenerationSlot)
+            .where(
+                GenerationSlot.intent_id == intent.id,
+                GenerationSlot.released_at.is_(None),
+            )
+        )
+        before = {"status": intent.status, "active_slots": int(active_slots or 0)}
+        intent.status = "closed"
+        intent.updated_at = timestamp
+        await release_slots_in_session(
+            session, intent_id=intent.id, reason=reason, now=now
+        )
+        after = {"status": "closed", "active_slots": 0}
+        write_audit(
+            session,
+            event_type="generation_tracking_closed",
+            result="success",
+            now=now or utc_now(),
+            actor_kind="account",
+            actor_account_id=operator_account_id,
+            target_account_id=intent.owner_account_id,
+            target_kind="generation_intent",
+            target_id=intent.id,
+            reason_code=reason[:64],
+            before=before,
+            after=after,
+            detail={
+                "intent_id": intent.id,
+                "reason": reason[:120],
+                "remote_cancelled": False,
+            },
+        )
+        await session.flush()
+        changed = True
+    return changed
+
+
 async def set_intent_status(
     factory: async_sessionmaker[AsyncSession],
     *,
@@ -659,7 +723,7 @@ async def set_intent_status(
     status: str,
     now: datetime | None = None,
 ) -> None:
-    if status not in {"accepted", "executing", "delivered", "failed", "abandoned"}:
+    if status not in {"accepted", "executing", "delivered", "failed", "abandoned", "closed"}:
         raise ValueError(f"invalid intent status {status}")
     async with read_session(factory) as session:
         intent = await session.get(GenerationIntent, intent_id)

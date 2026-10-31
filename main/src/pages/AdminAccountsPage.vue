@@ -72,6 +72,7 @@ const eventLabels: Record<string, string> = {
   account_restored: '恢复账号',
   permission_denied: '权限拒绝',
   generation_limits_updated: '调整生成额度',
+  generation_tracking_closed: '结束本地跟踪',
 }
 
 const resultLabels: Record<AdminSecurityEventView['result'], string> = {
@@ -96,7 +97,7 @@ function statusTransition(event: AdminSecurityEventView): string {
   const after = typeof event.after?.status === 'string' ? event.after.status : null
   if (before || after) {
     const label = (value: string | null): string =>
-      value === 'active' ? '正常' : value === 'pending_setup' ? '待设置密码' : value === 'disabled' ? '已停用' : value ?? '—'
+      value === 'active' ? '正常' : value === 'pending_setup' ? '待设置密码' : value === 'disabled' ? '已停用' : value === 'closed' ? '本地跟踪已结束' : value ?? '—'
     return label(before) + ' → ' + label(after)
   }
   const parts: string[] = []
@@ -129,6 +130,7 @@ function eventDetail(event: AdminSecurityEventView): string {
   if (typeof purpose === 'string') parts.push('用途 ' + (purpose === 'reset' ? '重置密码' : '首次设置密码'))
   if (scope === 'instance') parts.push('范围 实例')
   if (scope === 'account') parts.push('范围 本账号')
+  if (event.detail?.remote_cancelled === false) parts.push('未取消远端任务')
   return parts.join(' · ')
 }
 
