@@ -76,6 +76,13 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool = True
     app_public_url: str | None = None
 
+    # R2 acceptance limits. Positive integers; they apply to every account,
+    # including administrators. Changing a limit never deletes usage.
+    generation_daily_limit: int = Field(default=20, gt=0)
+    generation_personal_slots: int = Field(default=1, gt=0)
+    generation_instance_slots: int = Field(default=2, gt=0)
+    generation_project_slots: int = Field(default=1, gt=0)
+
     llm_adapter: str | None = None
     llm_base_url: str | None = None
     llm_api_key: SecretStr | None = None
@@ -89,7 +96,7 @@ class Settings(BaseSettings):
     visual_base_url: str | None = None
     visual_api_key: SecretStr | None = None
     visual_model: str | None = None
-    visual_image_size: str | None = None
+    visual_image_size: str | None = "3840x2160"
     visual_timeout_seconds: int = Field(
         default=300,
         validation_alias=AliasChoices(

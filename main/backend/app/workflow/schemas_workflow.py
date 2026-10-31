@@ -97,6 +97,29 @@ class WorkflowVersionView(BaseModel):
     created_at: str
 
 
+class GenerationUsageView(BaseModel):
+    daily_limit: int
+    used: int
+    remaining: int
+    window_started_at: str | None = None
+    window_expires_at: str | None = None
+    personal_active: int
+    personal_limit: int
+    instance_active: int
+    instance_limit: int
+    project_active: int
+    project_limit: int
+
+
+class GenerationIntentView(BaseModel):
+    id: str
+    request_id: str
+    status: str
+    artifact_digest: str
+    requirement_revision: int
+    created_at: str
+
+
 class WorkflowView(BaseModel):
     project_id: str
     run_id: str | None = None
@@ -114,6 +137,8 @@ class WorkflowView(BaseModel):
     generation_job: GenerationJobView | None = None
     delivery: DeliveryView | None = None
     versions: list[WorkflowVersionView] = Field(default_factory=list)
+    usage: GenerationUsageView | None = None
+    intent: GenerationIntentView | None = None
     updated_at: str | None = None
 
 

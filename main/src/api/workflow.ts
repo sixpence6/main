@@ -83,6 +83,29 @@ export interface WorkflowDelivery {
   created_at: string
 }
 
+export interface WorkflowUsage {
+  daily_limit: number
+  used: number
+  remaining: number
+  window_started_at: string | null
+  window_expires_at: string | null
+  personal_active: number
+  personal_limit: number
+  instance_active: number
+  instance_limit: number
+  project_active: number
+  project_limit: number
+}
+
+export interface WorkflowIntent {
+  id: string
+  request_id: string
+  status: 'accepted' | 'executing' | 'delivered' | 'failed' | 'abandoned'
+  artifact_digest: string
+  requirement_revision: number
+  created_at: string
+}
+
 export interface WorkflowVersion {
   run_id: string
   sequence_no: number
@@ -117,6 +140,8 @@ export interface WorkflowView {
   generation_job: WorkflowGenerationJob | null
   delivery: WorkflowDelivery | null
   versions?: WorkflowVersion[]
+  usage?: WorkflowUsage | null
+  intent?: WorkflowIntent | null
   updated_at: string | null
 }
 

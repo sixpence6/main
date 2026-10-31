@@ -10,6 +10,7 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.acceptance import GenerationIntent, latest_intent
 from app.auth.audit import write_audit
 from app.auth.tokens import token_digest
 from app.db import read_session, write_transaction
@@ -17,6 +18,7 @@ from app.errors import ApiError, conflict
 from app.generation_guard import (
     GenerationGuardError,
     ensure_job_active,
+    generation_authorization_ref,
     job_authorization_ref,
 )
 from app.models import Asset, Generation
@@ -31,6 +33,7 @@ from app.services.generations import (
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import state, templates
 from app.workflow.contracts import ContractError, digest_payload, validate_data
+from app.workflow.stages import s09, s10
 from app.workflow.stages.s07 import (
     _candidate_errors,
     _hard_requirements,
@@ -221,6 +224,7 @@ async def _create_job(
     snapshot_digest: str,
     attempt: int = 1,
     previous: Generation | None = None,
+    intent: GenerationIntent | None = None,
 ) -> tuple[GenerationJob, Generation]:
     visual = ctx.settings.visual()
     canonical_payload: dict[str, Any] = {
@@ -253,6 +257,12 @@ async def _create_job(
     )
     now = _now()
     async with write_transaction(ctx.session_factory) as session:
+        if intent is not None:
+            if intent.status == "accepted":
+                intent.status = "executing"
+                intent.updated_at = now
+            elif intent.status != "executing":
+                raise conflict("INTENT_STATE_INVALID", "生成授权已结束，不能提交新任务。")
         highest = await session.scalar(
             select(func.max(Generation.version_no)).where(Generation.project_id == ctx.project_id)
         )
@@ -260,6 +270,15 @@ async def _create_job(
         generation = Generation(
             id=str(uuid4()),
             project_id=ctx.project_id,
+            owner_account_id=owner_account_id,
+            operator_account_id=operator_account_id,
+            authorization_ref=generation_authorization_ref(
+                project_id=ctx.project_id,
+                request_id=request_id,
+                request_digest=digest,
+                confirmed_revision=ctx.project.confirmed_revision,
+            ),
+            intent_id=intent.id if intent is not None else None,
             version_no=(highest or 0) + 1,
             request_id=request_id,
             request_canonical=canonical,
@@ -284,6 +303,7 @@ async def _create_job(
             owner_account_id=owner_account_id,
             operator_account_id=operator_account_id,
             authorization_ref=authorization_ref,
+            intent_id=intent.id if intent is not None else None,
             request_id=request_id,
             request_digest=digest,
             prompt_artifact_id=prompt_artifact.id,
@@ -529,9 +549,36 @@ async def _advance_to_review(app, job_id: str) -> None:
             return
         project_id = job.project_id
         run_id = job.run_id
+        intent_id = job.intent_id
     ctx = await state.load_context(app, project_id)
     if ctx.run is not None and ctx.run.id == run_id and ctx.run.stage == STAGE:
         await state.set_stage(ctx, "S09", "active")
+    if intent_id is None:
+        return
+    # A v3 accepted fact advances through quality review and delivery-manifest
+    # preparation without another human click. Approval and publish remain
+    # explicit human actions in S10.
+    try:
+        fresh = await state.load_context(app, project_id)
+        if (
+            fresh.run is not None
+            and fresh.run.id == run_id
+            and fresh.run.stage == "S09"
+            and fresh.run.status in {"active", "needs_input", "blocked"}
+        ):
+            await s09.handle(fresh, "review_candidate", {})
+        fresh = await state.load_context(app, project_id)
+        if (
+            fresh.run is not None
+            and fresh.run.id == run_id
+            and fresh.run.stage == "S10"
+            and fresh.run.status == "active"
+        ):
+            await s10.handle(fresh, "prepare_delivery", {})
+    except (ApiError, GenerationGuardError) as exc:
+        logger.warning("post-generation review chain stopped: %s", exc)
+    except BaseException:
+        logger.exception("post-generation review chain failed for job %s", job_id)
 
 
 async def _run_job(
@@ -764,7 +811,21 @@ async def _submit(ctx: WorkflowContext, action_payload: dict[str, Any]) -> None:
         raise _capability_error(status)
 
     await _check_reference(ctx, prompt_payload)
-    request_id = _request_id(ctx, prompt_artifact.id, final_artifact.digest)
+    intent: GenerationIntent | None = None
+    if ctx.project.owner_account_id is not None:
+        intent = await latest_intent(
+            ctx.session_factory, project_id=ctx.project_id, run_id=ctx.run_id
+        )
+    if intent is not None:
+        if intent.artifact_digest != final_artifact.digest:
+            raise conflict("INTENT_STALE", "需求卡已变化，请重新确认后再生成。")
+        if intent.requirement_revision != ctx.run.requirement_revision:
+            raise conflict("INTENT_STALE", "需求版本已变化，请重新确认后再生成。")
+        if intent.status not in {"accepted", "executing"}:
+            raise conflict("INTENT_STATE_INVALID", "生成授权已结束，请重新确认后再生成。")
+        request_id = intent.request_id
+    else:
+        request_id = _request_id(ctx, prompt_artifact.id, final_artifact.digest)
     original = await _job_by_request_id(ctx, request_id)
 
     if original is not None:
@@ -806,6 +867,7 @@ async def _submit(ctx: WorkflowContext, action_payload: dict[str, Any]) -> None:
                 snapshot_digest=final_artifact.digest,
                 attempt=2,
                 previous=previous,
+                intent=intent,
             )
         except IntegrityError:
             existing_ack = await _job_by_request_id(ctx, ack_request_id)
@@ -847,6 +909,7 @@ async def _submit(ctx: WorkflowContext, action_payload: dict[str, Any]) -> None:
             request_id=request_id,
             input_digest=input_digest,
             snapshot_digest=final_artifact.digest,
+            intent=intent,
         )
     except IntegrityError:
         existing = await _existing_job(ctx, request_id, prompt_artifact.id)

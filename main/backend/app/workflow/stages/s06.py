@@ -5,9 +5,10 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.acceptance import GenerationIntent, accept_in_session, normalize_request_id
 from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict, validation_error
-from app.models import Project
+from app.models import Asset, Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
 from app.workflow.stages import s03
@@ -21,7 +22,7 @@ from app.workflow.state import (
     referenced_material_digest,
     set_stage,
 )
-from app.workflow.tables import Artifact, ArtifactReview, Approval
+from app.workflow.tables import Approval, Artifact, ArtifactReview, WorkflowRun
 
 STAGE = "S06"
 ACTIONS = ["confirm_requirements", "revise_requirements"]
@@ -260,9 +261,7 @@ async def _matches_existing(
     material = await referenced_material_digest(ctx)
     if snapshot.get("referenced_material_digest") != material:
         return False
-    if snapshot.get("hard_requirements") != _hard_requirements(artifact, data):
-        return False
-    return True
+    return snapshot.get("hard_requirements") == _hard_requirements(artifact, data)
 
 
 async def _reject_stale_existing(
@@ -273,7 +272,11 @@ async def _reject_stale_existing(
     Returns True when a stale confirmation existed and was invalidated. The
     caller then refuses the request; a late click can never restore it.
     """
-    if artifact is None or data is None or not await _matches_existing(ctx, approval, artifact, data):
+    if (
+        artifact is None
+        or data is None
+        or not await _matches_existing(ctx, approval, artifact, data)
+    ):
         await invalidate_requirements(ctx, "requirements_changed")
         await record_diagnostic(
             ctx,
@@ -340,16 +343,228 @@ async def _revise_requirements(ctx: WorkflowContext, payload: dict[str, Any]) ->
     )
 
 
+def _request_id(payload: dict[str, Any]) -> str | None:
+    return normalize_request_id(payload.get("request_id"))
+
+
+def _snapshot_matches_current(
+    approval: Approval, project: Project, run: WorkflowRun, artifact: Artifact
+) -> bool:
+    snapshot = _confirmation(approval)
+    return bool(
+        snapshot
+        and snapshot.get("artifact_digest") == artifact.digest
+        and snapshot.get("project_revision") == project.revision
+        and snapshot.get("requirement_revision") == run.requirement_revision
+        and snapshot.get("reference_asset_id") == project.reference_asset_id
+        and snapshot.get("reference_usage")
+        == (project.reference_asset_id and snapshot.get("reference_usage") or "none")
+    )
+
+
+def _reference_usage(ctx: WorkflowContext, data: dict[str, Any]) -> str:
+    raw = data.get("reference_usage")
+    usage = raw if isinstance(raw, str) and raw else "none"
+    if ctx.project.reference_asset_id is None:
+        if usage != "none":
+            raise _changed_error()
+    elif usage not in {"product", "style", "composition"}:
+        raise _changed_error()
+    return usage
+
+
+async def _confirm_atomic(
+    ctx: WorkflowContext,
+    artifact: Artifact,
+    data: dict[str, Any],
+    material: str,
+    request_id: str,
+) -> GenerationIntent:
+    """Confirm and accept in one BEGIN IMMEDIATE transaction.
+
+    The approval row, immutable intent, 24h usage ledger, all three live slots,
+    project confirmation projection and stage transition either all commit or
+    all roll back. No model call happens inside this transaction.
+    """
+
+    image_size = str(
+        data.get("size") or ctx.project.image_size or ctx.settings.visual().image_size or ""
+    )
+    if not image_size:
+        raise _changed_error()
+    configured = ctx.project.image_size or ctx.settings.visual().image_size
+    if configured and image_size != configured:
+        raise _changed_error()
+    reference_usage = _reference_usage(ctx, data)
+
+    now = format_timestamp(utc_now())
+    snapshot = {
+        "schema_version": SCHEMA_VERSION,
+        "artifact_id": artifact.id,
+        "artifact_digest": artifact.digest,
+        "artifact_revision_no": artifact.revision_no,
+        "project_revision": ctx.project.revision,
+        "requirement_revision": ctx.run.requirement_revision,
+        "reference_asset_id": ctx.project.reference_asset_id,
+        "reference_usage": reference_usage,
+        "referenced_material_digest": material,
+        "hard_requirements": _hard_requirements(artifact, data),
+        "confirmed_by": "user",
+        "confirmed_at": now,
+    }
+    async with write_transaction(ctx.session_factory) as session:
+        project = await session.get(Project, ctx.project_id)
+        run = await session.get(WorkflowRun, ctx.run_id)
+        stored_artifact = await session.get(Artifact, artifact.id)
+        if project is None or run is None or stored_artifact is None:
+            raise _changed_error()
+        if project.revision != snapshot["project_revision"]:
+            raise _changed_error()
+        if (
+            run.project_id != project.id
+            or run.requirement_revision != snapshot["requirement_revision"]
+        ):
+            raise _changed_error()
+        if stored_artifact.project_id != project.id or stored_artifact.run_id != run.id:
+            raise _changed_error()
+        if stored_artifact.digest != artifact.digest or stored_artifact.status != "approved":
+            raise _changed_error()
+        if project.owner_account_id is None or ctx.principal is None:
+            raise _changed_error()
+        if project.owner_account_id != ctx.principal.account_id:
+            raise _changed_error()
+        if project.reference_asset_id is not None:
+            reference = await session.get(Asset, project.reference_asset_id)
+            if (
+                reference is None
+                or reference.project_id != project.id
+                or reference.kind != "reference"
+            ):
+                raise _changed_error()
+
+        active = await session.scalar(
+            select(Approval)
+            .where(
+                Approval.project_id == project.id,
+                Approval.approval_type == _APPROVAL_TYPE,
+                Approval.revoked_at.is_(None),
+            )
+            .order_by(Approval.created_at.desc())
+            .limit(1)
+        )
+        if active is not None:
+            if not _snapshot_matches_current(active, project, run, stored_artifact):
+                raise _changed_error()
+            approval = active
+        else:
+            approval = await add_approval(
+                ctx,
+                approval_type=_APPROVAL_TYPE,
+                artifact=stored_artifact,
+                approved_by="user",
+                checks={CONFIRMATION_KEY: snapshot},
+                requirement_digest=stored_artifact.digest,
+                material_digest=material,
+                model_fingerprint="not_applicable",
+                session=session,
+            )
+
+        run_intent = await session.scalar(
+            select(GenerationIntent)
+            .where(
+                GenerationIntent.project_id == project.id,
+                GenerationIntent.run_id == run.id,
+            )
+            .order_by(GenerationIntent.created_at.desc())
+            .limit(1)
+        )
+        if run_intent is not None:
+            if run_intent.artifact_digest != stored_artifact.digest:
+                raise _changed_error()
+            if run_intent.status not in {"accepted", "executing", "delivered"}:
+                raise conflict(
+                    "INTENT_STATE_INVALID",
+                    "上次生成授权已结束，请重新确认当前需求后再生成。",
+                )
+            intent = run_intent
+        else:
+            result = await accept_in_session(
+                session,
+                settings=ctx.settings,
+                project=project,
+                run=run,
+                operator_account_id=ctx.principal.account_id,
+                artifact=stored_artifact,
+                requirement_revision=run.requirement_revision,
+                reference_usage=reference_usage,
+                image_size=image_size,
+                request_id=request_id,
+                approval_id=approval.id,
+            )
+            intent = result.intent
+
+        project.brief_status = "confirmed"
+        project.confirmed_revision = project.revision
+        project.updated_at = now
+        run.stage = "S07"
+        run.status = "active"
+        run.issue_code = None
+        run.issue_message = None
+        run.template_id = None
+        run.template_params_json = None
+        run.updated_at = now
+        await session.flush()
+    ctx.project.brief_status = "confirmed"
+    ctx.project.confirmed_revision = ctx.project.revision
+    ctx.project.updated_at = now
+    ctx.run.stage = "S07"
+    ctx.run.status = "active"
+    ctx.run.updated_at = now
+    return intent
+
+
+async def _after_acceptance(ctx: WorkflowContext, intent: GenerationIntent) -> None:
+    await record_diagnostic(
+        ctx,
+        "requirements_confirmed",
+        {
+            "approval_id": intent.approval_id,
+            "artifact_id": intent.artifact_id,
+            "artifact_digest": intent.artifact_digest,
+            "intent_id": intent.id,
+            "request_id": intent.request_id,
+            "project_revision": ctx.project.revision,
+            "requirement_revision": ctx.run.requirement_revision,
+        },
+    )
+    # The durable acceptance is already committed. The background driver only
+    # compiles/reviews the prompt and submits the image after this transaction.
+    from app.generation_cycle import schedule_confirmed_cycle
+
+    schedule_confirmed_cycle(ctx.app, ctx.project_id, ctx.run_id, intent.id)
+
+
 async def _confirm(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
     if not isinstance(payload, dict):
         raise _changed_error()
 
+    request_id = _request_id(payload)
     artifact = await latest_artifact(ctx, "final_brief")
     data = _payload(artifact) if artifact is not None else None
     existing = await latest_approval(ctx, _APPROVAL_TYPE)
     if existing is not None:
-        if artifact is not None and data is not None and await _matches_existing(ctx, existing, artifact, data):
-            # Idempotent replay: return the original snapshot untouched.
+        if (
+            artifact is not None
+            and data is not None
+            and await _matches_existing(ctx, existing, artifact, data)
+        ):
+            # Idempotent replay: return the original snapshot untouched. A
+            # v3 client that supplies a request id also backfills the durable
+            # intent/usage/slot fact if an older confirmation lacks one.
+            if request_id is not None and ctx.project.owner_account_id is not None:
+                material = await referenced_material_digest(ctx)
+                intent = await _confirm_atomic(ctx, artifact, data, material, request_id)
+                await _after_acceptance(ctx, intent)
             return
         await _reject_stale_existing(ctx, existing, artifact, data)
         raise _changed_error()
@@ -379,6 +594,11 @@ async def _confirm(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
         raise _changed_error()
 
     material = await referenced_material_digest(ctx)
+    if request_id is not None and ctx.project.owner_account_id is not None:
+        intent = await _confirm_atomic(ctx, artifact, data, material, request_id)
+        await _after_acceptance(ctx, intent)
+        return
+
     now = format_timestamp(utc_now())
     snapshot = {
         "schema_version": SCHEMA_VERSION,
@@ -387,7 +607,7 @@ async def _confirm(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
         "artifact_revision_no": artifact.revision_no,
         "project_revision": ctx.project.revision,
         "requirement_revision": ctx.run.requirement_revision,
-        "reference_asset_id": data.get("reference_asset_id"),
+        "reference_asset_id": ctx.project.reference_asset_id,
         "reference_usage": data.get("reference_usage"),
         "referenced_material_digest": material,
         "hard_requirements": _hard_requirements(artifact, data),
