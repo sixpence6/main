@@ -15,12 +15,15 @@ import type {
   PatchBriefRequest,
   SubmitGenerationRequest,
   AccountListResponse,
+  AccountResponse,
   CreateAccountResponse,
   LinkIssueResponse,
   LinkPurpose,
   LinkStatusResponse,
   LinkPasswordResponse,
   SessionListResponse,
+  SecurityEventListResponse,
+  AdminSecurityEventListResponse,
 } from './types'
 import { getCsrfToken, setCsrfToken } from './csrf'
 
@@ -192,6 +195,21 @@ export const api = {
       body: JSON.stringify({ email }),
     })
   },
+  disableAccount(accountId: string): Promise<AccountResponse> {
+    return requestJson<AccountResponse>(
+      `/api/admin/accounts/${encodeURIComponent(accountId)}/disable`,
+      { method: 'POST', body: '{}' },
+    )
+  },
+  restoreAccount(accountId: string): Promise<AccountResponse> {
+    return requestJson<AccountResponse>(
+      `/api/admin/accounts/${encodeURIComponent(accountId)}/restore`,
+      { method: 'POST', body: '{}' },
+    )
+  },
+  listAdminSecurityEvents(signal?: AbortSignal): Promise<AdminSecurityEventListResponse> {
+    return requestJson<AdminSecurityEventListResponse>('/api/admin/security-events', { signal })
+  },
   issueAccountLink(accountId: string, purpose: LinkPurpose): Promise<LinkIssueResponse> {
     return requestJson<LinkIssueResponse>(
       `/api/admin/accounts/${encodeURIComponent(accountId)}/links`,
@@ -231,8 +249,11 @@ export const api = {
   revokeOtherSessions(): Promise<void> {
     return requestJson<void>('/api/auth/sessions/revoke-others', {
       method: 'POST',
-      body: '{}'
+      body: '{}',
     })
+  },
+  listSecurityEvents(signal?: AbortSignal): Promise<SecurityEventListResponse> {
+    return requestJson<SecurityEventListResponse>('/api/auth/security-events', { signal })
   },
   getHealth(signal?: AbortSignal): Promise<HealthStatus> {
     return requestJson<HealthStatus>('/api/health', { signal })

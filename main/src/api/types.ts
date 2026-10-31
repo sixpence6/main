@@ -281,3 +281,38 @@ export interface SessionView {
 export interface SessionListResponse {
   items: SessionView[]
 }
+
+export type SecurityEventResult = 'success' | 'failure' | 'denied' | 'limited'
+
+export interface SecurityEventView {
+  id: string
+  occurred_at: string
+  event_type: string
+  result: SecurityEventResult
+  reason_code: string | null
+  actor_kind: string
+  detail: Record<string, unknown> | null
+}
+
+export interface SecurityEventListResponse {
+  items: SecurityEventView[]
+}
+
+export interface AdminSecurityEventView extends SecurityEventView {
+  actor_ref: string | null
+  actor_label: string | null
+  target_kind: string | null
+  target_ref: string | null
+  target_label: string | null
+  subject_ref: string | null
+  before: Record<string, unknown> | null
+  after: Record<string, unknown> | null
+}
+
+export interface AdminSecurityEventListResponse {
+  items: AdminSecurityEventView[]
+}
+
+export interface AccountResponse {
+  account: AccountView
+}

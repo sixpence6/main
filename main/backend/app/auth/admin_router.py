@@ -5,8 +5,11 @@ from typing import Literal
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict
 
+from app.auth.account_admin import disable_account, restore_account
 from app.auth.links import create_account, issue_link, list_accounts
 from app.auth.principal import require_admin
+from app.auth.security_events import AdminSecurityEventListResponse, list_admin_security_events
+from app.auth.tokens import source_ref
 from app.auth.views import AccountView, account_view
 from app.schemas import ERROR_RESPONSE
 
@@ -25,6 +28,10 @@ class CreateAccountResponse(BaseModel):
 
 class AccountListResponse(BaseModel):
     items: list[AccountView]
+
+
+class AccountResponse(BaseModel):
+    account: AccountView
 
 
 class IssueLinkRequest(BaseModel):
@@ -95,3 +102,63 @@ async def issue_link_endpoint(
         purpose=issued.purpose,
         expires_at=issued.expires_at,
     )
+
+
+def _request_source(request: Request) -> str:
+    host = request.client.host if request.client else "unknown"
+    return source_ref(host or "unknown")
+
+
+@router.post(
+    "/accounts/{account_id}/disable",
+    response_model=AccountResponse,
+    responses={
+        403: ERROR_RESPONSE,
+        404: ERROR_RESPONSE,
+        422: ERROR_RESPONSE,
+        503: ERROR_RESPONSE,
+    },
+)
+async def disable_account_endpoint(request: Request, account_id: str) -> AccountResponse:
+    principal = require_admin(request)
+    account = await disable_account(
+        request.app.state.session_factory,
+        admin_account_id=principal.account_id,
+        account_id=account_id,
+        now=request.app.state.clock.now(),
+        source_ref_value=_request_source(request),
+    )
+    return AccountResponse(account=account_view(account))
+
+
+@router.post(
+    "/accounts/{account_id}/restore",
+    response_model=AccountResponse,
+    responses={
+        403: ERROR_RESPONSE,
+        404: ERROR_RESPONSE,
+        422: ERROR_RESPONSE,
+        503: ERROR_RESPONSE,
+    },
+)
+async def restore_account_endpoint(request: Request, account_id: str) -> AccountResponse:
+    principal = require_admin(request)
+    account = await restore_account(
+        request.app.state.session_factory,
+        admin_account_id=principal.account_id,
+        account_id=account_id,
+        now=request.app.state.clock.now(),
+        source_ref_value=_request_source(request),
+    )
+    return AccountResponse(account=account_view(account))
+
+
+@router.get(
+    "/security-events",
+    response_model=AdminSecurityEventListResponse,
+    responses={401: ERROR_RESPONSE, 403: ERROR_RESPONSE, 503: ERROR_RESPONSE},
+)
+async def admin_security_events(request: Request) -> AdminSecurityEventListResponse:
+    require_admin(request)
+    items = await list_admin_security_events(request.app.state.session_factory)
+    return AdminSecurityEventListResponse(items=items)

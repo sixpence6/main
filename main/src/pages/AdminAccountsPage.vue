@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ApiError, api } from '@/api/client'
-import type { AccountView, LinkIssueResponse, LinkPurpose } from '@/api/types'
+import type { AccountView, AdminSecurityEventView, LinkIssueResponse, LinkPurpose } from '@/api/types'
 
 const accounts = ref<AccountView[]>([])
 const loading = ref(true)
@@ -15,12 +15,76 @@ const issuingId = ref<string | null>(null)
 const linkResult = ref<LinkIssueResponse | null>(null)
 const linkError = ref<string | null>(null)
 const copied = ref(false)
+const statusActionId = ref<string | null>(null)
+const statusMessage = ref<string | null>(null)
+const statusError = ref<string | null>(null)
+const events = ref<AdminSecurityEventView[]>([])
+const eventsLoading = ref(true)
+const eventsError = ref<string | null>(null)
 let listController: AbortController | null = null
+let eventsController: AbortController | null = null
 
 const statusLabels: Record<AccountView['status'], string> = {
   pending_setup: '待设置密码',
   active: '正常',
   disabled: '已停用',
+}
+
+const eventLabels: Record<string, string> = {
+  bootstrap_admin_created: '初始化管理员',
+  login_success: '登录成功',
+  login_failure: '登录失败',
+  login_limited: '登录受限',
+  logout: '退出登录',
+  password_changed: '修改密码',
+  account_created: '创建账号',
+  account_link_issued: '生成一次性链接',
+  account_link_issue_limited: '生成链接受限',
+  account_link_used: '使用一次性链接',
+  account_link_verify_limited: '验证链接受限',
+  session_revoked: '撤销会话',
+  sessions_revoked: '撤销多个会话',
+  admin_recovered: '本机恢复首管',
+  account_disabled: '停用账号',
+  account_restored: '恢复账号',
+  permission_denied: '权限拒绝',
+}
+
+const resultLabels: Record<AdminSecurityEventView['result'], string> = {
+  success: '成功',
+  failure: '失败',
+  denied: '拒绝',
+  limited: '受限',
+}
+
+function eventLabel(type: string): string {
+  return eventLabels[type] ?? type
+}
+
+function formatEventTime(value: string): string {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleString('zh-CN', { hour12: false })
+}
+
+function statusTransition(event: AdminSecurityEventView): string {
+  const before = typeof event.before?.status === 'string' ? event.before.status : null
+  const after = typeof event.after?.status === 'string' ? event.after.status : null
+  if (!before && !after) return '—'
+  const label = (value: string | null): string =>
+    value === 'active' ? '正常' : value === 'pending_setup' ? '待设置密码' : value === 'disabled' ? '已停用' : value ?? '—'
+  return label(before) + ' → ' + label(after)
+}
+
+function eventDetail(event: AdminSecurityEventView): string {
+  const parts: string[] = []
+  const sessions = event.detail?.sessions_revoked
+  const links = event.detail?.links_revoked
+  const purpose = event.detail?.purpose
+  if (typeof sessions === 'number') parts.push('撤销会话 ' + sessions)
+  if (typeof links === 'number') parts.push('撤销链接 ' + links)
+  if (typeof purpose === 'string') parts.push('用途 ' + (purpose === 'reset' ? '重置密码' : '首次设置密码'))
+  return parts.join(' · ')
 }
 
 function errorText(error: unknown, fallback: string): string {
@@ -112,9 +176,48 @@ function closeLink(): void {
   copied.value = false
 }
 
-onMounted(loadAccounts)
+async function loadSecurityEvents(): Promise<void> {
+  eventsController?.abort()
+  eventsController = new AbortController()
+  eventsLoading.value = true
+  eventsError.value = null
+  try {
+    const response = await api.listAdminSecurityEvents(eventsController.signal)
+    events.value = response.items
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return
+    eventsError.value = errorText(error, '暂时无法读取安全事件。')
+  } finally {
+    eventsLoading.value = false
+  }
+}
+
+async function setAccountStatus(account: AccountView, disabled: boolean): Promise<void> {
+  if (account.is_admin || statusActionId.value) return
+  statusActionId.value = account.id
+  statusError.value = null
+  statusMessage.value = null
+  try {
+    if (disabled) await api.disableAccount(account.id)
+    else await api.restoreAccount(account.id)
+    statusMessage.value = disabled
+      ? '账号已停用，其登录会话和未使用的一次性链接已撤销。'
+      : '账号已恢复；旧会话和旧链接不会恢复，本人需重新登录。'
+    await Promise.all([loadAccounts(), loadSecurityEvents()])
+  } catch (error) {
+    statusError.value = errorText(error, '暂时无法更新账号状态。')
+  } finally {
+    statusActionId.value = null
+  }
+}
+
+onMounted(() => {
+  void loadAccounts()
+  void loadSecurityEvents()
+})
 onBeforeUnmount(() => {
   listController?.abort()
+  eventsController?.abort()
   linkResult.value = null
 })
 </script>
@@ -178,23 +281,79 @@ onBeforeUnmount(() => {
                 <td>{{ statusLabels[account.status] }}</td>
                 <td>{{ account.created_at }}</td>
                 <td>
-                  <button
-                    v-if="!account.is_admin && account.status !== 'disabled'"
-                    class="accounts-action"
-                    type="button"
-                    :disabled="issuingId === account.id"
-                    @click="issueLink(account)"
-                  >
-                    {{ issuingId === account.id ? '正在生成…' : account.status === 'pending_setup' ? '生成设置链接' : '生成重置链接' }}
-                  </button>
-                  <span v-else-if="account.status === 'disabled'" class="accounts-note">已停用</span>
-                  <span v-else class="accounts-note">由本机 CLI 管理</span>
+                  <div class="account-actions">
+                    <button
+                      v-if="!account.is_admin && account.status !== 'disabled'"
+                      class="accounts-action"
+                      type="button"
+                      :disabled="issuingId === account.id || statusActionId === account.id"
+                      @click="issueLink(account)"
+                    >
+                      {{ issuingId === account.id ? '正在生成…' : account.status === 'pending_setup' ? '生成设置链接' : '生成重置链接' }}
+                    </button>
+                    <button
+                      v-if="!account.is_admin"
+                      class="accounts-action"
+                      :class="{ 'accounts-danger': account.status !== 'disabled' }"
+                      type="button"
+                      :disabled="statusActionId === account.id || issuingId === account.id"
+                      @click="setAccountStatus(account, account.status !== 'disabled')"
+                    >
+                      {{ statusActionId === account.id ? '正在处理…' : account.status === 'disabled' ? '恢复账号' : '停用账号' }}
+                    </button>
+                    <span v-if="account.is_admin" class="accounts-note">由本机 CLI 管理</span>
+                  </div>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
+        <p v-if="statusMessage" class="accounts-success" role="status">{{ statusMessage }}</p>
+        <p v-if="statusError" class="accounts-error" role="alert">{{ statusError }}</p>
         <p v-if="linkError && !linkResult" class="accounts-error" role="alert">{{ linkError }}</p>
+      </section>
+
+      <section class="accounts-panel" aria-labelledby="admin-events-title">
+        <div class="accounts-section-head">
+          <div>
+            <h2 id="admin-events-title">安全事件</h2>
+            <p class="accounts-note">只展示必要的管理审计字段；不包含密码、令牌、会话凭证或他人的创作内容。</p>
+          </div>
+          <button class="accounts-action" type="button" :disabled="eventsLoading" @click="loadSecurityEvents">
+            {{ eventsLoading ? '正在读取…' : '刷新' }}
+          </button>
+        </div>
+        <p v-if="eventsError" class="accounts-error" role="alert">{{ eventsError }}</p>
+        <p v-else-if="eventsLoading" class="accounts-note">正在读取安全事件…</p>
+        <p v-else-if="events.length === 0" class="accounts-note">还没有可显示的安全事件。</p>
+        <div v-else class="accounts-table-wrap">
+          <table class="accounts-table events-table">
+            <thead>
+              <tr>
+                <th scope="col">时间</th>
+                <th scope="col">事件</th>
+                <th scope="col">结果</th>
+                <th scope="col">操作者 / 对象</th>
+                <th scope="col">状态变化</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="event in events" :key="event.id">
+                <td>{{ formatEventTime(event.occurred_at) }}</td>
+                <td>
+                  <span>{{ eventLabel(event.event_type) }}</span>
+                  <span v-if="eventDetail(event)" class="accounts-event-detail">{{ eventDetail(event) }}</span>
+                </td>
+                <td>{{ resultLabels[event.result] }}</td>
+                <td>
+                  <span class="accounts-email">{{ event.actor_label ?? event.actor_kind }}</span>
+                  <span class="accounts-event-target">对象：{{ event.target_label ?? '—' }}</span>
+                </td>
+                <td>{{ statusTransition(event) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section v-if="linkResult" class="accounts-panel link-panel" aria-labelledby="link-title" role="dialog" aria-modal="true">
@@ -391,6 +550,36 @@ h2 {
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 14px;
+}
+
+.accounts-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.accounts-danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.events-table td {
+  font-size: 13px;
+}
+
+.accounts-event-detail,
+.accounts-event-target {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 
 @media (max-width: 640px) {
