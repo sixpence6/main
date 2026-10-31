@@ -267,3 +267,17 @@ export interface LinkStatusResponse {
 export interface LinkPasswordResponse {
   status: 'ok'
 }
+
+export interface SessionView {
+  id: string
+  current: boolean
+  created_at: string
+  last_activity_at: string
+  idle_expires_at: string
+  absolute_expires_at: string
+  client_info: string | null
+}
+
+export interface SessionListResponse {
+  items: SessionView[]
+}

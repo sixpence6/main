@@ -17,6 +17,7 @@ async function signOut(): Promise<void> {
   <header class="app-header">
     <h1 class="app-title">电商生图智能体</h1>
     <div v-if="currentAccount" class="account-area">
+      <RouterLink class="account-security" :to="{ name: 'account-security' }">账号安全</RouterLink>
       <RouterLink
         v-if="currentAccount.is_admin"
         class="account-admin"
@@ -40,12 +41,14 @@ async function signOut(): Promise<void> {
   font-size: 13px;
 }
 
-.account-admin {
+.account-admin,
+.account-security {
   color: var(--color-primary);
   text-decoration: none;
 }
 
-.account-admin:hover {
+.account-admin:hover,
+.account-security:hover {
   text-decoration: underline;
 }
 

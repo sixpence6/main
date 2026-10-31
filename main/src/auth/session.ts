@@ -14,9 +14,10 @@ setUnauthorizedHandler(() => {
   bootstrapped = null
 })
 
-function clearLocalSession(): void {
+export function clearSession(): void {
   currentAccount.value = null
   setCsrfToken(null)
+  bootstrapped = Promise.resolve(false)
 }
 
 function isUnauthenticated(error: unknown): boolean {
@@ -33,11 +34,11 @@ export async function ensureSession(force = false): Promise<boolean> {
       return true
     } catch (error) {
       if (isUnauthenticated(error)) {
-        clearLocalSession()
+        clearSession()
         return false
       }
       // 认证服务或网络暂时不可用时不得把页面误当作已登录，也不缓存失败结果。
-      clearLocalSession()
+      clearSession()
       bootstrapped = null
       return false
     }
@@ -61,7 +62,7 @@ export async function logout(): Promise<void> {
   } catch (error) {
     if (!isUnauthenticated(error)) throw error
   } finally {
-    clearLocalSession()
+    clearSession()
     bootstrapped = Promise.resolve(false)
   }
 }
