@@ -13,6 +13,7 @@ export function useWorkflow(projectId: WorkflowProjectId) {
   const view = ref<WorkflowView | null>(null)
   const loading = ref(false)
   const error = ref('')
+  const errorCode = ref('')
   const actionBusy = ref(false)
   let controller: AbortController | null = null
   let loadSequence = 0
@@ -25,6 +26,7 @@ export function useWorkflow(projectId: WorkflowProjectId) {
     if (!id) {
       view.value = null
       error.value = ''
+      errorCode.value = ''
       loading.value = false
       return
     }
@@ -32,6 +34,7 @@ export function useWorkflow(projectId: WorkflowProjectId) {
     controller = currentController
     loading.value = true
     error.value = ''
+    errorCode.value = ''
     try {
       const next = await getWorkflow(id, currentController.signal)
       if (sequence !== loadSequence || projectId.value !== id) return
@@ -40,6 +43,7 @@ export function useWorkflow(projectId: WorkflowProjectId) {
       if (sequence !== loadSequence || projectId.value !== id) return
       if (caught instanceof DOMException && caught.name === 'AbortError') return
       error.value = caught instanceof ApiError ? caught.message : '流程状态读取失败，请稍后重试。'
+      errorCode.value = caught instanceof ApiError ? caught.code : ''
     } finally {
       if (sequence === loadSequence) loading.value = false
     }
@@ -55,6 +59,7 @@ export function useWorkflow(projectId: WorkflowProjectId) {
     const sequence = ++actionSequence
     actionBusy.value = true
     error.value = ''
+    errorCode.value = ''
     try {
       const next = await runWorkflowAction(id, action.id, {
         expected_revision: view.value.project_revision,
@@ -66,10 +71,13 @@ export function useWorkflow(projectId: WorkflowProjectId) {
     } catch (caught) {
       if (sequence !== actionSequence || projectId.value !== id) return false
       error.value = caught instanceof ApiError ? caught.message : '操作未能完成，请稍后重试。'
+      errorCode.value = caught instanceof ApiError ? caught.code : ''
       if (caught instanceof ApiError && caught.status === 409) {
         const message = caught.message
+        const code = caught.code
         await load()
         error.value = message
+        errorCode.value = code
       }
       return false
     } finally {
@@ -84,5 +92,5 @@ export function useWorkflow(projectId: WorkflowProjectId) {
   }, { immediate: true })
   onBeforeUnmount(() => controller?.abort())
 
-  return { view, loading, error, actionBusy, load, refresh: load, runAction }
+  return { view, loading, error, errorCode, actionBusy, load, refresh: load, runAction }
 }

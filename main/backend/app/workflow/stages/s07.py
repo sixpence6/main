@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.acceptance import latest_intent
+from app.acceptance import abandon_intent, latest_intent
 from app.db import read_session
 from app.errors import ApiError, conflict
 from app.models import Asset
+from app.prompt_guard import prompt_drift_errors
 from app.workflow import state, templates
 from app.workflow.contracts import ContractError, validate_data
 from app.workflow.roles import RoleOutput, run_role
@@ -22,6 +23,10 @@ _DRIFT_MESSAGE = "确认需求已变化，请重新确认需求版本后再编�
 _INVALID_MESSAGE = "提示词未覆盖全部已确认硬要求或参数不一致，已阻止进入生成。"
 _REVIEW_REJECTED_MESSAGE = "提示词未通过独立审查，已阻止进入生成。"
 _REVIEW_INVALID_MESSAGE = "独立审查结果不完整，提示词未放行。"
+_RECONFIRM_MESSAGE = (
+    "提示词引入了尚未确认的卖点、文字或弱化了已确认要求，未提交生图。"
+    "请修改需求并重新确认后再生成。"
+)
 
 
 def available(ctx: WorkflowContext) -> list[str]:
@@ -194,8 +199,8 @@ def _candidate_errors(
         value = item.get("value")
         if binding in {"positive_prompt", "negative_prompt"}:
             field_value = payload.get(binding) or ""
-            if not value or value not in field_value:
-                errors.append(f"提示词缺少字面片段：{rule_id}")
+            if not value or value != requirement["requirement"] or value not in field_value:
+                errors.append(f"提示词覆盖值与已确认要求不一致：{rule_id}")
         elif binding == "size":
             if value != configured_size:
                 errors.append("尺寸覆盖值不一致")
@@ -277,8 +282,36 @@ def _validate_review(
     return target_id, decision, checks
 
 
+async def _reconfirm_prompt(
+    ctx: WorkflowContext, intent: Any, reasons: list[str]
+) -> None:
+    abandoned = await abandon_intent(
+        ctx.session_factory,
+        intent_id=intent.id,
+        reason="prompt_requires_reconfirmation",
+    )
+    await state.set_stage(
+        ctx,
+        STAGE,
+        "blocked",
+        issue_code="PROMPT_REQUIRES_RECONFIRMATION",
+        template_id="PROMPT_REQUIRES_RECONFIRMATION",
+    )
+    await state.record_diagnostic(
+        ctx,
+        "prompt_requires_reconfirmation",
+        {"intent_id": intent.id, "abandoned": abandoned, "reasons": reasons[:10]},
+    )
+    raise ApiError(409, "PROMPT_REQUIRES_RECONFIRMATION", _RECONFIRM_MESSAGE)
+
+
 async def _compile(ctx: WorkflowContext, revision_note: str | None) -> None:
     final_artifact, brief = await _require_confirmed(ctx)
+    intent = None
+    if ctx.project.owner_account_id is not None:
+        intent = await latest_intent(
+            ctx.session_factory, project_id=ctx.project_id, run_id=ctx.run_id
+        )
     await _ensure_budget(ctx)
     requirements = _hard_requirements(brief)
     configured_size = ctx.project.image_size or ctx.settings.visual().image_size or ""
@@ -341,7 +374,27 @@ async def _compile(ctx: WorkflowContext, revision_note: str | None) -> None:
     if output.status != "ready" or output.data is None:
         raise _invalid_prompt()
 
-    payload = _validate_candidate(output.data, requirements, brief, configured_size)
+    try:
+        payload = _validate_candidate(output.data, requirements, brief, configured_size)
+    except ApiError as exc:
+        if intent is None or exc.code != "PROMPT_INVALID" or not isinstance(output.data, dict):
+            raise
+        try:
+            candidate_errors = _candidate_errors(
+                output.data, requirements, brief, configured_size
+            )
+        except Exception:
+            raise exc from None
+        if not any(
+            "覆盖值" in reason or "缺少字面片段" in reason
+            for reason in candidate_errors
+        ):
+            raise
+        await _reconfirm_prompt(ctx, intent, candidate_errors)
+    if intent is not None:
+        drift = prompt_drift_errors(brief, payload)
+        if drift:
+            await _reconfirm_prompt(ctx, intent, drift)
     previous = await state.latest_artifact(ctx, "prompt_plan")
     if previous is not None and previous.status == "candidate":
         await state.set_artifact_status(ctx, previous.id, "superseded")

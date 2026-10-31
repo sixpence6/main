@@ -14,12 +14,28 @@ import { LEGACY_UNREVIEWED_NOTICE } from '@/utils/format'
 
 const { currentProject } = useWorkspace()
 const projectId = computed(() => currentProject.value?.id ?? null)
-const { view, loading, error, actionBusy, refresh, runAction } = useWorkflow(projectId)
+const { view, loading, error, errorCode, actionBusy, refresh, runAction } = useWorkflow(projectId)
 
 const actionText = ref<Record<string, string>>({})
 const actionConfirmed = ref<Record<string, boolean>>({})
 const actionUsage = ref<Record<string, string>>({})
 const actionError = ref('')
+
+const conflictGuidance = computed(() => {
+  if (errorCode.value === 'INTENT_REPLAY_CONFLICT') {
+    return '本次确认参数与该请求标识已受理的内容不一致，未创建新任务。请刷新并核对当前需求卡；如需改变尺寸或参考用途，请先修改需求并重新确认。'
+  }
+  if (
+    errorCode.value === 'PROMPT_REQUIRES_RECONFIRMATION' ||
+    view.value?.issue?.code === 'PROMPT_REQUIRES_RECONFIRMATION'
+  ) {
+    return '提示词引入了尚未确认的卖点、文字或弱化了已确认要求，本次未提交生图。请修改需求、重新核对并确认当前需求卡后再生成。'
+  }
+  if (errorCode.value === 'REQUIREMENT_REVISION_CONFLICT' || errorCode.value === 'REQUIREMENTS_CHANGED') {
+    return '需求版本已经变化，原确认不能继续使用。请核对最新需求卡并重新确认。'
+  }
+  return ''
+})
 
 const STAGE_LABELS: Record<string, string> = {
   S01: '判断请求范围',
@@ -369,23 +385,48 @@ function randomRequestId(): string {
   })
 }
 
-function confirmationRequestId(): string {
+function confirmationStorageKey(): string | null {
   const current = view.value
   const brief = finalBrief.value
-  if (!current || !brief) return randomRequestId()
-  const key = [
+  if (!current || !brief) return null
+  return [
     'v3-generation-request',
     current.project_id,
     current.run_id ?? '',
     current.requirement_revision,
     brief.digest,
   ].join(':')
-  const stored = window.sessionStorage.getItem(key)
-  if (stored) return stored
+}
+
+function confirmationRequestId(): string {
+  const key = confirmationStorageKey()
+  if (!key) return randomRequestId()
+  try {
+    const stored = window.localStorage.getItem(key)
+    if (stored) return stored
+  } catch {
+    // Storage can be unavailable in hardened browser profiles; fall back to
+    // an in-memory id rather than blocking confirmation.
+  }
   const generated = randomRequestId()
-  window.sessionStorage.setItem(key, generated)
+  try {
+    window.localStorage.setItem(key, generated)
+  } catch {
+    // The request id is still stable for this component instance.
+  }
   return generated
 }
+
+watch(generationIntent, (intent) => {
+  if (!intent || !['delivered', 'failed', 'abandoned'].includes(intent.status)) return
+  const key = confirmationStorageKey()
+  if (!key) return
+  try {
+    window.localStorage.removeItem(key)
+  } catch {
+    // Ignore storage failures; the next confirmation will use a fresh id.
+  }
+})
 
 function actionPayload(action: WorkflowAction): Record<string, unknown> {
   if (action.id === 'confirm_requirements' && finalBrief.value && view.value) {
@@ -478,6 +519,9 @@ watch(
 
     <p v-if="loading" class="workflow-loading" role="status">正在读取流程状态…</p>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
+    <p v-if="conflictGuidance" class="muted workflow-conflict-guidance" role="note">
+      {{ conflictGuidance }}
+    </p>
 
     <div v-if="referenceAsset && view?.stage === 'S02'" class="workflow-reference">
       <h4>参考图预览</h4>

@@ -5,7 +5,13 @@ from typing import Any
 
 from sqlalchemy import select
 
-from app.acceptance import GenerationIntent, accept_in_session, normalize_request_id
+from app.acceptance import (
+    GenerationIntent,
+    accept_in_session,
+    intent_for_request,
+    intent_request_digest,
+    normalize_request_id,
+)
 from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict, validation_error
 from app.models import Asset, Project
@@ -134,7 +140,9 @@ async def _require_approved_card(
     return artifact, data
 
 
-def _client_binding(payload: dict[str, Any], artifact: Artifact, ctx: WorkflowContext) -> None:
+def _client_binding(
+    payload: dict[str, Any], artifact: Artifact, data: dict[str, Any], ctx: WorkflowContext
+) -> None:
     """Validate optional client binding without ever trusting client approval.
 
     The client may echo the card it rendered; these fields are assertions to be
@@ -152,6 +160,21 @@ def _client_binding(payload: dict[str, Any], artifact: Artifact, ctx: WorkflowCo
     requirement_revision = payload.get("requirement_revision")
     if requirement_revision is not None and requirement_revision != ctx.run.requirement_revision:
         raise _revision_error()
+    size = payload.get("size")
+    if size is not None:
+        expected_size = str(
+            data.get("size") or ctx.project.image_size or ctx.settings.visual().image_size or ""
+        )
+        if str(size) != expected_size:
+            raise _changed_error()
+    reference_usage = payload.get("reference_usage")
+    if reference_usage is not None:
+        expected_usage = data.get("reference_usage") or "none"
+        if reference_usage != expected_usage:
+            raise _changed_error()
+    reference_asset_id = payload.get("reference_asset_id")
+    if reference_asset_id is not None and reference_asset_id != data.get("reference_asset_id"):
+        raise _changed_error()
 
 
 def _hard_requirements(artifact: Artifact, data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -469,24 +492,34 @@ async def _confirm_atomic(
                 session=session,
             )
 
-        run_intent = await session.scalar(
-            select(GenerationIntent)
-            .where(
-                GenerationIntent.project_id == project.id,
-                GenerationIntent.run_id == run.id,
-            )
-            .order_by(GenerationIntent.created_at.desc())
-            .limit(1)
+        expected_digest = intent_request_digest(
+            project_id=project.id,
+            run_id=run.id,
+            owner_account_id=project.owner_account_id,
+            operator_account_id=ctx.principal.account_id,
+            request_id=request_id,
+            requirement_revision=run.requirement_revision,
+            artifact_id=stored_artifact.id,
+            artifact_digest=stored_artifact.digest,
+            reference_asset_id=project.reference_asset_id,
+            reference_usage=reference_usage,
+            image_size=image_size,
         )
-        if run_intent is not None:
-            if run_intent.artifact_digest != stored_artifact.digest:
-                raise _changed_error()
-            if run_intent.status not in {"accepted", "executing", "delivered"}:
+        existing_intent = await intent_for_request(
+            session, project_id=project.id, request_id=request_id
+        )
+        if existing_intent is not None:
+            if existing_intent.request_digest != expected_digest:
+                raise conflict(
+                    "INTENT_REPLAY_CONFLICT",
+                    "同一请求标识已绑定不同的生成参数，请刷新后重新确认。",
+                )
+            if existing_intent.status not in {"accepted", "executing", "delivered"}:
                 raise conflict(
                     "INTENT_STATE_INVALID",
                     "上次生成授权已结束，请重新确认当前需求后再生成。",
                 )
-            intent = run_intent
+            intent = existing_intent
         else:
             result = await accept_in_session(
                 session,
@@ -551,6 +584,8 @@ async def _confirm(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
     request_id = _request_id(payload)
     artifact = await latest_artifact(ctx, "final_brief")
     data = _payload(artifact) if artifact is not None else None
+    if artifact is not None and data is not None:
+        _client_binding(payload, artifact, data, ctx)
     existing = await latest_approval(ctx, _APPROVAL_TYPE)
     if existing is not None:
         if (
@@ -588,7 +623,7 @@ async def _confirm(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
         ):
             raise _changed_error()
 
-    _client_binding(payload, artifact, ctx)
+    _client_binding(payload, artifact, data, ctx)
 
     if data.get("reference_asset_id") != ctx.project.reference_asset_id:
         raise _changed_error()
