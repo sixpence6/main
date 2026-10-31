@@ -139,7 +139,7 @@ async def test_cross_client_replay_returns_one_intent_and_one_submit(full_settin
         assert run_dbg is not None
         assert run_dbg.stage == "S10" and run_dbg.status == "needs_input"
         assert len(intents) == 1
-        assert intents[0].status == "accepted"
+        assert intents[0].status == "executing"
         assert len(usages) == 1
         assert len(visual.submit_calls) == 1
 

@@ -41,6 +41,8 @@ _ACTIONS: dict[str, dict[str, Any]] = {
     "revise_requirements": {"label": "修改需求", "kind": "text", "requires_text": True, "text_label": "说明需要修改的需求内容", "requires_confirmation": False},
     "compile_prompt": {"label": "编制生图提示词", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "revise_prompt": {"label": "修改提示词", "kind": "text", "requires_text": True, "text_label": "说明提示词调整", "requires_confirmation": False},
+    "verify_generation": {"label": "核实原任务", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
+    "recover_generation": {"label": "找回原结果", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "submit_generation": {"label": "提交生成", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "review_candidate": {"label": "审查候选图", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "prepare_delivery": {"label": "准备交付", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
