@@ -23,6 +23,7 @@ from app.config import Settings
 from tests.conftest import BACKEND_DIR, MAIN_BACKEND_DIR, migrate
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
 from tests.support.apps import run_client
+from tests.support.process_auth import prepare_process, process_auth_env, process_session
 from tests.test_t01_process import free_port, stop_server, wait_for_health
 
 
@@ -334,30 +335,17 @@ async def test_restart_unknown_supports_old_identity_and_acknowledged_new_attemp
 
 
 def request_json(port: int, method: str, path: str, payload=None):
-    data = json.dumps(payload).encode("utf-8") if payload is not None else None
-    headers = {"Content-Type": "application/json"} if data is not None else {}
-    request = urllib.request.Request(
-        f"http://127.0.0.1:{port}{path}",
-        data=data,
-        headers=headers,
-        method=method,
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=10) as response:
-            return response.status, json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        body = error.read().decode("utf-8")
-        return error.code, json.loads(body)
+    return process_session(port).request(method, path, payload)
 
 
 def request_bytes(port: int, path: str):
-    with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=10) as response:
-        return response.status, response.headers, response.read()
+    return process_session(port).bytes(path)
 
 
 def start_restart_server(
     settings: Settings, port: int, marker: Path, call_log: Path
 ) -> subprocess.Popen[str]:
+    prepare_process(settings)
     env = {
         key: value for key, value in os.environ.items() if not key.startswith(("LLM_", "VISUAL_"))
     }
@@ -380,6 +368,7 @@ def start_restart_server(
         T10_BLOCK_MARKER=str(marker),
         T10_CALL_LOG=str(call_log),
     )
+    env.update(process_auth_env(settings, port))
     return subprocess.Popen(
         [
             sys.executable,
@@ -498,10 +487,7 @@ def test_real_process_restart_preserves_unknown_state_and_respects_ack(full_sett
         success_generation = wait_generation_process(port, created["generation"]["id"])
         success_asset_id = success_generation["result_asset_id"]
         assert success_asset_id
-        try:
-            status, _headers, body = request_bytes(port, f"/api/assets/{success_asset_id}")
-        except urllib.error.HTTPError as error:
-            status, body = error.code, error.read()
+        status, _headers, body = request_bytes(port, f"/api/assets/{success_asset_id}")
         assert status == 409
         assert json.loads(body.decode("utf-8"))["error"]["code"] == "ASSET_NOT_REVIEWED"
         with Image.open(full_settings.generated_dir / f"{success_asset_id}.png") as decoded:
@@ -561,12 +547,9 @@ def test_real_process_restart_preserves_unknown_state_and_respects_ack(full_sett
         current = start_restart_server(full_settings, current_port, marker, call_log)
         try:
             wait_for_health(current, current_port)
-            try:
-                status, _headers, body = request_bytes(
-                    current_port, f"/api/assets/{success_asset_id}"
-                )
-            except urllib.error.HTTPError as error:
-                status, body = error.code, error.read()
+            status, _headers, body = request_bytes(
+                current_port, f"/api/assets/{success_asset_id}"
+            )
             assert status == 409
             assert json.loads(body.decode("utf-8"))["error"]["code"] == "ASSET_NOT_REVIEWED"
             with Image.open(full_settings.generated_dir / f"{success_asset_id}.png") as decoded:

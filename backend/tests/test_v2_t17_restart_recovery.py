@@ -34,6 +34,8 @@ from app.workflow.contracts import BriefData
 from app.workflow.tables import Approval, GenerationJob, RevisionBudget
 from tests.conftest import BACKEND_DIR, MAIN_BACKEND_DIR, migrate
 from tests.support.adapters import build_test_registry
+from tests.support.auth import authenticated_client
+from tests.support.process_auth import prepare_process, process_auth_env, process_session
 
 # AC-35/AC-36: a real uvicorn subprocess is force-killed while an independent
 # image review is in flight. Restart must be read-only, keep the private
@@ -63,8 +65,7 @@ async def _seed_s09(settings: Settings, *, completed_at: str | None) -> Seed:
     migrate(settings)
     application = create_app(settings=settings, registry=build_test_registry())
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             response = await client.post("/api/projects", json={})
             assert response.status_code == 201, response.text
             project_id = response.json()["id"]
@@ -258,8 +259,7 @@ async def _seed_s08_async(settings: Settings, *, pending_job: bool) -> Generatio
     migrate(settings)
     application = create_app(settings=settings, registry=build_test_registry())
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             response = await client.post("/api/projects", json={})
             assert response.status_code == 201, response.text
             created = response.json()
@@ -445,22 +445,13 @@ def _count_rows(settings: Settings, model) -> int:
 
     return _read(settings, load)
 def _request(port: int, method: str, path: str, payload: Any = None) -> tuple[int, Any]:
-    data = json.dumps(payload).encode("utf-8") if payload is not None else None
-    headers = {"Content-Type": "application/json"} if data is not None else {}
-    request = urllib.request.Request(
-        f"http://127.0.0.1:{port}{path}", data=data, headers=headers, method=method
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            return response.status, json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        body = error.read().decode("utf-8")
-        return error.code, json.loads(body) if body else None
+    return process_session(port).request(method, path, payload)
 
 
 def _start_server(
     settings: Settings, port: int, mode: str, call_log: Path
 ) -> subprocess.Popen[str]:
+    prepare_process(settings)
     env = {
         key: value
         for key, value in os.environ.items()
@@ -486,6 +477,7 @@ def _start_server(
         T17_MODE=mode,
         T17_CALL_LOG=str(call_log),
     )
+    env.update(process_auth_env(settings, port))
     return subprocess.Popen(
         [
             sys.executable,
@@ -904,7 +896,7 @@ def test_force_kill_during_vision_reference_restart_is_read_only_and_manual_cont
         status, project = _request(port, "POST", "/api/projects", {})
         assert status == 201, project
         project_id = project["id"]
-        with httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=20) as client:
+        with process_session(port).httpx_client() as client:
             uploaded = client.post(
                 f"/api/projects/{project_id}/reference",
                 files={"file": ("reference.png", reference_bytes, "image/png")},
@@ -957,7 +949,7 @@ def test_force_kill_during_vision_reference_restart_is_read_only_and_manual_cont
         assert status == 200, continued
         assert continued["stage"] == "S03"
         assert continued["status"] == "active"
-        with httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=20) as client:
+        with process_session(port).httpx_client() as client:
             reference = client.get(f"/api/assets/{reference_id}")
         assert reference.status_code == 200, reference.text
         assert reference.content == reference_bytes

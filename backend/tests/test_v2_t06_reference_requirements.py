@@ -20,6 +20,7 @@ from app.workflow.stages.s03 import REVIEW_RULE_IDS
 from app.workflow.tables import Artifact, GenerationJob
 from tests.conftest import migrate
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
+from tests.support.auth import authenticated_client
 
 INTENT_RULES = ("G01_SCOPE", "G01_ACTION")
 G02_RULES = (
@@ -273,8 +274,7 @@ async def _environment(settings: Any, script: Script):
     migrate(settings)
     application = create_app(settings=settings, registry=registry)
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             yield application, client, stub, visual
 
 

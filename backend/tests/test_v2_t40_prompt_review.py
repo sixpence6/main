@@ -16,6 +16,7 @@ from app.workflow import state
 from app.workflow.tables import RevisionBudget
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
 from tests.support.apps import migrate
+from tests.support.auth import authenticated_client
 
 REVIEW_RULES = ("G03_CONFIRMATION", "G05_EXECUTION_BOUNDARY")
 
@@ -222,8 +223,7 @@ async def environment(
     migrate(settings)
     application = create_app(settings=settings, registry=registry)
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             yield application, client, llm, visual, registry
 
 

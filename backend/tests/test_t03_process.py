@@ -11,10 +11,12 @@ import urllib.request
 from pathlib import Path
 
 from tests.conftest import BACKEND_DIR, MAIN_BACKEND_DIR, migrate
+from tests.support.process_auth import prepare_process, process_auth_env, process_session
 from tests.test_t01_process import free_port, stop_server, wait_for_health
 
 
 def start_blocking_server(settings, port: int, marker: Path) -> subprocess.Popen[str]:
+    prepare_process(settings)
     env = {
         key: value
         for key, value in os.environ.items()
@@ -32,6 +34,7 @@ def start_blocking_server(settings, port: int, marker: Path) -> subprocess.Popen
         LLM_TIMEOUT_SECONDS="600",
         ORGANIZE_CALL_MARKER=str(marker),
     )
+    env.update(process_auth_env(settings, port))
     return subprocess.Popen(
         [
             sys.executable,
@@ -56,6 +59,7 @@ def start_blocking_server(settings, port: int, marker: Path) -> subprocess.Popen
 
 
 def start_normal_server(settings, port: int) -> subprocess.Popen[str]:
+    prepare_process(settings)
     env = {
         key: value
         for key, value in os.environ.items()
@@ -67,6 +71,7 @@ def start_normal_server(settings, port: int) -> subprocess.Popen[str]:
         PYTHONPATH=str(MAIN_BACKEND_DIR),
         PYTHONUNBUFFERED="1",
     )
+    env.update(process_auth_env(settings, port))
     return subprocess.Popen(
         [
             sys.executable,
@@ -91,22 +96,20 @@ def start_normal_server(settings, port: int) -> subprocess.Popen[str]:
 
 
 def post_message(project_id: str, port: int) -> None:
-    payload = json.dumps({"content": "进程中断前的消息", "expected_revision": 0}).encode("utf-8")
-    request = urllib.request.Request(
-        f"http://127.0.0.1:{port}/api/projects/{project_id}/messages",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
     try:
-        urllib.request.urlopen(request, timeout=30)
+        process_session(port).request(
+            "POST",
+            f"/api/projects/{project_id}/messages",
+            {"content": "进程中断前的消息", "expected_revision": 0},
+        )
     except Exception:
         return
 
 
-def get_json(url: str) -> dict:
-    with urllib.request.urlopen(url, timeout=10) as response:
-        return json.loads(response.read().decode("utf-8"))
+def get_json(port: int, path: str) -> dict:
+    status, body = process_session(port).request("GET", path)
+    assert status == 200, body
+    return body
 
 
 def test_organizing_state_is_repaired_after_real_process_kill(settings):
@@ -116,21 +119,14 @@ def test_organizing_state_is_repaired_after_real_process_kill(settings):
     blocking = start_blocking_server(settings, port, marker)
     try:
         wait_for_health(blocking, port)
-        payload = json.dumps({}).encode("utf-8")
-        request = urllib.request.Request(
-            f"http://127.0.0.1:{port}/api/projects",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(request, timeout=10) as response:
-            project = json.loads(response.read().decode("utf-8"))
+        status, project = process_session(port).request("POST", "/api/projects", {})
+        assert status == 201, project
         thread = threading.Thread(target=post_message, args=(project["id"], port), daemon=True)
         thread.start()
         deadline = time.monotonic() + 20
         detail = None
         while time.monotonic() < deadline:
-            detail = get_json(f"http://127.0.0.1:{port}/api/projects/{project['id']}")
+            detail = get_json(port, f"/api/projects/{project['id']}")
             if detail["project"]["brief_status"] == "organizing":
                 break
             time.sleep(0.1)
@@ -144,9 +140,7 @@ def test_organizing_state_is_repaired_after_real_process_kill(settings):
         server = start_normal_server(settings, current_port)
         try:
             wait_for_health(server, current_port)
-            detail = get_json(
-                f"http://127.0.0.1:{current_port}/api/projects/{project['id']}"
-            )
+            detail = get_json(current_port, f"/api/projects/{project['id']}")
             assert detail["project"]["brief_status"] == "draft"
             assert detail["project"]["brief_error"]["code"] == "ORGANIZATION_INTERRUPTED"
             assert detail["project"]["revision"] == 1

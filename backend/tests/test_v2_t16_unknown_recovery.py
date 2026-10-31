@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from PIL import Image
 from sqlalchemy import select
 
@@ -23,6 +23,7 @@ from app.workflow import state
 from app.workflow.tables import DiagnosticEvent, GenerationJob
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
 from tests.support.apps import migrate
+from tests.support.auth import authenticated_client
 
 IMAGE_SIZE = "1024x1024"
 
@@ -135,8 +136,7 @@ async def environment(settings: Settings, visual: VisualStub):
         registry=build_test_registry(llm=LLMStub(), visual=visual),
     )
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             yield application, client
 
 
@@ -449,6 +449,11 @@ async def test_repeating_risk_confirmation_returns_same_new_task(full_settings):
         setup = await seed_ready_project(app, client)
         original, _old_job = await make_unknown(app, client, visual, setup)
         payload = {"acknowledge_unknown": True, "previous_generation_id": original.id}
+        # Keep the accepted replacement task in flight while the repeated click
+        # arrives. A real provider call is slow; letting it finish first would
+        # advance the workflow past S08 and make the replay gate irrelevant.
+        gate = asyncio.Event()
+        visual.gate = gate
 
         first = await post_action(client, setup, payload)
         assert first.status_code == 200, first.text
@@ -456,6 +461,7 @@ async def test_repeating_risk_confirmation_returns_same_new_task(full_settings):
         second = await post_action(client, setup, payload)
         assert second.status_code == 200, second.text
         assert second.json()["generation_job"]["id"] == first_job_id
+        gate.set()
         await drain(app)
         assert await generation_count(app, setup["project_id"]) == 2
         assert len(visual.submit_calls) == 2
@@ -471,6 +477,12 @@ async def test_concurrent_risk_confirmation_does_not_duplicate_task(full_setting
         setup = await seed_ready_project(app, client)
         original, _old_job = await make_unknown(app, client, visual, setup)
         payload = {"acknowledge_unknown": True, "previous_generation_id": original.id}
+        # The winning confirmation must remain in flight until both concurrent
+        # responses have settled. Otherwise a fast local provider can finish
+        # S08 before the busy request is retried, which turns the retry into a
+        # different (post-S08) action rather than an idempotent replay.
+        gate = asyncio.Event()
+        visual.gate = gate
 
         responses = await asyncio.gather(
             post_action(client, setup, payload),
@@ -487,6 +499,7 @@ async def test_concurrent_risk_confirmation_does_not_duplicate_task(full_setting
             retry = await post_action(client, setup, payload)
             assert retry.status_code == 200, retry.text
             accepted.append(retry)
+        gate.set()
         await drain(app)
         assert await generation_count(app, setup["project_id"]) == 2
         assert len(visual.submit_calls) == 2

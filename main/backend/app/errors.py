@@ -11,6 +11,7 @@ class ApiError(Exception):
     status_code: int
     code: str
     message: str
+    headers: dict[str, str] | None = None
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return f"{self.code}: {self.message}"

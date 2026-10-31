@@ -12,6 +12,7 @@ from PIL import Image
 
 from app.adapters.base import BriefData, OrganizeRequest, OrganizeResult, ProviderOutcome
 from app.config import Settings
+from app.services import generations as generation_service
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
 from tests.support.apps import run_client
 
@@ -440,7 +441,7 @@ async def test_failure_does_not_reuse_version_and_old_success_stays_downloadable
 
 
 @pytest.mark.asyncio
-async def test_missing_reference_file_fails_background_without_submit(full_settings):
+async def test_missing_reference_file_fails_background_without_submit(full_settings, monkeypatch):
     visual = VisualStub(
         submit_outcome=ProviderOutcome(state="succeeded", image_bytes=png_bytes()),
         gate=asyncio.Event(),
@@ -449,9 +450,24 @@ async def test_missing_reference_file_fails_background_without_submit(full_setti
         confirmed, reference_asset = await create_confirmed_with_reference(
             client, png_bytes(color=(10, 10, 200))
         )
+        started = asyncio.Event()
+        release = asyncio.Event()
+        original_execute = generation_service._execute_claimed
+
+        async def gated_execute(app, claimed):
+            started.set()
+            await release.wait()
+            await original_execute(app, claimed)
+
+        # Keep the background task at a deterministic point before it resolves
+        # the reference file. Otherwise the task can reach _execute_claimed
+        # between the HTTP response and this test's next await, making the
+        # missing-file assertion racy.
+        monkeypatch.setattr(generation_service, "_execute_claimed", gated_execute)
         response = await submit(client, confirmed)
         assert response.status_code == 202, response.text
         generation_id = response.json()["generation"]["id"]
+        await asyncio.wait_for(started.wait(), timeout=5)
 
         with sqlite3.connect(full_settings.database_path) as connection:
             row = connection.execute(
@@ -459,7 +475,8 @@ async def test_missing_reference_file_fails_background_without_submit(full_setti
             ).fetchone()
         assert row is not None
         (full_settings.resolved_data_dir() / row[0]).unlink()
-        visual.gate.set()
+
+        release.set()
         failed = await wait_status(client, generation_id, {"failed"})
         assert failed["error"]["code"] == "REFERENCE_FILE_MISSING"
         assert visual.submit_calls == []

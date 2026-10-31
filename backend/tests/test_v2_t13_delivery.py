@@ -22,6 +22,7 @@ from app.workflow.stages import s10
 from app.workflow.tables import Approval, Artifact, Delivery, GenerationJob, WorkflowRun
 from tests.conftest import migrate
 from tests.support.adapters import LLMStub, build_test_registry
+from tests.support.auth import authenticated_client
 
 
 def _png_bytes(color: tuple[int, int, int] = (20, 80, 160)) -> bytes:
@@ -281,8 +282,7 @@ async def _delivery_env(
         async with application.state.session_factory() as session:
             ids = await seed(settings, session)
             await session.commit()
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             yield DeliveryEnv(
                 client=client,
                 app=application,

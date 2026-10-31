@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     web_dist_dir: Path = DEFAULT_WEB_DIST_DIR
     host: str = "127.0.0.1"
     port: int = 8000
+    allowed_hosts: list[str] = Field(
+        default_factory=lambda: ["127.0.0.1", "localhost", "[::1]"]
+    )
+    allowed_origins: list[str] = Field(default_factory=list)
+    allow_loopback_http: bool = False
+    auth_cookie_secure: bool = True
 
     llm_adapter: str | None = None
     llm_base_url: str | None = None

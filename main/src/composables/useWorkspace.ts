@@ -1052,7 +1052,7 @@ function createWorkspace(): WorkspaceStore {
     if (inProject) return inProject
     if (!request.generationId) return null
     try {
-      const known = await api.getGeneration(request.generationId, signal)
+      const known = await api.getGeneration(request.generationId, signal, true)
       if (known.request_id !== request.requestId) return null
       return known
     } catch {
@@ -1421,7 +1421,7 @@ function createWorkspace(): WorkspaceStore {
     generationQuerying.value = true
     if (manual) statusQueryTarget.value = 'project'
     try {
-      const response = await api.getProject(projectId, controller.signal)
+      const response = await api.getProject(projectId, controller.signal, !manual)
       if (token !== generationToken || controller.signal.aborted || projectParam.value !== projectId) return
       adoptProjectDetail(response)
       generationQueryFailures = 0
@@ -1474,7 +1474,7 @@ function createWorkspace(): WorkspaceStore {
     generationQuerying.value = true
     if (manual) statusQueryTarget.value = 'generation'
     try {
-      const generation = await api.getGeneration(generationId, controller.signal)
+      const generation = await api.getGeneration(generationId, controller.signal, !manual)
       if (token !== generationToken || controller.signal.aborted || projectParam.value !== project.id) return
       upsertGeneration(generation)
       clearSettledGenerationCredential(generation)
@@ -1517,7 +1517,7 @@ function createWorkspace(): WorkspaceStore {
     generationRefreshController = controller
     const followLatest = !resultSelectionPinned || stage.value !== 'results'
     try {
-      const response = await api.getProject(projectId, controller.signal)
+      const response = await api.getProject(projectId, controller.signal, true)
       if (token !== generationToken || controller.signal.aborted || projectParam.value !== projectId) return
       adoptProjectDetail(response, { followLatestResult: followLatest })
       if (!projectGenerations.value.some((item) => item.id === generation.id || item.request_id === generation.request_id)) {
@@ -1662,7 +1662,7 @@ function createWorkspace(): WorkspaceStore {
     clearStatusQueryError()
     generationQueryFailures = 0
     try {
-      const response = await api.getProject(request.projectId)
+      const response = await api.getProject(request.projectId, undefined, true)
       if (token !== generationToken || projectParam.value !== request.projectId) return
       adoptProjectDetail(response)
       let match = response.generations.find((item) => item.request_id === request.requestId) ?? null
@@ -1813,7 +1813,7 @@ function createWorkspace(): WorkspaceStore {
     generationRefreshController = controller
     const followLatest = !resultSelectionPinned
     try {
-      const response = await api.getProject(projectId, controller.signal)
+      const response = await api.getProject(projectId, controller.signal, true)
       if (token !== generationToken || controller.signal.aborted || projectParam.value !== projectId) return
       adoptProjectDetail(response, { followLatestResult: followLatest })
       if (
@@ -1844,7 +1844,7 @@ function createWorkspace(): WorkspaceStore {
     token: number,
   ): Promise<void> {
     try {
-      const latest = await api.getGeneration(record.id)
+      const latest = await api.getGeneration(record.id, undefined, true)
       if (token !== generationToken || projectParam.value !== record.project_id) return
       upsertGeneration(latest)
       if (latest.status === 'succeeded') {
@@ -2181,7 +2181,7 @@ function createWorkspace(): WorkspaceStore {
     previousRevision: number,
   ): Promise<boolean> {
     try {
-      const response = await api.getProject(projectId)
+      const response = await api.getProject(projectId, undefined, true)
       if (projectParam.value !== projectId) return true
       const nextId = response.project.reference_asset?.id ?? null
       const changedReference =

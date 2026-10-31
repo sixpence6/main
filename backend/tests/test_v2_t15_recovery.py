@@ -28,6 +28,8 @@ from app.workflow.stages.s03 import REVIEW_RULE_IDS
 from app.workflow.tables import Artifact, RevisionBudget, RoleCall
 from tests.conftest import BACKEND_DIR, MAIN_BACKEND_DIR, migrate
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
+from tests.support.auth import authenticated_client
+from tests.support.process_auth import prepare_process, process_auth_env, process_session
 
 # AC-16/AC-17: technical failures are paused, persisted, and resumed only by an
 # explicit manual continue. Every assertion below uses the public workflow HTTP
@@ -274,8 +276,7 @@ async def _environment(
     migrate(settings)
     application = create_app(settings=settings, registry=registry)
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             yield application, client, stub, visual
 
 
@@ -573,16 +574,7 @@ async def test_recovery_budget_is_not_reset_by_refresh_or_restart(full_settings)
 
 
 def _t15_process_request(port: int, method: str, path: str, payload: Any = None) -> tuple[int, Any]:
-    data = json.dumps(payload).encode("utf-8") if payload is not None else None
-    headers = {"Content-Type": "application/json"} if data is not None else {}
-    request = urllib.request.Request(
-        f"http://127.0.0.1:{port}{path}", data=data, headers=headers, method=method
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=15) as response:
-            return response.status, json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        return error.code, json.loads(error.read().decode("utf-8"))
+    return process_session(port).request(method, path, payload)
 
 
 def _start_t15_server(
@@ -590,6 +582,7 @@ def _start_t15_server(
 ) -> subprocess.Popen[str]:
     from tests.test_t01_process import free_port  # noqa: F401 - import-time validation only
 
+    prepare_process(settings)
     env = {
         key: value
         for key, value in os.environ.items()
@@ -615,6 +608,7 @@ def _start_t15_server(
         T15_MODE=mode,
         T15_CALL_LOG=str(call_log),
     )
+    env.update(process_auth_env(settings, port))
     return subprocess.Popen(
         [
             sys.executable,

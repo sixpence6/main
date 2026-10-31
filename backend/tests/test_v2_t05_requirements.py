@@ -16,6 +16,7 @@ from app.workflow.stages.s03 import REVIEW_RULE_IDS
 from app.workflow.tables import Artifact, GenerationJob, RoleCall
 from tests.conftest import migrate
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
+from tests.support.auth import authenticated_client
 
 # AC-12/AC-13/AC-14/AC-15/AC-16/AC-17: the requirements consultant is a strict,
 # independently reviewed v2.0.0 role. These tests exercise the public HTTP path,
@@ -200,8 +201,7 @@ async def _environment(
     migrate(settings)
     application = create_app(settings=settings, registry=registry)
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             yield application, client, stub, visual
 
 

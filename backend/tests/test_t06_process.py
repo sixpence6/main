@@ -14,12 +14,14 @@ import pytest
 from PIL import Image
 
 from tests.conftest import BACKEND_DIR, MAIN_BACKEND_DIR, migrate
+from tests.support.process_auth import prepare_process, process_auth_env, process_session
 from tests.test_t01_process import free_port, stop_server, wait_for_health
 
 VISUAL_DELAY_SECONDS = 2.0
 
 
 def start_generation_server(settings, port: int, marker: Path) -> subprocess.Popen[str]:
+    prepare_process(settings)
     env = {
         key: value
         for key, value in os.environ.items()
@@ -44,6 +46,7 @@ def start_generation_server(settings, port: int, marker: Path) -> subprocess.Pop
         VISUAL_DELAY_SECONDS=str(VISUAL_DELAY_SECONDS),
         VISUAL_CALL_MARKER=str(marker),
     )
+    env.update(process_auth_env(settings, port))
     return subprocess.Popen(
         [
             sys.executable,
@@ -68,20 +71,9 @@ def start_generation_server(settings, port: int, marker: Path) -> subprocess.Pop
 
 
 def request_json(method: str, url: str, payload: dict | None = None) -> tuple[int, dict]:
-    data = json.dumps(payload).encode("utf-8") if payload is not None else None
-    request = urllib.request.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method=method,
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            body = response.read()
-            return response.status, json.loads(body.decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        body = error.read()
-        return error.code, json.loads(body.decode("utf-8"))
+    port = int(url.split(":")[2].split("/")[0])
+    path = url.split(f"127.0.0.1:{port}", 1)[1]
+    return process_session(port).request(method, path, payload)
 
 
 def create_confirmed_project(port: int) -> dict:
@@ -166,12 +158,10 @@ def test_real_process_returns_202_before_background_and_download_is_decodable(se
         asset_a = final_a["result_asset"]
         assert asset_a["availability"] == "available"
         # T01：真实进程同样不能绕过未审查门禁；字节仍保留在本地存储中。
-        with pytest.raises(urllib.error.HTTPError) as denied:
-            urllib.request.urlopen(
-                f"http://127.0.0.1:{port}/api/assets/{asset_a['id']}?download=true", timeout=10
-            )
-        assert denied.value.code == 409
-        denied_body = json.loads(denied.value.read().decode("utf-8"))
+        denied_status, denied_body = process_session(port).request(
+            "GET", f"/api/assets/{asset_a['id']}?download=true"
+        )
+        assert denied_status == 409
         assert denied_body["error"]["code"] == "ASSET_NOT_REVIEWED"
         image = Image.open(settings.generated_dir / f"{asset_a['id']}.png")
         image.load()

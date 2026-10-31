@@ -47,6 +47,8 @@ async def test_config_status_never_leaks_credentials(settings, registry):
         _env_file=None,
         data_dir=settings.data_dir,
         web_dist_dir=settings.web_dist_dir,
+        allowed_hosts=["testserver"],
+        allowed_origins=["https://testserver"],
         llm_adapter="stub-llm",
         llm_base_url="https://llm.internal.example/v1",
         llm_api_key="sk-test-super-secret-value",

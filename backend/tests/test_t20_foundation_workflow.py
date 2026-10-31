@@ -9,6 +9,7 @@ from app.workflow.roles import run_role
 from app.workflow.tables import RoleCall
 from tests.conftest import migrate
 from tests.support.adapters import LLMStub, build_test_registry
+from tests.support.auth import authenticated_client
 
 
 def intent_response() -> dict:
@@ -41,8 +42,7 @@ async def test_role_call_is_single_attempt_and_persisted(llm_settings):
     migrate(llm_settings)
     application = create_app(settings=llm_settings, registry=registry)
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             project = (await client.post("/api/projects", json={})).json()
 
         ctx = await state.load_context(application, project["id"])
