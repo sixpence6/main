@@ -13,6 +13,7 @@ from app.auth.principal import require_principal
 from app.config import REFERENCE_MULTIPART_OVERHEAD_BYTES
 from app.errors import ApiError, validation_error
 from app.models import Asset, Project
+from app.operator_audit import record_operator_event_safely
 from app.ownership import require_project_owner, revalidate_principal
 from app.presenters import project_view
 from app.schemas import ERROR_RESPONSE, ProjectView
@@ -166,6 +167,19 @@ async def upload_reference(project_id: str, request: Request) -> ProjectView:
         image=image,
         principal=principal,
     )
+    await record_operator_event_safely(
+        request.app,
+        event_type="reference_uploaded",
+        principal=principal,
+        project_id=project_id,
+        source=request.client.host if request.client else None,
+        detail={
+            "mime_type": image.mime_type,
+            "width": image.width,
+            "height": image.height,
+            "bytes": len(data),
+        },
+    )
     await _sync_reference_workflow(request.app, project_id, removed=False, principal=principal)
     async with state.session_factory() as session:
         policy = await load_project_access_policy(session, project_id)
@@ -200,6 +214,14 @@ async def delete_reference(
         project_id=project_id,
         expected_revision=expected_revision,
         principal=principal,
+    )
+    await record_operator_event_safely(
+        request.app,
+        event_type="reference_removed",
+        principal=principal,
+        project_id=project_id,
+        source=request.client.host if request.client else None,
+        detail={"had_reference": result.removed},
     )
     await _sync_reference_workflow(request.app, project_id, removed=True, principal=principal)
     async with state.session_factory() as session:

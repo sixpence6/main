@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 
 from app.auth.principal import require_principal
 from app.errors import ApiError, conflict
+from app.operator_audit import record_operator_event_safely
 from app.schemas import ERROR_RESPONSE
 from app.workflow import dispatch, state
 from app.workflow.schemas_workflow import WorkflowActionRequest, WorkflowView
@@ -46,6 +47,7 @@ async def run_action(
 
     app = request.app
     principal = require_principal(request)
+    source = request.client.host if request.client else None
     async with app.state.locks.hold(project_id):
         ctx = await state.load_context(app, project_id, principal=principal)
         if ctx.project.revision != body.expected_revision:
@@ -109,6 +111,48 @@ async def run_action(
                     raise ApiError(
                         409, "ACTION_NOT_AVAILABLE", "当前状态不支持此操作，请先完成提示的步骤。"
                     )
-        await dispatch.handle_action(ctx, action_id, data)
+        audit_detail: dict[str, Any] = {
+            "action_id": action_id,
+            "expected_revision": body.expected_revision,
+        }
+        if ctx.run is not None:
+            audit_detail["run_id"] = ctx.run.id
+            audit_detail["stage"] = ctx.run.stage
+        try:
+            await dispatch.handle_action(ctx, action_id, data)
+        except ApiError as exc:
+            audit_detail["stage"] = ctx.run.stage if ctx.run is not None else None
+            await record_operator_event_safely(
+                app,
+                event_type="workflow_action",
+                principal=principal,
+                project_id=project_id,
+                result="denied" if exc.status_code in {401, 403} else "failure",
+                reason_code=exc.code,
+                source=source,
+                detail=audit_detail,
+            )
+            raise
+        except Exception:
+            await record_operator_event_safely(
+                app,
+                event_type="workflow_action",
+                principal=principal,
+                project_id=project_id,
+                result="failure",
+                reason_code="INTERNAL",
+                source=source,
+                detail=audit_detail,
+            )
+            raise
+        await record_operator_event_safely(
+            app,
+            event_type="workflow_action",
+            principal=principal,
+            project_id=project_id,
+            result="success",
+            source=source,
+            detail=audit_detail,
+        )
         fresh = await state.reload_context(ctx)
         return await state.build_workflow_view(fresh)
