@@ -21,10 +21,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.adapters.base import BriefData, GenerationRequest, ProviderError, ProviderOutcome
 from app.adapters.registry import AdapterRegistry
+from app.auth.principal import Principal
 from app.config import LOCAL_RESULT_MAX_BYTES, RoleConfig, Settings
 from app.db import ProjectLocks, read_session, write_transaction
 from app.errors import ApiError, conflict, not_found_generation
 from app.models import Asset, Generation, Project
+from app.ownership import require_project_scope, revalidate_principal
 from app.presenters import brief_from_project, dumps_json, snapshot_json
 from app.services.assets import (
     ImageInfo,
@@ -34,7 +36,6 @@ from app.services.assets import (
     resolve_asset_file,
     write_asset_file,
 )
-from app.services.projects import require_project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow.access import ensure_legacy_entry_available
 
@@ -233,6 +234,7 @@ async def submit_generation(
     confirmed_revision: int,
     acknowledge_present: bool,
     acknowledge_unknown: bool | None,
+    principal: Principal | None = None,
 ) -> SubmissionResult:
     canonical = canonical_request(
         project_id=project_id,
@@ -244,6 +246,7 @@ async def submit_generation(
 
     async with read_session(session_factory) as session:
         # 幂等重放也必须先过门禁，旧 succeeded 记录不能借原请求标识重新暴露。
+        await require_project_scope(session, project_id, principal)
         await ensure_legacy_entry_available(session, project_id)
         existing = await _find_by_request(session, project_id, request_id)
     if existing is not None:
@@ -264,7 +267,7 @@ async def submit_generation(
                     result_asset = await _load_result_asset(session, duplicate)
                     return SubmissionResult(duplicate, result_asset, created=False)
 
-                project = await require_project(session, project_id)
+                project = await require_project_scope(session, project_id, principal)
                 if project.brief_status == "organizing":
                     raise conflict("STALE_ORGANIZATION", "项目正在整理中，请稍后重试")
                 active = await session.scalar(
@@ -443,12 +446,20 @@ async def submit_generation(
 
 
 async def load_generation(
-    session_factory: async_sessionmaker[AsyncSession], generation_id: str
+    session_factory: async_sessionmaker[AsyncSession],
+    generation_id: str,
+    *,
+    principal: Principal | None = None,
 ) -> tuple[Generation, Asset | None]:
     async with read_session(session_factory) as session:
         generation = await session.get(Generation, generation_id)
         if generation is None:
             raise not_found_generation()
+        if principal is not None:
+            await revalidate_principal(session, principal)
+            project = await session.get(Project, generation.project_id)
+            if project is None or project.owner_account_id != principal.account_id:
+                raise not_found_generation()
         return generation, await _load_result_asset(session, generation)
 
 
@@ -1152,6 +1163,7 @@ async def submit_generation_and_schedule(
     confirmed_revision: int,
     acknowledge_present: bool,
     acknowledge_unknown: bool,
+    principal: Principal | None = None,
 ) -> SubmissionResult:
     state = app.state
     result = await submit_generation(
@@ -1164,6 +1176,7 @@ async def submit_generation_and_schedule(
         confirmed_revision=confirmed_revision,
         acknowledge_present=acknowledge_present,
         acknowledge_unknown=acknowledge_unknown,
+        principal=principal,
     )
     if not result.created:
         return result

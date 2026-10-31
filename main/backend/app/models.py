@@ -21,6 +21,9 @@ class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=True
+    )
     title: Mapped[str] = mapped_column(String(200), nullable=False, default="未命名项目")
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     prompt_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -60,6 +63,7 @@ class Project(Base):
             name="ck_projects_confirmed_revision",
         ),
         Index("ix_projects_updated_id", "updated_at", "id"),
+        Index("ix_projects_owner_updated", "owner_account_id", "updated_at", "id"),
         Index("ix_projects_reference_asset", "reference_asset_id"),
     )
 

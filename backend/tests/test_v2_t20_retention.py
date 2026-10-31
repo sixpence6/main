@@ -38,7 +38,7 @@ from app.workflow.tables import (
 )
 from tests.conftest import BACKEND_DIR, MAIN_BACKEND_DIR, migrate
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
-from tests.support.auth import authenticated_client
+from tests.support.auth import admin_account_id_for_seed, authenticated_client
 from tests.support.process_auth import process_auth_env, process_session
 
 
@@ -78,6 +78,7 @@ async def _create_project(session, *, title: str = "T20 项目") -> Project:
     now = _ts(utc_now())
     project = Project(
         id=_id("project"),
+        owner_account_id=await admin_account_id_for_seed(session),
         title=title,
         revision=1,
         prompt_revision=1,

@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import re
+from contextlib import suppress
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse
 from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException, MultiPartParser
 
+from app.auth.principal import require_principal
 from app.config import REFERENCE_MULTIPART_OVERHEAD_BYTES
 from app.errors import ApiError, validation_error
-from app.models import Asset
+from app.models import Asset, Project
+from app.ownership import require_project_owner, revalidate_principal
 from app.presenters import project_view
 from app.schemas import ERROR_RESPONSE, ProjectView
 from app.services.assets import (
@@ -34,9 +37,7 @@ router = APIRouter(tags=["assets"])
 _REVISION_PATTERN = re.compile(r"^\d+$")
 
 
-async def _sync_reference_workflow(
-    app, project_id: str, *, removed: bool
-) -> None:
+async def _sync_reference_workflow(app, project_id: str, *, removed: bool, principal=None) -> None:
     """Keep an existing v2 run aligned with an upload or an explicit removal.
 
     Fresh projects keep the legacy upload-only behaviour until the client asks
@@ -50,7 +51,7 @@ async def _sync_reference_workflow(
     from app.workflow.stages import s02
 
     async with app.state.locks.hold(project_id):
-        ctx = await workflow_state.load_context(app, project_id)
+        ctx = await workflow_state.load_context(app, project_id, principal=principal)
         if ctx.run is None:
             return
         if ctx.run.status == "completed":
@@ -64,12 +65,10 @@ async def _sync_reference_workflow(
         await s02.prepare_after_reference_change(ctx)
         if not ctx.project.reference_asset_id:
             return
-        try:
+        # The upload itself succeeded; the workflow view carries the fixed
+        # failure template and the user's input is preserved.
+        with suppress(ApiError):
             await s02.analyze(ctx)
-        except ApiError:
-            # The upload itself succeeded; the workflow view carries the fixed
-            # failure template and the user's input is preserved.
-            pass
 
 
 async def _parse_multipart(request: Request, limit: int):
@@ -105,6 +104,7 @@ async def _parse_multipart(request: Request, limit: int):
     "/api/projects/{project_id}/reference",
     response_model=ProjectView,
     responses={
+        401: ERROR_RESPONSE,
         404: ERROR_RESPONSE,
         409: ERROR_RESPONSE,
         413: ERROR_RESPONSE,
@@ -113,6 +113,9 @@ async def _parse_multipart(request: Request, limit: int):
 )
 async def upload_reference(project_id: str, request: Request) -> ProjectView:
     state = request.app.state
+    principal = require_principal(request)
+    # 归属检查先于解析和写文件，避免为无权项目留下孤立资产文件。
+    await require_project_owner(state.session_factory, project_id, principal)
     settings = state.settings
     max_bytes = effective_reference_max_bytes(settings, state.registry)
     form = await _parse_multipart(request, max_bytes + REFERENCE_MULTIPART_OVERHEAD_BYTES)
@@ -161,19 +164,23 @@ async def upload_reference(project_id: str, request: Request) -> ProjectView:
         expected_revision=expected_revision,
         data=data,
         image=image,
+        principal=principal,
     )
-    await _sync_reference_workflow(request.app, project_id, removed=False)
+    await _sync_reference_workflow(request.app, project_id, removed=False, principal=principal)
     async with state.session_factory() as session:
         policy = await load_project_access_policy(session, project_id)
-    return project_view(
-        result.project, result.asset, settings.resolved_data_dir(), policy=policy
-    )
+    return project_view(result.project, result.asset, settings.resolved_data_dir(), policy=policy)
 
 
 @router.delete(
     "/api/projects/{project_id}/reference",
     response_model=ProjectView,
-    responses={404: ERROR_RESPONSE, 409: ERROR_RESPONSE, 422: ERROR_RESPONSE},
+    responses={
+        401: ERROR_RESPONSE,
+        404: ERROR_RESPONSE,
+        409: ERROR_RESPONSE,
+        422: ERROR_RESPONSE,
+    },
 )
 async def delete_reference(
     project_id: str,
@@ -181,6 +188,8 @@ async def delete_reference(
     expected_revision: int = Query(ge=0),
 ) -> ProjectView:
     state = request.app.state
+    principal = require_principal(request)
+    await require_project_owner(state.session_factory, project_id, principal)
     async with state.session_factory() as session:
         policy = await load_project_access_policy(session, project_id)
         if policy.old_entries_paused and not policy.has_workflow_run:
@@ -190,8 +199,9 @@ async def delete_reference(
         state.locks,
         project_id=project_id,
         expected_revision=expected_revision,
+        principal=principal,
     )
-    await _sync_reference_workflow(request.app, project_id, removed=True)
+    await _sync_reference_workflow(request.app, project_id, removed=True, principal=principal)
     async with state.session_factory() as session:
         policy = await load_project_access_policy(session, project_id)
     return project_view(
@@ -210,6 +220,7 @@ async def delete_reference(
             "description": "图片文件",
             "content": {"image/png": {}, "image/jpeg": {}},
         },
+        401: ERROR_RESPONSE,
         404: ERROR_RESPONSE,
         422: ERROR_RESPONSE,
     },
@@ -220,9 +231,14 @@ async def read_asset(
     download: bool = Query(default=False),
 ) -> FileResponse:
     state = request.app.state
+    principal = require_principal(request)
     async with state.session_factory() as session:
         asset = await session.get(Asset, asset_id)
         if asset is None:
+            raise ApiError(404, "ASSET_NOT_FOUND", "资源不存在")
+        await revalidate_principal(session, principal)
+        project = await session.get(Project, asset.project_id)
+        if project is None or project.owner_account_id != principal.account_id:
             raise ApiError(404, "ASSET_NOT_FOUND", "资源不存在")
         # T20：即使候选文件尚未被物理清理，到期候选也不能通过任何资产出口读取。
         if await asset_is_retention_expired(request.app, asset):

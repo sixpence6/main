@@ -13,10 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.adapters.base import ProviderOutcome
 from app.adapters.registry import AdapterRegistry
+from app.auth.principal import Principal
 from app.config import Settings
 from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict, not_found_generation
 from app.models import Asset, Generation, Project
+from app.ownership import revalidate_principal
 from app.services.assets import delete_asset_file
 from app.services.generations import (
     _decode_outcome_image,
@@ -215,14 +217,20 @@ def _raise_not_retrievable(info: RetrievalInfo) -> None:
 
 
 async def _load_generation(
-    session_factory: async_sessionmaker[AsyncSession], generation_id: str
+    session_factory: async_sessionmaker[AsyncSession],
+    generation_id: str,
+    principal: Principal | None = None,
 ) -> tuple[Generation, Asset | None, Project, str | None]:
     async with read_session(session_factory) as session:
         generation = await session.get(Generation, generation_id)
         if generation is None:
             raise not_found_generation()
+        if principal is not None:
+            await revalidate_principal(session, principal)
         project = await session.get(Project, generation.project_id)
-        if project is None:
+        if project is None or (
+            principal is not None and project.owner_account_id != principal.account_id
+        ):
             raise not_found_generation()
         asset = (
             await session.get(Asset, generation.result_asset_id)
@@ -249,6 +257,8 @@ def _outcome_image(outcome: ProviderOutcome) -> bytes | None:
 async def retrieve_result(
     app: FastAPI,
     generation_id: str,
+    *,
+    principal: Principal | None = None,
 ) -> tuple[Generation, Asset | None]:
     state = app.state
     session_factory = state.session_factory
@@ -256,7 +266,7 @@ async def retrieve_result(
     registry: AdapterRegistry = state.registry
 
     generation, asset, project, active_generation_id = await _load_generation(
-        session_factory, generation_id
+        session_factory, generation_id, principal
     )
     async with read_session(session_factory) as session:
         await ensure_legacy_entry_available(session, generation.project_id)
@@ -265,7 +275,7 @@ async def retrieve_result(
 
     async with state.locks.hold(generation.project_id):
         generation, asset, project, active_generation_id = await _load_generation(
-            session_factory, generation_id
+            session_factory, generation_id, principal
         )
         if generation.status == "succeeded":
             return generation, asset
@@ -315,6 +325,8 @@ async def retrieve_result(
 
         try:
             async with write_transaction(session_factory) as session:
+                if principal is not None:
+                    await revalidate_principal(session, principal)
                 current = await session.get(Generation, generation_id)
                 if (
                     current is None
@@ -345,8 +357,12 @@ async def retrieve_result(
                 current.error_message = None
                 current.completed_at = now
                 project = await session.get(Project, current.project_id)
-                if project is not None:
-                    project.updated_at = now
+                if project is None or (
+                    principal is not None
+                    and project.owner_account_id != principal.account_id
+                ):
+                    raise not_found_generation()
+                project.updated_at = now
                 await session.flush()
         except BaseException:
             await asyncio.to_thread(delete_asset_file, settings, relative_path)

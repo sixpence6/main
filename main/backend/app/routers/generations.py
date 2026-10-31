@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request, Response
 
+from app.auth.principal import require_principal
 from app.presenters import generation_view
 from app.schemas import (
     ERROR_RESPONSE,
@@ -27,6 +28,7 @@ router = APIRouter(tags=["generations"])
     status_code=202,
     responses={
         200: {"model": GenerationResponse, "description": "幂等重放，返回原生成记录"},
+        401: ERROR_RESPONSE,
         404: ERROR_RESPONSE,
         409: ERROR_RESPONSE,
         422: ERROR_RESPONSE,
@@ -40,6 +42,7 @@ async def submit_generation_endpoint(
     response: Response,
 ) -> GenerationResponse:
     state = request.app.state
+    principal = require_principal(request)
     result = await submit_generation_and_schedule(
         request.app,
         project_id=project_id,
@@ -47,6 +50,7 @@ async def submit_generation_endpoint(
         confirmed_revision=payload.confirmed_revision,
         acknowledge_present="acknowledge_unknown" in payload.model_fields_set,
         acknowledge_unknown=payload.acknowledge_unknown,
+        principal=principal,
     )
     if not result.created:
         response.status_code = 200
@@ -69,7 +73,10 @@ async def submit_generation_endpoint(
 )
 async def get_generation_endpoint(request: Request, generation_id: str) -> GenerationView:
     state = request.app.state
-    generation, result_asset = await load_generation(state.session_factory, generation_id)
+    principal = require_principal(request)
+    generation, result_asset = await load_generation(
+        state.session_factory, generation_id, principal=principal
+    )
     async with state.session_factory() as session:
         policy = await load_project_access_policy(session, generation.project_id)
     info = await load_retrieval_info(
@@ -101,7 +108,10 @@ async def retrieve_generation_result_endpoint(
     request: Request, generation_id: str, _payload: EmptyBody
 ) -> GenerationView:
     state = request.app.state
-    generation, result_asset = await retrieve_result(request.app, generation_id)
+    principal = require_principal(request)
+    generation, result_asset = await retrieve_result(
+        request.app, generation_id, principal=principal
+    )
     async with state.session_factory() as session:
         policy = await load_project_access_policy(session, generation.project_id)
     info = await load_retrieval_info(

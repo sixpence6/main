@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
+from app.auth.principal import require_principal
 from app.presenters import project_view
 from app.schemas import ERROR_RESPONSE, ConfirmRequest, ProjectView, UpdateBriefRequest
 from app.services.briefs import confirm_brief, update_brief
@@ -17,12 +18,13 @@ def _settings_and_registry(request: Request):
 @router.patch(
     "/{project_id}/brief",
     response_model=ProjectView,
-    responses={404: ERROR_RESPONSE, 409: ERROR_RESPONSE, 422: ERROR_RESPONSE},
+    responses={401: ERROR_RESPONSE, 404: ERROR_RESPONSE, 409: ERROR_RESPONSE, 422: ERROR_RESPONSE},
 )
 async def patch_brief(
     project_id: str, payload: UpdateBriefRequest, request: Request
 ) -> ProjectView:
     state = request.app.state
+    principal = require_principal(request)
     changes = {
         name: getattr(payload, name)
         for name in (
@@ -40,6 +42,7 @@ async def patch_brief(
         project_id=project_id,
         expected_revision=payload.expected_revision,
         changes=changes,  # type: ignore[arg-type]
+        principal=principal,
     )
     async with state.session_factory() as session:
         policy = await load_project_access_policy(session, project_id)
@@ -58,6 +61,7 @@ async def patch_brief(
 )
 async def post_confirm(project_id: str, payload: ConfirmRequest, request: Request) -> ProjectView:
     state = request.app.state
+    principal = require_principal(request)
     settings, registry = _settings_and_registry(request)
     result = await confirm_brief(
         state.session_factory,
@@ -66,6 +70,7 @@ async def post_confirm(project_id: str, payload: ConfirmRequest, request: Reques
         registry,
         project_id=project_id,
         revision=payload.revision,
+        principal=principal,
     )
     async with state.session_factory() as session:
         policy = await load_project_access_policy(session, project_id)

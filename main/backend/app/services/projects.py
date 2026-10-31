@@ -10,9 +10,11 @@ from uuid import UUID, uuid4
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.auth.principal import Principal
 from app.db import read_session, write_transaction
 from app.errors import ApiError, not_found_project
 from app.models import Asset, Generation, Message, Project
+from app.ownership import revalidate_principal
 from app.schemas import ProjectSummary
 from app.timeutil import format_timestamp, utc_now
 from app.workflow.access import ProjectAccessPolicy, load_project_access_policies
@@ -66,10 +68,15 @@ def decode_cursor(raw: str | None) -> ProjectCursor | None:
     return ProjectCursor(updated_at=updated_at, project_id=project_id)
 
 
-async def create_project(session_factory: async_sessionmaker[AsyncSession]) -> Project:
+async def create_project(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    owner_account_id: str | None = None,
+) -> Project:
     now = format_timestamp(utc_now())
     project = Project(
         id=str(uuid4()),
+        owner_account_id=owner_account_id,
         title=DEFAULT_PROJECT_TITLE,
         revision=0,
         prompt_revision=None,
@@ -116,11 +123,15 @@ async def list_projects(
     *,
     limit: int,
     cursor: ProjectCursor | None,
+    principal: Principal | None = None,
 ) -> tuple[list[ProjectSummary], str | None]:
     async with read_session(session_factory) as session:
+        statement = select(Project)
+        if principal is not None:
+            await revalidate_principal(session, principal)
+            statement = statement.where(Project.owner_account_id == principal.account_id)
         statement = (
-            select(Project)
-            .order_by(Project.updated_at.desc(), Project.id.desc())
+            statement.order_by(Project.updated_at.desc(), Project.id.desc())
             .limit(limit + 1)
         )
         if cursor is not None:
@@ -172,10 +183,22 @@ class ProjectDetail:
 
 
 async def get_project_detail(
-    session_factory: async_sessionmaker[AsyncSession], project_id: str
+    session_factory: async_sessionmaker[AsyncSession],
+    project_id: str,
+    *,
+    principal: Principal | None = None,
 ) -> ProjectDetail:
     async with read_session(session_factory) as session:
-        project = await session.get(Project, project_id)
+        if principal is None:
+            project = await session.get(Project, project_id)
+        else:
+            await revalidate_principal(session, principal)
+            project = await session.scalar(
+                select(Project).where(
+                    Project.id == project_id,
+                    Project.owner_account_id == principal.account_id,
+                )
+            )
         if project is None:
             raise not_found_project()
         messages = list(
@@ -219,8 +242,18 @@ async def get_project_detail(
     )
 
 
-async def require_project(session: AsyncSession, project_id: str) -> Project:
-    project = await session.get(Project, project_id)
+async def require_project(
+    session: AsyncSession, project_id: str, owner_account_id: str | None = None
+) -> Project:
+    if owner_account_id is None:
+        project = await session.get(Project, project_id)
+    else:
+        project = await session.scalar(
+            select(Project).where(
+                Project.id == project_id,
+                Project.owner_account_id == owner_account_id,
+            )
+        )
     if project is None:
         raise not_found_project()
     return project

@@ -6,11 +6,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.adapters.registry import AdapterRegistry
+from app.auth.principal import Principal
 from app.config import Settings
 from app.db import ProjectLocks, write_transaction
 from app.errors import ApiError, conflict
 from app.models import Asset, Generation, Project
-from app.services.projects import require_project
+from app.ownership import require_project_scope
 from app.timeutil import format_timestamp, utc_now
 from app.workflow.access import ensure_legacy_entry_available
 
@@ -50,6 +51,7 @@ async def update_brief(
     project_id: str,
     expected_revision: int,
     changes: dict[str, str],
+    principal: Principal | None = None,
 ) -> BriefMutation:
     invalid = set(changes) - set(EDITABLE_FIELDS)
     if invalid:
@@ -57,7 +59,7 @@ async def update_brief(
 
     async with locks.hold(project_id):
         async with write_transaction(session_factory) as session:
-            project = await require_project(session, project_id)
+            project = await require_project_scope(session, project_id, principal)
             await ensure_legacy_entry_available(session, project_id)
             if project.revision != expected_revision:
                 raise conflict("REVISION_CONFLICT", "项目已被其他操作更新，请刷新后重试")
@@ -102,10 +104,11 @@ async def confirm_brief(
     *,
     project_id: str,
     revision: int,
+    principal: Principal | None = None,
 ) -> BriefMutation:
     async with locks.hold(project_id):
         async with write_transaction(session_factory) as session:
-            project = await require_project(session, project_id)
+            project = await require_project_scope(session, project_id, principal)
             await ensure_legacy_entry_available(session, project_id)
             if project.revision != revision:
                 raise conflict("REVISION_CONFLICT", "项目已被其他操作更新，请刷新后重试")
