@@ -400,6 +400,28 @@ async def can_access_asset(
         return AccessDecision(False, "ASSET_REJECTED")
 
     if asset.kind == "reference":
+        # Reference bytes are user input, not generated content, but they still
+        # leave the private data root. Verify the file resolves inside that root,
+        # matches the recorded digest when one exists, and keeps the recorded
+        # dimensions. Legacy references without a digest stay readable, but a
+        # tampered file of another size is rejected.
+        path = _asset_path(settings, asset)
+        if path is None:
+            return AccessDecision(False, "ASSET_FILE_MISSING")
+        try:
+            data = await asyncio.to_thread(path.read_bytes)
+        except OSError:
+            return AccessDecision(False, "ASSET_FILE_MISSING")
+        if asset.sha256 and hashlib.sha256(data).hexdigest() != asset.sha256:
+            return AccessDecision(False, "DIGEST_MISMATCH")
+        from app.services.assets import inspect_image
+
+        try:
+            info = inspect_image(data)
+        except Exception:
+            return AccessDecision(False, "ASSET_UNAVAILABLE")
+        if info.width != asset.width or info.height != asset.height:
+            return AccessDecision(False, "DIGEST_MISMATCH")
         return AccessDecision(True)
 
     if asset.kind != "generated":

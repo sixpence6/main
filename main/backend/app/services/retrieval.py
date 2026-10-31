@@ -237,6 +237,8 @@ async def _load_generation(
             if generation.result_asset_id
             else None
         )
+        if asset is not None and asset.project_id != generation.project_id:
+            asset = None
         active_generation_id = await session.scalar(
             select(Generation.id).where(
                 Generation.project_id == generation.project_id,
@@ -377,4 +379,6 @@ async def retrieve_result(
             if current.result_asset_id
             else None
         )
+        if result_asset is not None and result_asset.project_id != current.project_id:
+            result_asset = None
     return current, result_asset

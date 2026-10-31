@@ -95,6 +95,11 @@ def project_view(
     policy: ProjectAccessPolicy | None = None,
 ) -> ProjectView:
     hidden = policy is not None and policy.project_output_hidden
+    brief = _empty_brief(project) if hidden else brief_from_project(project)
+    if reference_asset is None and brief.reference_asset_id is not None:
+        # A stored cross-project or missing reference must not survive as a
+        # bare identifier in the brief; the asset itself is already hidden.
+        brief = brief.model_copy(update={"reference_asset_id": None})
     return ProjectView(
         id=project.id,
         title=project.title,
@@ -102,7 +107,7 @@ def project_view(
         prompt_revision=None if hidden else project.prompt_revision,
         confirmed_revision=None if hidden else project.confirmed_revision,
         brief_status="draft" if hidden else project.brief_status,  # type: ignore[arg-type]
-        brief=_empty_brief(project) if hidden else brief_from_project(project),
+        brief=brief,
         reference_asset=asset_view(reference_asset, data_dir),
         brief_error=(
             None if hidden else error_view(project.brief_error_code, project.brief_error_message)
@@ -182,6 +187,7 @@ def generation_view(
     snapshot = (
         json.loads(generation.brief_snapshot_json) if generation.brief_snapshot_json else None
     )
+    visible_asset = None if hidden_asset else asset_view(result_asset, data_dir)
     return GenerationView(
         id=generation.id,
         project_id=generation.project_id,
@@ -196,8 +202,10 @@ def generation_view(
         adapter_id=generation.adapter_id,
         model=generation.model,
         remote_task_id=generation.remote_task_id,
-        result_asset_id=None if hidden_asset else generation.result_asset_id,
-        result_asset=None if hidden_asset else asset_view(result_asset, data_dir),
+        result_asset_id=(
+            None if hidden_asset or visible_asset is None else generation.result_asset_id
+        ),
+        result_asset=visible_asset,
         error=error_view(generation.error_code, generation.error_message),
         can_retrieve_result=can_retrieve_result,
         retrieval_unavailable_reason=retrieval_unavailable_reason,

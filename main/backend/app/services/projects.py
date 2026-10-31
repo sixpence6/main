@@ -224,12 +224,19 @@ async def get_project_detail(
             if project.reference_asset_id
             else None
         )
+        if reference_asset is not None and reference_asset.project_id != project_id:
+            reference_asset = None
         result_ids = sorted(
             {generation.result_asset_id for generation in generations if generation.result_asset_id}
         )
         result_assets: dict[str, Asset] = {}
         if result_ids:
-            for asset in await session.scalars(select(Asset).where(Asset.id.in_(result_ids))):
+            for asset in await session.scalars(
+                select(Asset).where(
+                    Asset.id.in_(result_ids),
+                    Asset.project_id == project_id,
+                )
+            ):
                 result_assets[asset.id] = asset
         policy = await load_project_access_policies(session, [project_id])
     return ProjectDetail(
