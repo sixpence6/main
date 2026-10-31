@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 from typing import Any
 from urllib.parse import urlsplit
@@ -183,7 +184,11 @@ class AuthMiddleware:
                     app_state.session_factory, raw_session, app_state.clock.now()
                 )
             except Exception:
-                if path not in PUBLIC_API_PATHS:
+                # A session cookie that cannot be revalidated is never anonymous.
+                needs_session = path in {"/api/auth/session", "/api/auth/logout"} or (
+                    path == "/api/auth/csrf" and bool(raw_session)
+                )
+                if path not in PUBLIC_API_PATHS or needs_session:
                     await _send_json(send, 503, "AUTH_UNAVAILABLE", "认证服务当前不可用")
                     return
                 context = None
@@ -254,9 +259,7 @@ class AuthMiddleware:
             and (method not in SAFE_METHODS or active_read)
         )
         if should_touch:
-            try:
+            with contextlib.suppress(Exception):
                 await touch_session(
                     app_state.session_factory, context.session.id, app_state.clock.now()
                 )
-            except Exception:
-                pass

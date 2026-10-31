@@ -23,13 +23,13 @@ HASH_QUEUED_LIMIT = 8
 
 try:  # pragma: no cover - import failure is exercised through monkeypatching
     from argon2 import PasswordHasher
-    from argon2.low_level import Type
     from argon2.exceptions import (
         HashingError,
         InvalidHashError,
         VerificationError,
         VerifyMismatchError,
     )
+    from argon2.low_level import Type
 
     ARGON2_AVAILABLE = True
 except ImportError:  # pragma: no cover

@@ -13,9 +13,9 @@ from app.auth.audit import audit_subject, write_audit
 from app.auth.clock import Clock
 from app.auth.models import Account, AuthSession, InstanceBootstrap
 from app.auth.passwords import (
+    WEAK_PASSWORD_LIST_VERSION,
     AuthUnavailable,
     HashGate,
-    WEAK_PASSWORD_LIST_VERSION,
     hash_password,
     password_needs_rehash,
     validate_password,
@@ -91,6 +91,45 @@ def _generic_failure() -> ApiError:
     return ApiError(401, "INVALID_CREDENTIALS", "邮箱或密码不正确")
 
 
+async def _best_effort_auth_unavailable(
+    factory: async_sessionmaker[AsyncSession],
+    *,
+    fact_ids: list[int],
+    now: datetime,
+    subject: str,
+    source_key: str,
+    reason_code: str = "auth_unavailable",
+) -> None:
+    """Release reserved attempts and audit an outage without masking the 503."""
+    try:
+        async with write_transaction(factory) as session:
+            # Dependency outages are not credential failures: release, do not count.
+            await settle_attempts_in_session(session, fact_ids, success=True)
+            write_audit(
+                session,
+                event_type="login_failure",
+                result="failure",
+                now=now,
+                actor_kind="anonymous",
+                target_kind="account",
+                subject_ref=audit_subject(subject),
+                reason_code=reason_code,
+                source_ref=source_key,
+            )
+    except Exception:
+        # Best-effort only; never convert a fail-closed 503 into a success.
+        pass
+
+
+def _dependency_failure(exc: Exception) -> tuple[str, ApiError]:
+    """Map hash dependency failures to a fail-closed, non-credential error."""
+    if isinstance(exc, ApiError):
+        if exc.code != "AUTH_BUSY":
+            raise exc
+        return "auth_busy", ApiError(503, "AUTH_BUSY", "认证服务繁忙，请稍后重试")
+    return "auth_unavailable", ApiError(503, "AUTH_UNAVAILABLE", "认证服务当前不可用")
+
+
 def _safe_reason_for_account(account: Account | None, email_valid: bool) -> str:
     if not email_valid:
         return "invalid_email"
@@ -113,7 +152,11 @@ async def init_admin(
     method: str = "local_cli",
 ) -> Account:
     normalized = normalize_email(email)
-    validate_password(password)
+    try:
+        validate_password(password)
+    except AuthUnavailable as exc:
+        _, error = _dependency_failure(exc)
+        raise error from exc
     now = clock.now()
     async with read_session(factory) as session:
         existing = await session.scalar(
@@ -121,7 +164,11 @@ async def init_admin(
         )
         if existing:
             raise AlreadyInitialized("administrator already exists")
-    password_hash = await hash_gate.run(hash_password, password)
+    try:
+        password_hash = await hash_gate.run(hash_password, password)
+    except (AuthUnavailable, ApiError) as exc:
+        _, error = _dependency_failure(exc)
+        raise error from exc
     try:
         async with write_transaction(factory) as session:
             existing = await session.scalar(
@@ -238,17 +285,47 @@ async def login(
             await hash_gate.run(verify_dummy_password, password)
         else:
             password_ok = await hash_gate.run(verify_password, account.password_hash, password)
-    except AuthUnavailable as exc:
-        raise ApiError(503, "AUTH_UNAVAILABLE", "认证服务当前不可用") from exc
+    except (AuthUnavailable, ApiError) as exc:
+        reason_code, error = _dependency_failure(exc)
+        await _best_effort_auth_unavailable(
+            factory,
+            fact_ids=fact_ids,
+            now=now,
+            subject=normalized or email,
+            source_key=source_key,
+            reason_code=reason_code,
+        )
+        raise error from exc
 
     if password_ok and account is not None and account.can_login:
         new_hash: str | None = None
         try:
             needs_rehash = password_needs_rehash(account.password_hash or "")
-        except AuthUnavailable as exc:
-            raise ApiError(503, "AUTH_UNAVAILABLE", "认证服务当前不可用") from exc
+        except (AuthUnavailable, ApiError) as exc:
+            reason_code, error = _dependency_failure(exc)
+            await _best_effort_auth_unavailable(
+                factory,
+                fact_ids=fact_ids,
+                now=now,
+                subject=normalized,
+                source_key=source_key,
+                reason_code=reason_code,
+            )
+            raise error from exc
         if needs_rehash:
-            new_hash = await hash_gate.run(hash_password, password)
+            try:
+                new_hash = await hash_gate.run(hash_password, password)
+            except (AuthUnavailable, ApiError) as exc:
+                reason_code, error = _dependency_failure(exc)
+                await _best_effort_auth_unavailable(
+                    factory,
+                    fact_ids=fact_ids,
+                    now=now,
+                    subject=normalized,
+                    source_key=source_key,
+                    reason_code=reason_code,
+                )
+                raise error from exc
         state_changed = False
         async with write_transaction(factory) as session:
             current = await session.get(Account, account.id)

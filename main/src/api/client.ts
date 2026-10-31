@@ -1,5 +1,8 @@
 import type {
   ApiErrorBody,
+  AuthSessionResponse,
+  CsrfResponse,
+  LoginResponse,
   ConfigStatus,
   HealthStatus,
   ProjectDetailResponse,
@@ -12,8 +15,20 @@ import type {
   PatchBriefRequest,
   SubmitGenerationRequest,
 } from './types'
+import { getCsrfToken, setCsrfToken } from './csrf'
 
 const JSON_HEADERS = { Accept: 'application/json' }
+
+export interface RequestJsonInit extends RequestInit {
+  /** 自动轮询不得续期登录会话；用户主动操作才续期。 */
+  authActivity?: 'user' | 'polling'
+}
+
+let unauthorizedHandler: (() => void) | null = null
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler
+}
 
 export class ApiError extends Error {
   readonly status: number
@@ -83,24 +98,38 @@ async function readErrorBody(response: Response): Promise<ApiErrorBody | null> {
   return null
 }
 
-export async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function requestJson<T>(path: string, init: RequestJsonInit = {}): Promise<T> {
+  const { authActivity = 'user', ...fetchInit } = init
+  const method = (fetchInit.method ?? 'GET').toUpperCase()
   const headers = new Headers(JSON_HEADERS)
-  if (init.headers) {
-    new Headers(init.headers).forEach((value, key) => headers.set(key, value))
+  if (fetchInit.headers) {
+    new Headers(fetchInit.headers).forEach((value, key) => headers.set(key, value))
   }
-  if (init.body !== undefined && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
+  if (fetchInit.body !== undefined && !(fetchInit.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
+  }
+  if (method === 'GET' || method === 'HEAD') {
+    if (authActivity === 'polling') headers.set('X-Polling', '1')
+    else headers.set('X-Auth-Activity', 'user')
+  }
+  const csrfToken = getCsrfToken()
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && csrfToken) {
+    headers.set('X-CSRF-Token', csrfToken)
   }
 
   let response: Response
   try {
-    response = await fetch(path, { ...init, headers })
+    response = await fetch(path, { ...fetchInit, headers, credentials: 'same-origin' })
   } catch (error) {
     if (isAbortError(error)) throw error
     throw new ApiError(0, 'NETWORK_ERROR', '无法连接本机服务，请确认服务已启动。')
   }
 
   if (!response.ok) {
+    if (response.status === 401) {
+      setCsrfToken(null)
+      unauthorizedHandler?.()
+    }
     const body = await readErrorBody(response)
     const message = safeServerMessage(body?.error?.message) ?? defaultMessage(response.status)
     throw new ApiError(response.status, body?.error?.code ?? 'HTTP_ERROR', message)
@@ -132,6 +161,21 @@ export function assetUrl(id: string): string {
 }
 
 export const api = {
+  getSession(signal?: AbortSignal): Promise<AuthSessionResponse> {
+    return requestJson<AuthSessionResponse>('/api/auth/session', { signal })
+  },
+  getLoginCsrf(signal?: AbortSignal): Promise<CsrfResponse> {
+    return requestJson<CsrfResponse>('/api/auth/csrf', { signal })
+  },
+  login(email: string, password: string): Promise<LoginResponse> {
+    return requestJson<LoginResponse>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    })
+  },
+  logout(): Promise<void> {
+    return requestJson<void>('/api/auth/logout', { method: 'POST', body: '{}' })
+  },
   getHealth(signal?: AbortSignal): Promise<HealthStatus> {
     return requestJson<HealthStatus>('/api/health', { signal })
   },
@@ -147,8 +191,15 @@ export const api = {
     if (params.cursor) query.set('cursor', params.cursor)
     return requestJson<ProjectListResponse>(`/api/projects?${query.toString()}`, { signal })
   },
-  getProject(id: string, signal?: AbortSignal): Promise<ProjectDetailResponse> {
-    return requestJson<ProjectDetailResponse>(`/api/projects/${encodeURIComponent(id)}`, { signal })
+  getProject(
+    id: string,
+    signal?: AbortSignal,
+    polling = false,
+  ): Promise<ProjectDetailResponse> {
+    return requestJson<ProjectDetailResponse>(`/api/projects/${encodeURIComponent(id)}`, {
+      signal,
+      authActivity: polling ? 'polling' : 'user',
+    })
   },
   createProject(): Promise<ProjectView> {
     return requestJson<ProjectView>('/api/projects', { method: 'POST', body: '{}' })
@@ -200,8 +251,15 @@ export const api = {
       { method: 'POST', body: JSON.stringify(input) },
     )
   },
-  getGeneration(id: string, signal?: AbortSignal): Promise<GenerationView> {
-    return requestJson<GenerationView>(`/api/generations/${encodeURIComponent(id)}`, { signal })
+  getGeneration(
+    id: string,
+    signal?: AbortSignal,
+    polling = false,
+  ): Promise<GenerationView> {
+    return requestJson<GenerationView>(`/api/generations/${encodeURIComponent(id)}`, {
+      signal,
+      authActivity: polling ? 'polling' : 'user',
+    })
   },
   retrieveGenerationResult(id: string, signal?: AbortSignal): Promise<GenerationView> {
     return requestJson<GenerationView>(`/api/generations/${encodeURIComponent(id)}/retrieve-result`, {

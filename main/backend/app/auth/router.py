@@ -14,7 +14,7 @@ from app.auth.sessions import (
     SESSION_ABSOLUTE_SECONDS,
     SESSION_COOKIE,
 )
-from app.auth.tokens import new_token
+from app.auth.tokens import constant_time_equals, new_token, token_digest
 from app.config import Settings
 from app.errors import ApiError
 from app.schemas import ERROR_RESPONSE
@@ -92,6 +92,13 @@ def _clear_session_cookie(response: Response, settings: Settings) -> None:
 @router.get("/csrf", response_model=CsrfResponse)
 async def csrf(request: Request) -> JSONResponse:
     settings: Settings = request.app.state.settings
+    auth_session = getattr(request.state, "auth_session", None)
+    if auth_session is not None:
+        # GET must not rotate or clobber the session-bound CSRF token.
+        current = request.cookies.get(PREAUTH_CSRF_COOKIE)
+        if current and constant_time_equals(auth_session.csrf_digest, token_digest(current)):
+            return JSONResponse(CsrfResponse(csrf_token=current).model_dump())
+        raise ApiError(401, "AUTH_REQUIRED", "请先登录")
     token = new_token()
     response = JSONResponse(CsrfResponse(csrf_token=token).model_dump())
     response.set_cookie(

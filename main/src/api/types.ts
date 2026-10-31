@@ -217,3 +217,26 @@ export interface MessageCreateResponse {
   user_message: MessageView
   assistant_message: MessageView
 }
+
+export type AccountStatus = 'active' | 'pending_setup' | 'disabled'
+
+export interface AccountView {
+  id: string
+  email: string
+  is_admin: boolean
+  status: AccountStatus
+  created_at: string
+  last_login_at: string | null
+}
+
+export interface AuthSessionResponse {
+  account: AccountView
+  csrf_token: string
+  expires_at: string
+}
+
+export type LoginResponse = AuthSessionResponse
+
+export interface CsrfResponse {
+  csrf_token: string
+}

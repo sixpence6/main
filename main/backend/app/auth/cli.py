@@ -9,6 +9,7 @@ from app.auth.passwords import AuthUnavailable, PasswordPolicyError
 from app.auth.service import AlreadyInitialized, init_admin
 from app.config import Settings
 from app.db import build_session_factory, create_engine
+from app.errors import ApiError
 from app.startup import ensure_data_dir, prepare_database
 
 
@@ -72,14 +73,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         asyncio.run(_run_init(email, password))
-    except AlreadyInitialized as exc:
+    except AlreadyInitialized:
         print("实例已经初始化，拒绝重复创建管理员。", file=sys.stderr)
         return 1
     except PasswordPolicyError as exc:
         print(f"密码不符合要求：{exc.message}", file=sys.stderr)
         return 2
-    except AuthUnavailable:
-        print("认证组件不可用，已拒绝创建管理员。", file=sys.stderr)
+    except (AuthUnavailable, ApiError) as exc:
+        message = getattr(exc, "message", "认证组件不可用")
+        print(f"认证组件不可用，已拒绝创建管理员：{message}", file=sys.stderr)
         return 2
     except ValueError as exc:
         print(f"参数不合法：{exc}", file=sys.stderr)

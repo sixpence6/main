@@ -4,6 +4,7 @@ import DescribePage from '@/pages/DescribePage.vue'
 import ConfirmPage from '@/pages/ConfirmPage.vue'
 import GeneratePage from '@/pages/GeneratePage.vue'
 import ResultsPage from '@/pages/ResultsPage.vue'
+import LoginPage from '@/pages/LoginPage.vue'
 
 export const STAGE_ROUTE_NAMES = ['describe', 'confirm', 'generate', 'results'] as const
 
@@ -11,6 +12,7 @@ export function createAppRouter(history?: RouterHistory): Router {
   return createRouter({
     history: history ?? createWebHistory(),
     routes: [
+      { path: '/login', name: 'login', component: LoginPage },
       {
         path: '/',
         component: WorkspaceLayout,
