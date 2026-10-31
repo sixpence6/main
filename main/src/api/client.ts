@@ -24,6 +24,8 @@ import type {
   SessionListResponse,
   SecurityEventListResponse,
   AdminSecurityEventListResponse,
+  InstanceGenerationLimitsResponse,
+  AccountGenerationLimitsResponse,
 } from './types'
 import { getCsrfToken, setCsrfToken } from './csrf'
 
@@ -205,6 +207,37 @@ export const api = {
     return requestJson<AccountResponse>(
       `/api/admin/accounts/${encodeURIComponent(accountId)}/restore`,
       { method: 'POST', body: '{}' },
+    )
+  },
+  getInstanceGenerationLimits(signal?: AbortSignal): Promise<InstanceGenerationLimitsResponse> {
+    return requestJson<InstanceGenerationLimitsResponse>('/api/admin/generation-limits', { signal })
+  },
+  updateInstanceGenerationLimits(input: {
+    daily_limit: number | null
+    personal_slots: number | null
+    instance_slots: number | null
+  }): Promise<InstanceGenerationLimitsResponse> {
+    return requestJson<InstanceGenerationLimitsResponse>('/api/admin/generation-limits', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    })
+  },
+  getAccountGenerationLimits(
+    accountId: string,
+    signal?: AbortSignal,
+  ): Promise<AccountGenerationLimitsResponse> {
+    return requestJson<AccountGenerationLimitsResponse>(
+      `/api/admin/accounts/${encodeURIComponent(accountId)}/generation-limits`,
+      { signal },
+    )
+  },
+  updateAccountGenerationLimits(
+    accountId: string,
+    input: { daily_limit: number | null; personal_slots: number | null },
+  ): Promise<AccountGenerationLimitsResponse> {
+    return requestJson<AccountGenerationLimitsResponse>(
+      `/api/admin/accounts/${encodeURIComponent(accountId)}/generation-limits`,
+      { method: 'PUT', body: JSON.stringify(input) },
     )
   },
   listAdminSecurityEvents(signal?: AbortSignal): Promise<AdminSecurityEventListResponse> {

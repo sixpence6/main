@@ -2,7 +2,14 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ApiError, api } from '@/api/client'
-import type { AccountView, AdminSecurityEventView, LinkIssueResponse, LinkPurpose } from '@/api/types'
+import type {
+  AccountGenerationLimitsResponse,
+  AccountView,
+  AdminSecurityEventView,
+  InstanceGenerationLimitsResponse,
+  LinkIssueResponse,
+  LinkPurpose,
+} from '@/api/types'
 
 const accounts = ref<AccountView[]>([])
 const loading = ref(true)
@@ -21,6 +28,22 @@ const statusError = ref<string | null>(null)
 const events = ref<AdminSecurityEventView[]>([])
 const eventsLoading = ref(true)
 const eventsError = ref<string | null>(null)
+const instanceLimits = ref<InstanceGenerationLimitsResponse | null>(null)
+const instanceDaily = ref('')
+const instancePersonal = ref('')
+const instanceSlots = ref('')
+const instanceLoading = ref(true)
+const instanceSaving = ref(false)
+const instanceError = ref<string | null>(null)
+const instanceMessage = ref<string | null>(null)
+const quotaAccount = ref<AccountView | null>(null)
+const quotaDetail = ref<AccountGenerationLimitsResponse | null>(null)
+const quotaDaily = ref('')
+const quotaPersonal = ref('')
+const quotaLoading = ref(false)
+const quotaSaving = ref(false)
+const quotaError = ref<string | null>(null)
+const quotaMessage = ref<string | null>(null)
 let listController: AbortController | null = null
 let eventsController: AbortController | null = null
 
@@ -48,6 +71,7 @@ const eventLabels: Record<string, string> = {
   account_disabled: '停用账号',
   account_restored: '恢复账号',
   permission_denied: '权限拒绝',
+  generation_limits_updated: '调整生成额度',
 }
 
 const resultLabels: Record<AdminSecurityEventView['result'], string> = {
@@ -70,10 +94,28 @@ function formatEventTime(value: string): string {
 function statusTransition(event: AdminSecurityEventView): string {
   const before = typeof event.before?.status === 'string' ? event.before.status : null
   const after = typeof event.after?.status === 'string' ? event.after.status : null
-  if (!before && !after) return '—'
-  const label = (value: string | null): string =>
-    value === 'active' ? '正常' : value === 'pending_setup' ? '待设置密码' : value === 'disabled' ? '已停用' : value ?? '—'
-  return label(before) + ' → ' + label(after)
+  if (before || after) {
+    const label = (value: string | null): string =>
+      value === 'active' ? '正常' : value === 'pending_setup' ? '待设置密码' : value === 'disabled' ? '已停用' : value ?? '—'
+    return label(before) + ' → ' + label(after)
+  }
+  const parts: string[] = []
+  const dailyBefore = event.before?.daily_limit
+  const dailyAfter = event.after?.daily_limit
+  const personalBefore = event.before?.personal_slots
+  const personalAfter = event.after?.personal_slots
+  const instanceBefore = event.before?.instance_slots
+  const instanceAfter = event.after?.instance_slots
+  if (dailyBefore !== undefined || dailyAfter !== undefined) {
+    parts.push('每日 ' + (dailyBefore ?? '默认') + ' → ' + (dailyAfter ?? '默认'))
+  }
+  if (personalBefore !== undefined || personalAfter !== undefined) {
+    parts.push('个人 ' + (personalBefore ?? '默认') + ' → ' + (personalAfter ?? '默认'))
+  }
+  if (instanceBefore !== undefined || instanceAfter !== undefined) {
+    parts.push('实例 ' + (instanceBefore ?? '默认') + ' → ' + (instanceAfter ?? '默认'))
+  }
+  return parts.join(' · ') || '—'
 }
 
 function eventDetail(event: AdminSecurityEventView): string {
@@ -81,9 +123,12 @@ function eventDetail(event: AdminSecurityEventView): string {
   const sessions = event.detail?.sessions_revoked
   const links = event.detail?.links_revoked
   const purpose = event.detail?.purpose
+  const scope = event.detail?.scope
   if (typeof sessions === 'number') parts.push('撤销会话 ' + sessions)
   if (typeof links === 'number') parts.push('撤销链接 ' + links)
   if (typeof purpose === 'string') parts.push('用途 ' + (purpose === 'reset' ? '重置密码' : '首次设置密码'))
+  if (scope === 'instance') parts.push('范围 实例')
+  if (scope === 'account') parts.push('范围 本账号')
   return parts.join(' · ')
 }
 
@@ -113,6 +158,103 @@ async function loadAccounts(): Promise<void> {
   } finally {
     loading.value = false
   }
+}
+
+
+function parseLimit(raw: string | number, label: string): number | null {
+  const value = String(raw).trim()
+  if (!value) return null
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1) throw new Error(label + '必须是正整数。')
+  return parsed
+}
+
+async function loadInstanceLimits(): Promise<void> {
+  instanceLoading.value = true
+  instanceError.value = null
+  try {
+    const response = await api.getInstanceGenerationLimits()
+    instanceLimits.value = response
+    instanceDaily.value = response.policy.daily_limit?.toString() ?? ''
+    instancePersonal.value = response.policy.personal_slots?.toString() ?? ''
+    instanceSlots.value = response.policy.instance_slots?.toString() ?? ''
+  } catch (error) {
+    instanceError.value = errorText(error, '暂时无法读取实例额度。')
+  } finally {
+    instanceLoading.value = false
+  }
+}
+
+async function saveInstanceLimits(): Promise<void> {
+  instanceSaving.value = true
+  instanceError.value = null
+  instanceMessage.value = null
+  try {
+    const response = await api.updateInstanceGenerationLimits({
+      daily_limit: parseLimit(instanceDaily.value, '每日受理次数'),
+      personal_slots: parseLimit(instancePersonal.value, '个人活跃槽位'),
+      instance_slots: parseLimit(instanceSlots.value, '实例并发槽位'),
+    })
+    instanceLimits.value = response
+    instanceMessage.value = '实例生成额度已保存，变更已写入审计。'
+    await loadSecurityEvents()
+  } catch (error) {
+    instanceError.value = error instanceof Error && !(error instanceof ApiError)
+      ? error.message
+      : errorText(error, '暂时无法保存实例额度。')
+  } finally {
+    instanceSaving.value = false
+  }
+}
+
+async function openQuota(account: AccountView): Promise<void> {
+  if (account.is_admin) return
+  quotaAccount.value = account
+  quotaDetail.value = null
+  quotaDaily.value = ''
+  quotaPersonal.value = ''
+  quotaError.value = null
+  quotaMessage.value = null
+  quotaLoading.value = true
+  try {
+    const response = await api.getAccountGenerationLimits(account.id)
+    quotaDetail.value = response
+    quotaDaily.value = response.policy.daily_limit?.toString() ?? ''
+    quotaPersonal.value = response.policy.personal_slots?.toString() ?? ''
+  } catch (error) {
+    quotaError.value = errorText(error, '暂时无法读取账号额度。')
+  } finally {
+    quotaLoading.value = false
+  }
+}
+
+async function saveQuota(): Promise<void> {
+  if (!quotaAccount.value) return
+  quotaSaving.value = true
+  quotaError.value = null
+  quotaMessage.value = null
+  try {
+    const response = await api.updateAccountGenerationLimits(quotaAccount.value.id, {
+      daily_limit: parseLimit(quotaDaily.value, '每日受理次数'),
+      personal_slots: parseLimit(quotaPersonal.value, '个人活跃槽位'),
+    })
+    quotaDetail.value = response
+    quotaMessage.value = '账号生成额度已保存，变更已写入审计。'
+    await loadSecurityEvents()
+  } catch (error) {
+    quotaError.value = error instanceof Error && !(error instanceof ApiError)
+      ? error.message
+      : errorText(error, '暂时无法保存账号额度。')
+  } finally {
+    quotaSaving.value = false
+  }
+}
+
+function closeQuota(): void {
+  quotaAccount.value = null
+  quotaDetail.value = null
+  quotaError.value = null
+  quotaMessage.value = null
 }
 
 async function createAccount(): Promise<void> {
@@ -214,6 +356,7 @@ async function setAccountStatus(account: AccountView, disabled: boolean): Promis
 onMounted(() => {
   void loadAccounts()
   void loadSecurityEvents()
+  void loadInstanceLimits()
 })
 onBeforeUnmount(() => {
   listController?.abort()
@@ -257,6 +400,38 @@ onBeforeUnmount(() => {
         <p v-if="createError" class="accounts-error" role="alert">{{ createError }}</p>
       </section>
 
+      <section class="accounts-panel" aria-labelledby="instance-limits-title">
+        <div class="accounts-section-head">
+          <div>
+            <h2 id="instance-limits-title">实例生成额度</h2>
+            <p class="accounts-note">限制所有账号共用的每日受理次数和并发槽位。留空表示继承配置默认值；管理员自己的创作任务同样受限。</p>
+          </div>
+        </div>
+        <p v-if="instanceLoading" class="accounts-note">正在读取实例额度…</p>
+        <form v-else class="accounts-create" novalidate @submit.prevent="saveInstanceLimits">
+          <label class="accounts-field">
+            <span>每日受理次数</span>
+            <input v-model="instanceDaily" type="number" min="1" step="1" :placeholder="'默认 ' + (instanceLimits?.defaults.daily_limit ?? 20)" />
+          </label>
+          <label class="accounts-field">
+            <span>个人活跃槽位</span>
+            <input v-model="instancePersonal" type="number" min="1" step="1" :placeholder="'默认 ' + (instanceLimits?.defaults.personal_slots ?? 1)" />
+          </label>
+          <label class="accounts-field">
+            <span>实例并发槽位</span>
+            <input v-model="instanceSlots" type="number" min="1" step="1" :placeholder="'默认 ' + (instanceLimits?.defaults.instance_slots ?? 2)" />
+          </label>
+          <button class="accounts-primary" type="submit" :disabled="instanceSaving">
+            {{ instanceSaving ? '正在保存…' : '保存实例额度' }}
+          </button>
+        </form>
+        <p v-if="instanceLimits" class="accounts-note">
+          当前生效：每日 {{ instanceLimits.effective.daily_limit }} 次 · 个人 {{ instanceLimits.effective.personal_slots }} · 实例 {{ instanceLimits.effective.instance_slots }} · 单项目 {{ instanceLimits.effective.project_slots }}
+        </p>
+        <p v-if="instanceMessage" class="accounts-success" role="status">{{ instanceMessage }}</p>
+        <p v-if="instanceError" class="accounts-error" role="alert">{{ instanceError }}</p>
+      </section>
+
       <section class="accounts-panel" aria-labelledby="account-list-title">
         <h2 id="account-list-title">账号列表</h2>
         <p v-if="loading" class="accounts-note">正在读取账号…</p>
@@ -290,6 +465,14 @@ onBeforeUnmount(() => {
                       @click="issueLink(account)"
                     >
                       {{ issuingId === account.id ? '正在生成…' : account.status === 'pending_setup' ? '生成设置链接' : '生成重置链接' }}
+                    </button>
+                    <button
+                      v-if="!account.is_admin"
+                      class="accounts-action"
+                      type="button"
+                      @click="openQuota(account)"
+                    >
+                      调整额度
                     </button>
                     <button
                       v-if="!account.is_admin"
@@ -354,6 +537,44 @@ onBeforeUnmount(() => {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section v-if="quotaAccount" class="accounts-panel link-panel" aria-labelledby="account-quota-title" role="dialog" aria-modal="true">
+        <div class="accounts-section-head">
+          <div>
+            <h2 id="account-quota-title">账号生成额度 · {{ quotaAccount.email }}</h2>
+            <p class="accounts-note">只调整该账号的每日受理次数和个人活跃槽位；留空表示继承实例设置。不会读取或展示该账号的项目内容。</p>
+          </div>
+          <button class="accounts-action" type="button" @click="closeQuota">关闭</button>
+        </div>
+        <p v-if="quotaLoading" class="accounts-note">正在读取账号额度…</p>
+        <form v-else class="accounts-create" novalidate @submit.prevent="saveQuota">
+          <label class="accounts-field">
+            <span>每日受理次数</span>
+            <input v-model="quotaDaily" type="number" min="1" step="1" :placeholder="quotaDetail ? '继承 ' + quotaDetail.effective.daily_limit : '继承实例设置'" />
+          </label>
+          <label class="accounts-field">
+            <span>个人活跃槽位</span>
+            <input v-model="quotaPersonal" type="number" min="1" step="1" :placeholder="quotaDetail ? '继承 ' + quotaDetail.effective.personal_slots : '继承实例设置'" />
+          </label>
+          <button class="accounts-primary" type="submit" :disabled="quotaSaving">
+            {{ quotaSaving ? '正在保存…' : '保存账号额度' }}
+          </button>
+        </form>
+        <template v-if="quotaDetail">
+          <p class="accounts-note">
+            当前生效：每日 {{ quotaDetail.effective.daily_limit }} 次 · 个人 {{ quotaDetail.effective.personal_slots }} · 已用 {{ quotaDetail.usage.used }} · 剩余 {{ quotaDetail.usage.remaining }}
+          </p>
+          <p class="accounts-note">
+            活跃：个人 {{ quotaDetail.usage.personal_active }} / {{ quotaDetail.usage.personal_limit }} · 实例 {{ quotaDetail.usage.instance_active }} / {{ quotaDetail.usage.instance_limit }}
+          </p>
+          <p v-if="quotaDetail.usage.window_started_at" class="accounts-note">
+            滚动窗口：{{ quotaDetail.usage.window_started_at }} 至 {{ quotaDetail.usage.window_expires_at }}
+          </p>
+        </template>
+        <p class="accounts-note">额度只限制受理次数和并发槽位，不承诺模型费用封顶；受限请求会在调用前被拒绝，不会排队或自动重交。</p>
+        <p v-if="quotaMessage" class="accounts-success" role="status">{{ quotaMessage }}</p>
+        <p v-if="quotaError" class="accounts-error" role="alert">{{ quotaError }}</p>
       </section>
 
       <section v-if="linkResult" class="accounts-panel link-panel" aria-labelledby="link-title" role="dialog" aria-modal="true">

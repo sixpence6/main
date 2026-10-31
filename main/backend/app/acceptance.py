@@ -4,7 +4,7 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import (
@@ -27,6 +27,7 @@ from app.auth.models import Account
 from app.config import Settings
 from app.db import read_session
 from app.errors import ApiError, conflict, validation_error
+from app.generation_quota import default_limits, effective_limits
 from app.models import Base, Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow.tables import Artifact, WorkflowRun
@@ -227,10 +228,6 @@ def intent_request_digest(
     )
 
 
-def _limit(settings: Settings, name: str) -> int:
-    return int(getattr(settings, name))
-
-
 async def _require_active_account(session: AsyncSession, account_id: str) -> Account:
     account = await session.get(Account, account_id)
     if account is None or not account.can_login:
@@ -359,7 +356,10 @@ async def accept_in_session(
     now_dt = now or utc_now()
     now_ms = _now_ms(now_dt)
     used = await _used_count(session, account_id=operator_account_id, now_ms=now_ms)
-    daily_limit = _limit(settings, "generation_daily_limit")
+    limits = await effective_limits(
+        session, settings=settings, account_id=operator_account_id
+    )
+    daily_limit = limits.daily_limit
     if used >= daily_limit:
         raise _limit_error(
             "GENERATION_LIMIT_REACHED",
@@ -367,7 +367,7 @@ async def accept_in_session(
             limit=daily_limit,
             used=used,
         )
-    personal_limit = _limit(settings, "generation_personal_slots")
+    personal_limit = limits.personal_slots
     personal_active = await _active_count(
         session, scope="personal", scope_id=operator_account_id
     )
@@ -378,7 +378,7 @@ async def accept_in_session(
             limit=personal_limit,
             used=personal_active,
         )
-    instance_limit = _limit(settings, "generation_instance_slots")
+    instance_limit = limits.instance_slots
     instance_active = await _active_count(session, scope="instance", scope_id="instance")
     if instance_active >= instance_limit:
         raise _limit_error(
@@ -387,7 +387,7 @@ async def accept_in_session(
             limit=instance_limit,
             used=instance_active,
         )
-    project_limit = _limit(settings, "generation_project_slots")
+    project_limit = limits.project_slots
     project_active = await _active_count(
         session, scope="project", scope_id=project.id
     )
@@ -504,10 +504,11 @@ async def usage_snapshot(
     *,
     settings: Settings,
     account_id: str | None,
-    project_id: str,
+    project_id: str | None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    now_ms = _now_ms(now)
+    now_dt = now or utc_now()
+    now_ms = _now_ms(now_dt)
     async with read_session(factory) as session:
         used = (
             await _used_count(session, account_id=account_id, now_ms=now_ms)
@@ -520,21 +521,30 @@ async def usage_snapshot(
             else 0
         )
         instance = await _active_count(session, scope="instance", scope_id="instance")
-        project = await _active_count(session, scope="project", scope_id=project_id)
-    daily_limit = _limit(settings, "generation_daily_limit")
-    personal_limit = _limit(settings, "generation_personal_slots")
+        project = (
+            await _active_count(session, scope="project", scope_id=project_id)
+            if project_id
+            else 0
+        )
+        limits = (
+            await effective_limits(session, settings=settings, account_id=account_id)
+            if account_id
+            else default_limits(settings)
+        )
     return {
-        "daily_limit": daily_limit,
+        "daily_limit": limits.daily_limit,
         "used": used,
-        "remaining": max(daily_limit - used, 0),
-        "window_started_at": None,
-        "window_expires_at": None,
+        "remaining": max(limits.daily_limit - used, 0),
+        "window_started_at": format_timestamp(
+            now_dt - timedelta(milliseconds=GENERATION_WINDOW_MS)
+        ),
+        "window_expires_at": format_timestamp(now_dt),
         "personal_active": personal,
-        "personal_limit": personal_limit,
+        "personal_limit": limits.personal_slots,
         "instance_active": instance,
-        "instance_limit": _limit(settings, "generation_instance_slots"),
+        "instance_limit": limits.instance_slots,
         "project_active": project,
-        "project_limit": _limit(settings, "generation_project_slots"),
+        "project_limit": limits.project_slots,
     }
 
 
