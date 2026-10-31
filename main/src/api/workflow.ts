@@ -100,7 +100,7 @@ export interface WorkflowUsage {
 export interface WorkflowIntent {
   id: string
   request_id: string
-  status: 'accepted' | 'executing' | 'delivered' | 'failed' | 'abandoned'
+  status: 'accepted' | 'executing' | 'delivered' | 'failed' | 'abandoned' | 'closed'
   artifact_digest: string
   requirement_revision: number
   created_at: string

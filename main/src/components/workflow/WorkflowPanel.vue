@@ -367,6 +367,16 @@ function actionClass(action: WorkflowAction): string {
   return action.kind === 'confirm' ? 'primary-button' : 'secondary-button'
 }
 
+function confirmationText(action: WorkflowAction): string {
+  if (action.id === 'close_generation_tracking') {
+    return '我确认结束本地跟踪；原受理计数保留，且这不代表取消远端任务'
+  }
+  if (action.id === 'start_new_generation') {
+    return '我确认这是新任务，将重新计数并占用槽位；旧任务仍可能在远端执行或计费'
+  }
+  return '我已核对当前内容并确认继续'
+}
+
 function actionLabel(action: WorkflowAction): string {
   if (action.id === 'confirm_requirements' && usage.value) {
     return '确认以上需求并生成图片'
@@ -429,6 +439,12 @@ watch(generationIntent, (intent) => {
 })
 
 function actionPayload(action: WorkflowAction): Record<string, unknown> {
+  if (action.id === 'close_generation_tracking') {
+    return { acknowledge_local_close: true }
+  }
+  if (action.id === 'start_new_generation') {
+    return { acknowledge_risk: true }
+  }
   if (action.id === 'confirm_requirements' && finalBrief.value && view.value) {
     const payload: Record<string, unknown> = {
       artifact_id: finalBrief.value.id,
@@ -631,7 +647,7 @@ watch(
         </select>
         <label v-if="action.requires_confirmation" class="workflow-confirm">
           <input v-model="actionConfirmed[action.id]" type="checkbox" :disabled="loading || actionBusy" />
-          我已核对当前内容并确认继续
+          {{ confirmationText(action) }}
         </label>
         <button
           type="button"

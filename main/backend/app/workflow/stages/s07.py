@@ -85,9 +85,17 @@ async def _require_intent(ctx: WorkflowContext, artifact: Any) -> Any:
         raise _drift_error()
     if intent.requirement_revision != ctx.run.requirement_revision:
         raise _drift_error()
-    if intent.status not in {"accepted", "executing"}:
-        raise _confirmed_error()
-    return intent
+    if intent.status in {"accepted", "executing"}:
+        return intent
+    if (
+        intent.status == "closed"
+        and ctx.run.status == "blocked"
+        and ctx.run.issue_code == "LOCAL_TRACKING_CLOSED"
+    ):
+        # A risk-confirmed new task is a fresh authorization; the previous
+        # closed intent remains evidence for the original task only.
+        return intent
+    raise _confirmed_error()
 
 
 async def _require_confirmed(ctx: WorkflowContext) -> tuple[Any, dict[str, Any]]:

@@ -10,7 +10,15 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.acceptance import GenerationIntent, latest_intent, terminate_intent
+from app.acceptance import (
+    GenerationIntent,
+    accept_in_session,
+    close_intent_tracking,
+    intent_for_request,
+    intent_request_digest,
+    latest_intent,
+    terminate_intent,
+)
 from app.auth.audit import write_audit
 from app.auth.tokens import token_digest
 from app.db import read_session, write_transaction
@@ -22,7 +30,7 @@ from app.generation_guard import (
     job_authorization_ref,
 )
 from app.generation_recovery import recover_remote, resume_interrupted
-from app.models import Asset, Generation
+from app.models import Asset, Generation, Project
 from app.presenters import brief_from_project, dumps_json, snapshot_json
 from app.services.assets import resolve_asset_file
 from app.services.config_status import build_config_status
@@ -41,10 +49,16 @@ from app.workflow.stages.s07 import (
     _require_confirmed,
 )
 from app.workflow.state import WorkflowContext
-from app.workflow.tables import DiagnosticEvent, GenerationJob
+from app.workflow.tables import Artifact, DiagnosticEvent, GenerationJob, WorkflowRun
 
 STAGE = "S08"
-ACTIONS = ["submit_generation", "verify_generation", "recover_generation"]
+ACTIONS = [
+    "submit_generation",
+    "verify_generation",
+    "recover_generation",
+    "close_generation_tracking",
+    "start_new_generation",
+]
 logger = logging.getLogger(__name__)
 
 _ACTIVE_JOB_STATUSES = (
@@ -60,6 +74,8 @@ _RECOVERY_BLOCK_CODES = _RECOVERABLE_BLOCK_CODES | {
     "RESULT_RETRIEVAL_PENDING",
     "GENERATION_FAILED",
 }
+_UNCERTAIN_BLOCK_CODES = {"GENERATION_UNKNOWN", "RESULT_RETRIEVAL_PENDING"}
+_CLOSED_ISSUE = "LOCAL_TRACKING_CLOSED"
 
 
 def _replayable(ctx: WorkflowContext) -> bool:
@@ -81,10 +97,14 @@ def available(ctx: WorkflowContext) -> list[str]:
     if ctx.run.status != "blocked":
         return []
     issue = ctx.run.issue_code
+    if issue in _UNCERTAIN_BLOCK_CODES:
+        return ["verify_generation", "recover_generation", "close_generation_tracking"]
     if issue in _RECOVERABLE_BLOCK_CODES or issue == "RESULT_RETRIEVAL_PENDING":
         return ["verify_generation", "recover_generation"]
     if issue == "GENERATION_FAILED":
         return ["verify_generation"]
+    if issue == _CLOSED_ISSUE:
+        return ["start_new_generation"]
     return []
 
 
@@ -642,6 +662,187 @@ async def _set_recovery_issue(app, job_id: str, issue: str, message: str | None 
     )
 
 
+def _uncertain_block(ctx: WorkflowContext) -> bool:
+    return (
+        ctx.run is not None
+        and ctx.run.status == "blocked"
+        and ctx.run.issue_code in _UNCERTAIN_BLOCK_CODES
+    )
+
+
+async def _close_tracking(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
+    if not _uncertain_block(ctx):
+        raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    if payload.get("acknowledge_local_close") is not True:
+        raise conflict(
+            "LOCAL_CLOSE_ACK_REQUIRED",
+            "结束本地跟踪会保留原受理计数且不代表取消远端任务，请明确确认后再操作。",
+        )
+    if ctx.principal is None:
+        raise ApiError(401, "AUTH_REQUIRED", "请先登录。")
+    job = await _latest_job(ctx.app, ctx.run_id)
+    if job is None or job.intent_id is None:
+        raise conflict("RECOVERY_NOT_AVAILABLE", "没有可结案的本地生成任务。")
+    async with read_session(ctx.session_factory) as session:
+        intent = await session.get(GenerationIntent, job.intent_id)
+    if intent is None:
+        raise conflict("RECOVERY_NOT_AVAILABLE", "没有可结案的生成授权。")
+    if intent.status not in {"accepted", "executing"}:
+        raise conflict("INTENT_STATE_INVALID", "生成授权已结束，不能重复结案。")
+    changed = await close_intent_tracking(
+        ctx.session_factory,
+        intent_id=intent.id,
+        operator_account_id=ctx.principal.account_id,
+        reason="local_tracking_closed",
+    )
+    if not changed:
+        raise conflict("INTENT_STATE_INVALID", "生成授权已结束，不能重复结案。")
+    await _set_recovery_issue(
+        ctx.app,
+        job.id,
+        _CLOSED_ISSUE,
+        templates.render(_CLOSED_ISSUE),
+    )
+
+
+async def _start_new_generation(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
+    if (
+        ctx.run is None
+        or ctx.run.status != "blocked"
+        or ctx.run.issue_code != _CLOSED_ISSUE
+    ):
+        raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    if payload.get("acknowledge_risk") is not True:
+        raise conflict(
+            "RISK_ACK_REQUIRED",
+            "新任务会新计一次并重新占用全部槽位，且旧任务仍可能在远端执行或计费，请明确确认。",
+        )
+    if ctx.principal is None:
+        raise ApiError(401, "AUTH_REQUIRED", "请先登录。")
+    job = await _latest_job(ctx.app, ctx.run_id)
+    if job is None or job.generation_id is None or job.intent_id is None:
+        raise conflict("RISK_ACK_REQUIRED", "请从当前任务发起新的风险确认。")
+    requested_previous = payload.get("previous_generation_id")
+    if requested_previous not in (None, "") and requested_previous != job.generation_id:
+        raise conflict("RISK_ACK_REQUIRED", "请从当前任务发起新的风险确认。")
+    previous_id = job.generation_id
+    previous = await _generation_by_id(ctx, previous_id)
+    if (
+        previous is None
+        or previous.project_id != ctx.project_id
+        or previous.status != "unknown"
+    ):
+        raise conflict("RISK_ACK_REQUIRED", "当前任务不是可风险确认的未知任务。")
+    async with read_session(ctx.session_factory) as session:
+        previous_intent = await session.get(GenerationIntent, job.intent_id)
+    if previous_intent is None or previous_intent.status != "closed":
+        raise conflict("INTENT_STATE_INVALID", "请先结束本地跟踪，再发起新任务。")
+
+    final_artifact, brief = await _require_confirmed(ctx)
+    prompt_artifact, prompt_payload = await _load_prompt(ctx, brief)
+    if prompt_payload["size"] != brief["size"]:
+        raise conflict("PROMPT_STALE", "执行提示词与当前确认尺寸不一致。")
+    reference_usage = brief.get("reference_usage") or "none"
+    image_size = brief["size"]
+    request_id = str(
+        uuid5(
+            NAMESPACE_URL,
+            "v3-generation-risk:"
+            f"{previous.id}:{prompt_artifact.id}:{final_artifact.digest}",
+        )
+    )
+    expected_digest = intent_request_digest(
+        project_id=ctx.project_id,
+        run_id=ctx.run_id,
+        owner_account_id=ctx.project.owner_account_id or "",
+        operator_account_id=ctx.principal.account_id,
+        request_id=request_id,
+        requirement_revision=ctx.run.requirement_revision,
+        artifact_id=final_artifact.id,
+        artifact_digest=final_artifact.digest,
+        reference_asset_id=ctx.project.reference_asset_id,
+        reference_usage=reference_usage,
+        image_size=image_size,
+    )
+    existing_intent = None
+    async with read_session(ctx.session_factory) as session:
+        existing_intent = await intent_for_request(
+            session, project_id=ctx.project_id, request_id=request_id
+        )
+    if existing_intent is not None:
+        if existing_intent.request_digest != expected_digest:
+            raise conflict(
+                "INTENT_REPLAY_CONFLICT",
+                "同一请求标识已绑定不同的生成参数，请刷新后重新确认。",
+            )
+        if existing_intent.status not in {"accepted", "executing"}:
+            raise conflict("INTENT_STATE_INVALID", "新任务授权已结束。")
+        intent = existing_intent
+    else:
+        async with write_transaction(ctx.session_factory) as session:
+            project = await session.get(Project, ctx.project_id)
+            run = await session.get(WorkflowRun, ctx.run_id)
+            artifact = await session.get(Artifact, final_artifact.id)
+            if project is None or run is None or artifact is None:
+                raise conflict("REQUIREMENTS_CHANGED", "当前需求已变化，请刷新后重新确认。")
+            if (
+                project.revision != ctx.project.revision
+                or run.requirement_revision != ctx.run.requirement_revision
+                or artifact.digest != final_artifact.digest
+                or artifact.status != "approved"
+                or project.owner_account_id is None
+                or project.owner_account_id != ctx.principal.account_id
+            ):
+                raise conflict("REQUIREMENTS_CHANGED", "当前需求已变化，请刷新后重新确认。")
+            result = await accept_in_session(
+                session,
+                settings=ctx.settings,
+                project=project,
+                run=run,
+                operator_account_id=ctx.principal.account_id,
+                artifact=artifact,
+                requirement_revision=run.requirement_revision,
+                reference_usage=reference_usage,
+                image_size=image_size,
+                request_id=request_id,
+                approval_id=previous_intent.approval_id,
+                now=ctx.app.state.clock.now(),
+            )
+            intent = result.intent
+
+    existing_job = await _job_by_request_id(ctx, request_id)
+    if existing_job is not None:
+        return
+    input_digest = _input_digest(brief, prompt_payload)
+    try:
+        new_job, generation = await _create_job(
+            ctx,
+            prompt_artifact=prompt_artifact,
+            payload=prompt_payload,
+            brief=brief,
+            request_id=request_id,
+            input_digest=input_digest,
+            snapshot_digest=final_artifact.digest,
+            attempt=2,
+            previous=previous,
+            intent=intent,
+        )
+    except IntegrityError:
+        existing_job = await _job_by_request_id(ctx, request_id)
+        if existing_job is not None:
+            return
+        raise
+    await state.set_stage(ctx, STAGE, "active")
+    _schedule(
+        ctx.app,
+        new_job.id,
+        generation.id,
+        prompt_artifact.id,
+        prompt_artifact.digest,
+        final_artifact.digest,
+    )
+
+
 async def _verify(ctx: WorkflowContext) -> None:
     if (
         ctx.run is None
@@ -951,6 +1152,14 @@ async def _submit(ctx: WorkflowContext, action_payload: dict[str, Any]) -> None:
             # Any repeated click for an already-submitted request must replay
             # the original task and must not call the provider again.
             return
+        if intent is not None:
+            # A v3 intent-backed task may not be resubmitted under the same
+            # authorization. The user must close local tracking and then
+            # explicitly accept the risk of a separately counted new task.
+            raise conflict(
+                "LOCAL_CLOSURE_REQUIRED",
+                templates.render("LOCAL_CLOSURE_REQUIRED"),
+            )
         ack_value = action_payload.get("acknowledge_unknown")
         if ack_value is None:
             # The original idempotent request remains a safe no-op while the
@@ -1050,6 +1259,12 @@ async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> 
         return
     if action == "recover_generation":
         await _recover(ctx)
+        return
+    if action == "close_generation_tracking":
+        await _close_tracking(ctx, payload or {})
+        return
+    if action == "start_new_generation":
+        await _start_new_generation(ctx, payload or {})
         return
     if action != "submit_generation":
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))

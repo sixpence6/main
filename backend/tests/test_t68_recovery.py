@@ -132,6 +132,7 @@ async def test_unknown_verify_is_read_only_and_recover_polls_original(full_setti
         assert {item["id"] for item in view["available_actions"]} == {
             "verify_generation",
             "recover_generation",
+            "close_generation_tracking",
         }
         assert visual.poll_calls == ["remote-68"]
         calls_before = (len(llm.role_calls_received), len(visual.submit_calls))
@@ -250,6 +251,10 @@ async def test_process_interrupted_resume_reuses_intent_without_new_count(
         ).json()
         assert view["status"] == "blocked"
         assert view["issue"]["code"] == "PROCESS_INTERRUPTED"
+        assert {item["id"] for item in view["available_actions"]} == {
+            "verify_generation",
+            "recover_generation",
+        }
         assert visual.submit_calls == []
         intents, usages, slots = await _rows(app, setup["project_id"])
         assert len(intents) == 1 and len(usages) == 1

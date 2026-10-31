@@ -44,6 +44,8 @@ _ACTIONS: dict[str, dict[str, Any]] = {
     "verify_generation": {"label": "核实原任务", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "recover_generation": {"label": "找回原结果", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "submit_generation": {"label": "提交生成", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
+    "close_generation_tracking": {"label": "结束本地跟踪", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
+    "start_new_generation": {"label": "确认风险并生成新任务", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
     "review_candidate": {"label": "审查候选图", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "prepare_delivery": {"label": "准备交付", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "approve_delivery": {"label": "批准交付", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
