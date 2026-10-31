@@ -23,6 +23,7 @@ from app.workflow import state
 from app.workflow.tables import DiagnosticEvent, GenerationJob
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
 from tests.support.apps import migrate
+from tests.support.auth import authenticated_client
 
 IMAGE_SIZE = "1024x1024"
 
@@ -135,8 +136,7 @@ async def environment(settings: Settings, visual: VisualStub):
         registry=build_test_registry(llm=LLMStub(), visual=visual),
     )
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             yield application, client
 
 

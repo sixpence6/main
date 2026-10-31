@@ -21,6 +21,7 @@ from tests.test_v2_t01_legacy import (
     _upgrade,
 )
 from tests.test_v2_t49_legacy_review import Script
+from tests.support.auth import authenticated_client
 
 
 def _seed_failed_generation(
@@ -81,8 +82,7 @@ async def _client(settings, registry):
     migrate(settings)
     app = create_app(settings=settings, registry=registry)
     async with app.router.lifespan_context(app):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(app) as client:
             yield client, app
 
 

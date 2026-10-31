@@ -20,6 +20,7 @@ from app.workflow.tables import (
 )
 from tests.conftest import migrate
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
+from tests.support.auth import authenticated_client
 
 
 def brief_data(**overrides: Any) -> dict[str, Any]:
@@ -211,8 +212,7 @@ async def _environment(settings: Any, script: Script):
     migrate(settings)
     application = create_app(settings=settings, registry=registry)
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             yield application, client, llm, visual
 
 
@@ -420,8 +420,7 @@ async def test_final_card_survives_restart_and_reads_from_public_detail(full_set
     # Restart a real application against the same temporary SQLite and files.
     application = create_app(settings=full_settings, registry=build_test_registry())
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             view = await _view(client, project["id"])
     assert view["stage"] == "S06"
     restored = _artifact(view, "final_brief")

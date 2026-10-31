@@ -12,6 +12,10 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.adapters.registry import AdapterRegistry, build_default_registry
+from app.auth.clock import Clock
+from app.auth.middleware import AuthMiddleware
+from app.auth.passwords import HashGate
+from app.auth.router import router as auth_router
 from app.config import Settings
 from app.db import ProjectLocks, build_session_factory, create_engine
 from app.errors import ApiError, StartupError
@@ -112,10 +116,12 @@ def create_app(
     )
     app.state.settings = resolved
     app.state.registry = registry or build_default_registry()
+    app.state.clock = Clock()
+    app.state.hash_gate = HashGate()
 
     @app.exception_handler(ApiError)
     async def _api_error(_request: Request, exc: ApiError) -> JSONResponse:
-        return JSONResponse(exc.as_body(), status_code=exc.status_code)
+        return JSONResponse(exc.as_body(), status_code=exc.status_code, headers=exc.headers)
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -152,6 +158,7 @@ def create_app(
         )
 
     app.include_router(health.router)
+    app.include_router(auth_router)
     app.include_router(config_status.router)
     app.include_router(projects.router)
     app.include_router(messages.router)
@@ -169,6 +176,7 @@ def create_app(
         raise ApiError(404, "ROUTE_NOT_FOUND", "接口不存在")
 
     web.register_web_routes(app, resolved)
+    app.add_middleware(AuthMiddleware, settings=resolved)
     return app
 
 

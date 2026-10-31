@@ -10,6 +10,7 @@ from app.db import write_transaction
 from app.main import create_app
 from app.models import Project
 from tests.conftest import migrate
+from tests.support.auth import authenticated_client
 
 
 async def create_project(client: AsyncClient) -> dict:
@@ -144,16 +145,12 @@ async def test_project_survives_process_restart(settings, registry):
     migrate(settings)
     first_app = create_app(settings=settings, registry=registry)
     async with first_app.router.lifespan_context(first_app):
-        async with AsyncClient(
-            transport=ASGITransport(app=first_app), base_url="http://testserver"
-        ) as first_client:
+        async with authenticated_client(first_app) as first_client:
             project = await create_project(first_client)
 
     second_app = create_app(settings=settings, registry=registry)
     async with second_app.router.lifespan_context(second_app):
-        async with AsyncClient(
-            transport=ASGITransport(app=second_app), base_url="http://testserver"
-        ) as second_client:
+        async with authenticated_client(second_app) as second_client:
             response = await second_client.get(f"/api/projects/{project['id']}")
             assert response.status_code == 200
             assert response.json()["project"]["id"] == project["id"]

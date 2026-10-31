@@ -13,6 +13,7 @@ dependencies = [
     "httpx>=0.27",
     "pillow>=11.0",
     "python-multipart>=0.0.9",
+    "argon2-cffi>=23.1,<26",
 ]
 
 [dependency-groups]

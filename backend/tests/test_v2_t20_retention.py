@@ -38,6 +38,8 @@ from app.workflow.tables import (
 )
 from tests.conftest import BACKEND_DIR, MAIN_BACKEND_DIR, migrate
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
+from tests.support.auth import authenticated_client
+from tests.support.process_auth import process_auth_env, process_session
 
 
 def _png(color: tuple[int, int, int]) -> bytes:
@@ -59,8 +61,7 @@ async def _live_app(settings: Settings, registry):
     migrate(settings)
     application = create_app(settings=settings, registry=registry)
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             yield application, client
 
 
@@ -855,16 +856,7 @@ async def test_cleanup_never_calls_models_retrieval_or_generation(full_settings)
 
 
 def _t20_process_request(port: int, method: str, path: str, payload: Any = None) -> tuple[int, Any]:
-    data = json.dumps(payload).encode("utf-8") if payload is not None else None
-    headers = {"Content-Type": "application/json"} if data is not None else {}
-    request = urllib.request.Request(
-        f"http://127.0.0.1:{port}{path}", data=data, headers=headers, method=method
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=15) as response:
-            return response.status, json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        return error.code, json.loads(error.read().decode("utf-8"))
+    return process_session(port).request(method, path, payload)
 
 
 def _start_t20_server(settings: Settings, port: int, call_log: Path) -> subprocess.Popen[str]:
@@ -892,6 +884,7 @@ def _start_t20_server(settings: Settings, port: int, call_log: Path) -> subproce
         VISUAL_TIMEOUT_SECONDS="5",
         T20_CALL_LOG=str(call_log),
     )
+    env.update(process_auth_env(settings, port))
     return subprocess.Popen(
         [
             sys.executable,

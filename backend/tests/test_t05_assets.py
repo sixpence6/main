@@ -16,6 +16,7 @@ from app.models import Asset
 from app.timeutil import format_timestamp, utc_now
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
 from tests.support.apps import migrate
+from tests.support.auth import authenticated_client
 
 
 def png_bytes(width: int = 16, height: int = 12, color=(220, 30, 30)) -> bytes:
@@ -50,8 +51,7 @@ async def environment(settings: Settings, visual: VisualStub | None = None):
     migrate(settings)
     application = create_app(settings=settings, registry=registry)
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             yield client, registry, llm, visual, application
 
 

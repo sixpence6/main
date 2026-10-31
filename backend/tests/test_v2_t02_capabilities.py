@@ -16,6 +16,7 @@ from app.main import create_app
 from app.workflow import state
 from app.workflow.roles import run_role
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
+from tests.support.auth import authenticated_client
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
@@ -34,8 +35,7 @@ async def _client_for(settings: Settings, registry=None):
     _migrate(settings)
     application = create_app(settings=settings, registry=registry or build_test_registry())
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             yield application, client
 
 

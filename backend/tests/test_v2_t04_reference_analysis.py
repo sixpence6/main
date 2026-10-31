@@ -22,6 +22,7 @@ from app.workflow.stages import s02
 from app.workflow.tables import Artifact, GenerationJob, RoleCall
 from tests.conftest import migrate
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
+from tests.support.auth import authenticated_client
 
 RULES = s02.REQUIRED_REVIEW_RULES
 
@@ -201,8 +202,7 @@ async def environment(
     migrate(settings)
     application = create_app(settings=settings, registry=registry)
     async with application.router.lifespan_context(application):
-        transport = ASGITransport(app=application)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        async with authenticated_client(application) as client:
             yield application, client, stub, visual
 
 

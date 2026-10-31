@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-EXPECTED_OPERATIONS = 16
+EXPECTED_OPERATIONS = 20
+EXPECTED_AUTH_OPERATIONS = {
+    ("GET", "/api/auth/csrf"),
+    ("GET", "/api/auth/session"),
+    ("POST", "/api/auth/login"),
+    ("POST", "/api/auth/logout"),
+}
 
 
 def _operations(spec: dict[str, Any]) -> set[tuple[str, str]]:
@@ -29,6 +35,7 @@ async def test_openapi_documents_every_public_operation(client):
     operations = _operations(spec)
     assert len(operations) == EXPECTED_OPERATIONS
     assert ("GET", "/api/health") in operations
+    assert EXPECTED_AUTH_OPERATIONS <= operations
     assert ("GET", "/api/assets/{asset_id}") in operations
     operation_ids = [
         node[method]["operationId"]
