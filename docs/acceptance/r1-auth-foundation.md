@@ -113,7 +113,7 @@ python -m app.auth.cli init-admin
 D:\Desktop\新建文件夹\backend\.venv\Scripts\pytest.exe -q --disable-warnings tests/test_t55_auth_foundation.py
 ```
 
-结果：**31 passed，14.21s，exit 0**。覆盖首管理员并发／重入／无默认密码、密码 Unicode／空格／边界／弱口令、登录泛化失败与非枚举、Cookie／轮换／伪造、空闲／绝对／轮询不续期、CSRF／Host／Origin／no-store、限流维度与半开窗口、16 KiB 上限、哈希队列 2+8、默认拒绝矩阵（含匿名不安全业务请求先 401）、审计回滚、Argon2 不可用 fail-closed。
+结果：**31 passed，16.35s，exit 0**。覆盖首管理员并发／重入／无默认密码、密码 Unicode／空格／边界／弱口令、登录泛化失败与非枚举、Cookie／轮换／伪造、空闲／绝对／轮询不续期、CSRF／Host／Origin／no-store、限流维度与半开窗口、16 KiB 上限、哈希队列 2+8、默认拒绝矩阵（含匿名不安全业务请求先 401）、审计回滚、Argon2 不可用 fail-closed。
 
 ### 4.2 后端全量回归
 
@@ -132,10 +132,10 @@ D:\Desktop\新建文件夹\backend\.venv\Scripts\pytest.exe -q --disable-warning
 ........................................................................ [ 75%]
 ........................................................................ [ 90%]
 ............................................                             [100%]
-476 passed, 2 warnings in 500.44s (0:08:20)
+476 passed, 2 warnings in 440.54s (0:07:20)
 ```
 
-`--collect-only` 同样报告 **476 tests collected**。R1 首提交前基线为 **426 passed**；本票新增定向认证测试 31 个，另有本票对既有测试夹具的认证改造。
+`--collect-only` 同样报告 **476 tests collected**。R1 首提交前基线为 **426 passed**；本票新增定向认证测试 31 个，另有本票对既有测试夹具的认证改造；两者与 C0 维护测试 19 个合计 476。
 
 > 说明：完整套件包含真实 uvicorn 子进程测试；这些测试使用临时 SQLite、显式回环 Host／Origin、真实 CSRF／登录和 cookie jar，未绕过认证。
 
