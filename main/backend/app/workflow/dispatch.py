@@ -37,7 +37,7 @@ _ACTIONS: dict[str, dict[str, Any]] = {
     "plan_visual": {"label": "制定视觉方案", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "revise_visual": {"label": "修改视觉方案", "kind": "text", "requires_text": True, "text_label": "说明视觉调整", "requires_confirmation": False},
     "finalize_requirements": {"label": "生成最终需求卡", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
-    "confirm_requirements": {"label": "确认需求卡", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": False},
+    "confirm_requirements": {"label": "确认需求卡", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
     "revise_requirements": {"label": "修改需求", "kind": "text", "requires_text": True, "text_label": "说明需要修改的需求内容", "requires_confirmation": False},
     "compile_prompt": {"label": "编制生图提示词", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "revise_prompt": {"label": "修改提示词", "kind": "text", "requires_text": True, "text_label": "说明提示词调整", "requires_confirmation": False},

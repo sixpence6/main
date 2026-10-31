@@ -148,7 +148,8 @@ describe('T72 跨标签、历史返回与账号绑定恢复', () => {
     otherTab.postMessage({ type: 'session-invalidated', nonce: 'signal-1' })
 
     expect(await screen.findByText('从一个商品想法开始')).toBeVisible()
-    await waitFor(() => expect(harness!.router.currentRoute.value.name).toBe('describe'))
+    await waitFor(() => expect(harness!.router.currentRoute.value.fullPath).toBe('/'))
+    expect(harness!.router.currentRoute.value.name).toBe('describe')
     expect(harness!.router.currentRoute.value.query.project).toBeUndefined()
     expect(screen.queryByRole('heading', { name: '项目甲' })).not.toBeInTheDocument()
     expect(currentAccount.value?.id).toBe(ACCOUNT_B.id)
@@ -234,7 +235,7 @@ describe('T72 跨标签、历史返回与账号绑定恢复', () => {
     sessionEstablished.value = true
     harness = await mountWorkspace({
       config: emptyConfig(),
-      url: '/?project=' + PROJECT_A,
+      url: '/generate?project=' + PROJECT_A,
       sessionState: {
         [accountKey]: JSON.stringify({
           accountId: ACCOUNT_A.id,

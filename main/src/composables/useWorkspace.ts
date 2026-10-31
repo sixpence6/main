@@ -983,8 +983,10 @@ function createWorkspace(): WorkspaceStore {
     projectContextToken += 1
     resetGenerationState()
     resetMessageConflict()
-    const preferredStage = stage.value
-    stage.value = 'describe'
+    // Resolve an explicit legacy route from the URL too. Resetting the stage
+    // ref synchronously would fire the stage watcher and replace /confirm,
+    // /generate or /results with / before the project finishes loading.
+    const preferredStage = stageIdFromRouteName(route.name) ?? stage.value
     projectLoading.value = true
     projectError.value = ''
     projectErrorKind.value = null
@@ -1060,41 +1062,15 @@ function createWorkspace(): WorkspaceStore {
       stage.value = 'describe'
       return
     }
+    // The v3 workbench keeps U1 and U2 in place on the describe route. Legacy
+    // pages remain reachable only through their explicit route until the R3
+    // gate removes them; opening a project must never force an extra page.
     if (preferredStage && preferredStage !== 'describe') {
       const preferred = stages.value.find((item) => item.id === preferredStage)
       if (preferred && !preferred.locked) {
         stage.value = preferredStage
         return
       }
-    }
-    if (project.brief_status === 'organizing' || organizing.value) {
-      stage.value = 'describe'
-      return
-    }
-    if (generationUncertain.value) {
-      stage.value = 'generate'
-      return
-    }
-    if (activeGeneration.value) {
-      stage.value = 'results'
-      return
-    }
-    const latest = latestGenerationView.value
-    if (latest?.status === 'failed' || latest?.status === 'unknown') {
-      stage.value = 'describe'
-      return
-    }
-    if (latestSucceededGeneration.value) {
-      stage.value = 'results'
-      return
-    }
-    if (project.brief_status === 'review') {
-      stage.value = 'confirm'
-      return
-    }
-    if (project.brief_status === 'confirmed') {
-      stage.value = 'generate'
-      return
     }
     stage.value = 'describe'
   }

@@ -2645,3 +2645,123 @@ body,
   border-radius: var(--radius-control);
   background: var(--color-page);
 }
+
+/* T22 U2 原位授权与执行状态 */
+.workflow-execution {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-page);
+}
+
+.workflow-execution header,
+.workflow-execution header p,
+.workflow-execution header h4 {
+  margin: 0;
+}
+
+.workflow-execution header {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.workflow-execution header h4 {
+  font-size: var(--text-section);
+  line-height: var(--text-section-line);
+}
+
+.workflow-execution-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.execution-step {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.execution-step-current {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+.execution-step-unknown,
+.execution-step-failed {
+  border-color: var(--color-danger, #b42318);
+}
+
+.workflow-execution-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.execution-step p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.workflow-execution-prompt {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.workflow-execution-prompt summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.workflow-execution-prompt p {
+  margin: var(--space-2) 0 0;
+}
+
+.workflow-execution-prompt ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  overflow-wrap: anywhere;
+}
+
+.workflow-recovery-note {
+  margin: 0 0 var(--space-2);
+}
+
+.workflow-recovery-action {
+  padding: var(--space-2);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.workflow-action-help,
+.workflow-action-reason {
+  margin: var(--space-1) 0 0;
+  font-size: 13px;
+  line-height: 19px;
+}
+
+@media (max-width: 1023px) {
+  .workflow-execution-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .workflow-execution-steps {
+    grid-template-columns: 1fr;
+  }
+}

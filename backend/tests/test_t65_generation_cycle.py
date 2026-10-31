@@ -336,6 +336,11 @@ async def test_one_confirmation_creates_intent_usage_slots_and_full_cycle(
     request_id = str(uuid.uuid4())
     async with _environment(full_settings, llm, visual) as (app, client):
         setup = await _setup_s06(app, client)
+        view = (await client.get(f"/api/projects/{setup['project_id']}/workflow")).json()
+        confirm_action = next(
+            item for item in view["available_actions"] if item["id"] == "confirm_requirements"
+        )
+        assert confirm_action["requires_confirmation"] is True
         response = await client.post(
             f"/api/projects/{setup['project_id']}/workflow/actions/confirm_requirements",
             json={

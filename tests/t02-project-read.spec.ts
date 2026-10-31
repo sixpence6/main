@@ -229,9 +229,11 @@ describe('T02 只读恢复项目详情', () => {
     await harness.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 
     expect(window.location.search).toBe(`?project=${PROJECT_A}`)
+    expect(await screen.findByRole('heading', { name: '春季托特包主图' })).toBeVisible()
+    const nav = screen.getByRole('navigation', { name: '工作阶段' })
+    await harness.user.click(within(nav).getByRole('button', { name: '查看结果' }))
     expect(await screen.findByRole('heading', { name: '查看结果' })).toBeVisible()
     expect(screen.getByRole('img', { name: '生成结果图' })).toBeVisible()
-    const nav = screen.getByRole('navigation', { name: '工作阶段' })
     await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
     expect(await screen.findByRole('heading', { name: '春季托特包主图' })).toBeVisible()
     expect(harness.fetch.last('GET', detailPath)?.path).toBe(`/api/projects/${PROJECT_A}`)

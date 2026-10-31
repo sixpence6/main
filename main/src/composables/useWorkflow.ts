@@ -10,6 +10,29 @@ import {
 
 export type WorkflowProjectId = Ref<string | null | undefined> | ComputedRef<string | null | undefined>
 
+const POLL_INTERVAL_MS = 2500
+
+function canObserveBackground(next: WorkflowView | null): boolean {
+  if (!next || !next.run_id || next.status !== 'active') return false
+  if (!next.stage || !['S07', 'S08', 'S09', 'S10'].includes(next.stage)) return false
+  if (next.delivery) return false
+  if (next.available_actions.some((action) => (
+    action.id === 'approve_delivery' || action.id === 'publish_delivery'
+  ))) return false
+  if (next.intent && next.intent.status !== 'accepted' && next.intent.status !== 'executing') {
+    return false
+  }
+  return true
+}
+
+function pageVisible(): boolean {
+  return typeof document === 'undefined' || document.visibilityState === 'visible'
+}
+
+function browserOnline(): boolean {
+  return typeof navigator === 'undefined' || navigator.onLine !== false
+}
+
 export function useWorkflow(projectId: WorkflowProjectId) {
   const view = ref<WorkflowView | null>(null)
   const loading = ref(false)
@@ -19,8 +42,50 @@ export function useWorkflow(projectId: WorkflowProjectId) {
   let controller: AbortController | null = null
   let loadSequence = 0
   let actionSequence = 0
+  let pollTimer: ReturnType<typeof setTimeout> | null = null
+  let disposed = false
 
-  async function load(): Promise<void> {
+  function clearPoll(): void {
+    if (pollTimer !== null) {
+      clearTimeout(pollTimer)
+      pollTimer = null
+    }
+  }
+
+  function armPoll(): void {
+    clearPoll()
+    if (disposed || actionBusy.value || !pageVisible() || !browserOnline()) return
+    if (!canObserveBackground(view.value)) return
+    pollTimer = setTimeout(() => {
+      pollTimer = null
+      void poll()
+    }, POLL_INTERVAL_MS)
+  }
+
+  async function poll(): Promise<void> {
+    if (disposed || actionBusy.value || !pageVisible() || !browserOnline()) return
+    if (!canObserveBackground(view.value)) return
+    await load(true)
+  }
+
+  function handleVisibilityChange(): void {
+    if (!pageVisible()) {
+      clearPoll()
+      return
+    }
+    armPoll()
+  }
+
+  function handleOnline(): void {
+    armPoll()
+  }
+
+  function handleOffline(): void {
+    clearPoll()
+  }
+
+  async function load(silent = false): Promise<void> {
+    clearPoll()
     const id = projectId.value
     const sessionAtStart = sessionRevision.value
     const sequence = ++loadSequence
@@ -34,9 +99,11 @@ export function useWorkflow(projectId: WorkflowProjectId) {
     }
     const currentController = new AbortController()
     controller = currentController
-    loading.value = true
-    error.value = ''
-    errorCode.value = ''
+    if (!silent) {
+      loading.value = true
+      error.value = ''
+      errorCode.value = ''
+    }
     try {
       const next = await getWorkflow(id, currentController.signal)
       if (
@@ -52,10 +119,14 @@ export function useWorkflow(projectId: WorkflowProjectId) {
         projectId.value !== id
       ) return
       if (caught instanceof DOMException && caught.name === 'AbortError') return
+      if (silent && view.value) return
       error.value = caught instanceof ApiError ? caught.message : '流程状态读取失败，请稍后重试。'
       errorCode.value = caught instanceof ApiError ? caught.code : ''
     } finally {
-      if (sequence === loadSequence) loading.value = false
+      if (sequence === loadSequence) {
+        if (!silent) loading.value = false
+        armPoll()
+      }
     }
   }
 
@@ -100,16 +171,47 @@ export function useWorkflow(projectId: WorkflowProjectId) {
       }
       return false
     } finally {
-      if (sequence === actionSequence) actionBusy.value = false
+      if (sequence === actionSequence) {
+        actionBusy.value = false
+        armPoll()
+      }
     }
   }
 
   watch(projectId, () => {
     actionSequence += 1
     actionBusy.value = false
+    clearPoll()
     void load()
   }, { immediate: true })
-  onBeforeUnmount(() => controller?.abort())
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+  }
+  onBeforeUnmount(() => {
+    disposed = true
+    clearPoll()
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+    controller?.abort()
+  })
 
-  return { view, loading, error, errorCode, actionBusy, load, refresh: load, runAction }
+  return {
+    view,
+    loading,
+    error,
+    errorCode,
+    actionBusy,
+    load,
+    refresh: () => load(),
+    runAction,
+  }
 }
