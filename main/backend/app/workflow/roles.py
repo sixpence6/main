@@ -9,6 +9,7 @@ from uuid import uuid4
 from app.adapters.base import ProviderError, RoleRequest
 from app.db import write_transaction
 from app.errors import ApiError
+from app.generation_guard import GenerationGuardError, ensure_project_owner_active
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import prompts, templates
 from app.workflow.contracts import ContractError, digest_payload, validate_role_output
@@ -35,6 +36,19 @@ class RoleOutput:
                 templates.render("ACTION_UNAVAILABLE"),
             )
         return self.data
+
+
+async def _ensure_model_call_allowed(ctx: WorkflowContext) -> None:
+    try:
+        await ensure_project_owner_active(
+            ctx.session_factory,
+            ctx.project_id,
+            principal_account_id=(
+                ctx.principal.account_id if ctx.principal is not None else None
+            ),
+        )
+    except GenerationGuardError as exc:
+        raise ApiError(409, exc.code, exc.message) from exc
 
 
 def _jsonable(value: Any) -> Any:
@@ -484,6 +498,7 @@ async def run_role(
     allowed_evidence_ids: tuple[str, ...] = (),
 ) -> RoleOutput:
     """Run exactly one fresh model role call, with strict validation and no retry."""
+    await _ensure_model_call_allowed(ctx)
     generation_authorized = await latest_approval(ctx, "generation_prompt") is not None
     size = ctx.project.image_size or ctx.settings.visual().image_size
     payload: dict[str, Any] = {
@@ -539,6 +554,7 @@ async def run_role_request(
     recovery checkpoint and the user's explicit action first. The stored request
     is not regenerated from mutable inputs.
     """
+    await _ensure_model_call_allowed(ctx)
     try:
         parsed = json.loads(request_json)
     except ValueError:

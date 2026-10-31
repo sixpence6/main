@@ -144,6 +144,13 @@ class GenerationJob(Base):
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     run_id: Mapped[str] = mapped_column(ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False)
     generation_id: Mapped[str | None] = mapped_column(ForeignKey("generations.id", ondelete="SET NULL"), nullable=True)
+    owner_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=True
+    )
+    operator_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True
+    )
+    authorization_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
     request_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
     request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     prompt_artifact_id: Mapped[str | None] = mapped_column(ForeignKey("artifacts.id", ondelete="SET NULL"), nullable=True)
@@ -160,6 +167,7 @@ class GenerationJob(Base):
     __table_args__ = (
         CheckConstraint("status IN ('created','submit_pending','submitted','remote_pending','result_fetched','failed','unknown','quarantined','approved','rejected','published')", name="ck_generation_jobs_status"),
         Index("ix_generation_jobs_project_created", "project_id", "created_at"),
+        Index("ix_generation_jobs_owner_created", "owner_account_id", "created_at"),
     )
 
 

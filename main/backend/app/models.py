@@ -133,6 +133,13 @@ class Generation(Base):
     project_id: Mapped[str] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
     )
+    owner_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=True
+    )
+    operator_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True
+    )
+    authorization_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
     version_no: Mapped[int] = mapped_column(Integer, nullable=False)
     request_id: Mapped[str] = mapped_column(String(36), nullable=False)
     request_canonical: Mapped[str] = mapped_column(Text, nullable=False)
@@ -187,4 +194,5 @@ class Generation(Base):
             sqlite_where=text("status IN ('queued','running')"),
         ),
         Index("ix_generations_project_created", "project_id", "created_at"),
+        Index("ix_generations_owner_created", "owner_account_id", "created_at"),
     )
