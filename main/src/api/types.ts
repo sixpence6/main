@@ -240,3 +240,30 @@ export type LoginResponse = AuthSessionResponse
 export interface CsrfResponse {
   csrf_token: string
 }
+
+export type LinkPurpose = 'setup' | 'reset'
+
+export interface AccountListResponse {
+  items: AccountView[]
+}
+
+export interface CreateAccountResponse {
+  account: AccountView
+}
+
+export interface LinkIssueResponse {
+  account_id: string
+  link: string
+  purpose: LinkPurpose
+  expires_at: string
+}
+
+export interface LinkStatusResponse {
+  account_email: string
+  purpose: LinkPurpose
+  expires_at: string
+}
+
+export interface LinkPasswordResponse {
+  status: 'ok'
+}
