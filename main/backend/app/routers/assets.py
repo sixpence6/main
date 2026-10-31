@@ -268,6 +268,9 @@ async def read_asset(
         decision = await can_access_asset(session, state.settings, asset, download=download)
         if not decision.allow:
             code = decision.reason_code or "ASSET_UNAVAILABLE"
+            if code == "ASSET_FILE_MISSING":
+                # 文件缺失是资源不存在，不是内容未获批准；保持既有外部契约。
+                raise ApiError(404, code, "资源文件不存在")
             message = (
                 templates.render("LEGACY_UNREVIEWED")
                 if code == "LEGACY_UNREVIEWED"

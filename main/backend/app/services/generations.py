@@ -172,7 +172,10 @@ async def _load_result_asset(
 ) -> Asset | None:
     if not generation.result_asset_id:
         return None
-    return await session.get(Asset, generation.result_asset_id)
+    asset = await session.get(Asset, generation.result_asset_id)
+    if asset is None or asset.project_id != generation.project_id:
+        return None
+    return asset
 
 
 async def _existing_result(

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -131,6 +131,19 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return Path(value)
         return value
+
+    @model_validator(mode="after")
+    def _keep_public_build_outside_data_dir(self) -> Settings:
+        """Build output is public; the data root is private. Never overlap them."""
+        data_dir = self.resolved_data_dir().resolve()
+        web_dist_dir = self.resolved_web_dist_dir().resolve()
+        if (
+            web_dist_dir == data_dir
+            or web_dist_dir.is_relative_to(data_dir)
+            or data_dir.is_relative_to(web_dist_dir)
+        ):
+            raise ValueError("WEB_DIST_DIR must be outside APP_DATA_DIR")
+        return self
 
     @property
     def database_path(self) -> Path:

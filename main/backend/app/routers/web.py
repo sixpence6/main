@@ -46,9 +46,9 @@ def register_web_routes(app: FastAPI, settings: Settings) -> None:
             if target is None:
                 return HTMLResponse(NOT_FOUND_PAGE, status_code=404, headers=SECURITY_HEADERS)
             if target.is_file():
-                return FileResponse(target)
+                return FileResponse(target, headers=SECURITY_HEADERS)
             if "." in Path(full_path).name:
-                return HTMLResponse(NOT_FOUND_PAGE, status_code=404)
+                return HTMLResponse(NOT_FOUND_PAGE, status_code=404, headers=SECURITY_HEADERS)
         return FileResponse(
             index,
             media_type="text/html",
