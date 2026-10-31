@@ -3,7 +3,6 @@ import { computed, ref, watch } from 'vue'
 import { assetUrl } from '@/api/client'
 import type {
   WorkflowAction,
-  WorkflowApproval,
   WorkflowArtifact,
   WorkflowLegacyItem,
   WorkflowVersion,
@@ -12,6 +11,11 @@ import { currentSessionId } from '@/auth/session'
 import { useWorkflow } from '@/composables/useWorkflow'
 import { useWorkspace } from '@/composables/useWorkspace'
 import { LEGACY_UNREVIEWED_NOTICE } from '@/utils/format'
+import {
+  confirmationStateOf,
+  latestFinalBrief,
+  nextStepForWorkflow,
+} from '@/workflow/projection'
 
 const { currentProject } = useWorkspace()
 const projectId = computed(() => currentProject.value?.id ?? null)
@@ -131,16 +135,6 @@ const statusLabel = computed(() =>
   view.value ? STATUS_LABELS[view.value.status] ?? view.value.status : '',
 )
 
-const finalBrief = computed<WorkflowArtifact | null>(() => {
-  if (!view.value) return null
-  let latest: WorkflowArtifact | null = null
-  for (const artifact of view.value.artifacts) {
-    if (artifact.kind !== 'final_brief') continue
-    if (!latest || artifact.revision_no > latest.revision_no) latest = artifact
-  }
-  return latest
-})
-
 const DELIVERY_STATUS_LABELS: Record<string, string> = {
   approved: '待发布',
   published: '已发布',
@@ -197,46 +191,6 @@ const briefFields = computed(() => {
   return rows
 })
 
-const confirmationApprovals = computed<WorkflowApproval[]>(() => {
-  if (!view.value) return []
-  return view.value.approvals
-    .filter((approval) => approval.approval_type === 'requirements_card')
-    .slice()
-    .sort((left, right) => left.created_at.localeCompare(right.created_at))
-})
-
-const activeConfirmation = computed<WorkflowApproval | null>(() => {
-  const digest = finalBrief.value?.digest
-  if (!digest) return null
-  for (let index = confirmationApprovals.value.length - 1; index >= 0; index -= 1) {
-    const approval = confirmationApprovals.value[index]
-    if (approval.revoked_at === null && approval.artifact_digest === digest) return approval
-  }
-  return null
-})
-
-const confirmationSnapshot = computed<Record<string, unknown> | null>(() => {
-  const checks = activeConfirmation.value?.checks
-  const snapshot = checks?.confirmation
-  return snapshot && typeof snapshot === 'object' ? (snapshot as Record<string, unknown>) : null
-})
-
-const confirmationState = computed<'none' | 'reviewing' | 'pending' | 'confirmed' | 'stale'>(() => {
-  if (!finalBrief.value) return 'none'
-  if (finalBrief.value.status !== 'approved' || !finalBrief.value.payload) return 'reviewing'
-  const snapshot = confirmationSnapshot.value
-  if (
-    activeConfirmation.value &&
-    snapshot?.artifact_digest === finalBrief.value.digest &&
-    snapshot?.project_revision === view.value?.project_revision &&
-    snapshot?.requirement_revision === view.value?.requirement_revision
-  ) {
-    return 'confirmed'
-  }
-  if (confirmationApprovals.value.length > 0) return 'stale'
-  return 'pending'
-})
-
 const confirmationLabel = computed(() => {
   switch (confirmationState.value) {
     case 'confirmed':
@@ -271,6 +225,15 @@ const imageStatus = computed(() => {
   return GENERATION_STATUS_LABELS[job.status] ?? job.status
 })
 
+const finalBrief = computed(() => latestFinalBrief(view.value))
+const confirmationState = computed(() => confirmationStateOf(view.value))
+const nextStep = computed(() => nextStepForWorkflow(currentProject.value, view.value))
+const nextStepActionLabel = computed(() => {
+  const actionId = nextStep.value.actionId
+  if (!actionId) return ''
+  const action = view.value?.available_actions.find((item) => item.id === actionId)
+  return action ? actionLabel(action) : ''
+})
 const hasRun = computed(() => Boolean(view.value?.run_id))
 const usage = computed(() => view.value?.usage ?? null)
 const generationIntent = computed(() => view.value?.intent ?? null)
@@ -537,6 +500,13 @@ watch(
       </div>
     </header>
 
+    <section class="workflow-next-step" aria-labelledby="workflow-next-step-title" role="status">
+      <p class="eyebrow">当前问题与下一步</p>
+      <h4 id="workflow-next-step-title">{{ nextStep.title }}</h4>
+      <p>{{ nextStep.detail }}</p>
+      <p v-if="nextStepActionLabel" class="muted">下一步操作：{{ nextStepActionLabel }}</p>
+    </section>
+
     <p v-if="loading" class="workflow-loading" role="status">正在读取流程状态…</p>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     <p v-if="conflictGuidance" class="muted workflow-conflict-guidance" role="note">
@@ -730,6 +700,14 @@ watch(
         </header>
         <p v-if="versionBrief(version)">需求：{{ versionBrief(version) }}</p>
         <p v-if="versionPrompt(version)">提示词：{{ versionPrompt(version) }}</p>
+        <figure v-if="version.asset_id" class="workflow-version-preview">
+          <img
+            :src="assetUrl(version.asset_id)"
+            :alt="'第 ' + version.requirement_revision + ' 版历史预览'"
+            loading="lazy"
+          />
+          <figcaption>历史预览 · 不代表当前需求状态</figcaption>
+        </figure>
         <a v-if="version.asset_id" :href="versionDownloadUrl(version)" class="text-button" download>
           下载第 {{ version.requirement_revision }} 版
         </a>
