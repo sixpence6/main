@@ -28,7 +28,7 @@ import type {
 } from '@/api/types'
 import { editableBriefFields, isUuid, type EditableBriefKey } from '@/utils/format'
 import { useRoute, useRouter } from 'vue-router'
-import { sessionRevision } from '@/auth/session'
+import { currentAccount, sessionRevision } from '@/auth/session'
 import { clearPrivateBrowserState } from '@/auth/privateData'
 import { useViewport } from './useViewport'
 
@@ -822,9 +822,13 @@ function createWorkspace(): WorkspaceStore {
     nextCursor.value = null
     projectListLoadingMore.value = false
     draft.value = ''
+    const hadProject = projectParam.value !== null || typeof route.query.project === 'string'
     projectParam.value = null
     stage.value = 'describe'
     clearPrivateBrowserState()
+    if (route.name !== 'describe' || hadProject) {
+      void router.replace({ name: 'describe' })
+    }
   }
 
   // flush: sync 保证在旧请求的回调恢复到微任务前先递增全部请求序号。
@@ -1196,7 +1200,12 @@ function createWorkspace(): WorkspaceStore {
 
   const GENERATION_CREDENTIAL_KEY = 'ecommerce-generation-pending'
 
-  function generationCredentialKey(projectId: string): string {
+  function credentialAccountId(): string | null {
+    return currentAccount.value?.id ?? null
+  }
+
+  function generationCredentialKey(projectId: string, accountId = credentialAccountId()): string {
+    if (accountId) return `${GENERATION_CREDENTIAL_KEY}:${accountId}:${projectId}`
     return `${GENERATION_CREDENTIAL_KEY}:${projectId}`
   }
 
@@ -1225,10 +1234,17 @@ function createWorkspace(): WorkspaceStore {
   function normalizeGenerationCredential(
     value: unknown,
     projectId: string,
+    accountId: string | null,
   ): PendingGenerationRequest | null {
     if (!value || typeof value !== 'object') return null
     const record = value as Record<string, unknown>
     if (record.projectId !== projectId) return null
+    // 账号存在时只接受同一稳定账号写入的新键；旧的账号无关键不自动认领。
+    if (accountId) {
+      if (record.accountId !== accountId) return null
+    } else if (record.accountId !== undefined) {
+      return null
+    }
     if (typeof record.requestId !== 'string' || !record.requestId.trim()) return null
     if (record.requestId.length > 200) return null
     const revision = record.confirmedRevision
@@ -1252,15 +1268,23 @@ function createWorkspace(): WorkspaceStore {
     }
   }
 
-  /** 只读取同一项目的原请求；格式不完整、解析失败或读取失败一律返回 null。 */
+  /** 只读取当前账号下同一项目的原请求；旧的无账号键在已登录时不参与认领。 */
   function readGenerationCredential(projectId: string): PendingGenerationRequest | null {
     if (typeof window === 'undefined') return null
+    const accountId = credentialAccountId()
     try {
-      const projectRaw = window.sessionStorage.getItem(generationCredentialKey(projectId))
-      const legacyRaw = projectRaw ? null : window.sessionStorage.getItem(GENERATION_CREDENTIAL_KEY)
-      const raw = projectRaw ?? legacyRaw
+      let raw: string | null
+      if (accountId) {
+        raw = window.sessionStorage.getItem(generationCredentialKey(projectId, accountId))
+      } else {
+        const projectRaw = window.sessionStorage.getItem(generationCredentialKey(projectId, null))
+        const legacyRaw = projectRaw
+          ? null
+          : window.sessionStorage.getItem(GENERATION_CREDENTIAL_KEY)
+        raw = projectRaw ?? legacyRaw
+      }
       if (!raw) return null
-      return normalizeGenerationCredential(JSON.parse(raw) as unknown, projectId)
+      return normalizeGenerationCredential(JSON.parse(raw) as unknown, projectId, accountId)
     } catch {
       return null
     }
@@ -1269,18 +1293,26 @@ function createWorkspace(): WorkspaceStore {
   /** 返回是否成功写入；失败时调用方仍保留内存中的原请求。 */
   function saveGenerationCredential(request: PendingGenerationRequest): boolean {
     if (typeof window === 'undefined') return false
+    const accountId = credentialAccountId()
     try {
+      const payload: Record<string, unknown> = {
+        projectId: request.projectId,
+        requestId: request.requestId,
+        confirmedRevision: request.confirmedRevision,
+        acknowledgeUnknownPresent: request.acknowledgeUnknownPresent,
+        acknowledgeUnknownValue: request.acknowledgeUnknownValue,
+        generationId: request.generationId,
+      }
+      if (accountId) payload.accountId = accountId
       window.sessionStorage.setItem(
-        generationCredentialKey(request.projectId),
-        JSON.stringify({
-          projectId: request.projectId,
-          requestId: request.requestId,
-          confirmedRevision: request.confirmedRevision,
-          acknowledgeUnknownPresent: request.acknowledgeUnknownPresent,
-          acknowledgeUnknownValue: request.acknowledgeUnknownValue,
-          generationId: request.generationId,
-        }),
+        generationCredentialKey(request.projectId, accountId),
+        JSON.stringify(payload),
       )
+      if (accountId) {
+        // 写入账号绑定键后清理同项目的旧无账号键，避免遗留可被误认领的数据。
+        window.sessionStorage.removeItem(generationCredentialKey(request.projectId, null))
+        window.sessionStorage.removeItem(GENERATION_CREDENTIAL_KEY)
+      }
       return true
     } catch {
       // 会话凭据只是刷新后的辅助信息，写入失败不影响当前提交。
@@ -1292,7 +1324,18 @@ function createWorkspace(): WorkspaceStore {
     if (typeof window === 'undefined') return
     try {
       if (projectId) {
-        window.sessionStorage.removeItem(generationCredentialKey(projectId))
+        const keys: string[] = []
+        for (let index = 0; index < window.sessionStorage.length; index += 1) {
+          const key = window.sessionStorage.key(index)
+          if (
+            key === GENERATION_CREDENTIAL_KEY ||
+            key === generationCredentialKey(projectId, null) ||
+            (key?.startsWith(`${GENERATION_CREDENTIAL_KEY}:`) && key.endsWith(`:${projectId}`))
+          ) {
+            keys.push(key)
+          }
+        }
+        for (const key of keys) window.sessionStorage.removeItem(key)
         window.sessionStorage.removeItem(GENERATION_CREDENTIAL_KEY)
         return
       }
