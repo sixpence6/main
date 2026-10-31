@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { ApiError, api } from '@/api/client'
 import { clearSession, currentAccount } from '@/auth/session'
-import type { SessionView } from '@/api/types'
+import type { SecurityEventView, SessionView } from '@/api/types'
 import AppHeader from '@/components/AppHeader.vue'
 
 const router = useRouter()
@@ -19,7 +19,11 @@ const revokingId = ref<string | null>(null)
 const revokingOthers = ref(false)
 const sessionMessage = ref<string | null>(null)
 const sessionError = ref<string | null>(null)
+const events = ref<SecurityEventView[]>([])
+const eventsLoading = ref(true)
+const eventsError = ref<string | null>(null)
 let listController: AbortController | null = null
+let eventsController: AbortController | null = null
 
 const canChange = computed(
   () =>
@@ -30,6 +34,43 @@ const canChange = computed(
     !changing.value,
 )
 const hasOtherSessions = computed(() => sessions.value.some((session) => !session.current))
+
+const eventLabels: Record<string, string> = {
+  bootstrap_admin_created: '初始化管理员',
+  login_success: '登录成功',
+  login_failure: '登录失败',
+  login_limited: '登录受限',
+  logout: '退出登录',
+  password_changed: '修改密码',
+  account_created: '创建账号',
+  account_link_issued: '生成一次性链接',
+  account_link_used: '使用一次性链接',
+  session_revoked: '撤销会话',
+  sessions_revoked: '撤销多个会话',
+  admin_recovered: '本机恢复首管',
+  account_disabled: '账号停用',
+  account_restored: '账号恢复',
+  permission_denied: '权限拒绝',
+}
+
+const eventResultLabels: Record<SecurityEventView['result'], string> = {
+  success: '成功',
+  failure: '失败',
+  denied: '拒绝',
+  limited: '受限',
+}
+
+function eventLabel(type: string): string {
+  return eventLabels[type] ?? type
+}
+
+function actorLabel(kind: string): string {
+  if (kind === 'anonymous') return '匿名'
+  if (kind === 'system') return '系统'
+  if (kind === 'local_maintainer') return '本机维护'
+  if (kind === 'admin') return '管理员'
+  return '本人'
+}
 
 function friendlyError(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
@@ -127,8 +168,30 @@ async function revokeOthers(): Promise<void> {
   }
 }
 
-onMounted(loadSessions)
-onBeforeUnmount(() => listController?.abort())
+async function loadSecurityEvents(): Promise<void> {
+  eventsController?.abort()
+  eventsController = new AbortController()
+  eventsLoading.value = true
+  eventsError.value = null
+  try {
+    const response = await api.listSecurityEvents(eventsController.signal)
+    events.value = response.items
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return
+    eventsError.value = friendlyError(error, '暂时无法读取安全事件。')
+  } finally {
+    eventsLoading.value = false
+  }
+}
+
+onMounted(() => {
+  void loadSessions()
+  void loadSecurityEvents()
+})
+onBeforeUnmount(() => {
+  listController?.abort()
+  eventsController?.abort()
+})
 </script>
 
 <template>
@@ -235,6 +298,33 @@ onBeforeUnmount(() => listController?.abort())
               >
                 {{ revokingId === session.id ? '正在撤销…' : '撤销' }}
               </button>
+            </li>
+          </ul>
+        </section>
+
+        <section class="security-panel" aria-labelledby="security-events-title">
+          <div class="security-section-head">
+            <div>
+              <h2 id="security-events-title">账号安全事件</h2>
+              <p class="security-note">只显示与本账号直接相关的必要事件，不包含密码、令牌或创作内容。</p>
+            </div>
+            <button class="security-secondary" type="button" :disabled="eventsLoading" @click="loadSecurityEvents">
+              {{ eventsLoading ? '正在读取…' : '刷新' }}
+            </button>
+          </div>
+          <p v-if="eventsError" class="security-error" role="alert">{{ eventsError }}</p>
+          <p v-else-if="eventsLoading" class="security-note">正在读取安全事件…</p>
+          <p v-else-if="events.length === 0" class="security-note">还没有可显示的安全事件。</p>
+          <ul v-else class="event-list">
+            <li v-for="event in events" :key="event.id" class="event-item">
+              <div class="event-main">
+                <p class="event-title">
+                  <strong>{{ eventLabel(event.event_type) }}</strong>
+                  <span class="event-result">{{ eventResultLabels[event.result] }}</span>
+                </p>
+                <p class="event-meta">{{ formatTime(event.occurred_at) }} · 操作者：{{ actorLabel(event.actor_kind) }}</p>
+                <p v-if="event.reason_code" class="event-meta">原因：{{ event.reason_code }}</p>
+              </div>
             </li>
           </ul>
         </section>
@@ -404,6 +494,36 @@ h2 {
 }
 .session-revoke {
   flex: none;
+}
+.event-list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+.event-item {
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+.event-title {
+  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.event-result {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--color-page);
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+.event-meta {
+  margin: 3px 0 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 @media (max-width: 640px) {
   .security-page {

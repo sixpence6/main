@@ -12,6 +12,7 @@ from app.auth.personal import (
     revoke_session,
 )
 from app.auth.principal import require_principal
+from app.auth.security_events import SecurityEventListResponse, list_personal_security_events
 from app.auth.service import login, logout
 from app.auth.sessions import (
     PREAUTH_CSRF_COOKIE,
@@ -239,8 +240,7 @@ async def sessions_endpoint(request: Request) -> SessionListResponse:
     )
     return SessionListResponse(
         items=[
-            session_view(record, current=record.id == principal.session_id)
-            for record in records
+            session_view(record, current=record.id == principal.session_id) for record in records
         ]
     )
 
@@ -287,3 +287,16 @@ async def revoke_other_sessions_endpoint(request: Request) -> Response:
         source_ref_value=_request_source(request),
     )
     return Response(status_code=204)
+
+
+@router.get(
+    "/security-events",
+    response_model=SecurityEventListResponse,
+    responses={401: ERROR_RESPONSE, 503: ERROR_RESPONSE},
+)
+async def security_events_endpoint(request: Request) -> SecurityEventListResponse:
+    principal = require_principal(request)
+    items = await list_personal_security_events(
+        request.app.state.session_factory, account_id=principal.account_id
+    )
+    return SecurityEventListResponse(items=items)
