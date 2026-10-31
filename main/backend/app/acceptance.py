@@ -563,6 +563,45 @@ async def set_executing_in_session(
         await session.flush()
 
 
+async def abandon_intent(
+    factory: async_sessionmaker[AsyncSession],
+    *,
+    intent_id: str,
+    reason: str,
+    now: datetime | None = None,
+) -> bool:
+    """Abandon an unaccepted/executing intent and release its live slots.
+
+    The usage ledger is deliberately untouched: an accepted generation remains
+    counted even when the prompt cannot be grounded in the confirmed card.
+    """
+    from app.db import write_transaction
+
+    changed = False
+    async with write_transaction(factory) as session:
+        intent = await session.get(GenerationIntent, intent_id)
+        if intent is None or intent.status not in {"accepted", "executing"}:
+            return False
+        timestamp = format_timestamp(now or utc_now())
+        intent.status = "abandoned"
+        intent.updated_at = timestamp
+        await release_slots_in_session(session, intent_id=intent.id, reason=reason, now=now)
+        write_audit(
+            session,
+            event_type="generation_intent_abandoned",
+            result="success",
+            now=now or utc_now(),
+            actor_kind="system",
+            target_kind="generation_intent",
+            target_id=intent.id,
+            reason_code=reason[:64],
+            detail={"intent_id": intent.id, "reason": reason[:120]},
+        )
+        await session.flush()
+        changed = True
+    return changed
+
+
 async def set_intent_status(
     factory: async_sessionmaker[AsyncSession],
     *,
@@ -592,6 +631,7 @@ __all__ = [
     "GenerationIntent",
     "GenerationSlot",
     "GenerationUsage",
+    "abandon_intent",
     "accept_in_session",
     "intent_for_request",
     "intent_request_digest",

@@ -47,6 +47,10 @@ TEMPLATES: Final[dict[str, str]] = {
     "RUN_SUPERSEDED": "需求已更新，旧处理结果不会覆盖当前版本。",
     "GENERATION_UNKNOWN": "上次生成结果尚未确认，可能已经计费。再次生成可能产生额外费用。",
     "PROCESS_INTERRUPTED": "流程因服务中断暂停，未自动继续执行。",
+    "PROMPT_REQUIRES_RECONFIRMATION": (
+        "提示词引入了尚未确认的卖点、文字或弱化了已确认要求，"
+        "未提交生图。请修改需求并重新确认后再生成。"
+    ),
     "LEGACY_UNREVIEWED": "此历史内容尚未通过 v2 审查，暂不可查看或下载。可以主动发起补审。",
     "ASSET_UNAVAILABLE": "当前内容不可访问或批准已失效，请检查状态或重新审查。",
     "SAFETY_REFUSAL": "抱歉，无法处理该图片请求。",

@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 from app.workflow.schemas_workflow import ActionView
-from app.workflow.state import WorkflowContext
 from app.workflow.stages import (
     s01,
     s02,
@@ -18,6 +17,7 @@ from app.workflow.stages import (
     s11,
     s12,
 )
+from app.workflow.state import WorkflowContext
 
 ACTION_OWNER: dict[str, Any] = {}
 for _module in (s01, s02, s03, s04, s05, s06, s07, s08, s09, s10, s11, s12):
@@ -107,9 +107,15 @@ def _views_for(module: Any, ctx: WorkflowContext) -> list[ActionView]:
     # Updating the requirements remains an explicit user action after the
     # card was confirmed and the workflow advanced to prompt compilation.
     # The S06 handler re-validates the active confirmation before revoking it.
-    if ctx.run.stage == "S07" and ctx.run.status == "active":
-        if not any(view.id == "revise_requirements" for view in views):
-            views.append(action_view("revise_requirements"))
+    reconfirmation_pending = ctx.run.status == "blocked" and (
+        ctx.run.issue_code == "PROMPT_REQUIRES_RECONFIRMATION"
+    )
+    if (
+        ctx.run.stage == "S07"
+        and (ctx.run.status == "active" or reconfirmation_pending)
+        and not any(view.id == "revise_requirements" for view in views)
+    ):
+        views.append(action_view("revise_requirements"))
     return views
 
 
