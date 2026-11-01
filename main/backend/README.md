@@ -36,6 +36,16 @@
 data/ 保存 SQLite 库（app.db，可能带 -wal/-shm）以及 generated/、references/、tmp/。
 数据库里只存相对路径，所以整个 data/ 目录就是全部运行数据；Docker 里同样挂载到这里。
 
+设置 `APP_BACKUP_DIR`（必须位于 data/ 与 dist/ 之外）后，运行期会按
+`APP_BACKUP_INTERVAL_SECONDS`（默认 86400 秒）做周期快照，保留最近
+`APP_BACKUP_KEEP=7` 份已验证快照，并在启动时补做到期任务。Docker Compose 默认把
+宿主 `./backups` 挂到 `/app/backups` 并启用；本地直接运行时可在 .env 中设置
+`APP_BACKUP_DIR=./backups`。状态可用本地 CLI 查看：
+
+    uv run python -m app.maintenance.cli backup-status --output ./backups --json
+
+备份目录含完整业务数据，按敏感数据保护；快照不包含 .env、模型密钥或 TLS 私钥。
+
 ## 代码检查
 
     uv run ruff check .

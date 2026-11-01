@@ -5,6 +5,7 @@ import asyncio
 import json
 from collections.abc import Sequence
 
+from app.maintenance.automation import read_status
 from app.maintenance.backup import (
     create_backup,
     inspect_sources_report,
@@ -46,6 +47,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--candidate-root", action="append", dest="candidate_roots", default=None
     )
     backup_parser.add_argument("--json", action="store_true")
+
+    status_parser = subparsers.add_parser(
+        "backup-status", help="read the local scheduled-backup status file"
+    )
+    status_parser.add_argument("--output", required=True)
+    status_parser.add_argument("--json", action="store_true")
 
     verify_parser = subparsers.add_parser(
         "verify", help="verify a backup manifest, hashes and SQLite integrity"
@@ -121,6 +128,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             )
             payload = result.as_dict()
+        elif args.command == "backup-status":
+            status = read_status(args.output)
+            payload = {"ok": status is not None, "status": status}
         elif args.command == "verify":
             payload = verify_backup(args.backup).as_dict()
         elif args.command == "restore-verify":
