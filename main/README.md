@@ -198,7 +198,15 @@ HTTP 的 80 端口只返回健康检查或 308 跳转到 HTTPS；不要用 HTTP 
       docker compose run --rm backend python -m app.maintenance.cli backup --source /app/backend/data --output /app/backups --service-stopped
       docker compose start backend
 
-轮换和恢复校验都不等于把备份切换为生产数据；生产恢复演练见 `docs/operations/release-backup-rotation.md` 与后续维护手册。
+轮换和恢复校验都不等于把备份切换为生产数据。生产恢复必须停服务，由本机维护 CLI 在验证备份并保存 safety backup 后切换；恢复会撤销全部会话和未使用链接、保留审批/交付撤销状态，并打开账本缺口闸门。详见 `docs/operations/release-restore-recovery.md`。
+
+## 受控恢复
+
+生产恢复只允许本机维护 CLI，不提供网页整库导入。先停止完整 App，再执行：
+
+    python -m app.maintenance.cli restore --source /app/backend/data --backup /app/backups/backup-<utc>-<hex> --output /app/backups --confirm-restore RESTORE --service-stopped --json
+
+真实数据根还需要维护者明确授权并加 `--allow-real-data-root`。恢复后旧密码和旧启用状态不会复活，所有旧会话与未使用链接失效；新受理会被缺口闸门阻断。核对账号、项目、审批、交付和用量后，用 `clear-restore-gap --confirm-clear CLEAR_RESTORE_GAP` 审计关闭。不要手工改数据库绕过闸门。
 
 从旧机器迁移时，先停机，再把旧 data 目录整体覆盖到本目录后启动。迁移 0002 会把旧
 生成图标记为 `legacy_unreviewed` 并回填 `legacy_items`；历史图不会自动算作已验收，
