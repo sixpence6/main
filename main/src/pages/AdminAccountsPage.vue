@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ApiError, api } from '@/api/client'
+import BrandMark from '@/components/BrandMark.vue'
 import type {
   AccountGenerationLimitsResponse,
   AccountView,
@@ -46,6 +47,18 @@ const quotaError = ref<string | null>(null)
 const quotaMessage = ref<string | null>(null)
 let listController: AbortController | null = null
 let eventsController: AbortController | null = null
+
+const accountSummary = computed(() => ({
+  total: accounts.value.length,
+  active: accounts.value.filter((account) => account.status === 'active').length,
+  pending: accounts.value.filter((account) => account.status === 'pending_setup').length,
+  disabled: accounts.value.filter((account) => account.status === 'disabled').length,
+}))
+
+const linkTargetEmail = computed(() => {
+  if (!linkResult.value) return ''
+  return accounts.value.find((account) => account.id === linkResult.value?.account_id)?.email ?? linkResult.value.account_id
+})
 
 const statusLabels: Record<AccountView['status'], string> = {
   pending_setup: '待设置密码',
@@ -211,6 +224,7 @@ async function saveInstanceLimits(): Promise<void> {
 
 async function openQuota(account: AccountView): Promise<void> {
   if (account.is_admin) return
+  closeLink()
   quotaAccount.value = account
   quotaDetail.value = null
   quotaDaily.value = ''
@@ -265,6 +279,10 @@ async function createAccount(): Promise<void> {
     createError.value = '请输入邮箱地址。'
     return
   }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    createError.value = '请输入有效的邮箱地址。'
+    return
+  }
   creating.value = true
   createError.value = null
   createMessage.value = null
@@ -285,6 +303,7 @@ async function createAccount(): Promise<void> {
 
 async function issueLink(account: AccountView): Promise<void> {
   if (account.is_admin || account.status === 'disabled') return
+  closeQuota()
   const purpose: LinkPurpose = account.status === 'pending_setup' ? 'setup' : 'reset'
   issuingId.value = account.id
   linkError.value = null
@@ -355,28 +374,49 @@ async function setAccountStatus(account: AccountView, disabled: boolean): Promis
   }
 }
 
+function handleDialogKey(event: KeyboardEvent): void {
+  if (event.key !== 'Escape') return
+  if (linkResult.value) {
+    event.preventDefault()
+    closeLink()
+  } else if (quotaAccount.value) {
+    event.preventDefault()
+    closeQuota()
+  }
+}
+
 onMounted(() => {
   void loadAccounts()
   void loadSecurityEvents()
   void loadInstanceLimits()
+  window.addEventListener('keydown', handleDialogKey)
 })
 onBeforeUnmount(() => {
   listController?.abort()
   eventsController?.abort()
   linkResult.value = null
+  window.removeEventListener('keydown', handleDialogKey)
 })
 </script>
 
 <template>
   <main class="accounts-page">
     <div class="accounts-shell">
-      <div class="accounts-topbar">
-        <div>
-          <p class="accounts-brand">电商生图智能体</p>
+      <header class="accounts-topbar">
+        <div class="accounts-heading">
+          <p class="accounts-brand"><BrandMark :size="18" /> 电商生图智能体 · ADMIN</p>
           <h1>账号管理</h1>
+          <p class="accounts-lede">创建账号、签发一次性链接、调整生成额度并审计管理操作。管理员不能读取他人的项目内容。</p>
         </div>
         <RouterLink class="accounts-back" :to="{ name: 'describe' }">返回工作台</RouterLink>
-      </div>
+      </header>
+
+      <section class="accounts-summary" aria-label="账号概览">
+        <div><strong>{{ accountSummary.total }}</strong><span>账号总数</span></div>
+        <div><strong>{{ accountSummary.active }}</strong><span>正常</span></div>
+        <div><strong>{{ accountSummary.pending }}</strong><span>待设置密码</span></div>
+        <div><strong>{{ accountSummary.disabled }}</strong><span>已停用</span></div>
+      </section>
 
       <section class="accounts-panel" aria-labelledby="create-account-title">
         <h2 id="create-account-title">创建普通账号</h2>
@@ -385,21 +425,26 @@ onBeforeUnmount(() => {
           <label class="accounts-field">
             <span>邮箱</span>
             <input
+              id="create-account-email"
               v-model="email"
               type="email"
+              name="email"
               inputmode="email"
               autocomplete="off"
               placeholder="user@example.com"
               required
               :disabled="creating"
+              :aria-invalid="createError ? 'true' : undefined"
+              aria-describedby="create-account-note create-account-error"
             />
           </label>
-          <button class="accounts-primary" type="submit" :disabled="creating || !email.trim()">
+          <button class="accounts-primary" type="submit" :disabled="creating">
             {{ creating ? '正在创建…' : '创建账号' }}
           </button>
         </form>
+        <p id="create-account-note" class="accounts-note accounts-field-note">账号创建后处于“待设置密码”状态，需生成一次性设置链接。管理员无法设置或查看他人密码。</p>
         <p v-if="createMessage" class="accounts-success" role="status">{{ createMessage }}</p>
-        <p v-if="createError" class="accounts-error" role="alert">{{ createError }}</p>
+        <p v-if="createError" id="create-account-error" class="accounts-error" role="alert">{{ createError }}</p>
       </section>
 
       <section class="accounts-panel" aria-labelledby="instance-limits-title">
@@ -451,13 +496,13 @@ onBeforeUnmount(() => {
             </thead>
             <tbody>
               <tr v-for="account in accounts" :key="account.id">
-                <td>
+                <td data-label="邮箱">
                   <span class="accounts-email">{{ account.email }}</span>
                   <span v-if="account.is_admin" class="accounts-admin-tag">管理员</span>
                 </td>
-                <td>{{ statusLabels[account.status] }}</td>
-                <td>{{ account.created_at }}</td>
-                <td>
+                <td data-label="状态"><span class="accounts-status" :class="'accounts-status-' + account.status">{{ statusLabels[account.status] }}</span></td>
+                <td data-label="创建时间">{{ account.created_at }}</td>
+                <td data-label="操作">
                   <div class="account-actions">
                     <button
                       v-if="!account.is_admin && account.status !== 'disabled'"
@@ -524,17 +569,17 @@ onBeforeUnmount(() => {
             </thead>
             <tbody>
               <tr v-for="event in events" :key="event.id">
-                <td>{{ formatEventTime(event.occurred_at) }}</td>
-                <td>
+                <td data-label="时间">{{ formatEventTime(event.occurred_at) }}</td>
+                <td data-label="事件">
                   <span>{{ eventLabel(event.event_type) }}</span>
                   <span v-if="eventDetail(event)" class="accounts-event-detail">{{ eventDetail(event) }}</span>
                 </td>
-                <td>{{ resultLabels[event.result] }}</td>
-                <td>
+                <td data-label="结果"><span class="accounts-status" :class="'accounts-status-result-' + event.result">{{ resultLabels[event.result] }}</span></td>
+                <td data-label="操作者 / 对象">
                   <span class="accounts-email">{{ event.actor_label ?? event.actor_kind }}</span>
                   <span class="accounts-event-target">对象：{{ event.target_label ?? '—' }}</span>
                 </td>
-                <td>{{ statusTransition(event) }}</td>
+                <td data-label="状态变化">{{ statusTransition(event) }}</td>
               </tr>
             </tbody>
           </table>
@@ -595,7 +640,7 @@ onBeforeUnmount(() => {
           </button>
           <button class="accounts-action" type="button" @click="closeLink">关闭并丢弃</button>
         </div>
-        <p class="accounts-note">目标账号：{{ linkResult.account_id }} · 用途：{{ linkResult.purpose === 'reset' ? '重置密码' : '首次设置密码' }}</p>
+        <p class="accounts-note">目标账号：{{ linkTargetEmail }} · 用途：{{ linkResult.purpose === 'reset' ? '重置密码' : '首次设置密码' }}</p>
       </section>
     </div>
   </main>
@@ -820,4 +865,145 @@ h2 {
     padding: 16px;
   }
 }
+
+.accounts-heading {
+  min-width: 0;
+}
+
+.accounts-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.accounts-lede {
+  max-width: 620px;
+  margin: 10px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.accounts-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.accounts-summary div {
+  display: grid;
+  gap: 3px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: rgba(255, 252, 247, 0.62);
+}
+
+.accounts-summary strong {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.accounts-summary span {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.accounts-field-note {
+  margin-top: 10px;
+}
+
+.accounts-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--color-page);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.accounts-status-active,
+.accounts-status-result-success {
+  background: rgba(66, 102, 76, 0.1);
+  color: var(--color-success);
+}
+
+.accounts-status-pending_setup {
+  background: rgba(124, 90, 34, 0.1);
+  color: var(--color-warning);
+}
+
+.accounts-status-disabled,
+.accounts-status-result-failure,
+.accounts-status-result-denied {
+  background: rgba(164, 61, 53, 0.08);
+  color: var(--color-danger);
+}
+
+.accounts-status-result-limited {
+  background: rgba(124, 90, 34, 0.1);
+  color: var(--color-warning);
+}
+
+@media (max-width: 720px) {
+  .accounts-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .accounts-table-wrap {
+    overflow-x: visible;
+  }
+
+  .accounts-table,
+  .accounts-table tbody,
+  .accounts-table tr,
+  .accounts-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .accounts-table thead {
+    display: none;
+  }
+
+  .accounts-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .accounts-table tr {
+    padding: 12px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: rgba(255, 252, 247, 0.54);
+  }
+
+  .accounts-table td {
+    display: grid;
+    grid-template-columns: 86px minmax(0, 1fr);
+    gap: 8px;
+    padding: 5px 0;
+    border: 0;
+    font-size: 13px;
+  }
+
+  .accounts-table td::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font-size: 11px;
+  }
+
+  .account-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .account-actions .accounts-action {
+    width: 100%;
+  }
+}
+
 </style>

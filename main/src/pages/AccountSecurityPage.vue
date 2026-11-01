@@ -5,6 +5,8 @@ import { ApiError, api } from '@/api/client'
 import { clearSession, currentAccount } from '@/auth/session'
 import type { SecurityEventView, SessionView } from '@/api/types'
 import AppHeader from '@/components/AppHeader.vue'
+import BrandMark from '@/components/BrandMark.vue'
+import PasswordField from '@/components/PasswordField.vue'
 
 const router = useRouter()
 const sessions = ref<SessionView[]>([])
@@ -15,6 +17,7 @@ const newPassword = ref('')
 const confirmation = ref('')
 const changing = ref(false)
 const changeError = ref<string | null>(null)
+const showValidation = ref(false)
 const revokingId = ref<string | null>(null)
 const revokingOthers = ref(false)
 const sessionMessage = ref<string | null>(null)
@@ -25,15 +28,26 @@ const eventsError = ref<string | null>(null)
 let listController: AbortController | null = null
 let eventsController: AbortController | null = null
 
-const canChange = computed(
-  () =>
-    currentPassword.value.length > 0 &&
-    newPassword.value.length >= 15 &&
-    newPassword.value.length <= 128 &&
-    confirmation.value.length > 0 &&
-    !changing.value,
-)
+const canChange = computed(() => !changing.value)
 const hasOtherSessions = computed(() => sessions.value.some((session) => !session.current))
+const currentPasswordError = computed(() =>
+  showValidation.value && currentPassword.value.length === 0 ? '请输入当前密码。' : null,
+)
+const newPasswordError = computed(() => {
+  if (!showValidation.value) return null
+  if (newPassword.value.length < 15) return '新密码至少需要 15 个 Unicode 码点。'
+  if (newPassword.value.length > 128) return '新密码不能超过 128 个 Unicode 码点。'
+  if (currentPassword.value.length > 0 && currentPassword.value === newPassword.value) {
+    return '新密码不能与当前密码相同。'
+  }
+  return null
+})
+const confirmationError = computed(() =>
+  showValidation.value && newPassword.value !== confirmation.value ? '两次输入的新密码不一致。' : null,
+)
+const hasFieldError = computed(
+  () => Boolean(currentPasswordError.value || newPasswordError.value || confirmationError.value),
+)
 
 const eventLabels: Record<string, string> = {
   bootstrap_admin_created: '初始化管理员',
@@ -104,23 +118,16 @@ async function loadSessions(): Promise<void> {
   }
 }
 
-function passwordValidation(): string | null {
-  if (newPassword.value.length < 15) return '新密码至少需要 15 个 Unicode 码点。'
-  if (newPassword.value.length > 128) return '新密码不能超过 128 个 Unicode 码点。'
-  if (newPassword.value !== confirmation.value) return '两次输入的新密码不一致。'
-  if (currentPassword.value === newPassword.value) return '新密码不能与当前密码相同。'
-  return null
+function clearChangeError(): void {
+  changeError.value = null
 }
 
 async function changePassword(): Promise<void> {
   if (!canChange.value) return
-  const validation = passwordValidation()
-  if (validation) {
-    changeError.value = validation
-    return
-  }
-  changing.value = true
+  showValidation.value = true
   changeError.value = null
+  if (hasFieldError.value) return
+  changing.value = true
   try {
     await api.changePassword(currentPassword.value, newPassword.value)
     clearSession()
@@ -199,70 +206,83 @@ onBeforeUnmount(() => {
     <AppHeader />
     <main class="security-page">
       <div class="security-shell">
-        <div class="security-topbar">
-          <div>
-            <p class="security-brand">电商生图智能体</p>
+        <header class="security-topbar">
+          <div class="security-heading">
+            <p class="security-brand"><BrandMark :size="18" /> 电商生图智能体 · ACCOUNT</p>
             <h1>账号安全</h1>
+            <p class="security-lede">管理本人密码、登录会话与安全事件。页面只展示必要的账号信息，不显示任何凭证。</p>
           </div>
           <RouterLink class="security-back" :to="{ name: 'describe' }">返回工作台</RouterLink>
-        </div>
+        </header>
 
-        <section class="security-panel" aria-labelledby="account-title">
-          <h2 id="account-title">当前账号</h2>
-          <p class="security-note">{{ currentAccount?.email }}</p>
+        <section class="security-panel security-account-panel" aria-labelledby="account-title">
+          <div class="security-panel-icon" aria-hidden="true">A</div>
+          <div>
+            <h2 id="account-title">当前账号</h2>
+            <p class="security-account-email">{{ currentAccount?.email }}</p>
+            <p class="security-note">此页面上的操作只影响当前登录账号，不会读取他人的项目或生成内容。</p>
+          </div>
         </section>
 
         <section class="security-panel" aria-labelledby="password-title">
-          <h2 id="password-title">修改登录密码</h2>
+          <div class="security-section-head">
+            <div>
+              <p class="security-kicker">CREDENTIALS</p>
+              <h2 id="password-title">修改登录密码</h2>
+            </div>
+            <span class="security-chip">建议定期更新</span>
+          </div>
           <p class="security-note">修改成功后，所有设备上的登录会话都会失效，需要使用新密码重新登录。</p>
           <form class="security-form" novalidate @submit.prevent="changePassword">
-            <label class="security-field">
-              <span>当前密码</span>
-              <input
-                v-model="currentPassword"
-                type="password"
-                name="current-password"
-                autocomplete="current-password"
-                required
-                :disabled="changing"
-              />
-            </label>
-            <label class="security-field">
-              <span>新密码</span>
-              <input
-                v-model="newPassword"
-                type="password"
-                name="new-password"
-                autocomplete="new-password"
-                minlength="15"
-                maxlength="128"
-                required
-                :disabled="changing"
-              />
-            </label>
-            <label class="security-field">
-              <span>再次输入新密码</span>
-              <input
-                v-model="confirmation"
-                type="password"
-                name="confirm-password"
-                autocomplete="new-password"
-                minlength="15"
-                maxlength="128"
-                required
-                :disabled="changing"
-              />
-            </label>
+            <PasswordField
+              v-model="currentPassword"
+              label="当前密码"
+              name="current-password"
+              autocomplete="current-password"
+              :required="true"
+              :disabled="changing"
+              :error="currentPasswordError"
+              @update:model-value="clearChangeError"
+            />
+            <PasswordField
+              v-model="newPassword"
+              label="新密码"
+              name="new-password"
+              autocomplete="new-password"
+              :minlength="15"
+              :maxlength="128"
+              :required="true"
+              :disabled="changing"
+              :error="newPasswordError"
+              hint="至少 15 个 Unicode 码点；不会自动截断，也不会写入浏览器存储。"
+              @update:model-value="clearChangeError"
+            />
+            <PasswordField
+              v-model="confirmation"
+              label="再次输入新密码"
+              name="confirm-password"
+              autocomplete="new-password"
+              :minlength="15"
+              :maxlength="128"
+              :required="true"
+              :disabled="changing"
+              :error="confirmationError"
+              @update:model-value="clearChangeError"
+            />
             <p v-if="changeError" class="security-error" role="alert">{{ changeError }}</p>
-            <button class="security-primary" type="submit" :disabled="!canChange">
-              {{ changing ? '正在修改…' : '修改密码' }}
-            </button>
+            <div class="security-form-foot">
+              <button class="security-primary" type="submit" :disabled="changing">
+                {{ changing ? '正在修改…' : '修改密码' }}
+              </button>
+              <p class="security-note security-note-inline">修改后会退出所有设备，包括当前设备。</p>
+            </div>
           </form>
         </section>
 
         <section class="security-panel" aria-labelledby="sessions-title">
           <div class="security-section-head">
             <div>
+              <p class="security-kicker">SESSIONS</p>
               <h2 id="sessions-title">登录设备与会话</h2>
               <p class="security-note">这里只显示客户端信息和活动时间，不显示任何会话凭证。</p>
             </div>
@@ -279,7 +299,8 @@ onBeforeUnmount(() => {
           <p v-if="sessionError" class="security-error" role="alert">{{ sessionError }}</p>
           <p v-if="loading" class="security-note">正在读取登录会话…</p>
           <p v-else-if="loadError" class="security-error" role="alert">{{ loadError }}</p>
-          <ul v-else class="session-list">
+          <p v-else-if="sessions.length === 0" class="security-note">没有可显示的登录会话。</p>
+          <ul v-else class="session-list" aria-label="登录会话列表">
             <li v-for="session in sessions" :key="session.id" class="session-item">
               <div class="session-main">
                 <p class="session-title">
@@ -305,6 +326,7 @@ onBeforeUnmount(() => {
         <section class="security-panel" aria-labelledby="security-events-title">
           <div class="security-section-head">
             <div>
+              <p class="security-kicker">AUDIT</p>
               <h2 id="security-events-title">账号安全事件</h2>
               <p class="security-note">只显示与本账号直接相关的必要事件，不包含密码、令牌或创作内容。</p>
             </div>
@@ -315,12 +337,12 @@ onBeforeUnmount(() => {
           <p v-if="eventsError" class="security-error" role="alert">{{ eventsError }}</p>
           <p v-else-if="eventsLoading" class="security-note">正在读取安全事件…</p>
           <p v-else-if="events.length === 0" class="security-note">还没有可显示的安全事件。</p>
-          <ul v-else class="event-list">
+          <ul v-else class="event-list" aria-label="账号安全事件列表">
             <li v-for="event in events" :key="event.id" class="event-item">
               <div class="event-main">
                 <p class="event-title">
                   <strong>{{ eventLabel(event.event_type) }}</strong>
-                  <span class="event-result">{{ eventResultLabels[event.result] }}</span>
+                  <span class="event-result" :class="'event-result-' + event.result">{{ eventResultLabels[event.result] }}</span>
                 </p>
                 <p class="event-meta">{{ formatTime(event.occurred_at) }} · 操作者：{{ actorLabel(event.actor_kind) }}</p>
                 <p v-if="event.reason_code" class="event-meta">原因：{{ event.reason_code }}</p>
@@ -328,6 +350,11 @@ onBeforeUnmount(() => {
             </li>
           </ul>
         </section>
+
+        <aside class="security-help" aria-label="账号帮助">
+          <strong>忘记当前密码或账号被停用？</strong>
+          <p>请联系管理员生成一次性重置链接。管理员无法读取你的密码，也不会通过聊天或邮件索要密码。系统不提供自助找回。</p>
+        </aside>
       </div>
     </main>
   </div>
@@ -336,47 +363,108 @@ onBeforeUnmount(() => {
 <style scoped>
 .security-shell-page {
   min-height: 100%;
-  background: var(--color-page);
+  background:
+    radial-gradient(circle at 8% 0, rgba(184, 154, 104, 0.1), transparent 26%),
+    var(--color-page);
 }
 .security-page {
-  padding: 32px 20px 56px;
+  padding: 34px 20px 60px;
 }
 .security-shell {
-  width: min(760px, 100%);
+  width: min(780px, 100%);
   margin: 0 auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
+}
+.security-shell > *,
+.security-topbar > *,
+.security-section-head > *,
+.security-account-panel > *,
+.session-item > * {
+  min-width: 0;
+}
+.security-form,
+.session-title,
+.session-main {
+  min-width: 0;
+  overflow: hidden;
 }
 .security-topbar {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: 20px;
 }
 .security-brand {
-  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 9px;
   color: var(--color-accent);
-  font-size: 13px;
-  letter-spacing: 0.12em;
+  font-size: 10px;
+  letter-spacing: 0.16em;
 }
 h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: clamp(28px, 4vw, 34px);
   line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 h2 {
   margin: 0 0 10px;
-  font-size: 18px;
+  font-size: 19px;
+}
+.security-lede {
+  max-width: 560px;
+  margin: 10px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.75;
 }
 .security-back {
+  flex: none;
   color: var(--color-primary);
+  font-size: 13px;
 }
 .security-panel {
-  padding: 22px;
+  padding: 24px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
   background: var(--color-panel);
   box-shadow: var(--shadow-panel);
+}
+.security-account-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background:
+    linear-gradient(135deg, rgba(184, 154, 104, 0.1), transparent 42%),
+    var(--color-panel);
+}
+.security-panel-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+.security-account-email {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  word-break: break-all;
+}
+.security-kicker {
+  margin: 0 0 7px;
+  color: var(--color-accent);
+  font-size: 9px;
+  letter-spacing: 0.18em;
 }
 .security-note {
   margin: 8px 0;
@@ -384,35 +472,34 @@ h2 {
   line-height: 1.7;
   font-size: 13px;
 }
+.security-note-inline {
+  margin: 0;
+  font-size: 11px;
+}
 .security-form {
   display: grid;
   gap: 16px;
-  margin-top: 16px;
+  margin-top: 18px;
 }
-.security-field {
-  display: grid;
-  gap: 8px;
-  color: var(--color-text-muted);
-  font-size: 13px;
-}
-.security-field input {
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: #fff;
-  color: var(--color-text);
-  font-size: var(--text-input);
-}
-.security-field input:focus {
-  border-color: var(--color-primary);
+.security-form-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 .security-section-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+.security-chip {
+  flex: none;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(184, 154, 104, 0.12);
+  color: var(--color-accent);
+  font-size: 10px;
 }
 .security-primary,
 .security-secondary {
@@ -447,13 +534,15 @@ h2 {
 }
 .security-success {
   margin: 8px 0 0;
-  color: var(--color-primary);
+  color: var(--color-success);
 }
-.session-list {
-  margin: 14px 0 0;
+.session-list,
+.event-list {
+  margin: 16px 0 0;
   padding: 0;
   list-style: none;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 .session-item {
@@ -461,9 +550,10 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px;
+  padding: 15px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
+  background: rgba(255, 252, 247, 0.5);
 }
 .session-main {
   min-width: 0;
@@ -483,11 +573,12 @@ h2 {
   flex: none;
   padding: 2px 7px;
   border-radius: 999px;
-  background: var(--color-page);
-  color: var(--color-text-muted);
+  background: rgba(66, 102, 76, 0.1);
+  color: var(--color-success);
   font-size: 11px;
 }
-.session-meta {
+.session-meta,
+.event-meta {
   margin: 3px 0 0;
   color: var(--color-text-muted);
   font-size: 12px;
@@ -495,17 +586,11 @@ h2 {
 .session-revoke {
   flex: none;
 }
-.event-list {
-  margin: 14px 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 10px;
-}
 .event-item {
-  padding: 14px;
+  padding: 15px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
+  background: rgba(255, 252, 247, 0.5);
 }
 .event-title {
   margin: 0 0 6px;
@@ -520,14 +605,39 @@ h2 {
   color: var(--color-text-muted);
   font-size: 11px;
 }
-.event-meta {
-  margin: 3px 0 0;
-  color: var(--color-text-muted);
+.event-result-success {
+  background: rgba(66, 102, 76, 0.1);
+  color: var(--color-success);
+}
+.event-result-failure,
+.event-result-denied {
+  background: rgba(164, 61, 53, 0.08);
+  color: var(--color-danger);
+}
+.event-result-limited {
+  background: rgba(124, 90, 34, 0.1);
+  color: var(--color-warning);
+}
+.security-help {
+  padding: 16px 18px;
+  border-left: 2px solid var(--color-accent);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  background: rgba(184, 154, 104, 0.08);
+}
+.security-help strong {
+  display: block;
+  margin-bottom: 4px;
   font-size: 12px;
+}
+.security-help p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.7;
 }
 @media (max-width: 640px) {
   .security-page {
-    padding: 20px 12px 40px;
+    padding: 22px 12px 42px;
   }
   .security-topbar,
   .security-section-head,
@@ -536,7 +646,17 @@ h2 {
     flex-direction: column;
   }
   .security-panel {
-    padding: 16px;
+    padding: 18px;
+  }
+  .security-back {
+    align-self: flex-start;
+  }
+  .security-primary,
+  .security-secondary {
+    width: 100%;
+  }
+  .security-form-foot {
+    display: grid;
   }
 }
 </style>

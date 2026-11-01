@@ -4,6 +4,8 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { ApiError, api } from '@/api/client'
 import { setCsrfToken } from '@/api/csrf'
 import type { LinkStatusResponse } from '@/api/types'
+import AuthFrame from '@/components/AuthFrame.vue'
+import PasswordField from '@/components/PasswordField.vue'
 
 type PageState = 'loading' | 'ready' | 'invalid' | 'done'
 
@@ -15,6 +17,7 @@ const password = ref('')
 const confirmation = ref('')
 const submitting = ref(false)
 const errorText = ref<string | null>(null)
+const showValidation = ref(false)
 
 const token = computed<string | null>(() => {
   const hash = route.hash
@@ -28,22 +31,33 @@ const token = computed<string | null>(() => {
   }
 })
 
-const canSubmit = computed(
-  () =>
-    state.value === 'ready' &&
-    password.value.length >= 15 &&
-    password.value.length <= 128 &&
-    confirmation.value.length > 0 &&
-    !submitting.value,
+const canSubmit = computed(() => state.value === 'ready' && !submitting.value)
+const purposeLabel = computed(() => (linkInfo.value?.purpose === 'reset' ? '重置登录密码' : '设置登录密码'))
+const pageDescription = computed(() =>
+  linkInfo.value?.purpose === 'reset'
+    ? '这是一次性重置链接。设置新密码后，旧密码和所有旧会话都会失效。'
+    : '这是一次性设置链接。请由账号本人设置密码；设置成功后即可使用新密码登录。',
 )
 
-const purposeLabel = computed(() => (linkInfo.value?.purpose === 'reset' ? '重置登录密码' : '设置登录密码'))
-
-function passwordError(): string | null {
+const passwordLengthError = computed(() => {
   if (password.value.length < 15) return '密码至少需要 15 个 Unicode 码点。'
   if (password.value.length > 128) return '密码不能超过 128 个 Unicode 码点。'
+  return null
+})
+const confirmationError = computed(() => {
   if (password.value !== confirmation.value) return '两次输入的密码不一致。'
   return null
+})
+const newPasswordError = computed(() => (showValidation.value ? passwordLengthError.value : null))
+const confirmFieldError = computed(() => (showValidation.value ? confirmationError.value : null))
+const policyItems = computed(() => [
+  { key: 'minimum', label: '至少 15 个 Unicode 码点', met: password.value.length >= 15 },
+  { key: 'maximum', label: '不超过 128 个 Unicode 码点', met: password.value.length <= 128 },
+  { key: 'match', label: '两次输入一致', met: confirmation.value.length > 0 && password.value === confirmation.value },
+])
+
+function passwordError(): string | null {
+  return passwordLengthError.value ?? confirmationError.value
 }
 
 function friendlyError(error: unknown): string {
@@ -54,6 +68,10 @@ function friendlyError(error: unknown): string {
     if (error.status === 400) return '链接无效、已过期或已被使用，请联系管理员重新获取。'
   }
   return '暂时无法完成设置，请稍后再试。'
+}
+
+function clearError(): void {
+  errorText.value = null
 }
 
 async function loadLink(): Promise<void> {
@@ -72,9 +90,10 @@ async function loadLink(): Promise<void> {
 
 async function submit(): Promise<void> {
   if (!token.value || !linkInfo.value || !canSubmit.value) return
+  showValidation.value = true
   const validation = passwordError()
   if (validation) {
-    errorText.value = validation
+    errorText.value = null
     return
   }
   submitting.value = true
@@ -102,166 +121,234 @@ onMounted(loadLink)
 </script>
 
 <template>
-  <main class="password-page">
-    <section class="password-panel" aria-labelledby="password-title">
-      <p class="password-brand">电商生图智能体</p>
-      <h1 id="password-title">{{ purposeLabel }}</h1>
+  <AuthFrame
+    eyebrow="ONE-TIME CREDENTIAL"
+    :title="purposeLabel"
+    :description="pageDescription"
+  >
+    <div v-if="state === 'loading'" class="password-state" role="status">
+      <span class="password-spinner" aria-hidden="true"></span>
+      <p>正在核实链接…</p>
+      <small>只读取链接状态，不会设置密码。</small>
+    </div>
 
-      <p v-if="state === 'loading'" class="password-hint">正在核实链接…</p>
+    <div v-else-if="state === 'invalid'" class="password-state password-state-invalid">
+      <p class="password-state-kicker">链接不可用</p>
+      <p class="password-error" role="alert">
+        {{ errorText ?? '链接无效、已过期或已被使用，请联系管理员重新获取。' }}
+      </p>
+      <p class="password-state-help">一次性链接通常只有 30 分钟有效期，使用一次后立即失效。管理员可以重新生成，但无法查看旧链接或密码。</p>
+      <RouterLink class="password-link" :to="{ name: 'login' }">返回登录</RouterLink>
+    </div>
 
-      <template v-else-if="state === 'invalid'">
-        <p class="password-error" role="alert">
-          {{ errorText ?? '链接无效、已过期或已被使用，请联系管理员重新获取。' }}
-        </p>
-        <RouterLink class="password-link" :to="{ name: 'login' }">返回登录</RouterLink>
-      </template>
+    <div v-else-if="state === 'done'" class="password-state password-state-done">
+      <span class="password-done-mark" aria-hidden="true">✓</span>
+      <p class="password-success" role="status">密码已设置成功，请使用新密码登录。</p>
+      <p class="password-state-help">旧密码和此前签发的会话已失效。请使用新密码重新登录。</p>
+      <RouterLink class="password-link" :to="{ name: 'login' }">前往登录</RouterLink>
+    </div>
 
-      <template v-else-if="state === 'done'">
-        <p class="password-success" role="status">密码已设置成功，请使用新密码登录。</p>
-        <RouterLink class="password-link" :to="{ name: 'login' }">前往登录</RouterLink>
-      </template>
+    <template v-else>
+      <p class="password-account">
+        <span>正在为</span>
+        <strong>{{ linkInfo?.account_email }}</strong>
+        <span>设置密码</span>
+      </p>
+      <form class="password-form" novalidate @submit.prevent="submit">
+        <PasswordField
+          v-model="password"
+          label="新密码"
+          name="new-password"
+          autocomplete="new-password"
+          :minlength="15"
+          :maxlength="128"
+          :required="true"
+          :disabled="submitting"
+          :error="newPasswordError"
+          hint="至少 15 个 Unicode 码点，可使用空格；不会自动截断。"
+          @update:model-value="clearError"
+        />
+        <PasswordField
+          v-model="confirmation"
+          label="再次输入新密码"
+          name="confirm-password"
+          autocomplete="new-password"
+          :minlength="15"
+          :maxlength="128"
+          :required="true"
+          :disabled="submitting"
+          :error="confirmFieldError"
+          @update:model-value="clearError"
+        />
 
-      <template v-else>
-        <p class="password-hint">
-          {{ linkInfo?.account_email }}，请设置一个至少 15 个字符、只有你本人知道的安全密码。
-        </p>
-        <form class="password-form" novalidate @submit.prevent="submit">
-          <label class="password-field">
-            <span>新密码</span>
-            <input
-              v-model="password"
-              type="password"
-              name="new-password"
-              autocomplete="new-password"
-              minlength="15"
-              maxlength="128"
-              required
-              :disabled="submitting"
-            />
-          </label>
-          <label class="password-field">
-            <span>再次输入新密码</span>
-            <input
-              v-model="confirmation"
-              type="password"
-              name="confirm-password"
-              autocomplete="new-password"
-              minlength="15"
-              maxlength="128"
-              required
-              :disabled="submitting"
-            />
-          </label>
-          <p v-if="errorText" class="password-error" role="alert">{{ errorText }}</p>
-          <button class="password-submit" type="submit" :disabled="!canSubmit">
-            {{ submitting ? '正在设置…' : '设置密码' }}
-          </button>
-        </form>
-      </template>
-    </section>
-  </main>
+        <ul class="password-policy" aria-label="密码要求">
+          <li v-for="item in policyItems" :key="item.key" :class="{ 'password-policy-met': item.met }">
+            <span aria-hidden="true">{{ item.met ? '✓' : '·' }}</span>
+            {{ item.label }}
+          </li>
+        </ul>
+
+        <p class="password-manager-hint">可以使用浏览器或密码管理器生成并保存密码。页面不会把密码写入本地存储。</p>
+        <p v-if="errorText" class="password-error" role="alert">{{ errorText }}</p>
+        <button class="password-submit" type="submit" :disabled="submitting">
+          {{ submitting ? '正在设置…' : '设置密码' }}
+        </button>
+      </form>
+    </template>
+
+    <template #footer>
+      <p>链接无效、已过期或已被使用？请联系管理员重新生成。系统不会通过邮件发送链接。</p>
+    </template>
+  </AuthFrame>
 </template>
 
 <style scoped>
-.password-page {
-  min-height: 100%;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background:
-    radial-gradient(circle at 18% 12%, rgba(184, 154, 104, 0.18), transparent 34%),
-    radial-gradient(circle at 82% 86%, rgba(112, 82, 57, 0.12), transparent 30%),
-    var(--color-page);
-}
-
-.password-panel {
-  width: min(440px, 100%);
-  padding: 36px 32px 32px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-panel);
-  background: var(--color-panel);
-  box-shadow: var(--shadow-panel);
-}
-
-.password-brand {
-  margin: 0 0 22px;
-  color: var(--color-accent);
-  font-size: 13px;
-  letter-spacing: 0.12em;
-}
-
-h1 {
-  margin: 0;
-  font-size: 26px;
-  line-height: 1.25;
-  font-weight: 600;
-}
-
-.password-hint {
-  margin: 12px 0 24px;
-  color: var(--color-text-muted);
-  line-height: 1.7;
-}
-
 .password-form {
   display: grid;
   gap: 18px;
 }
-
-.password-field {
-  display: grid;
-  gap: 8px;
-  color: var(--color-text-muted);
-  font-size: 13px;
-}
-
-.password-field input {
-  width: 100%;
-  min-height: 46px;
-  padding: 10px 12px;
+.password-account {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 20px;
+  padding: 11px 13px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
-  background: #fff;
-  color: var(--color-text);
-  font-size: var(--text-input);
-}
-
-.password-field input:focus {
-  border-color: var(--color-primary);
-}
-
-.password-error {
-  margin: 0;
-  color: var(--color-danger);
+  background: rgba(244, 240, 232, 0.58);
+  color: var(--color-text-muted);
+  font-size: 12px;
   line-height: 1.6;
 }
-
-.password-success {
-  margin: 16px 0 22px;
-  color: var(--color-primary);
-  line-height: 1.7;
+.password-account strong {
+  color: var(--color-text);
+  font-weight: 600;
+  word-break: break-all;
 }
-
+.password-policy {
+  display: grid;
+  gap: 4px;
+  margin: -2px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.password-policy li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.password-policy li span {
+  width: 12px;
+  color: var(--color-accent);
+}
+.password-policy-met {
+  color: var(--color-success);
+}
+.password-policy-met span {
+  color: var(--color-success);
+}
+.password-manager-hint {
+  margin: -4px 0 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.password-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(164, 61, 53, 0.24);
+  border-radius: var(--radius-control);
+  background: rgba(164, 61, 53, 0.06);
+  color: var(--color-danger);
+  font-size: 12px;
+  line-height: 1.6;
+}
 .password-submit {
-  min-height: 46px;
+  min-height: 48px;
   border: 0;
   border-radius: var(--radius-control);
   background: var(--color-primary);
   color: #fff;
   font-size: 15px;
+  letter-spacing: 0.04em;
+  transition: background 160ms ease, opacity 160ms ease;
 }
-
 .password-submit:hover:not(:disabled) {
   background: var(--color-primary-hover);
 }
-
 .password-submit:disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }
-
+.password-state {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding: 8px 0;
+}
+.password-state p {
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+}
+.password-state small {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+.password-state-kicker {
+  color: var(--color-accent) !important;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+.password-state-help {
+  font-size: 12px;
+}
+.password-state-invalid .password-error {
+  width: 100%;
+}
+.password-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: password-spin 0.9s linear infinite;
+}
+@keyframes password-spin {
+  to { transform: rotate(360deg); }
+}
+.password-done-mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(66, 102, 76, 0.12);
+  color: var(--color-success);
+  font-size: 22px;
+}
+.password-success {
+  color: var(--color-text) !important;
+  font-size: 16px;
+  font-weight: 500;
+}
 .password-link {
-  display: inline-block;
-  color: var(--color-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: 6px;
+  padding: 8px 18px;
+  border-radius: var(--radius-control);
+  background: var(--color-primary);
+  color: #fff;
+  text-decoration: none;
+  font-size: 14px;
+}
+.password-link:hover {
+  background: var(--color-primary-hover);
 }
 </style>
