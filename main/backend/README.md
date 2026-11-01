@@ -46,6 +46,8 @@ data/ 保存 SQLite 库（app.db，可能带 -wal/-shm）以及 generated/、ref
 
 备份目录含完整业务数据，按敏感数据保护；快照不包含 .env、模型密钥或 TLS 私钥。
 
+运行期和启动时还按类型清理到期内容：终态未发布候选图片 24 小时、普通诊断 30 天、安全审计 90 天；已发布/未认领 legacy/审批/恢复证据保留。候选文件删除后行保留并标记 retention_expired，未知缺失仍阻断备份。
+
 生产恢复使用本机 CLI，必须先停服务并验证备份：`restore --source ./data --backup ./backups/backup-<utc>-<hex> --output ./backups --confirm-restore RESTORE --service-stopped`。恢复会撤销全部会话和未使用链接、保留审批/交付撤销状态，并写入缺口闸门；核对账本后用 `clear-restore-gap --confirm-clear CLEAR_RESTORE_GAP` 关闭。详见 docs/operations/release-restore-recovery.md。
 
 ## 代码检查

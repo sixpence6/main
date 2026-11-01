@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.models import AuditEvent
 from app.config import Settings
 from app.db import read_session, write_transaction
 from app.models import Asset, Generation, Project
@@ -31,6 +32,10 @@ from app.workflow.tables import (
 # T20：保留期清理只处理明确的终态候选，绝不按目录递归或按时间全表删除。
 CANDIDATE_TTL = timedelta(hours=24)
 DIAGNOSTIC_TTL = timedelta(days=30)
+AUDIT_TTL = timedelta(days=90)
+# 清理后保留数据库行，但写入可审计的保留期标记；备份据此区分
+# “到期已清理”与真正的数据库悬挂引用。
+RETENTION_EXPIRED_NOTE = "retention_expired"
 TERMINAL_GENERATION_STATUSES = frozenset({"succeeded", "failed", "unknown"})
 NON_TERMINAL_JOB_STATUSES = frozenset(
     {"created", "submit_pending", "submitted", "remote_pending", "result_fetched"}
@@ -57,6 +62,7 @@ _MAX_TEXT = 160
 class RetentionPolicy:
     candidate_ttl: timedelta = CANDIDATE_TTL
     diagnostic_ttl: timedelta = DIAGNOSTIC_TTL
+    audit_ttl: timedelta = AUDIT_TTL
 
 
 @dataclass(frozen=True)
@@ -71,8 +77,10 @@ class RetentionFailure:
 class RetentionReport:
     scanned_generations: int = 0
     scanned_diagnostics: int = 0
+    scanned_audits: int = 0
     deleted_asset_ids: set[str] = field(default_factory=set)
     deleted_diagnostic_ids: set[str] = field(default_factory=set)
+    deleted_audit_ids: set[str] = field(default_factory=set)
     failures: list[RetentionFailure] = field(default_factory=list)
 
 
@@ -498,6 +506,11 @@ async def _clean_candidate(
             duration_ms=_duration_ms(started),
         )
         return
+    async with write_transaction(app.state.session_factory) as session:
+        asset_row = await session.get(Asset, asset.id)
+        if asset_row is not None:
+            asset_row.review_note = RETENTION_EXPIRED_NOTE
+            await session.flush()
     report.deleted_asset_ids.add(asset.id)
     await _record_retention_event(
         app,
@@ -523,7 +536,7 @@ async def _clean_diagnostics(
     async with read_session(app.state.session_factory) as session:
         events = list((await session.scalars(select(DiagnosticEvent))).all())
     for event in events:
-        if event.event in PROTECTED_DIAGNOSTIC_EVENTS or event.event.startswith("retention_"):
+        if event.event in PROTECTED_DIAGNOSTIC_EVENTS:
             continue
         created = _parse_timestamp(event.created_at)
         if created is None or now - created < policy.diagnostic_ttl:
@@ -556,6 +569,54 @@ async def _clean_diagnostics(
         report.deleted_diagnostic_ids.add(event.id)
 
 
+async def _clean_audits(
+    app,
+    *,
+    policy: RetentionPolicy,
+    now: datetime,
+    report: RetentionReport,
+    started: float,
+) -> None:
+    """Security audit records expire after the fixed 90-day retention window.
+
+    The audit table is append-only from the product surface; this local retention
+    pass is the only place that removes rows. A failure keeps the row and is
+    reported without widening the deletion scope.
+    """
+    async with read_session(app.state.session_factory) as session:
+        events = list((await session.scalars(select(AuditEvent))).all())
+    for event in events:
+        created = _parse_timestamp(event.occurred_at)
+        if created is None or now - created < policy.audit_ttl:
+            continue
+        try:
+            async with write_transaction(app.state.session_factory) as session:
+                row = await session.get(AuditEvent, event.id)
+                if row is None:
+                    continue
+                await session.delete(row)
+                await session.flush()
+        except Exception:
+            code = "AUDIT_DELETE_FAILED"
+            report.failures.append(
+                RetentionFailure(
+                    object_kind="audit",
+                    object_id=event.id,
+                    stage="audit",
+                    error_code=code,
+                )
+            )
+            await _record_retention_event(
+                app,
+                "retention_cleanup_failed",
+                project_id=None,
+                error_code=code,
+                duration_ms=_duration_ms(started),
+            )
+            continue
+        report.deleted_audit_ids.add(event.id)
+
+
 async def run_retention_cleanup(
     app,
     *,
@@ -579,6 +640,9 @@ async def run_retention_cleanup(
         report.scanned_diagnostics = int(
             await session.scalar(select(func.count()).select_from(DiagnosticEvent)) or 0
         )
+        report.scanned_audits = int(
+            await session.scalar(select(func.count()).select_from(AuditEvent)) or 0
+        )
     report.scanned_generations = len(generations)
     for generation in generations:
         await _clean_candidate(
@@ -596,13 +660,22 @@ async def run_retention_cleanup(
         report=report,
         started=started,
     )
+    await _clean_audits(
+        app,
+        policy=resolved_policy,
+        now=moment,
+        report=report,
+        started=started,
+    )
     return report
 
 
 __all__ = [
+    "AUDIT_TTL",
     "CANDIDATE_TTL",
     "DIAGNOSTIC_TTL",
     "GenerationRetention",
+    "RETENTION_EXPIRED_NOTE",
     "RetentionFailure",
     "RetentionPolicy",
     "RetentionReport",

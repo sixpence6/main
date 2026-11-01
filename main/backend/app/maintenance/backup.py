@@ -243,9 +243,18 @@ def _snapshot_database(source_db: Path, destination: Path) -> DatabaseSnapshot:
             if not version_row:
                 raise BackupError("SOURCE_SCHEMA_MISSING", "source database has no schema version")
             try:
+                asset_columns = {
+                    str(column[1])
+                    for column in destination_connection.execute(
+                        "PRAGMA table_info(assets)"
+                    ).fetchall()
+                }
+                review_column = (
+                    "review_note" if "review_note" in asset_columns else "NULL AS review_note"
+                )
                 rows = tuple(
                     destination_connection.execute(
-                        "SELECT id, kind, relative_path, sha256, byte_size "
+                        f"SELECT id, kind, relative_path, sha256, byte_size, {review_column} "
                         "FROM assets ORDER BY relative_path, id"
                     ).fetchall()
                 )
@@ -320,21 +329,27 @@ def _copy_file_with_hash(source: Path, destination: Path) -> tuple[int, str]:
     return total, digest.hexdigest()
 
 
+RETENTION_EXPIRED_NOTE = "retention_expired"
+
+
 def _copy_asset_files(
     source_root: Path, rows: Sequence[tuple[Any, ...]], data_dir: Path
 ) -> tuple[tuple[BackupFile, ...], tuple[dict[str, Any], ...], int]:
     files: dict[str, BackupFile] = {}
     missing: list[dict[str, Any]] = []
     for row in rows:
-        asset_id, kind, relative_path, sha256, byte_size = row
+        asset_id, kind, relative_path, sha256, byte_size, review_note = row
         relative = _safe_asset_relative(relative_path)
         if relative in files:
             continue
         source_file = source_root / relative
         if not source_file.exists():
-            missing.append(
-                {"asset_id": str(asset_id), "relative_path": relative, "kind": str(kind)}
-            )
+            entry = {"asset_id": str(asset_id), "relative_path": relative, "kind": str(kind)}
+            if kind == "generated" and str(review_note or "") == RETENTION_EXPIRED_NOTE:
+                entry["reason"] = RETENTION_EXPIRED_NOTE
+                missing.append(entry)
+                continue
+            missing.append(entry)
             continue
         if not is_safe_regular_file(source_file, source_root):
             raise BackupError(
@@ -359,7 +374,7 @@ def _copy_asset_files(
             byte_size=byte_count,
             sha256=digest,
         )
-    if missing:
+    if any("reason" not in item for item in missing):
         raise BackupError(
             "SOURCE_FILE_MISSING",
             f"{len(missing)} database-referenced file(s) are missing from the source",
