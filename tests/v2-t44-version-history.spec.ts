@@ -94,7 +94,7 @@ async function mount(view: WorkflowView) {
       {
         method: 'GET',
         url: detailPath,
-        responses: [{ body: { project: sampleProject({ id: PROJECT_A }), messages: [], generations: [] } }],
+        responses: [{ body: { project: sampleProject({ id: PROJECT_A, revision: 1 }), messages: [], generations: [] } }],
       },
       { method: 'GET', url: workflowPath, responses: [{ body: view }, { body: view }] },
     ],

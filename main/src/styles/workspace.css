@@ -2765,3 +2765,92 @@ body,
     grid-template-columns: 1fr;
   }
 }
+
+/* T23 U3 当前交付、历史预览与反馈新版本 */
+.workflow-delivery-blocked {
+  border-color: var(--color-danger, #b42318);
+  background: color-mix(in srgb, var(--color-danger, #b42318) 6%, var(--color-panel));
+}
+
+.workflow-delivery-meta {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.workflow-history-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.workflow-history-tabs button {
+  min-height: 36px;
+}
+
+.workflow-history-tab-active {
+  border-color: var(--color-primary);
+  font-weight: 600;
+}
+
+.workflow-version-current {
+  border-color: var(--color-primary);
+}
+
+.workflow-version-meta {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.workflow-history-selection {
+  margin: 0;
+}
+
+.workflow-feedback {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-page);
+}
+
+.workflow-feedback header,
+.workflow-feedback header h4,
+.workflow-feedback header p {
+  margin: 0;
+}
+
+.workflow-feedback header h4 {
+  font-size: var(--text-section);
+  line-height: var(--text-section-line);
+}
+
+.workflow-feedback-context {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.workflow-feedback textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.workflow-feedback button {
+  justify-self: start;
+}
+
+@media (max-width: 520px) {
+  .workflow-history-tabs {
+    flex-direction: column;
+  }
+
+  .workflow-history-tabs button,
+  .workflow-feedback button {
+    width: 100%;
+  }
+
+  .workflow-delivery-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

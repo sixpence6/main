@@ -28,7 +28,7 @@ MISSING_FIELD_LABELS = {
 # 本地参考图规则；最终格式取本地规则与适配器声明的交集。
 LOCAL_REFERENCE_MIME_TYPES = ("image/png", "image/jpeg")
 CAPABILITY_LABELS = {"TEXT": "文字处理", "VISION": "视觉理解", "IMAGE_GEN": "图片生成"}
-_SQUARE_SIZE = re.compile(r"^(\d+)x(\d+)$")
+_SIZE_PAIR = re.compile(r"^(\d+)x(\d+)$")
 
 
 def _fingerprint(adapter_id: str | None, model: str | None, base_url: str | None) -> str | None:
@@ -51,9 +51,9 @@ def _source(explicit: str | None, inherited: str | None) -> str:
     return "missing"
 
 
-def _is_square_size(value: str | None) -> bool:
-    match = _SQUARE_SIZE.match(value or "")
-    return bool(match) and int(match.group(1)) == int(match.group(2))
+def _is_valid_size(value: str | None) -> bool:
+    match = _SIZE_PAIR.match(value or "")
+    return bool(match) and int(match.group(1)) > 0 and int(match.group(2)) > 0
 
 
 def _base_status(role: RoleConfig, adapter_known: bool, extra_issues: list[ConfigIssue]) -> dict:
@@ -84,7 +84,7 @@ def _visual_capabilities(
     effective_mime_types = None
     if caps is not None:
         if (
-            _is_square_size(visual_role.image_size)
+            _is_valid_size(visual_role.image_size)
             and caps.supported_image_sizes is not None
             and visual_role.image_size in caps.supported_image_sizes
         ):
@@ -259,8 +259,8 @@ def build_config_status(settings: Settings, registry: AdapterRegistry) -> Config
     if visual_status.ready and capabilities.usable_image_size is None and visual_role.image_size:
         image_issues.append(
             ConfigIssue(
-                code="IMAGE_SIZE_NOT_SQUARE",
-                message="当前尺寸不是方形像素尺寸，不能作为生图输出规格",
+                code="IMAGE_SIZE_NOT_USABLE",
+                message="当前尺寸不是合法像素尺寸，不能作为生图输出规格",
             )
         )
     image_data["ready"] = image_ready
