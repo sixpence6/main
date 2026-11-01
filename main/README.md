@@ -21,7 +21,7 @@
       backend/
         app/                       # 后端源码(唯一源码)
         pyproject.toml / uv.lock   # 后端依赖
-        alembic.ini / migrations/  # 数据库迁移(0001 -> 0002 head)
+        alembic.ini / migrations/  # 数据库迁移(0001 -> 0010 head)
         .env / .env.example        # 运行配置(包内是空白模板，部署前填写)
         data/                      # 空目录(.gitkeep 占位)，运行时写入库与图片
       README.md                    # 本文件
@@ -37,15 +37,28 @@
 ## 首次部署
 
 先把 backend/.env 填好（内容与 .env.example 相同，都是空白模板；按目标机器填入
-provider 地址和 key。全部为空的配置也能启动，只是模型操作会失败）：
+provider 地址和 key。至少把 APP_PUBLIC_URL 设为浏览器实际访问的源，例如
+http://127.0.0.1:8090；正式环境使用 HTTPS 时填对应的 https 源。如果通过本机 HTTP 地址
+访问，还必须显式设置 ALLOW_LOOPBACK_HTTP=true 与 AUTH_COOKIE_SECURE=false；这两个例外
+只允许回环开发，不能用于局域网或生产。前端从 8090 访问时，ALLOWED_ORIGINS 必须包含
+该源（JSON 数组，例如 ["http://127.0.0.1:8090"]），否则写请求会因来源不匹配被拒绝。
+全部为空的模型配置也能启动，只是模型操作会失败）：
 
     cd main
     docker compose up -d --build
     docker compose ps
     docker compose logs -f backend
 
-后端启动时会先执行 `alembic upgrade head`（包内 data 是空的，会自动建库并升到 0002
-head），然后拉起 uvicorn；前端容器等后端健康检查通过后再起 nginx。
+后端启动时会先执行 `alembic upgrade head`（包内 data 是空的，会自动建库并升到 0010
+head），然后通过 `python -m app.production` 拉起 uvicorn；前端容器等后端健康检查通过
+后再起 nginx。
+
+首次启动后，在服务器本机的交互终端创建唯一首管理员（密码只从终端读取，不能通过
+命令行参数、网页或环境变量设置）：
+
+    docker compose exec backend python -m app.auth.cli init-admin
+
+实例已有管理员时该命令会拒绝重入。本应用不提供网页注册或网页首管理员初始化。
 
 访问：
 
@@ -90,15 +103,16 @@ app.db-wal**，否则最近写入会丢。
 
     ssh -L 8090:127.0.0.1:8090 -L 8000:127.0.0.1:8000 user@目标机器
 
-或者改 docker-compose.yml 的 ports 为 "0.0.0.0:8090:80" 之前，先想清楚：这个应用没有登录
-鉴权，任何能访问 8090 的人都能操作项目和消耗模型额度。
+或者改 docker-compose.yml 的 ports 为 "0.0.0.0:8090:80" 之前，先想清楚：这个应用要求
+登录，首个管理员只能在本机终端初始化；但任何能访问 8090 的人仍可尝试登录并使用已授权
+账号的模型额度。正式局域网访问应使用受信 HTTPS 入口，不要直接暴露后端端口。
 
 ## 旧数据升级说明
 
 如果你把旧机器上的 data 目录覆盖过来再启动，迁移 0002 会把 kind=generated 的旧资产统一
-标记为 review_status=legacy_unreviewed（并回填 legacy_items）。这些历史生成图需要在工作台
-走一次「遗留确认」流程，不会自动算作已验收。包内 data 默认是空的，全新部署不会出现这
-一步。
+标记为 review_status=legacy_unreviewed（并回填 legacy_items）。这些历史生成图不会自动算作
+已验收；维护者须先完成来源核实与认领，旧内容仍需独立审查。包内 data 默认是空的，全新
+部署不会出现这一步。
 
 ## 常见问题
 
@@ -117,7 +131,10 @@ app.db-wal**，否则最近写入会丢。
     cd backend
     uv sync
     uv run alembic upgrade head
-    uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+    uv run python -m app.production --host 127.0.0.1 --port 8000
+
+旧入口 `uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1` 仍作为兼容
+入口保留。首次使用空库时，先执行 `uv run python -m app.auth.cli init-admin` 创建首管理员。
 
 前端（另一个终端，在 main 下）：
 
