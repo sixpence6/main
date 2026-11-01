@@ -65,6 +65,20 @@ def _quality_response(request: Any, mode: str = "pass") -> dict[str, Any]:
         evidence = _evidence_for(rule, allowed)
         if mode == "bad_evidence" and rule["rule_id"] == "hard:subject":
             evidence = ["image:unknown-asset"]
+        elif (
+            mode == "image_only"
+            and "image" in rule.get("evidence_types", [])
+            and rule["rule_id"] != "hard:size_format"
+        ):
+            evidence = [
+                next(item for item in allowed if item.startswith("image:"))
+            ]
+        elif mode == "size_technical" and rule["rule_id"] == "hard:size_format":
+            evidence = [
+                item
+                for item in evidence
+                if not item.startswith("image:")
+            ]
         checks.append(
             {
                 "rule_id": rule["rule_id"],
@@ -112,6 +126,48 @@ def _review_response(request: Any, mode: str = "pass") -> dict[str, Any]:
                     "note": "报告与本次检查一致",
                 }
             )
+            if mode == "duplicate_report_checks":
+                checks.append(
+                    {
+                        "rule_id": "review:quality_report",
+                        "outcome": "pass",
+                        "evidence_ids": [f"report:{target['artifact_id']}"],
+                        "note": "报告与本次检查一致（独立维度）",
+                    }
+                )
+            if mode == "extra_review_checks":
+                checks.append(
+                    {
+                        "rule_id": "review:scope_and_duty",
+                        "outcome": "pass",
+                        "evidence_ids": [f"report:{target['artifact_id']}"],
+                        "note": "报告未越权",
+                    }
+                )
+                checks.append(
+                    {
+                        "rule_id": "review:no_unresolved_critical",
+                        "outcome": "pass",
+                        "evidence_ids": [f"report:{target['artifact_id']}"],
+                        "note": "无未解决关键问题",
+                    }
+                )
+                checks.append(
+                    {
+                        "rule_id": "review:scope_and_unauthorized",
+                        "outcome": "pass",
+                        "evidence_ids": [f"report:{target['artifact_id']}"],
+                        "note": "未越权",
+                    }
+                )
+                checks.append(
+                    {
+                        "rule_id": "review:evidence_and_unknowns",
+                        "outcome": "pass",
+                        "evidence_ids": [f"report:{target['artifact_id']}"],
+                        "note": "未知项未被写成事实",
+                    }
+                )
         else:
             by_id = {rule["rule_id"]: rule for rule in target["rules"]}
             for rule_id in target["required_rule_ids"]:
@@ -128,6 +184,48 @@ def _review_response(request: Any, mode: str = "pass") -> dict[str, Any]:
                         "outcome": outcome,
                         "evidence_ids": _evidence_for(rule, allowed),
                         "note": "已直接查看图片并核对" if outcome == "pass" else "文字与确认不一致",
+                    }
+                )
+            if mode == "advisory_review":
+                checks.append(
+                    {
+                        "rule_id": "review:scope_authority",
+                        "outcome": "pass",
+                        "evidence_ids": [f"image:{target['asset_id']}"],
+                        "note": "报告未越权",
+                    }
+                )
+            if mode == "extra_review_checks":
+                checks.append(
+                    {
+                        "rule_id": "review:evidence_coverage",
+                        "outcome": "pass",
+                        "evidence_ids": [f"image:{target['asset_id']}"],
+                        "note": "证据覆盖全部硬项",
+                    }
+                )
+                checks.append(
+                    {
+                        "rule_id": "review:unauthorized_claim",
+                        "outcome": "pass",
+                        "evidence_ids": [f"image:{target['asset_id']}"],
+                        "note": "无越权声明",
+                    }
+                )
+                checks.append(
+                    {
+                        "rule_id": "review:scope_and_evidence",
+                        "outcome": "pass",
+                        "evidence_ids": [f"image:{target['asset_id']}"],
+                        "note": "范围与证据一致",
+                    }
+                )
+                checks.append(
+                    {
+                        "rule_id": "review:unauthorized",
+                        "outcome": "pass",
+                        "evidence_ids": [f"image:{target['asset_id']}"],
+                        "note": "无外部链接或权限声明",
                     }
                 )
         results.append(
@@ -404,6 +502,22 @@ async def test_quality_pass_records_separate_report_and_image_approvals(
     assert quality_input["asset_id"] == seed.asset_id
     assert quality_input["technical"]["size_matches"] is True
     assert "hard:product_consistency" in calls[0].payload["task"]["required_rule_ids"]
+    composition_rule = next(
+        rule for rule in quality_input["rules"] if rule["rule_id"] == "hard:composition"
+    )
+    assert "商品居中，留白充足" in composition_rule["requirement"]
+    assert "简洁棚拍" in composition_rule["requirement"]
+    assert "柔和棚拍光" in composition_rule["requirement"]
+    text_rule = next(
+        rule for rule in quality_input["rules"] if rule["rule_id"] == "hard:text_logo"
+    )
+    assert "无确认画面文字" in text_rule["requirement"]
+    reviewer_input = calls[1].payload["input_data"]
+    assert reviewer_input["rules"] == quality_input["rules"]
+    reviewer_context = calls[1].payload["approved_inputs"]["confirmed_snapshot"]
+    assert reviewer_context["creative_direction"] == "简洁棚拍"
+    assert reviewer_context["composition"] == "商品居中，留白充足"
+    assert reviewer_context["lighting"] == "柔和棚拍光"
     targets = calls[1].payload["review_targets"]
     assert {target["target_kind"] for target in targets} == {"quality_report", "image"}
     report_target = next(target for target in targets if target["target_kind"] == "quality_report")
@@ -429,6 +543,91 @@ async def test_quality_pass_records_separate_report_and_image_approvals(
     assert report_approval.approved_by == "output_reviewer"
     assert report_approval.artifact_digest == report["digest"]
     assert report_approval.id != image_approval.id
+
+
+async def test_visual_rule_may_be_proven_by_image_evidence_alone(
+    llm_app: Any, llm_client: Any, llm_settings: Any
+) -> None:
+    stub = llm_app.state.registry.stub_llm
+    stub.role_responder = _responder("image_only")
+    seed = await _seed_project(llm_app, llm_settings, llm_client)
+
+    response = await _post_review(llm_client, seed)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["stage"] == "S10"
+    report = _artifact_by_kind(body, "quality_report")
+    assert report["status"] == "approved"
+    checks = report["payload"]["checks"]
+    assert any(check["rule_id"] == "hard:quantity" for check in checks)
+    assert all(
+        evidence.startswith("image:")
+        for check in checks
+        if check["rule_id"] != "hard:size_format"
+        for evidence in check["evidence_ids"]
+    )
+
+
+async def test_size_rule_accepts_technical_and_requirement_without_image(
+    llm_app: Any, llm_client: Any, llm_settings: Any
+) -> None:
+    stub = llm_app.state.registry.stub_llm
+    stub.role_responder = _responder("size_technical")
+    seed = await _seed_project(llm_app, llm_settings, llm_client)
+
+    response = await _post_review(llm_client, seed)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["stage"] == "S10"
+    report = _artifact_by_kind(body, "quality_report")
+    size_check = next(
+        check
+        for check in report["payload"]["checks"]
+        if check["rule_id"] == "hard:size_format"
+    )
+    assert any(item.startswith("technical:") for item in size_check["evidence_ids"])
+    assert not any(item.startswith("image:") for item in size_check["evidence_ids"])
+
+
+async def test_reviewer_may_group_report_checks_under_default_rule(
+    llm_app: Any, llm_client: Any, llm_settings: Any
+) -> None:
+    stub = llm_app.state.registry.stub_llm
+    stub.role_responder = _responder("duplicate_report_checks")
+    seed = await _seed_project(llm_app, llm_settings, llm_client)
+
+    response = await _post_review(llm_client, seed)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["stage"] == "S10"
+
+
+async def test_reviewer_may_add_advisory_review_rule(
+    llm_app: Any, llm_client: Any, llm_settings: Any
+) -> None:
+    stub = llm_app.state.registry.stub_llm
+    stub.role_responder = _responder("extra_review_checks")
+    seed = await _seed_project(llm_app, llm_settings, llm_client)
+
+    response = await _post_review(llm_client, seed)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["stage"] == "S10"
+
+
+async def test_reviewer_may_add_unregistered_advisory_review_rule(
+    llm_app: Any, llm_client: Any, llm_settings: Any
+) -> None:
+    stub = llm_app.state.registry.stub_llm
+    stub.role_responder = _responder("advisory_review")
+    seed = await _seed_project(llm_app, llm_settings, llm_client)
+
+    response = await _post_review(llm_client, seed)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["stage"] == "S10"
 
 
 async def test_hard_failure_keeps_image_quarantined_but_report_may_pass(
@@ -572,7 +771,7 @@ async def test_reviewer_unknown_rule_is_rejected(
         data = _review_response(request)
         data["data"]["results"][0]["checks"].append(
             {
-                "rule_id": "review:made_up",
+                "rule_id": "hard:made_up",
                 "outcome": "pass",
                 "evidence_ids": [],
                 "note": "unknown rule",

@@ -15,7 +15,7 @@ from app.adapters.base import (
     OrganizeRequest,
     ProviderError,
 )
-from app.adapters.openai_chat import OpenAIChatAdapter
+from app.adapters.openai_chat import OpenAIChatAdapter, _extract_json
 from app.adapters.registry import build_default_registry
 from app.config import RoleConfig, Settings
 from app.services.config_status import build_config_status
@@ -123,6 +123,7 @@ async def test_organize_sends_chat_request_and_parses_review():
     assert seen["auth"] == "Bearer sk-test-secret"
     body = seen["body"]
     assert body["model"] == "chat-model"
+    assert body["max_tokens"] == 32768
     assert body["response_format"] == {"type": "json_object"}
     assert body["messages"][0]["role"] == "system"
     assert body["messages"][-1] == {"role": "user", "content": "电商主图，白色背景"}
@@ -258,6 +259,36 @@ async def test_invalid_content_is_rejected_without_treating_it_as_a_brief():
 
     assert raised.value.evidence == "uncertain"
     assert raised.value.error_code == "LLM_RESPONSE_INVALID"
+
+
+async def test_missing_outer_brace_is_repaired_for_provider_content():
+    content = _review_payload()
+    assert content.endswith("}")
+    content = content[:-1]
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_completion(content))
+
+    adapter, client = _adapter(handler)
+    try:
+        result = await adapter.organize(_request())
+    finally:
+        await client.aclose()
+
+    assert result.outcome == "review"
+    assert result.brief.product_description == "红色苹果"
+
+
+def test_extract_json_repairs_exactly_one_missing_outer_brace():
+    content = _review_payload()
+    repaired = _extract_json(content[:-1])
+    assert repaired["status"] == "review"
+    assert repaired["fields"]["product_description"] == "红色苹果"
+
+
+def test_extract_json_rejects_inner_truncation():
+    with pytest.raises(ValueError):
+        _extract_json('{"status":"review","fields":{"product_description":"红色苹果"')
 
 
 async def test_review_requires_a_prompt():

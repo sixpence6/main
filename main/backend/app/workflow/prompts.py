@@ -80,9 +80,9 @@ copy_lines 默认保持已要求的准确文字。仅在用户明确要求创作
 
 positive_prompt 完整表达确认后的商品、数量、用途、创意、风格、构图、背景、光影、准确文字和必须保留项。negative_prompt 只承载已确认禁止项及防止违反确认需求的约束；不得机械套用 A62 的女性角色、固定插画或一律禁字规则。
 
-requirement_coverage 必须恰好覆盖程序提供的每个适用硬要求 ID，逐项指出它绑定 positive_prompt、negative_prompt、size、count 或 reference_asset_id 的哪一值。覆盖不是图片已满足要求的证明；生成后仍需看图检查。
+requirement_coverage 必须恰好覆盖程序提供的每个适用硬要求 ID，逐项指出它绑定 positive_prompt、negative_prompt、size、count 或 reference_asset_id 的哪一值。每个 value 必须逐字复制 input_data.hard_requirements 的 requirement，并在对应提示词字段中连续原样出现；不得改写、插入或省略字词，可在该片段前后添加通用修饰语。覆盖不是图片已满足要求的证明；生成后仍需看图检查。
 
-保持价格、文案、商品事实及禁止项原意。编译需要新增／修改需求时，返回 needs_input、data=null、questions=[] 与 REQUIREMENT_DRIFT；不能替用户做选择。
+不得自行补充确认快照未明确出现的包装数量（如“单只装”）、配件、赠品、产地、材质等级等事实；保持价格、文案、商品事实及禁止项原意。编译需要新增／修改需求时，返回 needs_input、data=null、questions=[] 与 REQUIREMENT_DRIFT；不能替用户做选择。
 
 正常 data={positive_prompt,negative_prompt,size,count,reference_asset_id,requirement_coverage}。该输出只是执行候选，经门禁及用户显式提交后才可能由程序执行。""",
     "quality_compliance": """固定 role=quality_compliance。使用实际成图、相关原参考图、确认需求快照及程序固化的硬要求逐项质检，不生成或修图。

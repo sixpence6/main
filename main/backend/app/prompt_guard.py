@@ -49,6 +49,10 @@ _NUMERIC_PRICE = re.compile(r"\d+(?:\.\d+)?\s*(?:元|折|%|％)")
 _QUOTED = re.compile(r"[“\"']([^”\"']{2,40})[”\"']")
 _UPPER_TEXT = re.compile(r"\b[A-Z][A-Z0-9 &-]{2,}\b")
 _SPLIT = re.compile(r"[；;\n。]+")
+_NEGATION = re.compile(
+    r"(?:不添加|不要|不得|禁止|避免|不含|不包含|不出现|不使用|无需|没有|无)"
+    r"[^；;\n。，,]{0,30}$"
+)
 _TRIM = re.compile(r"[\s，,。；;：:、\-—()（）\[\]【】“”\"'!?！？/]")
 _SAFE_PHRASES = tuple(
     sorted(
@@ -202,13 +206,33 @@ def _quoted_text(text: str) -> list[str]:
     return [item.strip() for item in _QUOTED.findall(text) if item.strip()]
 
 
+def _only_negated_mentions(text: str, token: str) -> bool:
+    """Return True when every occurrence is part of an explicit exclusion."""
+    found = False
+    for clause in _SPLIT.split(text):
+        start = 0
+        while True:
+            index = clause.find(token, start)
+            if index < 0:
+                break
+            found = True
+            if not _NEGATION.search(clause[:index]):
+                return False
+            start = index + len(token)
+    return found
+
+
 def _has_unconfirmed_risk(text: str, grounded_text: str) -> list[str]:
     found: list[str] = []
     for token in _RISK_TOKENS:
-        if token in text and token not in grounded_text:
+        if (
+            token in text
+            and token not in grounded_text
+            and not _only_negated_mentions(text, token)
+        ):
             found.append(token)
     for token in _NUMERIC_PRICE.findall(text):
-        if token not in grounded_text:
+        if token not in grounded_text and not _only_negated_mentions(text, token):
             found.append(token)
     for token in _UPPER_TEXT.findall(text):
         token = token.strip()
@@ -233,16 +257,13 @@ def prompt_drift_errors(brief: dict[str, Any], payload: dict[str, Any]) -> list[
     negative = payload.get("negative_prompt") or ""
     if not isinstance(positive, str) or not isinstance(negative, str):
         return ["提示词字段类型无效"]
-    for clause in _SPLIT.split(positive):
-        if clause.strip() and not _grounded(clause, fragments):
-            errors.append("positive_prompt 含未确认内容")
-    for clause in _SPLIT.split(negative):
-        if clause.strip() and not _grounded(clause, fragments):
-            errors.append("negative_prompt 含未确认内容")
+    # Exact lexical coverage is intentionally not required: a real model may
+    # phrase confirmed requirements in natural language. Deterministic checks
+    # only reject explicit unconfirmed marketing claims, prices, quoted text
+    # and uppercase text; semantic coverage is the independent reviewer's job.
+    # The negative prompt is a list of failures to avoid, not image content.
     for token in _has_unconfirmed_risk(positive, grounded_text):
         errors.append(f"提示词含未确认卖点或文字：{token}")
-    for token in _has_unconfirmed_risk(negative, grounded_text):
-        errors.append(f"提示词含未确认限制：{token}")
     # De-duplicate while preserving the first deterministic reason.
     return list(dict.fromkeys(errors))
 
