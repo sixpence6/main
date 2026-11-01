@@ -34,6 +34,8 @@ SECURITY_EVENT_TYPES = frozenset(
         "generation_limits_updated",
         "generation_tracking_closed",
         "legacy_projects_claimed",
+        "maintenance_restore_completed",
+        "maintenance_restore_gap_cleared",
         "permission_denied",
     }
 )
@@ -53,6 +55,12 @@ SAFE_DETAIL_KEYS = frozenset(
         "intent_id",
         "reason",
         "remote_cancelled",
+        "safety_backup_id",
+        "gap_expires_at",
+        "cleared_at",
+        "approvals_revoked",
+        "deliveries_revoked",
+        "assets_guarded",
     }
 )
 SAFE_STATE_KEYS = frozenset(
