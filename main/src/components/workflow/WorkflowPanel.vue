@@ -13,6 +13,8 @@ import { useWorkspace } from '@/composables/useWorkspace'
 import { LEGACY_UNREVIEWED_NOTICE } from '@/utils/format'
 import {
   confirmationStateOf,
+  currentDeliveryBlocked,
+  currentPublishedVersion,
   latestFinalBrief,
   nextStepForWorkflow,
 } from '@/workflow/projection'
@@ -25,6 +27,7 @@ const actionText = ref<Record<string, string>>({})
 const actionConfirmed = ref<Record<string, boolean>>({})
 const actionUsage = ref<Record<string, string>>({})
 const actionError = ref('')
+const selectedHistoryRunId = ref<string | null>(null)
 
 const conflictGuidance = computed(() => {
   if (errorCode.value === 'INTENT_REPLAY_CONFLICT') {
@@ -184,10 +187,18 @@ const approvedBriefDraft = computed(() =>
   approvedArtifacts.value.some((artifact) => artifact.kind === 'brief_draft'),
 )
 const publishedVersions = computed<WorkflowVersion[]>(() =>
-  (view.value?.versions ?? []).filter(
-    (version) => version.status === 'published' && version.can_download,
-  ),
+  (view.value?.versions ?? [])
+    .filter((version) => version.status === 'published' && version.can_download)
+    .slice()
+    .sort((left, right) => right.requirement_revision - left.requirement_revision),
 )
+
+const activeHistoryVersion = computed<WorkflowVersion | null>(() => {
+  const versions = publishedVersions.value
+  if (!versions.length) return null
+  const selected = versions.find((version) => version.run_id === selectedHistoryRunId.value)
+  return selected ?? currentVersion.value ?? versions[0]
+})
 
 const issueHeading = computed(() => {
   if (!view.value?.issue) return ''
@@ -230,11 +241,22 @@ const shortDigest = computed(() => {
   return digest ? digest.slice(0, 12) : ''
 })
 
+const currentVersion = computed(() => currentPublishedVersion(currentProject.value, view.value))
+const currentVersionBlocked = computed(() => currentDeliveryBlocked(currentProject.value, view.value))
+const deliveryAtCurrentRevision = computed(() => {
+  if (!view.value) return false
+  const project = currentProject.value
+  return !project || view.value.project_revision >= project.revision
+})
+
 const imageStatus = computed(() => {
   if (!view.value) return ''
   const delivery = view.value.delivery
   if (delivery) {
-    if (delivery.status === 'published') return '已发布'
+    if (delivery.status === 'published') {
+      if (currentVersion.value) return '已发布'
+      return currentVersionBlocked.value ? '交付不可用' : '历史交付'
+    }
     if (delivery.status === 'approved') return '交付待发布'
     return '交付已撤销'
   }
@@ -257,6 +279,11 @@ const hasRun = computed(() => Boolean(view.value?.run_id))
 const usage = computed(() => view.value?.usage ?? null)
 const generationIntent = computed(() => view.value?.intent ?? null)
 
+const feedbackAction = computed<WorkflowAction | null>(() => {
+  if (!currentVersion.value) return null
+  return view.value?.available_actions.find((action) => action.id === 'request_new_version') ?? null
+})
+
 const visibleActions = computed(() => {
   const actions = view.value?.available_actions ?? []
   return actions
@@ -269,6 +296,21 @@ const visibleActions = computed(() => {
     .sort((left, right) => (
       Number(RECOVERY_ACTION_IDS.has(left.id)) - Number(RECOVERY_ACTION_IDS.has(right.id))
     ))
+})
+
+const primaryActions = computed(() =>
+  visibleActions.value.filter((action) => action.id !== 'request_new_version'),
+)
+
+const feedbackContext = computed(() => {
+  const version = currentVersion.value
+  if (!version) return ''
+  let context = '当前交付为第 ' + version.requirement_revision + ' 版（' + version.filename + '），尺寸 ' + versionSize(version) + '。反馈会重新确认需求并生成一个新版本，不承诺局部像素不变或只修改指定区域。每次生成仍仅一张图并使用固定尺寸。'
+  const active = activeHistoryVersion.value
+  if (active && active.run_id !== version.run_id) {
+    context += ' 当前选择的是第 ' + active.requirement_revision + ' 版历史预览，不会修改当前需求；反馈始终基于当前交付。'
+  }
+  return context
 })
 
 const generationJobPending = computed(() => view.value?.generation_job?.status === 'quarantined')
@@ -424,6 +466,19 @@ function versionPrompt(version: WorkflowVersion): string {
   return typeof prompt === 'string' ? prompt : ''
 }
 
+function versionSize(version: WorkflowVersion): string {
+  const size = version.brief?.size
+  return typeof size === 'string' && size ? size.replace(/x/i, '×') : '尺寸未记录'
+}
+
+function isCurrentHistoryVersion(version: WorkflowVersion): boolean {
+  return currentVersion.value?.run_id === version.run_id
+}
+
+function selectHistory(version: WorkflowVersion): void {
+  selectedHistoryRunId.value = version.run_id
+}
+
 function formatBriefValue(key: string, value: unknown): string {
   if (key === 'reference_usage') {
     const labels: Record<string, string> = {
@@ -541,6 +596,10 @@ function confirmationRequestId(): string {
   }
   return generated
 }
+
+watch(() => view.value?.run_id, () => {
+  selectedHistoryRunId.value = null
+})
 
 watch(generationIntent, (intent) => {
   if (!intent || !['delivered', 'failed', 'abandoned'].includes(intent.status)) return
@@ -660,6 +719,7 @@ watch(
     <p v-if="conflictGuidance" class="muted workflow-conflict-guidance" role="note">
       {{ conflictGuidance }}
     </p>
+    <p v-if="actionError" class="form-error" role="alert">{{ actionError }}</p>
 
     <div v-if="referenceAsset && view?.stage === 'S02'" class="workflow-reference">
       <h4>参考图预览</h4>
@@ -776,7 +836,7 @@ watch(
       </dl>
     </section>
 
-    <div v-if="visibleActions.length" class="workflow-actions">
+    <div v-if="primaryActions.length" class="workflow-actions">
       <p
         v-if="hasSafeRecoveryAction"
         class="muted workflow-recovery-note"
@@ -785,7 +845,7 @@ watch(
         安全恢复：以下核实、找回、继续或结束跟踪操作不会自动提交新的生成请求，也不会自动新增受理次数。
       </p>
       <div
-        v-for="action in visibleActions"
+        v-for="action in primaryActions"
         :key="action.id"
         class="workflow-action"
         :class="{ 'workflow-recovery-action': RECOVERY_ACTION_IDS.has(action.id) }"
@@ -833,10 +893,6 @@ watch(
           {{ actionDisabledReason(action) }}
         </p>
       </div>
-      <p v-if="actionError" class="form-error" role="alert">{{ actionError }}</p>
-      <p v-if="view?.available_actions.some((item) => item.id === 'request_new_version')" class="muted workflow-version-note" role="note">
-        反馈会重新确认需求并生成一个新版本，不承诺局部像素不变或只修改指定区域。每次生成仍仅一张图并使用固定尺寸。
-      </p>
     </div>
 
     <div v-if="approvedArtifacts.length" class="workflow-artifacts">
@@ -865,26 +921,36 @@ watch(
       </p>
     </div>
 
-    <div v-if="view?.delivery" class="workflow-delivery">
+    <div
+      v-if="view?.delivery && deliveryAtCurrentRevision"
+      class="workflow-delivery"
+      :class="{ 'workflow-delivery-blocked': view.delivery.status === 'published' && !currentVersion }"
+    >
       <div class="workflow-delivery-heading">
-        <strong>交付：{{ view.delivery.filename }}</strong>
-        <span class="status-badge">{{ deliveryStatusLabel(view.delivery.status) }}</span>
+        <strong>{{ currentVersion ? '当前交付：' + currentVersion.filename : '交付：' + view.delivery.filename }}</strong>
+        <span class="status-badge">{{ currentVersion ? '已发布' : deliveryStatusLabel(view.delivery.status) }}</span>
       </div>
-      <p v-if="view.delivery.caption">{{ view.delivery.caption }}</p>
-      <template v-if="view.delivery.status === 'published'">
+      <template v-if="currentVersion">
+        <p v-if="view.delivery.caption">{{ view.delivery.caption }}</p>
+        <p class="muted workflow-delivery-meta">
+          当前第 {{ currentVersion.requirement_revision }} 版 · 尺寸 {{ versionSize(currentVersion) }}
+        </p>
         <img
           class="workflow-delivery-image"
-          :src="assetUrl(view.delivery.asset_id)"
-          :alt="view.delivery.caption || '已发布交付图片'"
+          :src="assetUrl(currentVersion.asset_id ?? '')"
+          :alt="view.delivery.caption || '当前已发布交付图片'"
         />
         <a
           class="workflow-download"
-          :href="assetUrl(view.delivery.asset_id) + '?download=true'"
-          :download="view.delivery.filename"
+          :href="versionDownloadUrl(currentVersion)"
+          :download="currentVersion.filename ?? undefined"
         >
-          下载已发布图片
+          下载当前交付
         </a>
       </template>
+      <p v-else-if="view.delivery.status === 'published'" class="form-error" role="alert">
+        当前交付不可用：当前版本图片已撤销、过期、文件缺失或未通过内容门禁，不能预览或下载。历史记录仍按真实状态保留。
+      </p>
       <p v-else-if="view.delivery.status === 'revoked'" class="muted">
         当前内容不可访问或批准已失效，请检查状态或重新审查。
       </p>
@@ -893,25 +959,90 @@ watch(
 
     <section v-if="publishedVersions.length" class="workflow-versions" aria-labelledby="workflow-versions-title">
       <h4 id="workflow-versions-title">历史版本</h4>
-      <article v-for="version in publishedVersions" :key="version.run_id" class="workflow-version">
+      <p class="muted">
+        历史预览只用于查看已发布的旧版本；切换不会修改当前需求、确认，也不会调用模型。
+      </p>
+      <nav v-if="publishedVersions.length > 1" class="workflow-history-tabs" aria-label="切换历史版本">
+        <button
+          v-for="version in publishedVersions"
+          :key="version.run_id"
+          type="button"
+          class="text-button"
+          :class="{ 'workflow-history-tab-active': activeHistoryVersion?.run_id === version.run_id }"
+          :aria-pressed="activeHistoryVersion?.run_id === version.run_id"
+          @click="selectHistory(version)"
+        >
+          第 {{ version.requirement_revision }} 版
+        </button>
+      </nav>
+      <article
+        v-if="activeHistoryVersion"
+        class="workflow-version"
+        :class="{ 'workflow-version-current': isCurrentHistoryVersion(activeHistoryVersion) }"
+      >
         <header>
-          <strong>第 {{ version.requirement_revision }} 版</strong>
-          <span>已发布 · 已审查</span>
+          <strong>{{ isCurrentHistoryVersion(activeHistoryVersion) ? '当前交付' : '历史版本' }}</strong>
+          <span>{{ isCurrentHistoryVersion(activeHistoryVersion) ? '当前版本 · 已审查' : '历史快照 · 已审查' }}</span>
         </header>
-        <p v-if="versionBrief(version)">需求：{{ versionBrief(version) }}</p>
-        <p v-if="versionPrompt(version)">提示词：{{ versionPrompt(version) }}</p>
-        <figure v-if="version.asset_id" class="workflow-version-preview">
+        <p class="workflow-version-number"><strong>第 {{ activeHistoryVersion.requirement_revision }} 版</strong></p>
+        <p v-if="versionBrief(activeHistoryVersion)">需求：{{ versionBrief(activeHistoryVersion) }}</p>
+        <p v-if="versionPrompt(activeHistoryVersion)">提示词：{{ versionPrompt(activeHistoryVersion) }}</p>
+        <p class="muted workflow-version-meta">
+          版本记录：第 {{ activeHistoryVersion.requirement_revision }} 版 ·
+          尺寸 {{ versionSize(activeHistoryVersion) }} · 已发布
+        </p>
+        <figure v-if="activeHistoryVersion.asset_id" class="workflow-version-preview">
           <img
-            :src="assetUrl(version.asset_id)"
-            :alt="'第 ' + version.requirement_revision + ' 版历史预览'"
+            :src="assetUrl(activeHistoryVersion.asset_id)"
+            :alt="'第 ' + activeHistoryVersion.requirement_revision + ' 版历史预览'"
             loading="lazy"
           />
           <figcaption>历史预览 · 不代表当前需求状态</figcaption>
         </figure>
-        <a v-if="version.asset_id" :href="versionDownloadUrl(version)" class="text-button" download>
-          下载第 {{ version.requirement_revision }} 版
+        <a v-if="activeHistoryVersion.asset_id" :href="versionDownloadUrl(activeHistoryVersion)" class="text-button" download>
+          下载第 {{ activeHistoryVersion.requirement_revision }} 版
         </a>
+        <p
+          v-if="!isCurrentHistoryVersion(activeHistoryVersion)"
+          class="muted workflow-history-selection"
+          role="note"
+        >
+          当前正在查看第 {{ activeHistoryVersion.requirement_revision }} 版历史预览；这不会修改当前需求、确认或调用模型。
+        </p>
       </article>
+    </section>
+
+    <section
+      v-if="feedbackAction && currentVersion"
+      class="workflow-feedback"
+      aria-labelledby="workflow-feedback-title"
+    >
+      <header>
+        <p class="eyebrow">反馈新版本</p>
+        <h4 id="workflow-feedback-title">基于当前交付继续调整</h4>
+      </header>
+      <p class="muted workflow-feedback-context">{{ feedbackContext }}</p>
+      <label :for="'workflow-' + feedbackAction.id">{{ feedbackAction.text_label || feedbackAction.label }}</label>
+      <textarea
+        :id="'workflow-' + feedbackAction.id"
+        v-model="actionText[feedbackAction.id]"
+        rows="2"
+        :disabled="loading || actionBusy"
+      />
+      <button
+        type="button"
+        :class="actionClass(feedbackAction)"
+        :disabled="!canSubmit(feedbackAction)"
+        :aria-busy="actionBusy || loading"
+        :title="actionDisabledReason(feedbackAction) || undefined"
+        @click="submit(feedbackAction)"
+      >
+        {{ actionBusy ? '处理中…' : actionLabel(feedbackAction) }}
+      </button>
+      <p v-if="actionHelp(feedbackAction)" class="muted workflow-action-help">{{ actionHelp(feedbackAction) }}</p>
+      <p v-if="actionDisabledReason(feedbackAction)" class="muted workflow-action-reason">
+        {{ actionDisabledReason(feedbackAction) }}
+      </p>
     </section>
 
     <div v-if="view?.legacy.length" class="workflow-legacy">

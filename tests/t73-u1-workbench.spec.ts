@@ -338,6 +338,8 @@ describe('T21 U1/U2/U3 状态投影', () => {
     ).toBe('u2')
     expect(
       userStateOf(project, workflowView({
+        stage: 'S10',
+        status: 'completed',
         artifacts: [approvedFinalBrief()],
         delivery: {
           id: 'delivery-1',
@@ -348,6 +350,22 @@ describe('T21 U1/U2/U3 状态投影', () => {
           published_at: '2026-10-31T00:03:00.000Z',
           created_at: '2026-10-31T00:02:30.000Z',
         },
+        versions: [{
+          run_id: 'run-t73',
+          sequence_no: 1,
+          requirement_revision: 3,
+          status: 'published',
+          generation_job_id: 'job-delivery',
+          asset_id: 'asset-delivery',
+          filename: 'delivery.png',
+          caption: null,
+          published_at: '2026-10-31T00:03:00.000Z',
+          brief: { product_description: '米色亚麻托特包' },
+          prompt: null,
+          quality: null,
+          can_download: true,
+          created_at: '2026-10-31T00:02:30.000Z',
+        }],
       })),
     ).toBe('u3')
   })

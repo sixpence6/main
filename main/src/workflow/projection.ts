@@ -1,5 +1,10 @@
 import type { ProjectView } from '@/api/types'
-import type { WorkflowApproval, WorkflowArtifact, WorkflowView } from '@/api/workflow'
+import type {
+  WorkflowApproval,
+  WorkflowArtifact,
+  WorkflowVersion,
+  WorkflowView,
+} from '@/api/workflow'
 
 export type ConfirmationState = 'none' | 'reviewing' | 'pending' | 'confirmed' | 'stale'
 export type UserState = 'u1' | 'u2' | 'u3'
@@ -64,17 +69,43 @@ export function confirmationStateOf(view: WorkflowView | null | undefined): Conf
   return 'pending'
 }
 
+export function currentPublishedVersion(
+  project: ProjectView | null | undefined,
+  view: WorkflowView | null | undefined,
+): WorkflowVersion | null {
+  if (!project || !view) return null
+  if (view.status !== 'completed') return null
+  if (project && view.project_revision < project.revision) return null
+  if (view.delivery?.status !== 'published') return null
+  const deliveryAsset = view.delivery.asset_id
+  const versions = view.versions ?? []
+  return (
+    versions.find((version) => (
+      version.run_id === view.run_id &&
+      version.status === 'published' &&
+      version.can_download &&
+      version.asset_id === deliveryAsset &&
+      Boolean(version.filename)
+    )) ?? null
+  )
+}
+
+export function currentDeliveryBlocked(
+  project: ProjectView | null | undefined,
+  view: WorkflowView | null | undefined,
+): boolean {
+  if (!project || !view) return false
+  if (view.status !== 'completed') return false
+  if (project && view.project_revision < project.revision) return false
+  return view.delivery?.status === 'published' && currentPublishedVersion(project, view) === null
+}
+
 export function userStateOf(
   project: ProjectView | null | undefined,
   view: WorkflowView | null | undefined,
 ): UserState {
-  if (
-    project &&
-    view?.delivery?.status === 'published' &&
-    view.project_revision === project.revision
-  ) {
-    return 'u3'
-  }
+  if (currentPublishedVersion(project, view)) return 'u3'
+  if (currentDeliveryBlocked(project, view)) return 'u1'
   if (view?.intent && ['accepted', 'executing'].includes(view.intent.status)) return 'u2'
   const confirmation = confirmationStateOf(view)
   if (confirmation === 'pending' || confirmation === 'confirmed') return 'u2'
@@ -99,18 +130,29 @@ export function nextStepForWorkflow(
       actionId: null,
     }
   }
+  const currentVersion = currentPublishedVersion(project, view)
+  if (currentVersion) {
+    const feedbackAvailable = view.available_actions.some(
+      (action) => action.id === 'request_new_version',
+    )
+    return {
+      title: '当前交付已发布',
+      detail: '当前第 ' + currentVersion.requirement_revision + ' 版已发布。可以查看或下载当前交付，切换历史预览，或基于本次交付反馈新版本。历史图片仅作历史预览，不代表当前需求状态。',
+      actionId: feedbackAvailable ? 'request_new_version' : null,
+    }
+  }
+  if (currentDeliveryBlocked(project, view)) {
+    return {
+      title: '当前交付不可用',
+      detail: '交付记录存在，但当前版本图片已撤销、过期、文件缺失或未通过内容门禁，不能预览或下载；历史记录仍按真实状态保留。',
+      actionId: null,
+    }
+  }
   if (view.issue) {
     return {
       title: '当前问题需要处理',
       detail: '请查看下方流程提示，并按可用操作处理；系统不会自动重发模型调用，也不会把未知结果当成未受理。',
       actionId: view.available_actions[0]?.id ?? null,
-    }
-  }
-  if (view.delivery?.status === 'published' && view.project_revision === project.revision) {
-    return {
-      title: '当前交付已发布',
-      detail: '可以查看或下载当前交付，也可以基于当前需求反馈新版本。历史图片仅作历史预览，不代表当前需求状态。',
-      actionId: null,
     }
   }
   const brief = latestFinalBrief(view)

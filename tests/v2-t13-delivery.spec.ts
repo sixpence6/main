@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/vue'
-import type { WorkflowDelivery, WorkflowView } from '@/api/workflow'
+import type { WorkflowDelivery, WorkflowVersion, WorkflowView } from '@/api/workflow'
 import { mountWorkspace, type WorkspaceHarness } from './support/workspace'
 import { PROJECT_A, configuredConfig, sampleProject } from './support/fixtures'
 
@@ -45,7 +45,27 @@ function delivery(status: WorkflowDelivery['status']): WorkflowDelivery {
   }
 }
 
+function publishedVersion(): WorkflowVersion {
+  return {
+    run_id: 'run-t13',
+    sequence_no: 1,
+    requirement_revision: 1,
+    status: 'published',
+    generation_job_id: 'job-t13',
+    asset_id: 'asset-published-1',
+    filename: 'delivery-asset-pub-r1.png',
+    caption: '主图交付，请以实际检查结论为准。',
+    published_at: '2026-10-30T01:00:00.000Z',
+    brief: { size: '3840x2160' },
+    prompt: null,
+    quality: null,
+    can_download: true,
+    created_at: '2026-10-30T00:00:00.000Z',
+  }
+}
+
 async function mountDelivery(status: WorkflowDelivery['status']): Promise<WorkspaceHarness> {
+  const published = status === 'published'
   return mountWorkspace({
     config: configuredConfig(),
     viewportWidth: 1440,
@@ -65,7 +85,13 @@ async function mountDelivery(status: WorkflowDelivery['status']): Promise<Worksp
       {
         method: 'GET',
         url: '/api/projects/' + PROJECT_A + '/workflow',
-        responses: [{ body: workflowView({ delivery: delivery(status) }) }],
+        responses: [{
+          body: workflowView({
+            delivery: delivery(status),
+            status: published ? 'completed' : 'needs_input',
+            versions: published ? [publishedVersion()] : [],
+          }),
+        }],
       },
     ],
   })
@@ -79,7 +105,7 @@ describe('T13 交付状态与受控预览下载', () => {
     expect(screen.getByText('待发布')).toBeVisible()
     expect(screen.getByText('交付尚未发布，暂不提供查看或下载。')).toBeVisible()
     expect(document.querySelector('.workflow-delivery-image')).toBeNull()
-    expect(screen.queryByRole('link', { name: '下载已发布图片' })).toBeNull()
+    expect(screen.queryByRole('link', { name: '下载当前交付' })).toBeNull()
   })
 
   it('已发布时使用受控资产地址提供真实预览和下载，并显示发布状态', async () => {
@@ -89,7 +115,7 @@ describe('T13 交付状态与受控预览下载', () => {
     expect(screen.getByText('已发布')).toBeVisible()
     const image = screen.getByRole('img', { name: /主图交付/ })
     expect(image).toHaveAttribute('src', '/api/assets/asset-published-1')
-    const link = screen.getByRole('link', { name: '下载已发布图片' })
+    const link = screen.getByRole('link', { name: '下载当前交付' })
     expect(link).toHaveAttribute('href', '/api/assets/asset-published-1?download=true')
     expect(link).toHaveAttribute('download', 'delivery-asset-pub-r1.png')
     expect(screen.queryByText('交付尚未发布，暂不提供查看或下载。')).toBeNull()
