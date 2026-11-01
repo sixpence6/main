@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -54,10 +55,16 @@ _RULES: tuple[tuple[str, str, tuple[str, ...], bool], ...] = (
     ),
     ("hard:forbidden", "未出现确认的禁止项", ("image", "requirement"), True),
     ("hard:composition", "构图符合确认的明确约束", ("image", "requirement"), True),
-    ("hard:size_format", "尺寸与图片格式符合本地技术校验", ("technical", "requirement"), True),
+    (
+        "hard:size_format",
+        "尺寸与图片格式符合本地技术校验",
+        ("technical", "requirement", "image"),
+        True,
+    ),
 )
 _RULE_ORDER = tuple(rule[0] for rule in _RULES)
 _DEFAULT_REVIEW_RULE = "review:quality_report"
+_ADVISORY_REVIEW_RULE = re.compile(r"^review:[a-z][a-z0-9_]{0,63}$")
 _REVIEW_RULE_IDS = frozenset(
     _RULE_ORDER
     + (
@@ -66,6 +73,17 @@ _REVIEW_RULE_IDS = frozenset(
         "review:evidence",
         "review:consistency",
         "review:summary",
+        "review:scope_and_duty",
+        "review:fact_source",
+        "review:unknown_as_certain",
+        "review:evidence_coverage",
+        "review:unauthorized_action",
+        "review:no_unresolved_critical",
+        "review:unauthorized_claim",
+        "review:scope_and_unauthorized",
+        "review:evidence_and_unknowns",
+        "review:scope_and_evidence",
+        "review:unauthorized",
     )
 )
 
@@ -315,8 +333,48 @@ def _rule_specs(has_product_reference: bool) -> list[_RuleSpec]:
     return result
 
 
+def _composition_requirement(snapshot: dict[str, Any], fallback: str) -> str:
+    parts: list[str] = []
+    composition = snapshot.get("composition")
+    if isinstance(composition, str) and composition:
+        parts.append(f"构图：{composition}")
+    creative = snapshot.get("creative_direction")
+    if isinstance(creative, str) and creative:
+        parts.append(f"创意方向：{creative}")
+    style = snapshot.get("style_keywords")
+    if isinstance(style, list) and style:
+        styles = "、".join(str(item) for item in style if isinstance(item, str))
+        if styles:
+            parts.append(f"风格：{styles}")
+    lighting = snapshot.get("lighting")
+    if isinstance(lighting, str) and lighting:
+        parts.append(f"光影：{lighting}")
+    return "；".join(parts) or fallback
+
+
+def _rule_requirement(
+    rule_id: str,
+    snapshot: dict[str, Any],
+    requirement_text: str,
+    forbidden: str,
+    size: str,
+) -> str:
+    if rule_id == "hard:forbidden":
+        return forbidden
+    if rule_id == "hard:size_format":
+        return size
+    if rule_id == "hard:text_logo":
+        return _text_requirement(snapshot)
+    if rule_id == "hard:composition":
+        return _composition_requirement(snapshot, requirement_text)
+    if rule_id == "hard:quantity":
+        return "画面中的商品数量与确认需求一致；确认快照未另列数量时按单件呈现"
+    return requirement_text
+
+
 def _rule_payload(
     rules: list[_RuleSpec],
+    snapshot: dict[str, Any],
     requirement_text: str,
     forbidden: str,
     size: str,
@@ -327,12 +385,8 @@ def _rule_payload(
             "label": rule.label,
             "applicability": "applicable" if rule.applicable else "not_applicable",
             "evidence_types": list(rule.evidence_types),
-            "requirement": (
-                forbidden
-                if rule.rule_id == "hard:forbidden"
-                else size
-                if rule.rule_id == "hard:size_format"
-                else requirement_text
+            "requirement": _rule_requirement(
+                rule.rule_id, snapshot, requirement_text, forbidden, size
             ),
         }
         for rule in rules
@@ -377,10 +431,12 @@ def _check_evidence(
         if evidence_type is None or evidence_type not in expected_types:
             return False
     present_types = {_evidence_type(str(item)) for item in evidence}
-    # A pass must cover every evidence type the rule declares. The server owns
-    # this list, so the model cannot drop the reference or requirement evidence
-    # from an otherwise passing check.
-    return all(evidence_type in present_types for evidence_type in expected_types)
+    # A visual pass must be grounded in the actual image. Requirement or
+    # reference evidence is optional when the image itself proves the rule;
+    # technical rules instead require their technical evidence. Every cited
+    # ID still has to belong to the allowed set and the rule's declared types.
+    primary = "technical" if "technical" in expected_types else "image"
+    return primary in present_types
 
 
 def _validate_quality(
@@ -530,9 +586,11 @@ def _validate_review(
             if not isinstance(check, dict):
                 raise _invalid_review()
             rule_id = check.get("rule_id")
-            if not isinstance(rule_id, str) or rule_id in seen:
+            if not isinstance(rule_id, str):
                 raise _invalid_review()
-            if rule_id not in _REVIEW_RULE_IDS:
+            if rule_id in seen and not rule_id.startswith("review:"):
+                raise _invalid_review()
+            if rule_id not in _REVIEW_RULE_IDS and not _ADVISORY_REVIEW_RULE.match(rule_id):
                 raise _invalid_review()
             seen.add(rule_id)
             outcome = check.get("outcome")
@@ -548,18 +606,27 @@ def _validate_review(
         if decision not in {"pass", "revise", "reject", "unknown"}:
             raise _invalid_review()
         if target_id == quality_target:
-            report_check = next(
-                (item for item in checks if item.get("rule_id") == "review:quality_report"),
-                None,
-            )
-            if report_check is None:
+            report_checks = [
+                item
+                for item in checks
+                if item.get("rule_id") == _DEFAULT_REVIEW_RULE
+            ]
+            if not report_checks:
                 raise _invalid_review()
-            report_outcome = report_check.get("outcome")
-            if report_outcome not in {"pass", "fail", "unknown"}:
+            for report_check in report_checks:
+                report_outcome = report_check.get("outcome")
+                if report_outcome not in {"pass", "fail", "unknown"}:
+                    raise _invalid_review()
+                if report_outcome == "pass" and not report_check.get("evidence_ids"):
+                    raise _invalid_review()
+            if decision == "pass" and any(
+                item.get("outcome") != "pass" for item in report_checks
+            ):
                 raise _invalid_review()
-            if report_outcome == "pass" and not report_check.get("evidence_ids"):
-                raise _invalid_review()
-            if (decision == "pass") != (report_outcome == "pass"):
+            if decision != "pass" and not any(
+                item.get("outcome") in {"fail", "unknown"}
+                for item in report_checks
+            ):
                 raise _invalid_review()
             if decision == "pass":
                 for check in checks:
@@ -827,7 +894,7 @@ async def _review_and_apply(
         rule_payload=rule_payload,
     )
     images = [OrganizeImage(data=candidate.data, mime_type=candidate.mime_type)]
-    reference, _, reference_bytes = await _reference_context(ctx, snapshot)
+    reference, reference_usage, reference_bytes = await _reference_context(ctx, snapshot)
     if reference_bytes is not None and reference is not None:
         images.append(OrganizeImage(data=reference_bytes, mime_type=reference.mime_type))
     try:
@@ -840,6 +907,11 @@ async def _review_and_apply(
                 "quality_target": quality_target,
                 "image_target": image_target,
                 "rules": rule_payload,
+            },
+            approved_inputs={
+                "confirmed_snapshot": snapshot,
+                "reference_usage": reference_usage,
+                "reference_asset_id": reference.id if reference is not None else None,
             },
             review_targets=review_targets,
             images=tuple(images),
@@ -1071,7 +1143,7 @@ async def handle(
     images = [OrganizeImage(data=candidate.data, mime_type=candidate.mime_type)]
     if reference_bytes is not None and reference is not None:
         images.append(OrganizeImage(data=reference_bytes, mime_type=reference.mime_type))
-    rule_payload = _rule_payload(rules, requirement_text, forbidden, size)
+    rule_payload = _rule_payload(rules, snapshot, requirement_text, forbidden, size)
     try:
         quality = await run_role(
             ctx,

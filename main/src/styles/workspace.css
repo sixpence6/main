@@ -92,6 +92,10 @@ body,
   min-height: 40px;
 }
 
+.sidebar-toggle {
+  position: relative;
+}
+
 .app-sidebar.is-collapsed .sidebar-top {
   justify-content: center;
 }

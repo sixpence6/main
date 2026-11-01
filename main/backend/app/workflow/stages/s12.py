@@ -715,7 +715,7 @@ async def _s09_recovery_inputs(ctx: WorkflowContext) -> dict[str, Any]:
         "image_target": image_target,
         "allowed": allowed,
         "images": images,
-        "rule_payload": s09._rule_payload(rules, requirement_text, forbidden, size),
+        "rule_payload": s09._rule_payload(rules, snapshot, requirement_text, forbidden, size),
     }
 
 

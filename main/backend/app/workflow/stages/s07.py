@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from app.acceptance import abandon_intent, latest_intent
@@ -17,6 +18,10 @@ from app.workflow.tables import RevisionBudget
 STAGE = "S07"
 ACTIONS = ["compile_prompt", "revise_prompt"]
 _REVIEW_RULES = ("G03_CONFIRMATION", "G05_EXECUTION_BOUNDARY")
+# Natural-language prompt writing may add connective words around a confirmed
+# requirement. Compare normalized, ordered characters instead of requiring a
+# brittle byte-for-byte substring while still rejecting missing content.
+_COVERAGE_STRIP = re.compile(r"[\s，,。；;：:、\-—()（）\[\]【】“”\"'!?！？/]+")
 
 _CONFIRM_MESSAGE = "请先确认当前需求卡，再明确提交生成。"
 _DRIFT_MESSAGE = "确认需求已变化，请重新确认需求版本后再编制提示词。"
@@ -180,6 +185,26 @@ def _hard_requirements(brief: dict[str, Any]) -> list[dict[str, Any]]:
     return requirements
 
 
+def _coverage_text(text: str) -> str:
+    return _COVERAGE_STRIP.sub("", text)
+
+
+def _covers_requirement(requirement: str, field_value: str) -> bool:
+    """True when one prompt clause keeps every requirement character in order."""
+    expected = _coverage_text(requirement)
+    if not expected:
+        return False
+    for clause in re.split(r"[；;。\n]+", field_value):
+        actual = _coverage_text(clause)
+        position = 0
+        for character in actual:
+            if position < len(expected) and character == expected[position]:
+                position += 1
+        if position == len(expected):
+            return True
+    return False
+
+
 def _candidate_errors(
     payload: dict[str, Any],
     requirements: list[dict[str, Any]],
@@ -207,7 +232,11 @@ def _candidate_errors(
         value = item.get("value")
         if binding in {"positive_prompt", "negative_prompt"}:
             field_value = payload.get(binding) or ""
-            if not value or value != requirement["requirement"] or value not in field_value:
+            if (
+                not value
+                or value != requirement["requirement"]
+                or not _covers_requirement(value, field_value)
+            ):
                 errors.append(f"提示词覆盖值与已确认要求不一致：{rule_id}")
         elif binding == "size":
             if value != configured_size:
@@ -272,20 +301,27 @@ def _validate_review(
         if not isinstance(check, dict):
             raise _invalid_review()
         rule_id = check.get("rule_id")
-        if rule_id not in _REVIEW_RULES or rule_id in seen:
+        outcome = check.get("outcome")
+        if not isinstance(rule_id, str) or not rule_id:
+            raise _invalid_review()
+        if outcome not in {"pass", "fail", "unknown", "not_applicable"}:
             raise _invalid_review()
         seen.add(rule_id)
         evidence = check.get("evidence_ids")
-        if not isinstance(evidence, list) or not evidence:
+        if not isinstance(evidence, list):
+            raise _invalid_review()
+        if outcome != "not_applicable" and not evidence:
             raise _invalid_review()
         if any(item not in allowed_evidence for item in evidence):
             raise _invalid_review()
         note = check.get("note") or ""
         if "://" in note:
             raise _invalid_review()
-    if seen != set(_REVIEW_RULES):
+    if not set(_REVIEW_RULES).issubset(seen):
         raise _invalid_review()
-    if decision == "pass" and any(check.get("outcome") != "pass" for check in checks):
+    if decision == "pass" and any(
+        check.get("outcome") not in {"pass", "not_applicable"} for check in checks
+    ):
         raise _invalid_review()
     return target_id, decision, checks
 

@@ -408,7 +408,7 @@ async def _run_request(
 
     raw = response.payload
     try:
-        envelope = validate_role_output(role, raw)
+        envelope = validate_role_output(role, _normalize_envelope_placement(raw))
     except ContractError:
         call = await _record_call(
             ctx,
@@ -481,6 +481,32 @@ async def _run_request(
         role_call_id=call.id,
         attempt=attempt,
     )
+
+
+def _normalize_envelope_placement(raw: object) -> object:
+    """Move issues/questions that a provider nested under data to the envelope.
+
+    The role contract keeps issues and questions at the top level. Some real
+    providers occasionally place the empty lists inside data instead. Only
+    that exact placement is repaired; all values are still validated by the
+    strict envelope model afterwards.
+    """
+
+    if not isinstance(raw, dict):
+        return raw
+    data = raw.get("data")
+    if not isinstance(data, dict):
+        return raw
+    if "issues" in raw or "questions" in raw:
+        return raw
+    if "issues" not in data and "questions" not in data:
+        return raw
+    normalized = dict(raw)
+    normalized_data = dict(data)
+    normalized["issues"] = normalized_data.pop("issues", [])
+    normalized["questions"] = normalized_data.pop("questions", [])
+    normalized["data"] = normalized_data
+    return normalized
 
 
 async def run_role(

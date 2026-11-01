@@ -176,6 +176,7 @@ def review_response(
     decision: str = "pass",
     rules: tuple[str, ...] = REVIEW_RULES,
     evidence: list[str] | None = None,
+    duplicate_rule: str | None = None,
 ) -> dict:
     outcome = "pass" if decision == "pass" else "fail"
     checks = [
@@ -187,6 +188,8 @@ def review_response(
         }
         for rule_id in rules
     ]
+    if duplicate_rule:
+        checks.append(dict(next(check for check in checks if check["rule_id"] == duplicate_rule)))
     return {
         "role": "output_reviewer",
         "status": "ready",
@@ -361,6 +364,81 @@ async def test_compile_prompt_builds_only_confirmed_candidate_and_gets_independe
 
 
 @pytest.mark.asyncio
+async def test_natural_prompt_wording_keeps_confirmed_requirement_coverage(full_settings):
+    brief = base_brief()
+    data = candidate_data(brief)
+    data["positive_prompt"] = (
+        data["positive_prompt"]
+        .replace("主体居中，留白充足", "主体居中，四周留白充足")
+        .replace("杯口金色描边", "杯口保留金色描边")
+    )
+    rules = (*REVIEW_RULES, *sorted(expected_rule_ids(brief)))
+    async with environment(
+        full_settings,
+        engineer=lambda _request: engineer_response(data),
+        reviewer=lambda request: review_response(
+            request.payload["review_targets"][0]["target_id"], rules=rules
+        ),
+    ) as (app, client, llm, visual, _registry):
+        setup = await setup_confirmed_project(app, client)
+        response = await workflow_action(client, setup, "compile_prompt")
+        assert response.status_code == 200, response.text
+        view = response.json()
+        prompt = next(artifact for artifact in view["artifacts"] if artifact["kind"] == "prompt_plan")
+        assert prompt["status"] == "approved"
+        assert "主体居中，四周留白充足" in prompt["payload"]["positive_prompt"]
+        assert visual.submit_calls == []
+
+
+@pytest.mark.asyncio
+async def test_nested_issues_questions_are_hoisted_before_reviewer_validation(full_settings):
+    brief = base_brief()
+    data = candidate_data(brief)
+    rules = (*REVIEW_RULES, *sorted(expected_rule_ids(brief)))
+
+    def reviewer(request):
+        response = review_response(
+            request.payload["review_targets"][0]["target_id"], rules=rules
+        )
+        response["data"]["issues"] = response.pop("issues")
+        response["data"]["questions"] = response.pop("questions")
+        return response
+
+    async with environment(
+        full_settings,
+        engineer=lambda _request: engineer_response(data),
+        reviewer=reviewer,
+    ) as (app, client, llm, visual, _registry):
+        setup = await setup_confirmed_project(app, client)
+        response = await workflow_action(client, setup, "compile_prompt")
+        assert response.status_code == 200, response.text
+        view = response.json()
+        prompt = next(artifact for artifact in view["artifacts"] if artifact["kind"] == "prompt_plan")
+        assert prompt["status"] == "approved"
+        assert visual.submit_calls == []
+
+
+@pytest.mark.asyncio
+async def test_removed_requirement_text_still_blocks_prompt(full_settings):
+    brief = base_brief()
+    data = candidate_data(brief)
+    data["positive_prompt"] = data["positive_prompt"].replace(
+        "杯口金色描边", "杯口描边"
+    )
+    async with environment(
+        full_settings,
+        engineer=lambda _request: engineer_response(data),
+        reviewer=lambda request: review_response(request.payload["review_targets"][0]["target_id"]),
+    ) as (app, client, llm, visual, _registry):
+        setup = await setup_confirmed_project(app, client)
+        response = await workflow_action(client, setup, "compile_prompt")
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "PROMPT_INVALID"
+        assert len(llm.role_calls_received) == 1
+        assert visual.submit_calls == []
+
+
+@pytest.mark.asyncio
 async def test_compile_prompt_keeps_original_reference_id_and_explicit_usage(full_settings):
     async with environment(
         full_settings,
@@ -406,6 +484,26 @@ async def test_omitted_hard_requirement_blocks_before_any_submission(full_settin
 
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
+async def test_reviewer_may_group_checks_under_one_required_rule(full_settings):
+    brief = base_brief()
+    async with environment(
+        full_settings,
+        engineer=lambda _request: engineer_response(candidate_data(brief)),
+        reviewer=lambda request: review_response(
+            request.payload["review_targets"][0]["target_id"],
+            duplicate_rule="G03_CONFIRMATION",
+        ),
+    ) as (app, client, llm, visual, _registry):
+        setup = await setup_confirmed_project(app, client)
+        response = await workflow_action(client, setup, "compile_prompt")
+
+        assert response.status_code == 200
+        view = response.json()
+        assert view["stage"] == "S08"
+        assert any(item["kind"] == "prompt_plan" and item["status"] == "approved" for item in view["artifacts"])
+
+
 async def test_duplicate_requirement_coverage_blocks_before_any_submission(full_settings):
     brief = base_brief()
     async with environment(

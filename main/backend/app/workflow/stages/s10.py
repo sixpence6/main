@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -81,6 +82,24 @@ _FORBIDDEN_CAPTION_MARKERS = (
     "平台保证",
     "100%",
 )
+_CAPTION_NEGATION = re.compile(r"(?:不|无法|不能|不得|禁止|避免|没有|无)[^；;。\n]{0,8}$")
+
+
+def _caption_marker_is_claim(value: str, marker: str) -> bool:
+    """Return True when a forbidden caption marker is asserted, not negated.
+
+    A truthful disclaimer such as "不保证商品绝对真实" must be allowed; only
+    an unnegated promise ("保证平台必过") is a prohibited claim.
+    """
+    start = 0
+    while True:
+        index = value.find(marker, start)
+        if index < 0:
+            return False
+        prefix = value[max(0, index - 16) : index]
+        if not _CAPTION_NEGATION.search(prefix):
+            return True
+        start = index + len(marker)
 
 
 def _action_unavailable() -> ApiError:
@@ -139,7 +158,10 @@ def _safe_caption(value: str) -> bool:
     if len(value) > 800:
         return False
     lowered = value.lower()
-    return not any(marker.lower() in lowered for marker in _FORBIDDEN_CAPTION_MARKERS)
+    return not any(
+        _caption_marker_is_claim(lowered, marker.lower())
+        for marker in _FORBIDDEN_CAPTION_MARKERS
+    )
 
 
 async def _load_job_and_asset(ctx: WorkflowContext) -> tuple[GenerationJob, Asset]:
@@ -257,7 +279,11 @@ def _validate_review(output: RoleOutput, target_id: str, allowed_evidence: set[s
         if not isinstance(check, dict):
             raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
         rule_id = check.get("rule_id")
-        if rule_id not in _MANIFEST_RULES or check.get("outcome") != "pass":
+        if (
+            not isinstance(rule_id, str)
+            or (rule_id not in _MANIFEST_RULES and not rule_id.startswith("G07_"))
+            or check.get("outcome") != "pass"
+        ):
             raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
         evidence = check.get("evidence_ids")
         if (
@@ -270,7 +296,11 @@ def _validate_review(output: RoleOutput, target_id: str, allowed_evidence: set[s
         if isinstance(note, str) and "://" in note.lower():
             raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
         seen.append(str(rule_id))
-    if set(seen) != set(_MANIFEST_RULES) or len(seen) != len(set(seen)):
+    # Multiple checks may be grouped under one required rule by a real reviewer
+    # (for example asset identity, visual ratio and scope in separate notes).
+    # Every required rule must still appear at least once and every check has
+    # already been validated individually; duplicates add no authority.
+    if not set(_MANIFEST_RULES).issubset(seen):
         raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
 
 

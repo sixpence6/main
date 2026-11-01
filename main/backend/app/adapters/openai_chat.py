@@ -20,6 +20,10 @@ from app.adapters.base import (
 from app.config import RoleConfig
 
 _MAX_ERROR_MESSAGE_LENGTH = 200
+# Reasoning models spend part of this budget on hidden reasoning tokens before
+# emitting the required JSON answer; a small completion budget can therefore
+# finish with an empty content string. Keep enough room for both.
+_MAX_OUTPUT_TOKENS = 32768
 _MAX_IMAGE_BYTES = 10_000_000
 _IMAGE_MIME_TYPES = {"image/png", "image/jpeg"}
 _URL_PATTERN = re.compile(r"https?://\S+")
@@ -100,6 +104,33 @@ def _content_text(message: object) -> str | None:
     return None
 
 
+def _only_outer_brace_missing(candidate: str) -> bool:
+    """Return True when the candidate is complete except for one closing brace."""
+    stack: list[str] = []
+    in_string = False
+    escaped = False
+    for char in candidate:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "{[":
+            stack.append(char)
+        elif char in "}]":
+            if not stack:
+                return False
+            opener = stack.pop()
+            if (opener, char) not in {("{", "}"), ("[", "]")}:
+                return False
+    return not in_string and stack == ["{"]
+
+
 def _extract_json(text: str) -> Any:
     cleaned = text.strip()
     if cleaned.startswith("```"):
@@ -113,10 +144,19 @@ def _extract_json(text: str) -> Any:
         return json.loads(cleaned)
     except ValueError:
         start = cleaned.find("{")
-        end = cleaned.rfind("}")
-        if start < 0 or end <= start:
+        if start < 0:
             raise
-        return json.loads(cleaned[start : end + 1])
+        end = cleaned.rfind("}")
+        if end > start:
+            candidate = cleaned[start : end + 1]
+            try:
+                return json.loads(candidate)
+            except ValueError:
+                pass
+        tail = cleaned[start:].strip()
+        if _only_outer_brace_missing(tail):
+            return json.loads(tail + "}")
+        raise
 
 
 def _field_value(fields: dict[str, Any], name: str) -> str:
@@ -262,7 +302,7 @@ class OpenAIChatAdapter:
                     "model": model,
                     "messages": messages,
                     "temperature": 0.2,
-                    "max_tokens": 4096,
+                    "max_tokens": _MAX_OUTPUT_TOKENS,
                     "response_format": {"type": "json_object"},
                 },
                 timeout=self._timeout_seconds,
@@ -382,7 +422,7 @@ class OpenAIChatAdapter:
                     "model": model,
                     "messages": self._messages(request),
                     "temperature": 0.2,
-                    "max_tokens": 4096,
+                    "max_tokens": _MAX_OUTPUT_TOKENS,
                     "response_format": {"type": "json_object"},
                 },
                 timeout=self._timeout_seconds,

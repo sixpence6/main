@@ -220,6 +220,8 @@ def _role_responder(
     requirement_revision: int = 1,
     filename_hint: str = "product-main.png",
     caption: str = "已保留基础检查限制，请以实际图片为准。",
+    extra_rule_ids: tuple[str, ...] = (),
+    duplicate_first_required: bool = False,
 ):
     def responder(request: Any) -> dict[str, Any]:
         task = request.payload.get("task", {})
@@ -251,6 +253,19 @@ def _role_responder(
                 }
                 for rule_id in task.get("required_rule_ids") or []
             ]
+            checks.extend(
+                {
+                    "rule_id": rule_id,
+                    "outcome": "pass",
+                    "evidence_ids": evidence,
+                    "note": "额外语义检查已通过",
+                }
+                for rule_id in extra_rule_ids
+            )
+            if duplicate_first_required and checks:
+                repeated = dict(checks[0])
+                repeated["note"] = "同一必需规则下的第二项分组检查"
+                checks.append(repeated)
             return {
                 "role": "output_reviewer",
                 "status": "ready",
@@ -406,6 +421,77 @@ async def test_delivery_is_reviewed_atomically_and_only_published_asset_is_reada
 
 def prepared_text(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False)
+
+
+async def test_reviewer_may_group_checks_under_one_required_rule(full_settings):
+    stub = LLMStub()
+
+    async def seed(settings: Any, session: Any) -> SeedIds:
+        ids = await _seed_ready_state(settings, session)
+        stub.role_responder = _role_responder(ids, duplicate_first_required=True)
+        return ids
+
+    async with _delivery_env(full_settings, stub, seed) as env:
+        prepared = await _prepare(env)
+        assert prepared["stage"] == "S10"
+        assert prepared["issue"]["code"] == "DELIVERY_MANIFEST_READY"
+        manifest = next(
+            item for item in prepared["artifacts"] if item["kind"] == "delivery_manifest"
+        )
+        assert manifest["status"] == "approved"
+
+
+async def test_reviewer_may_add_extra_g07_semantic_checks(full_settings):
+    stub = LLMStub()
+
+    async def seed(settings: Any, session: Any) -> SeedIds:
+        ids = await _seed_ready_state(settings, session)
+        stub.role_responder = _role_responder(
+            ids,
+            extra_rule_ids=(
+                "G07_SCOPE_ROLE",
+                "G07_FACT_SOURCE",
+                "G07_UNKNOWN_AS_FACT",
+                "G07_PROHIBITED_CONTENT",
+                "G07_OUTPUT_STRUCTURE",
+                "G07_UNAUTHORIZED_ACTION",
+                "G07_HARD_REQUIREMENT",
+            ),
+        )
+        return ids
+
+    async with _delivery_env(full_settings, stub, seed) as env:
+        prepared = await _prepare(env)
+        assert prepared["stage"] == "S10"
+        assert prepared["issue"]["code"] == "DELIVERY_MANIFEST_READY"
+        manifest = next(
+            item for item in prepared["artifacts"] if item["kind"] == "delivery_manifest"
+        )
+        assert manifest["status"] == "approved"
+
+
+async def test_truthful_negated_guarantee_caption_is_accepted(full_settings):
+    stub = LLMStub()
+
+    async def seed(settings: Any, session: Any) -> SeedIds:
+        ids = await _seed_ready_state(settings, session)
+        stub.role_responder = _role_responder(
+            ids,
+            caption=(
+                "单张原尺寸 3840x2160 PNG 交付候选；仅依据当前提供材料，"
+                "不保证商品绝对真实或平台审核通过。"
+            ),
+        )
+        return ids
+
+    async with _delivery_env(full_settings, stub, seed) as env:
+        prepared = await _prepare(env)
+        assert prepared["stage"] == "S10"
+        assert prepared["issue"]["code"] == "DELIVERY_MANIFEST_READY"
+        manifest = next(
+            item for item in prepared["artifacts"] if item["kind"] == "delivery_manifest"
+        )
+        assert manifest["status"] == "approved"
 
 
 @pytest.mark.parametrize(
