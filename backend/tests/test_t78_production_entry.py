@@ -41,7 +41,11 @@ def test_production_entry_layout_uses_one_source_and_aligned_artifacts():
         MAIN_BACKEND / "uv.lock"
     ).read_bytes()
 
-    assert (ROOT / "package.json").read_bytes() == (ROOT / "main" / "package.json").read_bytes()
+    root_package = json.loads(_read(ROOT / "package.json"))
+    main_package = json.loads(_read(ROOT / "main" / "package.json"))
+    assert main_package["scripts"]["build"] == "vite build"
+    assert root_package["scripts"]["build"] == "vite build --config main/vite.config.ts"
+    assert not (ROOT / "vite.config.ts").exists()
     assert (ROOT / "package-lock.json").read_bytes() == (
         ROOT / "main" / "package-lock.json"
     ).read_bytes()
@@ -57,22 +61,16 @@ def test_production_entry_layout_uses_one_source_and_aligned_artifacts():
         ).read_bytes()
     assert head_revision() == "0010"
 
-    root_backend_docker = _read(ROOT / "docker" / "backend.Dockerfile")
-    assert "COPY main/backend/pyproject.toml main/backend/uv.lock ./" in root_backend_docker
-    assert "COPY main/backend/migrations ./migrations" in root_backend_docker
-    assert "COPY main/backend/app ./app" in root_backend_docker
-    assert "python -m app.production" in root_backend_docker
+    assert not (ROOT / "docker").exists()
+    root_compose = _read(ROOT / "docker-compose.yml")
+    assert "main/docker-compose.yml" in root_compose
+    assert "docker/backend.Dockerfile" in _read(ROOT / "main" / "docker-compose.yml")
 
     main_backend_docker = _read(ROOT / "main" / "docker" / "backend.Dockerfile")
     assert "COPY backend/pyproject.toml backend/uv.lock ./" in main_backend_docker
     assert "COPY backend/migrations ./migrations" in main_backend_docker
     assert "COPY backend/app ./app" in main_backend_docker
     assert "python -m app.production" in main_backend_docker
-
-    root_frontend_docker = _read(ROOT / "docker" / "Dockerfile")
-    assert "COPY main/package.json main/package-lock.json ./" in root_frontend_docker
-    assert "COPY main/src ./src" in root_frontend_docker
-    assert "COPY main/docker/nginx.conf.template" in root_frontend_docker
 
     wrapper = _read(ROOT / "backend" / "run.py")
     assert "from app.production import main" in wrapper

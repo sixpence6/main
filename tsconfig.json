@@ -23,7 +23,6 @@
     "main/src/**/*.d.ts",
     "main/src/**/*.vue",
     "tests/**/*.ts",
-    "vite.config.ts",
     "vitest.config.ts"
   ]
 }
