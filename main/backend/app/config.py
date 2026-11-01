@@ -82,6 +82,34 @@ class Settings(BaseSettings):
     app_public_url: str | None = None
     trusted_proxy_cidrs: list[str] = Field(default_factory=list)
 
+    # Release backup scheduling. The scheduler is disabled when APP_BACKUP_DIR
+    # is absent; manual CLI backup remains available either way.
+    backup_dir: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("APP_BACKUP_DIR", "BACKUP_DIR"),
+    )
+    backup_interval_seconds: int = Field(
+        default=86400,
+        gt=0,
+        le=86400,
+        validation_alias=AliasChoices(
+            "APP_BACKUP_INTERVAL_SECONDS", "BACKUP_INTERVAL_SECONDS"
+        ),
+    )
+    backup_keep: int = Field(
+        default=7,
+        ge=1,
+        le=100,
+        validation_alias=AliasChoices("APP_BACKUP_KEEP", "BACKUP_KEEP"),
+    )
+    backup_timeout_seconds: int = Field(
+        default=60,
+        gt=0,
+        validation_alias=AliasChoices(
+            "APP_BACKUP_TIMEOUT_SECONDS", "BACKUP_TIMEOUT_SECONDS"
+        ),
+    )
+
     # R2 acceptance limits. Positive integers; they apply to every account,
     # including administrators. Changing a limit never deletes usage.
     generation_daily_limit: int = Field(default=20, gt=0)
@@ -232,6 +260,14 @@ class Settings(BaseSettings):
             raise ValueError("APP_PUBLIC_URL must not contain a path")
         return f"{parts.scheme.lower()}://{parts.netloc.lower()}"
 
+    @field_validator("backup_dir", mode="before")
+    @classmethod
+    def _optional_backup_path(cls, value: object) -> object:
+        if isinstance(value, str):
+            text = value.strip()
+            return Path(text) if text else None
+        return value
+
     @field_validator("data_dir", "web_dist_dir", mode="before")
     @classmethod
     def _resolve_relative(cls, value: object) -> object:
@@ -279,6 +315,16 @@ class Settings(BaseSettings):
             or data_dir.is_relative_to(web_dist_dir)
         ):
             raise ValueError("WEB_DIST_DIR must be outside APP_DATA_DIR")
+        backup_dir = self.resolved_backup_dir()
+        if backup_dir is not None:
+            resolved_backup = backup_dir.resolve()
+            for private_root in (data_dir, web_dist_dir):
+                if (
+                    resolved_backup == private_root
+                    or resolved_backup.is_relative_to(private_root)
+                    or private_root.is_relative_to(resolved_backup)
+                ):
+                    raise ValueError("APP_BACKUP_DIR must be outside APP_DATA_DIR and WEB_DIST_DIR")
         return self
 
     @property
@@ -325,6 +371,11 @@ class Settings(BaseSettings):
     def resolved_web_dist_dir(self) -> Path:
         path = self.web_dist_dir
         return path if path.is_absolute() else REPO_ROOT / path
+
+    def resolved_backup_dir(self) -> Path | None:
+        if self.backup_dir is None:
+            return None
+        return _resolve_backend_path(self.backup_dir)
 
     def llm(self) -> RoleConfig:
         base_url = _blank(self.llm_base_url)

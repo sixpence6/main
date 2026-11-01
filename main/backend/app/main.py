@@ -21,6 +21,7 @@ from app.auth.router import router as auth_router
 from app.config import Settings
 from app.db import ProjectLocks, build_session_factory, create_engine
 from app.errors import ApiError, StartupError
+from app.maintenance.automation import backup_loop
 from app.maintenance.coordinator import (
     BUSINESS_WRITE,
     EXPIRY_DELETION,
@@ -101,16 +102,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # T20：修复遗留状态后先清理一次，再启动周期清理任务。
         await _run_retention_cleanup(app)
         app.state.retention_task = asyncio.create_task(_retention_loop(app))
+        if settings.resolved_backup_dir() is not None:
+            app.state.backup_task = asyncio.create_task(backup_loop(app))
         logger.info("backend ready on data dir %s", settings.resolved_data_dir())
         yield
     except StartupError:
         logger.error("startup aborted: %s", "see previous log entry")
         raise
     finally:
-        retention_task = getattr(app.state, "retention_task", None)
-        if retention_task is not None:
-            retention_task.cancel()
-            await asyncio.gather(retention_task, return_exceptions=True)
+        for task_name in ("retention_task", "backup_task"):
+            task = getattr(app.state, task_name, None)
+            if task is not None:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
         tasks = getattr(app.state, "generation_tasks", set())
         for task in list(tasks):
             task.cancel()

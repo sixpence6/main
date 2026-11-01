@@ -30,6 +30,7 @@
       alembic.ini / migrations/  # 数据库迁移（0001 -> 0010 head）
       .env.example               # 空配置模板（无密钥）
       data/                      # 空目录（.gitkeep 占位），运行时写入库与图片
+      backups/                   # 可选：周期备份输出目录（不在 data 内）
 
 发布包不包含测试、虚拟环境、node_modules、缓存、真实 `.env`、历史数据库或用户图片。
 
@@ -171,8 +172,33 @@ HTTP 的 80 端口只返回健康检查或 308 跳转到 HTTPS；不要用 HTTP 
 - `app.db`（SQLite；可能同时存在 `app.db-wal` / `app.db-shm`）
 - `generated/`（生成图）、`references/`（参考图上传）、`tmp/`
 
-数据库只存相对路径，整目录就是全部运行数据。备份前先 `docker compose stop backend`，
+数据库只存相对路径，整目录就是全部运行数据。手工备份前先 `docker compose stop backend`，
 再复制整个 data 目录；不要只拷 `app.db` 而丢掉 WAL，否则最近写入会丢。
+
+### 周期备份与轮换
+
+默认 Compose 把宿主机 `./backups` 挂到 `/app/backups`，并设置
+`APP_BACKUP_DIR=/app/backups`，所以后端运行期间会自动周期备份；服务启动时若已过期会
+立即补做。备份是 SQLite 在线快照加 `references/`、`generated/`、`published/` 文件清单，
+新快照会独立校验恢复成功后才写入 `latest.json`；校验失败不会删除上一份可用快照。
+
+- 默认周期 `APP_BACKUP_INTERVAL_SECONDS=86400`（24 小时），保留最近
+  `APP_BACKUP_KEEP=7` 份已验证快照；旧快照只有在当前仍可校验时才会被删除。
+- 目录必须位于 `APP_DATA_DIR` 和 `WEB_DIST_DIR` 之外；可由维护者改到受限本机磁盘。
+  不要把备份目录放进网页静态目录，应用也不提供网页整库导出。
+- 快照不包含 `.env`、模型密钥或 TLS 私钥。备份目录本身含完整业务数据，按敏感数据
+  限制访问权限并单独做介质备份。
+- 状态文件 `status.json` 记录最近尝试、成功、失败原因和下次到期时间；本地查看：
+
+      docker compose exec backend python -m app.maintenance.cli backup-status --output /app/backups --json
+
+  手工补做仍使用本地 CLI（先停服务）：
+
+      docker compose stop backend
+      docker compose run --rm backend python -m app.maintenance.cli backup --source /app/backend/data --output /app/backups --service-stopped
+      docker compose start backend
+
+轮换和恢复校验都不等于把备份切换为生产数据；生产恢复演练见 `docs/operations/release-backup-rotation.md` 与后续维护手册。
 
 从旧机器迁移时，先停机，再把旧 data 目录整体覆盖到本目录后启动。迁移 0002 会把旧
 生成图标记为 `legacy_unreviewed` 并回填 `legacy_items`；历史图不会自动算作已验收，

@@ -32,6 +32,8 @@ __pycache__/
 *.egg-info/
 backend/data/
 main/backend/data/
+backend/backups/
+main/backend/backups/
 
 # local tool credentials/state and pytest temporary databases
 /.config/gh/

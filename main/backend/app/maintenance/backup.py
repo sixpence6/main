@@ -21,6 +21,7 @@ from app.maintenance.manifest import (
     DATA_DIR_NAME,
     BackupFile,
     Manifest,
+    load_manifest,
     verify_backup,
     write_manifest,
 )
@@ -40,6 +41,7 @@ from app.timeutil import format_timestamp, utc_now
 
 LATEST_NAME = "latest.json"
 LATEST_SCHEMA = "maintenance-latest/v1"
+STATUS_NAME = "status.json"
 BACKUP_PREFIX = "backup-"
 STAGING_PREFIX = ".staging-"
 VERIFY_PREFIX = ".verify-"
@@ -58,6 +60,7 @@ class DatabaseSnapshot:
     sha256: str
     alembic_version: str
     asset_count: int
+    table_counts: dict[str, int]
     rows: tuple[tuple[Any, ...], ...]
 
 
@@ -87,6 +90,22 @@ class BackupResult:
             "file_count": self.file_count,
             "total_bytes": self.total_bytes,
             "missing_files": self.missing_files,
+        }
+
+
+@dataclass(frozen=True)
+class RotationReport:
+    keep: int
+    kept: tuple[str, ...]
+    pruned: tuple[str, ...]
+    skipped: tuple[dict[str, str], ...]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "keep": self.keep,
+            "kept": list(self.kept),
+            "pruned": list(self.pruned),
+            "skipped": list(self.skipped),
         }
 
 
@@ -155,11 +174,12 @@ def _validate_output(source: Path, output: Path, candidates: Sequence[CandidateI
             raise BackupError("OUTPUT_NOT_DIRECTORY", "backup output is not a directory")
         for entry in resolved.iterdir():
             allowed = (
-                entry.name == LATEST_NAME
+                entry.name in {LATEST_NAME, STATUS_NAME}
                 or entry.name.startswith(BACKUP_PREFIX)
                 or entry.name.startswith(STAGING_PREFIX)
                 or entry.name.startswith(VERIFY_PREFIX)
                 or entry.name.startswith(".latest.json")
+                or entry.name.startswith(f".{STATUS_NAME}")
             )
             if not allowed:
                 raise BackupError(
@@ -229,6 +249,17 @@ def _snapshot_database(source_db: Path, destination: Path) -> DatabaseSnapshot:
                         "FROM assets ORDER BY relative_path, id"
                     ).fetchall()
                 )
+                table_rows = destination_connection.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+                ).fetchall()
+                table_counts: dict[str, int] = {}
+                for (table_name,) in table_rows:
+                    quoted = str(table_name).replace('"', '""')
+                    count = destination_connection.execute(
+                        f'SELECT COUNT(*) FROM "{quoted}"'
+                    ).fetchone()
+                    table_counts[str(table_name)] = int(count[0] if count else 0)
             except sqlite3.Error as exc:
                 raise BackupError(
                     "SOURCE_SCHEMA_MISSING", "source database has no assets table"
@@ -253,6 +284,7 @@ def _snapshot_database(source_db: Path, destination: Path) -> DatabaseSnapshot:
         sha256=sha256,
         alembic_version=str(version_row[0]),
         asset_count=len(rows),
+        table_counts=table_counts,
         rows=rows,
     )
 
@@ -387,7 +419,11 @@ def read_latest(output: str | Path) -> dict[str, Any] | None:
 
 
 def _create_backup_sync(
-    source: Path, inspection: CandidateInspection, output: Path
+    source: Path,
+    inspection: CandidateInspection,
+    output: Path,
+    *,
+    periodic_scheduler: bool = False,
 ) -> BackupResult:
     created_at = format_timestamp(utc_now())
     backup_id = f"{_utc_stamp()}-{uuid.uuid4().hex[:8]}"
@@ -415,6 +451,7 @@ def _create_backup_sync(
                 "snapshot_sha256": snapshot.sha256,
                 "alembic_version": snapshot.alembic_version,
                 "asset_count": snapshot.asset_count,
+                "table_counts": snapshot.table_counts,
                 "integrity_check": "ok",
                 "journal_mode": "delete",
             },
@@ -424,7 +461,7 @@ def _create_backup_sync(
                 "included_dirs": list(DATA_SUBDIRS),
                 "excluded": [".env", "TLS private keys", "model key material"],
                 "web_whole_db_export": False,
-                "periodic_scheduler": False,
+                "periodic_scheduler": periodic_scheduler,
                 "production_restore_switch": False,
             },
         )
@@ -504,6 +541,65 @@ async def create_backup(  # noqa: ASYNC109
         ) from exc
 
 
+def prune_verified_backups(
+    output: str | Path,
+    *,
+    keep: int,
+    protect: Sequence[str] = (),
+) -> RotationReport:
+    """Delete only old backups that still verify; never touch unverified entries."""
+    if keep < 1:
+        raise BackupError(
+            "ROTATION_KEEP_INVALID", "backup rotation must keep at least one snapshot"
+        )
+    root = Path(output).expanduser().resolve()
+    if not root.is_dir():
+        return RotationReport(keep=keep, kept=(), pruned=(), skipped=())
+    protected = {str(name) for name in protect}
+    verified: list[tuple[str, Path]] = []
+    skipped: list[dict[str, str]] = []
+    for candidate in sorted(root.iterdir(), key=lambda path: path.name):
+        if not candidate.name.startswith(BACKUP_PREFIX) or candidate.is_symlink():
+            continue
+        if not candidate.is_dir():
+            skipped.append({"backup": candidate.name, "error": "NOT_A_DIRECTORY"})
+            continue
+        try:
+            verify_backup(candidate)
+            manifest, _digest = load_manifest(candidate)
+        except BackupError as exc:
+            skipped.append({"backup": candidate.name, "error": exc.code})
+            continue
+        verified.append((manifest.created_at, candidate))
+    verified.sort(key=lambda item: (item[0], item[1].name), reverse=True)
+    selected: list[tuple[str, Path]] = []
+    for item in verified:
+        if item[1].name in protected:
+            selected.append(item)
+    for item in verified:
+        if len(selected) >= keep:
+            break
+        if item not in selected:
+            selected.append(item)
+    selected_names = {item[1].name for item in selected}
+    pruned: list[str] = []
+    for _created_at, candidate in verified:
+        if candidate.name in selected_names:
+            continue
+        try:
+            shutil.rmtree(candidate)
+        except OSError as exc:
+            skipped.append({"backup": candidate.name, "error": type(exc).__name__})
+            continue
+        pruned.append(candidate.name)
+    return RotationReport(
+        keep=keep,
+        kept=tuple(path.name for _created_at, path in selected),
+        pruned=tuple(pruned),
+        skipped=tuple(skipped),
+    )
+
+
 def _validate_restore_output(source: Path, output: Path) -> Path:
     resolved = output.expanduser().resolve()
     if resolved == source or resolved.is_relative_to(source) or source.is_relative_to(resolved):
@@ -578,8 +674,11 @@ __all__ = [
     "LATEST_SCHEMA",
     "RESTORE_CONFIRMATION",
     "RestoreResult",
+    "RotationReport",
+    "STATUS_NAME",
     "create_backup",
     "inspect_sources_report",
+    "prune_verified_backups",
     "read_latest",
     "restore_verify",
     "verify_backup",

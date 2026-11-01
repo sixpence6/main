@@ -230,6 +230,24 @@ def _check_database(path: Path, manifest: Manifest) -> None:
             rows = connection.execute(
                 "SELECT id, kind, relative_path, sha256 FROM assets ORDER BY id"
             ).fetchall()
+            expected_counts = manifest.database.get("table_counts")
+            if isinstance(expected_counts, dict):
+                table_rows = connection.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+                ).fetchall()
+                actual_counts: dict[str, int] = {}
+                for (table_name,) in table_rows:
+                    quoted = str(table_name).replace('"', '""')
+                    count = connection.execute(f'SELECT COUNT(*) FROM "{quoted}"').fetchone()
+                    actual_counts[str(table_name)] = int(count[0] if count else 0)
+                expected_normalized = {str(k): int(v) for k, v in expected_counts.items()}
+                if actual_counts != expected_normalized:
+                    raise BackupIntegrityError(
+                        "DATABASE_TABLE_COUNTS_MISMATCH",
+                        "restored database table counts do not match the manifest",
+                        details={"expected": expected_normalized, "actual": actual_counts},
+                    )
         finally:
             connection.close()
     except BackupIntegrityError:
