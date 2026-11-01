@@ -266,6 +266,15 @@ def _check_database(path: Path, manifest: Manifest) -> None:
             continue
         seen_db_paths.add(relative)
         if relative in missing_map:
+            missing_entry = missing_map[relative]
+            if (
+                missing_entry.get("reason") != "retention_expired"
+                or missing_entry.get("kind") != "generated"
+            ):
+                raise BackupIntegrityError(
+                    "BACKUP_INCOMPLETE",
+                    f"database-referenced file is missing without a retention reason: {relative}",
+                )
             if relative in file_map:
                 raise BackupIntegrityError(
                     "MANIFEST_MISSING_CONFLICT",
@@ -315,12 +324,14 @@ def verify_backup(
         shutil.copytree(source, target, dirs_exist_ok=True, symlinks=True)
         working = target
     manifest, digest = load_manifest(working)
-    if manifest.missing:
-        raise BackupIntegrityError(
-            "BACKUP_INCOMPLETE",
-            "backup manifest reports database-referenced files that are missing",
-            details={"missing_files": len(manifest.missing)},
-        )
+    for item in manifest.missing:
+        _safe_backup_relative(str(item.get("relative_path")))
+        if item.get("reason") != "retention_expired" or item.get("kind") != "generated":
+            raise BackupIntegrityError(
+                "BACKUP_INCOMPLETE",
+                "backup manifest reports database-referenced files that are missing",
+                details={"missing_files": len(manifest.missing)},
+            )
     data_dir = working / DATA_DIR_NAME
     if not data_dir.is_dir():
         raise BackupIntegrityError("BACKUP_DATA_MISSING", "backup data directory is missing")
