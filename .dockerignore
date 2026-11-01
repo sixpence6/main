@@ -21,3 +21,12 @@ backend/.ruff_cache
 backend/.scratch
 **/__pycache__
 **/*.pyc
+
+# Main package state is mounted/copied only through its declared files.
+main/backend/.env
+main/backend/.venv
+main/backend/data
+main/backend/.pytest_cache
+main/backend/.ruff_cache
+main/node_modules
+main/dist
