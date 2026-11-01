@@ -15,6 +15,7 @@ from app.auth.sessions import (
 )
 from app.auth.tokens import constant_time_equals
 from app.config import Settings
+from app.security_headers import SECURITY_HEADERS
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 PUBLIC_API_PATHS = frozenset(
@@ -48,6 +49,8 @@ async def _send_json(
     raw_headers = [(b"content-type", b"application/json; charset=utf-8")]
     raw_headers.append((b"content-length", str(len(body)).encode("ascii")))
     raw_headers.append((b"cache-control", b"no-store"))
+    for key, value in SECURITY_HEADERS.items():
+        raw_headers.append((key.lower().encode("latin-1"), value.encode("latin-1")))
     for key, value in (headers or {}).items():
         raw_headers.append((key.lower().encode("latin-1"), value.encode("latin-1")))
     await send({"type": "http.response.start", "status": status, "headers": raw_headers})
@@ -239,9 +242,8 @@ class AuthMiddleware:
                 mutable = MutableHeaders(scope=message)
                 mutable["Cache-Control"] = "no-store"
                 mutable["Pragma"] = "no-cache"
-                mutable["X-Content-Type-Options"] = "nosniff"
-                mutable["Referrer-Policy"] = "no-referrer"
-                mutable["X-Frame-Options"] = "DENY"
+                for key, value in SECURITY_HEADERS.items():
+                    mutable[key] = value
             await send(message)
 
         await self.app(scope, receive, send_with_headers)

@@ -20,6 +20,7 @@ from app.generation_quota import (
     update_account_limits,
     update_instance_limits,
 )
+from app.request_source import client_ip
 from app.schemas import ERROR_RESPONSE
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -221,8 +222,7 @@ async def issue_link_endpoint(
 
 
 def _request_source(request: Request) -> str:
-    host = request.client.host if request.client else "unknown"
-    return source_ref(host or "unknown")
+    return source_ref(client_ip(request))
 
 
 @router.post(

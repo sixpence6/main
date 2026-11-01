@@ -13,10 +13,14 @@
     README.md / THIRD_PARTY_NOTICES.md
     RELEASE-MANIFEST.json / SHA256SUMS
     docker-compose.yml
+    docker-compose.lan.yml     # 受控 HTTPS 局域网叠加层
     docker/
       Dockerfile                 # 前端：node 构建 -> nginx 托管
       backend.Dockerfile         # 后端：uv 装依赖 -> python slim 运行
-      nginx.conf.template        # 前端 nginx 反代 /api 到 backend
+      nginx.conf.template        # HTTP 开发入口：反代 /api 到 backend
+      nginx-tls.conf.template    # HTTPS 入口：80 跳转 / 443 TLS
+      security-headers.conf      # CSP 与统一安全头
+      hsts.conf                  # HSTS 头
     package.json / package-lock.json
     tsconfig.json / vite.config.ts
     index.html / src/ / dist/    # 前端源码与随包构建产物
@@ -71,6 +75,55 @@ nginx。
 - 工作台 http://127.0.0.1:8090
 - API 文档 http://127.0.0.1:8000/api/docs
 - 健康检查 http://127.0.0.1:8000/api/health
+
+## 受控 HTTPS 局域网入口
+
+默认 Compose 只适合本机回环开发。局域网使用必须显式叠加
+`docker-compose.lan.yml`，并准备受信任的服务器证书。该叠加层只把 nginx 的 HTTPS
+端口绑定到 `PUBLIC_BIND_ADDRESS`，后端仍只绑定 `127.0.0.1:8000`，不会在局域网网卡上
+监听；应用内的 `ALLOWED_HOSTS`、`ALLOWED_ORIGINS` 和 `APP_PUBLIC_URL` 都是精确值，
+HTTP 开发例外不会因叠加层自动打开。
+
+### 1. 准备证书
+
+在受控机器上为实际使用的局域网地址签发证书（示例为 IP SAN；如用域名，替换
+`subjectAltName`）。私钥只放在维护者控制的目录，权限设为仅服务账号可读：
+
+    mkdir -p certs
+    openssl req -x509 -newkey rsa:3072 -sha256 -days 825 -nodes \
+      -keyout certs/server.key -out certs/server.crt \
+      -subj "/CN=10.13.51.8" \
+      -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:10.13.51.8"
+    chmod 600 certs/server.key
+
+把 `certs/server.crt`（或签发它的内部 CA）安装到每台允许访问的客户端信任存储。
+浏览器必须通过 `https://10.13.51.8:8443` 这类证书已覆盖的地址访问；不要用 IP 与
+证书 SAN 不一致的地址，也不要把私钥放进发布包或 Git。
+
+### 2. 启动
+
+    export PUBLIC_HOSTNAME=10.13.51.8
+    export PUBLIC_ORIGIN=https://10.13.51.8:8443
+    export PUBLIC_BIND_ADDRESS=10.13.51.8
+    export PUBLIC_HTTPS_PORT=8443
+    export TLS_CERT_DIR=./certs
+    docker compose -f docker-compose.yml -f docker-compose.lan.yml up -d --build
+
+`PUBLIC_ORIGIN` 必须与浏览器地址栏完全一致（含端口），并与 `PUBLIC_HOSTNAME` 对应。
+不要设置 `ALLOW_LOOPBACK_HTTP=true` 或 `AUTH_COOKIE_SECURE=false`；叠加层会强制
+HTTPS、Secure Cookie 和受控代理来源。只开放防火墙上的 `PUBLIC_HTTPS_PORT`，
+不要开放 8000 或数据目录。
+
+### 3. 验证与运维
+
+    curl --cacert certs/server.crt https://10.13.51.8:8443/api/health
+    docker compose -f docker-compose.yml -f docker-compose.lan.yml ps
+    docker compose -f docker-compose.yml -f docker-compose.lan.yml logs -f frontend
+
+HTTP 的 80 端口只返回健康检查或 308 跳转到 HTTPS；不要用 HTTP 登录。证书更新时替换
+`certs/server.crt` 与 `certs/server.key`，重启 frontend，并先在受控客户端验证新证书
+链和 SAN。证书过期、私钥权限过宽或 Host/Origin 配错时，应用会拒绝启动或拒绝请求，
+按 `docs/operations/release-https-lan.md` 排查。正式开放前仍需完成 #85 的 Release-GATE。
 
 ## 本地启动（不使用 Docker）
 

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict
 
 from app.auth.links import consume_link, inspect_link
+from app.request_source import client_ip
 from app.schemas import ERROR_RESPONSE
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -61,6 +62,6 @@ async def submit_link(request: Request, payload: LinkPasswordRequest) -> LinkPas
         password=payload.password,
         now=request.app.state.clock.now(),
         hash_gate=request.app.state.hash_gate,
-        client_host=request.client.host if request.client else "unknown",
+        client_host=client_ip(request),
     )
     return LinkPasswordResponse(status="ok")
