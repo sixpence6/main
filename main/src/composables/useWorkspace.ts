@@ -14,21 +14,17 @@ import {
 } from 'vue'
 import { ApiError, api, isAbortError } from '@/api/client'
 import type {
-  Brief,
-  BriefFields,
   ConfigStatus,
   GenerationView,
   MessageCreateResponse,
   MessageView,
-  PatchBriefRequest,
   ProjectDetailResponse,
   ProjectSummary,
   ProjectView,
-  SubmitGenerationRequest,
 } from '@/api/types'
-import { editableBriefFields, isUuid, type EditableBriefKey } from '@/utils/format'
+import { isUuid } from '@/utils/format'
 import { useRoute, useRouter } from 'vue-router'
-import { currentAccount, sessionRevision } from '@/auth/session'
+import { sessionRevision } from '@/auth/session'
 import { clearPrivateBrowserState } from '@/auth/privateData'
 import { useViewport } from './useViewport'
 
@@ -38,8 +34,6 @@ const CAPABILITY_NAMES: Record<string, string> = {
   IMAGE_GEN: '图片生成',
 }
 
-export type StageId = 'describe' | 'confirm' | 'generate' | 'results'
-export type BriefAction = 'save' | 'confirm' | 'organize' | 'reload'
 export type ReferenceAction = 'upload' | 'remove' | 'reload'
 export type ProjectErrorKind = 'invalid' | 'not-found' | 'network' | 'generic'
 
@@ -52,22 +46,6 @@ export interface PendingReference {
   width: number
   height: number
   status: 'uploading' | 'failed'
-}
-
-export interface StageView {
-  id: StageId
-  label: string
-  locked: boolean
-  reason: string
-}
-
-export interface PendingGenerationRequest {
-  projectId: string
-  requestId: string
-  confirmedRevision: number
-  acknowledgeUnknownPresent: boolean
-  acknowledgeUnknownValue: boolean | null
-  generationId: string | null
 }
 
 type NavigationIntent =
@@ -84,8 +62,6 @@ export interface WorkspaceStore {
   confirmNavigation: () => void
   cancelNavigation: () => void
   projectParam: Ref<string | null>
-  stage: Ref<StageId>
-  stages: ComputedRef<StageView[]>
   configStatus: Ref<ConfigStatus | null>
   configError: Ref<string>
   configLoading: Ref<boolean>
@@ -119,20 +95,6 @@ export interface WorkspaceStore {
   creationUnknown: Ref<boolean>
   organizing: ComputedRef<boolean>
   sendDisabledReason: ComputedRef<string>
-  briefDraft: Ref<BriefFields | null>
-  briefEditing: Ref<boolean>
-  briefFieldErrors: Ref<Partial<Record<EditableBriefKey, string>>>
-  briefDirty: ComputedRef<boolean>
-  briefAction: Ref<BriefAction | null>
-  briefBusy: ComputedRef<boolean>
-  briefSaveError: Ref<string>
-  briefConfirmError: Ref<string>
-  briefSaveNotice: Ref<string>
-  briefConflict: Ref<boolean>
-  briefLocalCopy: Ref<boolean>
-  promptStale: ComputedRef<boolean>
-  saveDisabledReason: ComputedRef<string>
-  confirmDisabledReason: ComputedRef<string>
   referencePending: Ref<PendingReference | null>
   referenceError: Ref<string>
   referenceNotice: Ref<string>
@@ -142,55 +104,15 @@ export interface WorkspaceStore {
   referenceCapability: ComputedRef<boolean | null>
   referenceLimitBytes: ComputedRef<number>
   referenceMimeTypes: ComputedRef<string[]>
-  referenceGenerationBlockedReason: ComputedRef<string>
   referenceUploadDisabledReason: ComputedRef<string>
   referenceRemoveDisabledReason: ComputedRef<string>
-  generationSubmitBusy: Ref<boolean>
-  generationSubmitError: Ref<string>
-  generationSubmitNotice: Ref<string>
-  generationUncertain: Ref<boolean>
-  generationPendingRestored: Ref<boolean>
-  generationRecoveryAvailable: ComputedRef<boolean>
-  generationCredentialWarning: Ref<string>
-  generationRecoveryAction: Ref<'verify' | 'resume' | null>
-  generationRiskDialogOpen: Ref<boolean>
-  generationRetrieveBusy: Ref<boolean>
-  generationRetrieveError: Ref<string>
-  generationRetrieveNotice: Ref<string>
-  resultRetrievalGeneration: ComputedRef<GenerationView | null>
-  resultRetrievalAvailable: ComputedRef<boolean>
-  resultRetrievalUnavailableReason: ComputedRef<string>
-  generationRetrieveDisabledReason: ComputedRef<string>
-  retrieveGenerationResult: () => Promise<void>
-  confirmGenerationRisk: () => Promise<void>
-  cancelGenerationRisk: () => void
-  generationQuerying: Ref<boolean>
-  generationQueryError: Ref<string>
-  statusQueryInterruptionTitle: ComputedRef<string>
-  generationDisabledReason: ComputedRef<string>
   latestGenerationView: ComputedRef<GenerationView | null>
-  latestSucceededGeneration: ComputedRef<GenerationView | null>
   activeGeneration: ComputedRef<GenerationView | null>
   latestGenerationError: ComputedRef<string>
-  succeededGenerations: ComputedRef<GenerationView[]>
-  selectedResultGenerationId: Ref<string | null>
-  selectedResultGeneration: ComputedRef<GenerationView | null>
-  selectResultGeneration: (id: string) => void
-  submitGeneration: () => Promise<void>
-  verifyGenerationSubmission: () => Promise<void>
-  resumeGenerationSubmission: () => Promise<void>
-  retryGenerationQuery: () => void
   chooseReferenceFiles: (files: File[]) => Promise<void>
   retryReferenceUpload: () => Promise<void>
   removeReference: () => Promise<void>
   reloadLatestReference: () => Promise<void>
-  startBriefEdit: () => void
-  cancelBriefEdit: () => void
-  setBriefField: (key: EditableBriefKey, value: string) => void
-  saveBrief: () => Promise<void>
-  confirmBrief: () => Promise<void>
-  reloadLatestBrief: () => Promise<void>
-  viewLocalBriefCopy: () => void
   send: () => Promise<void>
   retryOrganize: () => Promise<void>
   toggleSidebar: () => void
@@ -208,7 +130,6 @@ export interface WorkspaceStore {
   createNewProject: () => void
   fillExample: (text: string) => void
   refreshConfig: () => Promise<void>
-  setStage: (id: StageId) => void
   announce: (message: string) => void
 }
 
@@ -230,12 +151,6 @@ function dedupeProjects(items: ProjectSummary[]): ProjectSummary[] {
   })
 }
 
-function stageIdFromRouteName(name: unknown): StageId | null {
-  return name === 'describe' || name === 'confirm' || name === 'generate' || name === 'results'
-    ? name
-    : null
-}
-
 function createWorkspace(): WorkspaceStore {
   const { breakpoint, isMobile } = useViewport()
   const router = useRouter()
@@ -244,7 +159,6 @@ function createWorkspace(): WorkspaceStore {
 
   const draft = ref('')
   const projectParam = ref<string | null>(currentProjectParam())
-  const stage = ref<StageId>(stageIdFromRouteName(route.name) ?? 'describe')
   const sidebarExpanded = ref(breakpoint.value === 'wide')
   const sideDrawerOpen = ref(false)
   const modelDrawerOpen = ref(false)
@@ -298,60 +212,9 @@ function createWorkspace(): WorkspaceStore {
   const creationUnknown = ref(false)
   const organizing = computed(() => currentProject.value?.brief_status === 'organizing')
 
-  const generationSubmitBusy = ref(false)
-  const generationSubmitError = ref('')
-  const generationSubmitNotice = ref('')
-  const generationUncertain = ref(false)
-  const generationPendingRestored = ref(false)
-  const generationCredentialWarning = ref('')
-  const generationRecoveryAvailable = computed(
-    () =>
-      generationUncertain.value &&
-      pendingGenerationRequest !== null &&
-      currentProject.value?.id === pendingGenerationRequest.projectId,
-  )
-  const generationRecoveryAction = ref<'verify' | 'resume' | null>(null)
-  const generationRiskDialogOpen = ref(false)
-  const generationRetrieveBusy = ref(false)
-  const generationRetrieveError = ref('')
-  const generationRetrieveNotice = ref('')
-  const generationQuerying = ref(false)
-  const generationQueryError = ref('')
-  const statusQueryTarget = ref<'project' | 'generation' | null>(null)
-  const statusQueryFailureKind = ref<'connection' | 'resource' | null>(null)
-  const statusQueryInterruptionTitle = computed(() => {
-    if (!generationQueryError.value) return ''
-    if (statusQueryFailureKind.value === 'resource') {
-      return statusQueryTarget.value === 'project' ? '资源不存在：项目不可用。' : '资源不存在：生成记录不可用。'
-    }
-    return statusQueryTarget.value === 'project'
-      ? '连接中断，项目状态暂不可知。'
-      : '连接中断，生成状态暂不可知。'
-  })
-  let generationToken = 0
-  let generationPollTimer: ReturnType<typeof setTimeout> | null = null
-  let generationQueryController: AbortController | null = null
-  let generationRefreshController: AbortController | null = null
-  let generationRetrieveController: AbortController | null = null
-  let generationQueryFailures = 0
-  let pendingGenerationRequest: PendingGenerationRequest | null = null
-
-  // 旧产物即使被错误标成 succeeded，也不得进入结果选择或发起图片请求。
-  function isDisplayableSucceeded(item: GenerationView): boolean {
-    return item.status === 'succeeded' && !item.legacy_unreviewed
-  }
-
   const latestGenerationView = computed<GenerationView | null>(() => {
     let latest: GenerationView | null = null
     for (const item of projectGenerations.value) {
-      if (!latest || item.version_no > latest.version_no) latest = item
-    }
-    return latest
-  })
-  const latestSucceededGeneration = computed<GenerationView | null>(() => {
-    let latest: GenerationView | null = null
-    for (const item of projectGenerations.value) {
-      if (!isDisplayableSucceeded(item)) continue
       if (!latest || item.version_no > latest.version_no) latest = item
     }
     return latest
@@ -377,80 +240,6 @@ function createWorkspace(): WorkspaceStore {
     }
     return ''
   })
-
-  const resultRetrievalGeneration = computed<GenerationView | null>(() => {
-    const latest = latestGenerationView.value
-    if (!latest || latest.status !== 'failed') return null
-    if (latest.error?.code !== 'RESULT_FETCH_FAILED') return null
-    return latest
-  })
-  const resultRetrievalAvailable = computed(
-    () => resultRetrievalGeneration.value?.can_retrieve_result === true,
-  )
-  const resultRetrievalUnavailableReason = computed(() => {
-    const record = resultRetrievalGeneration.value
-    if (!record || record.can_retrieve_result) return ''
-    return record.retrieval_unavailable_reason?.trim() || '服务端未提供可重取信息，当前不能重取结果。'
-  })
-
-  const succeededGenerations = computed<GenerationView[]>(() => {
-    return projectGenerations.value
-      .filter(isDisplayableSucceeded)
-      .slice()
-      .sort((a, b) => {
-        if (a.version_no !== b.version_no) return a.version_no - b.version_no
-        const aTime = Date.parse(a.completed_at ?? a.created_at)
-        const bTime = Date.parse(b.completed_at ?? b.created_at)
-        if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) return aTime - bTime
-        return a.id.localeCompare(b.id)
-      })
-  })
-  const selectedResultGenerationId = ref<string | null>(null)
-  let resultSelectionPinned = false
-
-  const selectedResultGeneration = computed<GenerationView | null>(() => {
-    const id = selectedResultGenerationId.value
-    if (id) {
-      const match = projectGenerations.value.find((item) => item.id === id && isDisplayableSucceeded(item))
-      if (match) return match
-    }
-    return latestSucceededGeneration.value
-  })
-
-  function reconcileResultSelection(followLatest: boolean): void {
-    const latest = latestSucceededGeneration.value
-    if (!latest) {
-      selectedResultGenerationId.value = null
-      resultSelectionPinned = false
-      return
-    }
-    const currentId = selectedResultGenerationId.value
-    const currentExists = Boolean(
-      currentId && projectGenerations.value.some((item) => item.id === currentId && isDisplayableSucceeded(item)),
-    )
-    if (followLatest || !currentExists) {
-      selectedResultGenerationId.value = latest.id
-      resultSelectionPinned = false
-    }
-  }
-
-  function selectResultGeneration(id: string): void {
-    const target = projectGenerations.value.find((item) => item.id === id && isDisplayableSucceeded(item))
-    if (!target) return
-    selectedResultGenerationId.value = target.id
-    resultSelectionPinned = true
-    if (generationSubmitNotice.value.startsWith('新结果：')) generationSubmitNotice.value = ''
-  }
-
-  const briefDraft = ref<BriefFields | null>(null)
-  const briefEditing = ref(false)
-  const briefFieldErrors = ref<Partial<Record<EditableBriefKey, string>>>({})
-  const briefAction = ref<BriefAction | null>(null)
-  const briefSaveError = ref('')
-  const briefConfirmError = ref('')
-  const briefSaveNotice = ref('')
-  const briefConflict = ref(false)
-  const briefLocalCopy = ref(false)
 
   const referencePending = shallowRef<PendingReference | null>(null)
   const referenceError = ref('')
@@ -491,25 +280,8 @@ function createWorkspace(): WorkspaceStore {
       .filter((value) => value === 'image/png' || value === 'image/jpeg')
     return [...new Set(normalized)]
   })
-  const referenceGenerationBlockedReason = computed(() => {
-    const project = currentProject.value
-    if (!project?.reference_asset) return ''
-    if (project.reference_asset.availability === 'missing') {
-      return '参考图文件缺失；请重新上传或移除参考图后再生成图片。'
-    }
-    if (configError.value) {
-      return '模型配置读取失败，暂时无法确认参考图能力；请确认后端服务已启动后重试。'
-    }
-    if (referenceCapability.value === false) {
-      return '当前模型明确不支持参考图；请先移除参考图再生成图片。'
-    }
-    if (referenceCapability.value !== true) {
-      return '参考图能力尚未核实；带参考图时不能生成图片。'
-    }
-    return ''
-  })
   const referenceUploadDisabledReason = computed(() => {
-    if (generationSubmitBusy.value || generationRetrieveBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能修改参考图。'
+    if (activeGeneration.value) return '生成任务进行中，完成前不能修改参考图。'
     if (referenceBusy.value) return '正在处理参考图，请稍候。'
     if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
     if (referenceConflict.value) return '参考图已在别处更新，请先加载最新项目。'
@@ -519,56 +291,21 @@ function createWorkspace(): WorkspaceStore {
     return ''
   })
   const referenceRemoveDisabledReason = computed(() => {
-    if (generationSubmitBusy.value || generationRetrieveBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能修改参考图。'
+    if (activeGeneration.value) return '生成任务进行中，完成前不能修改参考图。'
     if (referenceBusy.value) return '正在处理参考图，请稍候。'
     if (!currentProject.value) return '尚未选择项目。'
     if (!currentProject.value.reference_asset) return '当前没有参考图。'
     if (referenceConflict.value) return '参考图已在别处更新，请先加载最新项目。'
     return ''
   })
-  const briefBusy = computed(() => briefAction.value !== null)
-  const briefDirty = computed(() => {
-    const project = currentProject.value
-    const fields = briefDraft.value
-    if (!project || !fields) return false
-    return editableBriefFields.some((field) => fields[field.key] !== project.brief[field.key])
-  })
   const draftDirty = computed(() => draft.value.trim().length > 0)
-  const hasUnsavedChanges = computed(() => draftDirty.value || briefDirty.value)
-  const promptStale = computed(() => {
-    const project = currentProject.value
-    if (!project) return false
-    return !project.brief.prompt.trim() || project.prompt_revision !== project.revision
-  })
-
-  function briefFieldsFrom(brief: Brief): BriefFields {
-    return {
-      product_description: brief.product_description,
-      purpose: brief.purpose,
-      style: brief.style,
-      composition: brief.composition,
-      text_content: brief.text_content,
-    }
-  }
-
-  function resetBriefDraft(project: ProjectView | null): void {
-    briefDraft.value = project ? briefFieldsFrom(project.brief) : null
-    briefFieldErrors.value = {}
-    briefLocalCopy.value = false
-  }
-
+  const hasUnsavedChanges = computed(() => draftDirty.value)
   const sendDisabledReason = computed(() => {
     if (sendBusy.value) return '正在发送消息，请稍候。'
-    if (generationSubmitBusy.value) return '正在提交生成请求，完成前不能发送消息。'
-    if (generationRetrieveBusy.value) return '正在重取结果，完成前不能发送消息。'
     if (activeGeneration.value) return '生成任务进行中，完成前不能发送消息。'
     if (referenceBusy.value) return '正在处理参考图，完成前不能发送消息。'
-    if (briefBusy.value) return '正在处理需求卡片，完成前不能发送新消息。'
     if (organizing.value) return '正在整理需求，完成前不能发送新消息。'
-    if (briefConflict.value) return '需求已在别处更新，请先加载最新需求，再发送消息。'
-    if (briefLocalCopy.value) return '正在查看未保存的本地副本，请先加载最新需求，再发送消息。'
     if (messageConflict.value) return '消息发送遇到版本冲突，请先加载最新需求或查看本地副本。'
-    if (briefDirty.value) return '有未保存的需求修改，请先保存或取消修改，再发送消息。'
     if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
     const llm = configStatus.value?.llm
     if (!llm) return configUnavailableReason.value
@@ -576,152 +313,6 @@ function createWorkspace(): WorkspaceStore {
     if (!llm.ready) return 'LLM 当前不可用，当前无法整理需求；输入内容会保留。'
     if (!draft.value.trim()) return '请输入商品与图片需求。'
     return ''
-  })
-
-  const saveDisabledReason = computed(() => {
-    if (briefBusy.value) return '正在处理需求操作，请稍候。'
-    if (generationSubmitBusy.value || generationRetrieveBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能保存需求。'
-    if (referenceBusy.value) return '正在处理参考图，完成前不能保存需求。'
-    if (sendBusy.value) return '正在发送消息，完成前不能保存需求。'
-    if (!currentProject.value) return '尚未选择项目。'
-    if (briefConflict.value) return '需求已在别处更新，请先加载最新需求。'
-    if (briefLocalCopy.value) return '正在查看未保存的本地副本，请先加载最新需求。'
-    if (!briefEditing.value) return '请先进入编辑状态。'
-    if (!briefDirty.value) return '尚未修改需求。'
-    return ''
-  })
-
-  const confirmDisabledReason = computed(() => {
-    if (sendBusy.value) return '正在发送消息，完成前不能确认需求。'
-    if (generationSubmitBusy.value || generationRetrieveBusy.value || activeGeneration.value) return '生成任务进行中，完成前不能确认需求。'
-    if (referenceBusy.value) return '正在处理参考图，完成前不能确认需求。'
-    if (briefBusy.value) return '正在处理需求操作，请稍候。'
-    const project = currentProject.value
-    if (!project) return '尚未选择项目。'
-    if (briefConflict.value) return '需求已在别处更新，请先加载最新需求。'
-    if (briefLocalCopy.value) return '正在查看未保存的本地副本，请先加载最新需求。'
-    if (briefDirty.value) return '有未保存的修改，请先保存或取消修改。'
-    if (draft.value.trim()) return '请先发送或清空输入框中的文字。'
-    if (project.brief_status === 'confirmed') return '需求已经确认，无需重复确认。'
-    if (project.brief_status === 'organizing') return '正在整理需求，完成前不能确认。'
-    if (project.brief_status === 'needs_input') return '还有必需澄清未完成，请先在对话中补充。'
-    if (project.brief_status !== 'review') return '当前需求还不能确认，请先重新整理需求。'
-    const fields = briefDraft.value ?? briefFieldsFrom(project.brief)
-    if (!fields.product_description.trim()) return '商品描述不能为空。'
-    if (!project.brief.prompt.trim() || project.prompt_revision !== project.revision) {
-      return '完整提示词不是当前版本，请重新整理需求后再确认。'
-    }
-    if (!project.brief.image_size) return '图片尺寸尚未配置，无法确认需求。'
-    return ''
-  })
-
-  const generationDisabledReason = computed(() => {
-    if (generationSubmitBusy.value) return '正在提交生成请求，请稍候。'
-    if (generationRetrieveBusy.value) return '正在重取结果，完成前不能生成图片。'
-    if (sendBusy.value) return '正在发送消息，完成前不能生成图片。'
-    if (briefBusy.value) return '正在处理需求操作，完成前不能生成图片。'
-    if (referenceBusy.value) return '正在处理参考图，完成前不能生成图片。'
-    if (organizing.value) return '正在整理需求，完成前不能生成图片。'
-    const project = currentProject.value
-    if (!project) return '尚未选择项目。'
-    if (generationUncertain.value) return '上一次生成提交结果尚未确认，请先核实。'
-    if (creationUnknown.value) return '项目创建结果尚未确认，请先从已有项目核实。'
-    if (briefConflict.value) return '需求已在别处更新，请先加载最新需求，再生成图片。'
-    if (briefLocalCopy.value) return '正在查看未保存的本地副本，请先加载最新需求，再生成图片。'
-    if (draft.value.trim()) return '请先发送或清空输入框中的文字，再生成图片。'
-    if (briefEditing.value) return '请先完成或取消需求编辑，再生成图片。'
-    if (briefDirty.value) return '有未保存的需求修改，请先保存或取消修改，再生成图片。'
-    if (project.brief_status !== 'confirmed') return '需求尚未确认，确认后才能生成图片。'
-    if (project.revision !== project.prompt_revision || project.revision !== project.confirmed_revision) {
-      return '需求或提示词已变化，请重新整理并确认需求。'
-    }
-    if (!project.brief.prompt.trim()) return '完整提示词尚未生成，请先重新整理需求。'
-    const visual = configStatus.value?.visual
-    if (!visual) return configUnavailableReason.value
-    if (!visual.configured) return '图片模型尚未配置，当前无法生成图片。'
-    if (!visual.ready) return '图片模型当前不可用，请稍后重试。'
-    if (visual.capabilities?.text_to_image === false) return '当前模型不支持文生图，不能生成图片。'
-    if (visual.capabilities?.text_to_image !== true) return '文生图能力尚未核实，不能生成图片。'
-    // 付费生成需要 TEXT、VISION、IMAGE_GEN 三项能力同时就绪（AC-44/AC-45）。
-    const generation = configStatus.value?.generation
-    if (generation && !generation.allowed) {
-      const labels = generation.missing_capabilities.map((name) => CAPABILITY_NAMES[name] ?? name)
-      return `付费生成所需能力未就绪：${labels.join('、')}；不会发起生成请求。`
-    }
-    if (!project.brief.image_size) return '图片尺寸尚未确定，不能生成图片。'
-    if (
-      visual.capabilities?.supported_image_sizes?.length &&
-      !visual.capabilities.supported_image_sizes.includes(project.brief.image_size)
-    ) {
-      return `当前模型不支持 ${project.brief.image_size} 尺寸。`
-    }
-    if (referenceGenerationBlockedReason.value) return referenceGenerationBlockedReason.value
-    if (activeGeneration.value) {
-      return activeGeneration.value.status === 'queued'
-        ? '已有生成任务正在排队，请等待完成。'
-        : '已有生成任务正在进行，请等待完成。'
-    }
-    return ''
-  })
-
-  const generationRetrieveDisabledReason = computed(() => {
-    if (generationRetrieveBusy.value) return '正在重取结果，请稍候。'
-    if (generationSubmitBusy.value) return '正在提交生成请求，完成前不能重取结果。'
-    if (sendBusy.value || briefBusy.value || referenceBusy.value) {
-      return '正在处理其他操作，完成前不能重取结果。'
-    }
-    if (organizing.value) return '正在整理需求，完成前不能重取结果。'
-    if (generationUncertain.value) return '生成提交结果尚未确认，请先核实。'
-    if (!currentProject.value) return '尚未选择项目。'
-    if (briefConflict.value || briefLocalCopy.value) {
-      return '存在未处理的本地需求副本，请先加载最新需求再重取结果。'
-    }
-    if (briefEditing.value || briefDirty.value) {
-      return '有未保存的需求修改，请先保存或取消修改，再重取结果。'
-    }
-    const record = resultRetrievalGeneration.value
-    if (!record) return '没有可重取的结果记录。'
-    if (!record.can_retrieve_result) return resultRetrievalUnavailableReason.value
-    return ''
-  })
-
-  const stages = computed<StageView[]>(() => {
-    const project = currentProject.value
-    const hasProject = Boolean(projectParam.value)
-    const hasReviewableBrief = Boolean(
-      project &&
-        (project.brief_status === 'draft' ||
-          project.brief_status === 'review' ||
-          project.brief_status === 'confirmed'),
-    )
-    const hasConfirmedBrief = project?.brief_status === 'confirmed'
-    const hasGenerationRecords = projectGenerations.value.length > 0
-    const referenceBlocked = referenceGenerationBlockedReason.value
-    return [
-      { id: 'describe', label: '描述需求', locked: false, reason: '' },
-      {
-        id: 'confirm',
-        label: '确认需求',
-        locked: !hasReviewableBrief,
-        reason: hasProject
-          ? '当前项目还没有可确认的需求，请先完成需求整理。'
-          : '尚未选择项目，确认需求将在选择项目后解锁。',
-      },
-      {
-        id: 'generate',
-        label: '生成图片',
-        locked: !(hasConfirmedBrief || hasGenerationRecords) || Boolean(referenceBlocked),
-        reason: referenceBlocked || (hasProject
-          ? '需求尚未确认，确认后才能生成图片。'
-          : '尚未选择项目，生成图片将在需求确认后解锁。'),
-      },
-      {
-        id: 'results',
-        label: '查看结果',
-        locked: !hasGenerationRecords,
-        reason: '尚未生成图片，暂无可查看的结果。',
-      },
-    ]
   })
 
   function announce(message: string): void {
@@ -745,7 +336,7 @@ function createWorkspace(): WorkspaceStore {
 
   function updateProjectUrl(id: string | null, mode: 'push' | 'replace'): Promise<unknown> {
     if (id) projectParam.value = id
-    return router[mode]({ name: stage.value, query: routeQueryWithProject(), hash: route.hash }).catch(() => undefined)
+    return router[mode]({ name: 'describe', query: routeQueryWithProject(), hash: route.hash }).catch(() => undefined)
   }
 
   function openNavigationConfirm(intent: NavigationIntent): void {
@@ -784,16 +375,9 @@ function createWorkspace(): WorkspaceStore {
     detailController = null
     detailToken += 1
     projectContextToken += 1
-    resetGenerationState()
     currentProject.value = null
     projectMessages.value = []
     projectGenerations.value = []
-    resetBriefDraft(null)
-    briefEditing.value = false
-    briefSaveError.value = ''
-    briefConfirmError.value = ''
-    briefSaveNotice.value = ''
-    briefConflict.value = false
     clearReferenceState()
     projectLoading.value = false
     projectError.value = ''
@@ -809,7 +393,6 @@ function createWorkspace(): WorkspaceStore {
     creationUnknown.value = false
     sendBusy.value = false
     sendError.value = ''
-    briefAction.value = null
     listController?.abort()
     listController = null
     moreController?.abort()
@@ -824,7 +407,6 @@ function createWorkspace(): WorkspaceStore {
     draft.value = ''
     const hadProject = projectParam.value !== null || typeof route.query.project === 'string'
     projectParam.value = null
-    stage.value = 'describe'
     clearPrivateBrowserState()
     if (route.name !== 'describe' || hadProject) {
       void router.replace({ name: 'describe' })
@@ -852,11 +434,9 @@ function createWorkspace(): WorkspaceStore {
   function performCreateNewProject(): void {
     creationUnknown.value = false
     sendError.value = ''
-    briefAction.value = null
     clearProjectDetail()
     projectParam.value = null
     draft.value = ''
-    stage.value = 'describe'
     sideDrawerOpen.value = false
     projectDrawerOpen.value = false
     updateProjectUrl(null, 'replace')
@@ -975,26 +555,18 @@ function createWorkspace(): WorkspaceStore {
       return
     }
     const sessionAtStart = sessionRevision.value
-    const restoredCredential = readGenerationCredential(id)
     detailController?.abort()
     const controller = new AbortController()
     detailController = controller
     const token = ++detailToken
     projectContextToken += 1
-    resetGenerationState()
     resetMessageConflict()
-    // Resolve an explicit legacy route from the URL too. Resetting the stage
-    // ref synchronously would fire the stage watcher and replace /confirm,
-    // /generate or /results with / before the project finishes loading.
-    const preferredStage = stageIdFromRouteName(route.name) ?? stage.value
     projectLoading.value = true
     projectError.value = ''
     projectErrorKind.value = null
     currentProject.value = null
     projectMessages.value = []
     projectGenerations.value = []
-    resetBriefDraft(null)
-    briefEditing.value = false
     clearReferenceState()
     try {
       const response = await api.getProject(id, controller.signal)
@@ -1006,26 +578,7 @@ function createWorkspace(): WorkspaceStore {
       currentProject.value = response.project
       projectMessages.value = response.messages
       projectGenerations.value = response.generations
-      reconcileResultSelection(true)
-      resetBriefDraft(response.project)
-      briefEditing.value = false
-      briefSaveError.value = ''
-      briefConfirmError.value = ''
-      briefSaveNotice.value = ''
-      briefConflict.value = false
       creationUnknown.value = false
-      await restoreGenerationCredential(restoredCredential, response.generations, controller.signal)
-      if (
-        controller.signal.aborted ||
-        token !== detailToken ||
-        currentProject.value?.id !== response.project.id
-      ) {
-        return
-      }
-      chooseDefaultStage(preferredStage)
-      if (organizing.value || activeGeneration.value) {
-        scheduleStatusQuery()
-      }
     } catch (error) {
       if (
         sessionAtStart !== sessionRevision.value ||
@@ -1054,82 +607,6 @@ function createWorkspace(): WorkspaceStore {
         if (detailController === controller) detailController = null
       }
     }
-  }
-
-  function chooseDefaultStage(preferredStage?: StageId): void {
-    const project = currentProject.value
-    if (!project) {
-      stage.value = 'describe'
-      return
-    }
-    // The v3 workbench keeps U1 and U2 in place on the describe route. Legacy
-    // pages remain reachable only through their explicit route until the R3
-    // gate removes them; opening a project must never force an extra page.
-    if (preferredStage && preferredStage !== 'describe') {
-      const preferred = stages.value.find((item) => item.id === preferredStage)
-      if (preferred && !preferred.locked) {
-        stage.value = preferredStage
-        return
-      }
-    }
-    stage.value = 'describe'
-  }
-
-  async function findKnownGeneration(
-    request: PendingGenerationRequest,
-    generations: GenerationView[],
-    signal?: AbortSignal,
-  ): Promise<GenerationView | null> {
-    const inProject = generations.find((item) => item.request_id === request.requestId)
-    if (inProject) return inProject
-    if (!request.generationId) return null
-    try {
-      const known = await api.getGeneration(request.generationId, signal, true)
-      if (known.request_id !== request.requestId) return null
-      return known
-    } catch {
-      return null
-    }
-  }
-
-  async function restoreGenerationCredential(
-    credential: PendingGenerationRequest | null,
-    generations: GenerationView[],
-    signal?: AbortSignal,
-  ): Promise<void> {
-    if (!credential || signal?.aborted) return
-    const match = await findKnownGeneration(credential, generations, signal)
-    if (signal?.aborted || currentProject.value?.id !== credential.projectId) return
-    pendingGenerationRequest = credential
-    generationPendingRestored.value = true
-    if (!match) {
-      generationUncertain.value = true
-      generationSubmitNotice.value = '已恢复上次未确认的生成提交。'
-      generationSubmitError.value =
-        '仍未查到这次生成提交的记录；这不代表失败。可先只读核实，或明确恢复本次提交。'
-      return
-    }
-    upsertGeneration(match)
-    pendingGenerationRequest = null
-    generationUncertain.value = false
-    generationPendingRestored.value = false
-    clearGenerationCredential(credential.projectId)
-    if (match.status === 'queued' || match.status === 'running') {
-      generationSubmitNotice.value = '已恢复上次生成提交，正在继续读取任务状态。'
-      scheduleStatusQuery()
-      announce(generationSubmitNotice.value)
-      return
-    }
-    if (match.status === 'succeeded') {
-      selectedResultGenerationId.value = match.id
-      resultSelectionPinned = false
-      stage.value = 'results'
-      generationSubmitNotice.value = '已恢复上次生成结果，已切换到结果视图。'
-      announce(generationSubmitNotice.value)
-      return
-    }
-    generationSubmitNotice.value = '已恢复上次生成提交记录。'
-    announce(generationSubmitNotice.value)
   }
 
   function modelConfigReason(): string {
@@ -1173,807 +650,6 @@ function createWorkspace(): WorkspaceStore {
       (error.status === 0 || error.status >= 500 || error.code === 'INVALID_RESPONSE')
     )
   }
-
-  const GENERATION_CREDENTIAL_KEY = 'ecommerce-generation-pending'
-
-  function credentialAccountId(): string | null {
-    return currentAccount.value?.id ?? null
-  }
-
-  function generationCredentialKey(projectId: string, accountId = credentialAccountId()): string {
-    if (accountId) return `${GENERATION_CREDENTIAL_KEY}:${accountId}:${projectId}`
-    return `${GENERATION_CREDENTIAL_KEY}:${projectId}`
-  }
-
-  function createGenerationRequestId(): string {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID()
-    }
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
-      const random = Math.floor(Math.random() * 16)
-      const value = char === 'x' ? random : (random & 0x3) | 0x8
-      return value.toString(16)
-    })
-  }
-
-  function buildGenerationRequestBody(request: PendingGenerationRequest): SubmitGenerationRequest {
-    const body: SubmitGenerationRequest = {
-      request_id: request.requestId,
-      confirmed_revision: request.confirmedRevision,
-    }
-    if (request.acknowledgeUnknownPresent) {
-      body.acknowledge_unknown = request.acknowledgeUnknownValue === true
-    }
-    return body
-  }
-
-  function normalizeGenerationCredential(
-    value: unknown,
-    projectId: string,
-    accountId: string | null,
-  ): PendingGenerationRequest | null {
-    if (!value || typeof value !== 'object') return null
-    const record = value as Record<string, unknown>
-    if (record.projectId !== projectId) return null
-    // 账号存在时只接受同一稳定账号写入的新键；旧的账号无关键不自动认领。
-    if (accountId) {
-      if (record.accountId !== accountId) return null
-    } else if (record.accountId !== undefined) {
-      return null
-    }
-    if (typeof record.requestId !== 'string' || !record.requestId.trim()) return null
-    if (record.requestId.length > 200) return null
-    const revision = record.confirmedRevision
-    if (typeof revision !== 'number' || !Number.isInteger(revision) || revision < 0) return null
-    if (typeof record.acknowledgeUnknownPresent !== 'boolean') return null
-    const present = record.acknowledgeUnknownPresent
-    const acknowledgeValue = present ? record.acknowledgeUnknownValue : null
-    if (present && typeof acknowledgeValue !== 'boolean') return null
-    let generationId: string | null = null
-    if (record.generationId !== undefined && record.generationId !== null) {
-      if (typeof record.generationId !== 'string' || !record.generationId) return null
-      generationId = record.generationId
-    }
-    return {
-      projectId,
-      requestId: record.requestId,
-      confirmedRevision: revision,
-      acknowledgeUnknownPresent: present,
-      acknowledgeUnknownValue: present ? (acknowledgeValue as boolean) : null,
-      generationId,
-    }
-  }
-
-  /** 只读取当前账号下同一项目的原请求；旧的无账号键在已登录时不参与认领。 */
-  function readGenerationCredential(projectId: string): PendingGenerationRequest | null {
-    if (typeof window === 'undefined') return null
-    const accountId = credentialAccountId()
-    try {
-      let raw: string | null
-      if (accountId) {
-        raw = window.sessionStorage.getItem(generationCredentialKey(projectId, accountId))
-      } else {
-        const projectRaw = window.sessionStorage.getItem(generationCredentialKey(projectId, null))
-        const legacyRaw = projectRaw
-          ? null
-          : window.sessionStorage.getItem(GENERATION_CREDENTIAL_KEY)
-        raw = projectRaw ?? legacyRaw
-      }
-      if (!raw) return null
-      return normalizeGenerationCredential(JSON.parse(raw) as unknown, projectId, accountId)
-    } catch {
-      return null
-    }
-  }
-
-  /** 返回是否成功写入；失败时调用方仍保留内存中的原请求。 */
-  function saveGenerationCredential(request: PendingGenerationRequest): boolean {
-    if (typeof window === 'undefined') return false
-    const accountId = credentialAccountId()
-    try {
-      const payload: Record<string, unknown> = {
-        projectId: request.projectId,
-        requestId: request.requestId,
-        confirmedRevision: request.confirmedRevision,
-        acknowledgeUnknownPresent: request.acknowledgeUnknownPresent,
-        acknowledgeUnknownValue: request.acknowledgeUnknownValue,
-        generationId: request.generationId,
-      }
-      if (accountId) payload.accountId = accountId
-      window.sessionStorage.setItem(
-        generationCredentialKey(request.projectId, accountId),
-        JSON.stringify(payload),
-      )
-      if (accountId) {
-        // 写入账号绑定键后清理同项目的旧无账号键，避免遗留可被误认领的数据。
-        window.sessionStorage.removeItem(generationCredentialKey(request.projectId, null))
-        window.sessionStorage.removeItem(GENERATION_CREDENTIAL_KEY)
-      }
-      return true
-    } catch {
-      // 会话凭据只是刷新后的辅助信息，写入失败不影响当前提交。
-      return false
-    }
-  }
-
-  function clearGenerationCredential(projectId?: string): void {
-    if (typeof window === 'undefined') return
-    try {
-      if (projectId) {
-        const keys: string[] = []
-        for (let index = 0; index < window.sessionStorage.length; index += 1) {
-          const key = window.sessionStorage.key(index)
-          if (
-            key === GENERATION_CREDENTIAL_KEY ||
-            key === generationCredentialKey(projectId, null) ||
-            (key?.startsWith(`${GENERATION_CREDENTIAL_KEY}:`) && key.endsWith(`:${projectId}`))
-          ) {
-            keys.push(key)
-          }
-        }
-        for (const key of keys) window.sessionStorage.removeItem(key)
-        window.sessionStorage.removeItem(GENERATION_CREDENTIAL_KEY)
-        return
-      }
-      const keys: string[] = []
-      for (let index = 0; index < window.sessionStorage.length; index += 1) {
-        const key = window.sessionStorage.key(index)
-        if (key?.startsWith(`${GENERATION_CREDENTIAL_KEY}:`)) keys.push(key)
-      }
-      for (const key of keys) window.sessionStorage.removeItem(key)
-      window.sessionStorage.removeItem(GENERATION_CREDENTIAL_KEY)
-    } catch {
-      // 清理失败不影响主流程。
-    }
-  }
-
-  function clearSettledGenerationCredential(generation: GenerationView): void {
-    const request = pendingGenerationRequest
-    if (!request || request.requestId !== generation.request_id) return
-    if (generation.status === 'queued' || generation.status === 'running') return
-    pendingGenerationRequest = null
-    generationUncertain.value = false
-    generationPendingRestored.value = false
-    generationCredentialWarning.value = ''
-    clearGenerationCredential(generation.project_id)
-  }
-
-  function clearGenerationPoll(): void {
-    if (generationPollTimer !== null) {
-      clearTimeout(generationPollTimer)
-      generationPollTimer = null
-    }
-  }
-
-  function pageIsHidden(): boolean {
-    return typeof document !== 'undefined' && document.visibilityState === 'hidden'
-  }
-
-  function clearStatusQueryError(): void {
-    generationQueryError.value = ''
-    statusQueryTarget.value = null
-    statusQueryFailureKind.value = null
-  }
-
-  function setStatusQueryFailure(
-    kind: 'connection' | 'resource',
-    target: 'project' | 'generation',
-    message: string,
-  ): void {
-    generationQueryError.value = message
-    statusQueryFailureKind.value = kind
-    statusQueryTarget.value = target
-  }
-
-  function pauseStatusQueriesForHiddenPage(): void {
-    clearGenerationPoll()
-    generationQueryController?.abort()
-    generationRefreshController?.abort()
-  }
-
-  function resetGenerationState(): void {
-    generationToken += 1
-    clearGenerationPoll()
-    generationQueryController?.abort()
-    generationQueryController = null
-    generationRefreshController?.abort()
-    generationRefreshController = null
-    generationSubmitBusy.value = false
-    generationQuerying.value = false
-    generationSubmitError.value = ''
-    generationSubmitNotice.value = ''
-    generationUncertain.value = false
-    generationPendingRestored.value = false
-    generationCredentialWarning.value = ''
-    generationRecoveryAction.value = null
-    generationRiskDialogOpen.value = false
-    generationRetrieveController?.abort()
-    generationRetrieveController = null
-    generationRetrieveBusy.value = false
-    generationRetrieveError.value = ''
-    generationRetrieveNotice.value = ''
-    generationQueryError.value = ''
-    statusQueryTarget.value = null
-    statusQueryFailureKind.value = null
-    generationQueryFailures = 0
-    pendingGenerationRequest = null
-    selectedResultGenerationId.value = null
-    resultSelectionPinned = false
-  }
-
-  function upsertGeneration(generation: GenerationView): void {
-    const index = projectGenerations.value.findIndex(
-      (item) => item.id === generation.id || item.request_id === generation.request_id,
-    )
-    const previousSelected = selectedResultGenerationId.value
-    const previousLatestId = latestSucceededGeneration.value?.id ?? null
-    const wasFollowingLatest = !previousSelected || previousSelected === previousLatestId
-    if (index < 0) {
-      projectGenerations.value = [...projectGenerations.value, generation]
-    } else {
-      const next = [...projectGenerations.value]
-      next[index] = generation
-      projectGenerations.value = next
-    }
-    if (generation.status === 'succeeded' && wasFollowingLatest && !resultSelectionPinned) {
-      selectedResultGenerationId.value = generation.id
-      resultSelectionPinned = false
-    } else if (!selectedResultGenerationId.value) {
-      selectedResultGenerationId.value = latestSucceededGeneration.value?.id ?? null
-    }
-  }
-
-  function writeGenerationErrorMessage(error: unknown): string {
-    if (!(error instanceof ApiError)) return '生成请求提交失败，请稍后重试。'
-    switch (error.code) {
-      case 'REVISION_CONFLICT': return '需求已在别处更新，请重新读取最新需求后再生成。'
-      case 'PROJECT_BUSY': return '项目正在处理其他操作，请稍后再生成。'
-      case 'ACTIVE_GENERATION_EXISTS': return '已有生成任务正在进行，请等待完成后再生成。'
-      case 'IDEMPOTENCY_CONFLICT': return '同一个请求标识已用于其他参数，请重新发起生成。'
-      case 'UNKNOWN_ACK_REQUIRED': return '上一次生成结果未确认，需要明确确认风险后再生成。'
-      case 'BRIEF_NOT_READY': return '当前需求尚未确认，不能生成图片。'
-      case 'IMAGE_SIZE_CHANGED': return '图片尺寸已变化，请重新整理并确认需求后再生成。'
-      case 'REFERENCE_NOT_SUPPORTED': return '当前模型不支持参考图，请移除参考图后再生成。'
-      case 'MODEL_NOT_CONFIGURED': return '图片模型尚未配置，不能生成图片。'
-      case 'ADAPTER_UNAVAILABLE': return '图片模型当前不可用，请稍后重试。'
-      case 'MODEL_CAPABILITY_MISMATCH': return '当前模型能力与需求不匹配，请检查模型配置。'
-      default: break
-    }
-    if (error.status === 401 || error.status === 403) return '认证失败或没有权限，请检查模型配置后再生成。'
-    if (error.status === 404) return '项目不存在或已被删除，请刷新项目列表。'
-    if (error.status === 413) return '生成请求内容过大，请精简参考图或需求后重试。'
-    if (error.status === 422) return '生成参数不符合要求，请检查需求与参考图后重试。'
-    if (error.status === 429) return '请求过于频繁或额度不足，请稍后再试。'
-    if (error.status === 409) return '项目状态已变化，请加载最新状态后再生成。'
-    if (error.status === 503) return '图片模型尚未配置或当前不可用，请检查模型状态。'
-    return error.message || '生成请求提交失败，请稍后重试。'
-  }
-
-  function scheduleStatusQuery(delay = 2000): void {
-    clearGenerationPoll()
-    const project = currentProject.value
-    if (!project || pageIsHidden()) return
-    if (!organizing.value && !activeGeneration.value) return
-    const token = generationToken
-    const projectId = project.id
-    generationPollTimer = setTimeout(() => {
-      generationPollTimer = null
-      if (token !== generationToken || projectParam.value !== projectId) return
-      if (pageIsHidden()) return
-      void runStatusQuery()
-    }, delay)
-  }
-
-  /**
-   * 工作台唯一的自动状态查询入口。每个时刻只查询一个对象：
-   * 需求整理中读取项目，存在排队/运行中的生成时读取该生成记录。
-   */
-  async function runStatusQuery(manual = false): Promise<void> {
-    if (generationQuerying.value) return
-    const project = currentProject.value
-    if (!project) return
-    if (organizing.value) {
-      await queryProjectStatus(manual)
-      return
-    }
-    const active = activeGeneration.value
-    if (active) await queryGeneration(active.id, manual)
-  }
-
-  async function queryProjectStatus(manual = false): Promise<void> {
-    if (generationQuerying.value) return
-    const project = currentProject.value
-    if (!project) return
-    clearGenerationPoll()
-    const token = generationToken
-    const projectId = project.id
-    const controller = new AbortController()
-    generationQueryController = controller
-    generationQuerying.value = true
-    if (manual) statusQueryTarget.value = 'project'
-    try {
-      const response = await api.getProject(projectId, controller.signal, !manual)
-      if (token !== generationToken || controller.signal.aborted || projectParam.value !== projectId) return
-      adoptProjectDetail(response)
-      generationQueryFailures = 0
-      clearStatusQueryError()
-      if (response.project.brief_status === 'organizing') {
-        scheduleStatusQuery()
-        return
-      }
-      if (activeGeneration.value) {
-        scheduleStatusQuery()
-      } else if (response.project.brief_error) {
-        announce('需求整理已中断，请查看最新错误信息。')
-      } else {
-        announce('需求整理已完成，已读取最新状态。')
-      }
-    } catch (error) {
-      if (isAbortError(error) || controller.signal.aborted || token !== generationToken) return
-      if (error instanceof ApiError && error.status === 404) {
-        setStatusQueryFailure(
-          'resource',
-          'project',
-          '资源不存在：项目不存在或已被删除，无法继续读取状态。',
-        )
-        return
-      }
-      generationQueryFailures += 1
-      if (generationQueryFailures >= 3 || manual) {
-        setStatusQueryFailure(
-          'connection',
-          'project',
-          '暂时无法读取项目状态。已停止自动查询，请重新查询。',
-        )
-      } else {
-        scheduleStatusQuery()
-      }
-    } finally {
-      if (token === generationToken) generationQuerying.value = false
-      if (generationQueryController === controller) generationQueryController = null
-    }
-  }
-
-  async function queryGeneration(generationId: string, manual = false): Promise<void> {
-    if (generationQuerying.value) return
-    const project = currentProject.value
-    if (!project) return
-    clearGenerationPoll()
-    const token = generationToken
-    const controller = new AbortController()
-    generationQueryController = controller
-    generationQuerying.value = true
-    if (manual) statusQueryTarget.value = 'generation'
-    try {
-      const generation = await api.getGeneration(generationId, controller.signal, !manual)
-      if (token !== generationToken || controller.signal.aborted || projectParam.value !== project.id) return
-      upsertGeneration(generation)
-      clearSettledGenerationCredential(generation)
-      generationQueryFailures = 0
-      clearStatusQueryError()
-      if (generation.status === 'queued' || generation.status === 'running') {
-        scheduleStatusQuery()
-      } else if (generation.status === 'succeeded') {
-        await refreshGenerationProject(generation, token)
-      }
-    } catch (error) {
-      if (isAbortError(error) || controller.signal.aborted || token !== generationToken) return
-      if (error instanceof ApiError && error.status === 404) {
-        setStatusQueryFailure(
-          'resource',
-          'generation',
-          '资源不存在：生成记录不存在或已被删除，无法继续读取状态。',
-        )
-        return
-      }
-      generationQueryFailures += 1
-      if (generationQueryFailures >= 3 || manual) {
-        setStatusQueryFailure(
-          'connection',
-          'generation',
-          '暂时无法读取生成状态。已停止自动查询，请手动重试。',
-        )
-      } else {
-        scheduleStatusQuery()
-      }
-    } finally {
-      if (token === generationToken) generationQuerying.value = false
-      if (generationQueryController === controller) generationQueryController = null
-    }
-  }
-
-  async function refreshGenerationProject(generation: GenerationView, token: number): Promise<void> {
-    const projectId = generation.project_id
-    const controller = new AbortController()
-    generationRefreshController = controller
-    const followLatest = !resultSelectionPinned || stage.value !== 'results'
-    try {
-      const response = await api.getProject(projectId, controller.signal, true)
-      if (token !== generationToken || controller.signal.aborted || projectParam.value !== projectId) return
-      adoptProjectDetail(response, { followLatestResult: followLatest })
-      if (!projectGenerations.value.some((item) => item.id === generation.id || item.request_id === generation.request_id)) {
-        upsertGeneration(generation)
-      }
-      const visible = selectedResultGeneration.value
-      if (followLatest || !visible || visible.id === generation.id) {
-        generationSubmitNotice.value = '图片已生成，已切换到结果视图。'
-      } else {
-        generationSubmitNotice.value = `新结果：第 ${generation.version_no} 版已生成。当前仍显示第 ${visible.version_no} 版。`
-      }
-      stage.value = 'results'
-      announce(generationSubmitNotice.value)
-      if (activeGeneration.value && activeGeneration.value.id !== generation.id) scheduleStatusQuery()
-    } catch (error) {
-      if (isAbortError(error) || controller.signal.aborted || token !== generationToken) return
-      if (followLatest) {
-        selectedResultGenerationId.value = generation.id
-        resultSelectionPinned = false
-      }
-      upsertGeneration(generation)
-      const visible = selectedResultGeneration.value
-      if (visible && visible.id !== generation.id) {
-        generationSubmitNotice.value = `新结果：第 ${generation.version_no} 版已生成。当前仍显示第 ${visible.version_no} 版。`
-      } else {
-        generationSubmitNotice.value = '图片已生成，但项目最新记录读取失败；已显示本次生成结果。'
-      }
-      stage.value = 'results'
-      announce(generationSubmitNotice.value)
-    } finally {
-      if (generationRefreshController === controller) generationRefreshController = null
-    }
-  }
-
-  async function submitGeneration(): Promise<void> {
-    if (generationSubmitBusy.value) return
-    const reason = generationDisabledReason.value
-    if (reason) {
-      generationSubmitError.value = reason
-      return
-    }
-    if (latestGenerationView.value?.status === 'unknown') {
-      generationRiskDialogOpen.value = true
-      generationSubmitError.value = ''
-      return
-    }
-    await performGenerationSubmit(false)
-  }
-
-  async function confirmGenerationRisk(): Promise<void> {
-    if (!generationRiskDialogOpen.value) return
-    generationRiskDialogOpen.value = false
-    await performGenerationSubmit(latestGenerationView.value?.status === 'unknown')
-  }
-
-  function cancelGenerationRisk(): void {
-    if (!generationRiskDialogOpen.value) return
-    generationRiskDialogOpen.value = false
-    announce('已返回查看，未发起新的生成。')
-  }
-
-  async function performGenerationSubmit(acknowledgeUnknown: boolean): Promise<void> {
-    if (generationSubmitBusy.value) return
-    const reason = generationDisabledReason.value
-    if (reason) {
-      generationSubmitError.value = reason
-      return
-    }
-    if (!acknowledgeUnknown && latestGenerationView.value?.status === 'unknown') {
-      generationRiskDialogOpen.value = true
-      return
-    }
-    const project = currentProject.value
-    if (!project) return
-    const request: PendingGenerationRequest = {
-      projectId: project.id,
-      requestId: createGenerationRequestId(),
-      confirmedRevision: project.revision,
-      acknowledgeUnknownPresent: acknowledgeUnknown,
-      acknowledgeUnknownValue: acknowledgeUnknown ? true : null,
-      generationId: null,
-    }
-    const token = ++generationToken
-    clearGenerationPoll()
-    generationSubmitBusy.value = true
-    generationRecoveryAction.value = null
-    generationSubmitError.value = ''
-    generationSubmitNotice.value = ''
-    clearStatusQueryError()
-    generationQueryFailures = 0
-    generationPendingRestored.value = false
-    pendingGenerationRequest = request
-    const saved = saveGenerationCredential(request)
-    generationCredentialWarning.value = saved
-      ? ''
-      : '无法写入会话存储；本次提交仍保留在当前页面，刷新或关闭页面后将无法恢复。'
-    try {
-      const response = await api.submitGeneration(project.id, buildGenerationRequestBody(request))
-      if (token !== generationToken || projectParam.value !== project.id) return
-      upsertGeneration(response.generation)
-      clearSettledGenerationCredential(response.generation)
-      if (response.generation.status === 'queued' || response.generation.status === 'running') {
-        pendingGenerationRequest = null
-        generationCredentialWarning.value = ''
-        clearGenerationCredential(project.id)
-      }
-      generationSubmitNotice.value = '生成请求已提交，正在等待模型处理。'
-      announce('生成请求已提交，正在等待模型处理。')
-      if (response.generation.status === 'queued' || response.generation.status === 'running') {
-        stage.value = 'results'
-        scheduleStatusQuery()
-      } else if (response.generation.status === 'succeeded') {
-        await refreshGenerationProject(response.generation, token)
-      }
-    } catch (error) {
-      if (token !== generationToken) return
-      if (isUnconfirmedWrite(error)) {
-        generationUncertain.value = true
-        generationSubmitError.value = ''
-        announce('生成提交结果未确认，请先核实。')
-      } else {
-        pendingGenerationRequest = null
-        generationPendingRestored.value = false
-        generationCredentialWarning.value = ''
-        clearGenerationCredential(request.projectId)
-        generationSubmitError.value = writeGenerationErrorMessage(error)
-      }
-    } finally {
-      if (token === generationToken) generationSubmitBusy.value = false
-    }
-  }
-
-  async function verifyGenerationSubmission(): Promise<void> {
-    if (generationSubmitBusy.value) return
-    const request = pendingGenerationRequest
-    if (!generationUncertain.value || !request) return
-    const token = ++generationToken
-    clearGenerationPoll()
-    generationSubmitBusy.value = true
-    generationRecoveryAction.value = 'verify'
-    generationSubmitError.value = ''
-    clearStatusQueryError()
-    generationQueryFailures = 0
-    try {
-      const response = await api.getProject(request.projectId, undefined, true)
-      if (token !== generationToken || projectParam.value !== request.projectId) return
-      adoptProjectDetail(response)
-      let match = response.generations.find((item) => item.request_id === request.requestId) ?? null
-      if (!match) {
-        const known = await findKnownGeneration(request, response.generations)
-        if (token !== generationToken || projectParam.value !== request.projectId) return
-        if (known) {
-          upsertGeneration(known)
-          match = known
-        }
-      }
-      if (!match) {
-        generationSubmitError.value = '仍未查到这次生成提交的记录；这不代表失败，请稍后再核实，不要重复提交。'
-        return
-      }
-      generationUncertain.value = false
-      generationPendingRestored.value = false
-      generationCredentialWarning.value = ''
-      pendingGenerationRequest = null
-      clearGenerationCredential(request.projectId)
-      generationSubmitNotice.value = '已核实生成提交，生成记录已恢复。'
-      announce('已核实生成提交，生成记录已恢复。')
-      if (match.status === 'queued' || match.status === 'running') {
-        scheduleStatusQuery()
-      } else if (match.status === 'succeeded') {
-        await refreshGenerationProject(match, token)
-      }
-    } catch (error) {
-      generationSubmitError.value = errorMessage(error, '核实生成提交结果失败，请稍后重试。')
-    } finally {
-      if (token === generationToken) generationSubmitBusy.value = false
-      if (token === generationToken && generationRecoveryAction.value === 'verify') {
-        generationRecoveryAction.value = null
-      }
-    }
-  }
-
-  /**
-   * 手动恢复同一次提交：只使用上次保存的原 request_id、confirmed_revision
-   * 与 acknowledge_unknown 存在性/值，绝不根据当前需求或配置重新计算。
-   */
-  async function resumeGenerationSubmission(): Promise<void> {
-    if (generationSubmitBusy.value) return
-    const request = pendingGenerationRequest
-    const project = currentProject.value
-    if (!generationUncertain.value || !request || !project || project.id !== request.projectId) return
-    const token = ++generationToken
-    clearGenerationPoll()
-    generationSubmitBusy.value = true
-    generationRecoveryAction.value = 'resume'
-    generationSubmitError.value = ''
-    generationSubmitNotice.value = ''
-    clearStatusQueryError()
-    generationQueryFailures = 0
-    try {
-      const response = await api.submitGeneration(
-        request.projectId,
-        buildGenerationRequestBody(request),
-      )
-      if (token !== generationToken || projectParam.value !== request.projectId) return
-      upsertGeneration(response.generation)
-      pendingGenerationRequest = null
-      generationUncertain.value = false
-      generationPendingRestored.value = false
-      generationCredentialWarning.value = ''
-      clearGenerationCredential(request.projectId)
-      generationSubmitNotice.value = '已恢复本次提交，生成记录已恢复。'
-      announce(generationSubmitNotice.value)
-      if (response.generation.status === 'queued' || response.generation.status === 'running') {
-        scheduleStatusQuery()
-      } else if (response.generation.status === 'succeeded') {
-        await refreshGenerationProject(response.generation, token)
-      }
-    } catch (error) {
-      if (token !== generationToken) return
-      if (isUnconfirmedWrite(error)) {
-        generationUncertain.value = true
-        generationSubmitError.value =
-          '恢复提交的结果仍未确认；原始请求凭据仍保留，请稍后再核实，不要创建新的提交。'
-        announce('恢复提交结果未确认，请保留当前凭据并稍后核实。')
-      } else {
-        generationSubmitError.value = writeGenerationErrorMessage(error)
-      }
-    } finally {
-      if (token === generationToken) generationSubmitBusy.value = false
-      if (token === generationToken && generationRecoveryAction.value === 'resume') {
-        generationRecoveryAction.value = null
-      }
-    }
-  }
-
-  function retryGenerationQuery(): void {
-    if (generationQuerying.value || generationSubmitBusy.value || generationRetrieveBusy.value) return
-    if (organizing.value) {
-      generationQueryFailures = 0
-      void queryProjectStatus(true)
-      return
-    }
-    const target = activeGeneration.value ?? latestGenerationView.value
-    if (!target) return
-    generationQueryFailures = 0
-    void queryGeneration(target.id, true)
-  }
-
-  function writeRetrieveErrorMessage(error: unknown): string {
-    if (!(error instanceof ApiError)) {
-      return '重取结果失败，原记录与旧图片仍保留，请稍后重试。'
-    }
-    switch (error.code) {
-      case 'PROJECT_BUSY':
-        return '项目正在处理其他操作，暂时不能重取结果。'
-      case 'RESULT_NOT_RETRIEVABLE':
-        return '服务端表示该结果当前不能重取，请查看记录说明。'
-      case 'RETRIEVE_CONFIG_CHANGED':
-        return '模型配置已变化，无法重取这次结果；原记录和旧图片仍保留。'
-      case 'RESULT_FETCH_FAILED':
-        return '重取结果失败，原记录与旧图片仍保留，请稍后重试。'
-      case 'RESULT_FETCH_TIMEOUT':
-        return '重取结果超时，原记录与旧图片仍保留，请稍后重试。'
-      case 'ADAPTER_UNAVAILABLE':
-        return '图片模型当前不可用，暂时无法重取结果。'
-      default:
-        break
-    }
-    if (error.status === 401 || error.status === 403) return '认证失败或没有权限，无法重取结果。'
-    if (error.status === 404) return '生成记录不存在或已被删除，无法重取结果。'
-    if (error.status === 413) return '重取请求内容过大，无法处理。'
-    if (error.status === 422) return '重取请求不符合要求，请检查生成记录。'
-    if (error.status === 429) return '请求过于频繁或额度不足，请稍后再试。'
-    if (error.status === 409) return '生成记录状态已变化，请加载最新状态后再试。'
-    if (error.status === 503) return '图片模型或本地服务当前不可用，暂时无法重取结果。'
-    return error.message || '重取结果失败，原记录与旧图片仍保留，请稍后重试。'
-  }
-
-  function isAmbiguousRetrieve(error: unknown): boolean {
-    if (!(error instanceof ApiError)) return true
-    if (error.status === 0) return true
-    if (error.status < 500) return false
-    return !['RESULT_FETCH_FAILED', 'RESULT_FETCH_TIMEOUT', 'ADAPTER_UNAVAILABLE'].includes(error.code)
-  }
-
-  async function refreshProjectAfterRetrieve(
-    generation: GenerationView,
-    token: number,
-  ): Promise<void> {
-    const projectId = generation.project_id
-    const controller = new AbortController()
-    generationRefreshController = controller
-    const followLatest = !resultSelectionPinned
-    try {
-      const response = await api.getProject(projectId, controller.signal, true)
-      if (token !== generationToken || controller.signal.aborted || projectParam.value !== projectId) return
-      adoptProjectDetail(response, { followLatestResult: followLatest })
-      if (
-        !projectGenerations.value.some(
-          (item) => item.id === generation.id || item.request_id === generation.request_id,
-        )
-      ) {
-        upsertGeneration(generation)
-      }
-      const visible = selectedResultGeneration.value
-      generationRetrieveNotice.value =
-        followLatest || !visible || visible.id === generation.id
-          ? '结果已重取，生成记录与版本已更新。'
-          : `结果已重取：第 ${generation.version_no} 版已恢复。当前仍显示第 ${visible.version_no} 版。`
-      announce(generationRetrieveNotice.value)
-    } catch (error) {
-      if (isAbortError(error) || controller.signal.aborted || token !== generationToken) return
-      upsertGeneration(generation)
-      generationRetrieveNotice.value = '结果已重取，但项目记录刷新失败；已更新本次结果。'
-      announce(generationRetrieveNotice.value)
-    } finally {
-      if (generationRefreshController === controller) generationRefreshController = null
-    }
-  }
-
-  async function verifyRetrieveOutcome(
-    record: GenerationView,
-    token: number,
-  ): Promise<void> {
-    try {
-      const latest = await api.getGeneration(record.id, undefined, true)
-      if (token !== generationToken || projectParam.value !== record.project_id) return
-      upsertGeneration(latest)
-      if (latest.status === 'succeeded') {
-        generationRetrieveError.value = ''
-        await refreshProjectAfterRetrieve(latest, token)
-        return
-      }
-      generationRetrieveError.value =
-        '重取结果的回执未确认，暂时无法判断是否成功。请稍后查看生成记录；不会自动重试。'
-    } catch (error) {
-      if (token !== generationToken || projectParam.value !== record.project_id) return
-      if (error instanceof ApiError && error.status === 404) {
-        generationRetrieveError.value = '生成记录不存在或已被删除，无法核实重取结果。'
-        return
-      }
-      generationRetrieveError.value =
-        '重取结果后无法读取生成记录，暂不能确认是否成功；原记录与旧图片仍保留。'
-    }
-  }
-
-  async function retrieveGenerationResult(): Promise<void> {
-    if (generationRetrieveBusy.value) return
-    const reason = generationRetrieveDisabledReason.value
-    if (reason) {
-      generationRetrieveError.value = reason
-      return
-    }
-    const record = resultRetrievalGeneration.value
-    const project = currentProject.value
-    if (!record || !project || record.project_id !== project.id) return
-    const token = ++generationToken
-    clearGenerationPoll()
-    generationRetrieveBusy.value = true
-    generationRetrieveError.value = ''
-    generationRetrieveNotice.value = ''
-    clearStatusQueryError()
-    generationQueryFailures = 0
-    const controller = new AbortController()
-    generationRetrieveController = controller
-    try {
-      const updated = await api.retrieveGenerationResult(record.id, controller.signal)
-      if (token !== generationToken || controller.signal.aborted || projectParam.value !== project.id) return
-      upsertGeneration(updated)
-      clearSettledGenerationCredential(updated)
-      await refreshProjectAfterRetrieve(updated, token)
-    } catch (error) {
-      if (isAbortError(error) || controller.signal.aborted || token !== generationToken) return
-      if (isAmbiguousRetrieve(error)) {
-        await verifyRetrieveOutcome(record, token)
-        return
-      }
-      generationRetrieveError.value = writeRetrieveErrorMessage(error)
-    } finally {
-      if (token === generationToken) generationRetrieveBusy.value = false
-      if (generationRetrieveController === controller) generationRetrieveController = null
-    }
-  }
-
 
   function createPreviewUrl(file: File): string {
     if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return ''
@@ -2216,30 +892,14 @@ function createWorkspace(): WorkspaceStore {
     return error.message || '参考图操作失败，已保留当前参考图，请稍后重试。'
   }
 
-  function adoptProjectDetail(
-    response: ProjectDetailResponse,
-    options?: { followLatestResult?: boolean },
-  ): void {
+  function adoptProjectDetail(response: ProjectDetailResponse): void {
     currentProject.value = response.project
     projectMessages.value = response.messages
     projectGenerations.value = response.generations
-    reconcileResultSelection(Boolean(options?.followLatestResult))
-    resetBriefDraft(response.project)
-    briefEditing.value = false
-    briefSaveError.value = ''
-    briefConfirmError.value = ''
-    briefSaveNotice.value = ''
-    briefConflict.value = false
   }
 
   function applyReferenceProject(project: ProjectView, notice: string): void {
     currentProject.value = project
-    resetBriefDraft(project)
-    briefEditing.value = false
-    briefSaveError.value = ''
-    briefConfirmError.value = ''
-    briefSaveNotice.value = ''
-    briefConflict.value = false
     referenceConflict.value = false
     referenceNotice.value = notice
     announce(notice)
@@ -2478,20 +1138,11 @@ function createWorkspace(): WorkspaceStore {
   function applyMessageResponse(response: MessageCreateResponse): void {
     resetMessageConflict()
     currentProject.value = response.project
-    resetBriefDraft(response.project)
-    briefEditing.value = false
-    briefSaveError.value = ''
-    briefConfirmError.value = ''
-    briefSaveNotice.value = ''
-    briefConflict.value = false
     projectMessages.value = [
       ...projectMessages.value,
       response.user_message,
       response.assistant_message,
     ]
-    if (response.project.brief_status === 'organizing' || activeGeneration.value) {
-      scheduleStatusQuery()
-    }
   }
 
   async function send(): Promise<void> {
@@ -2555,28 +1206,15 @@ function createWorkspace(): WorkspaceStore {
   }
 
   async function retryOrganize(): Promise<void> {
-    if (sendBusy.value || briefBusy.value || referenceBusy.value || generationSubmitBusy.value || generationRetrieveBusy.value || activeGeneration.value) return
+    if (sendBusy.value || referenceBusy.value || activeGeneration.value) return
     const project = currentProject.value
     if (!project) return
-    if (briefDirty.value) {
-      briefSaveError.value = '请先保存或取消当前修改，再重新整理需求。'
-      return
-    }
-    if (briefConflict.value) {
-      briefSaveError.value = '需求已在别处更新，请先加载最新需求，再重新整理。'
-      return
-    }
-    if (briefLocalCopy.value) {
-      briefSaveError.value = '正在查看未保存的本地副本，请先加载最新需求，再重新整理。'
-      return
-    }
     const reason = modelConfigReason()
     if (reason) {
       sendError.value = reason
       return
     }
     const contextToken = projectContextToken
-    briefAction.value = 'organize'
     sendError.value = ''
     try {
       const response = await api.sendMessage(project.id, {
@@ -2585,7 +1223,6 @@ function createWorkspace(): WorkspaceStore {
       })
       if (projectContextToken !== contextToken || projectParam.value !== project.id) return
       applyMessageResponse(response)
-      briefSaveNotice.value = response.assistant_message.content || '已重新整理当前需求。'
       announce('已重新整理当前需求。')
     } catch (error) {
       if (projectContextToken !== contextToken) return
@@ -2596,10 +1233,8 @@ function createWorkspace(): WorkspaceStore {
         sendError.value = ''
         announce('重新整理遇到版本冲突，请加载最新需求或查看本地副本。')
       } else {
-        briefSaveError.value = writeErrorMessage(error, '重新整理失败，已保存的卡片内容仍会保留。')
+        sendError.value = writeErrorMessage(error, '重新整理失败，已保存的卡片内容仍会保留。')
       }
-    } finally {
-      briefAction.value = null
     }
   }
 
@@ -2627,201 +1262,6 @@ function createWorkspace(): WorkspaceStore {
     } catch (error) {
       sendError.value = errorMessage(error, '加载最新需求失败，请稍后重试。')
     }
-  }
-
-  function startBriefEdit(): void {
-    const project = currentProject.value
-    if (
-      !project ||
-      sendBusy.value ||
-      briefBusy.value ||
-      referenceBusy.value ||
-      generationSubmitBusy.value ||
-      generationRetrieveBusy.value ||
-      activeGeneration.value ||
-      project.brief_status === 'organizing'
-    )
-      return
-    if (briefConflict.value) {
-      briefSaveError.value = '需求已在别处更新，请先加载最新需求后再编辑。'
-      return
-    }
-    if (briefLocalCopy.value) {
-      briefSaveError.value = '正在查看未保存的本地副本，请先加载最新需求后再编辑。'
-      return
-    }
-    briefDraft.value = briefFieldsFrom(project.brief)
-    briefFieldErrors.value = {}
-    briefEditing.value = true
-    briefSaveError.value = ''
-    briefConfirmError.value = ''
-    briefSaveNotice.value = ''
-  }
-
-  function cancelBriefEdit(): void {
-    const project = currentProject.value
-    briefDraft.value = project ? briefFieldsFrom(project.brief) : null
-    briefEditing.value = false
-    briefFieldErrors.value = {}
-    briefSaveError.value = ''
-    briefConfirmError.value = ''
-    briefSaveNotice.value = ''
-  }
-
-  function setBriefField(key: EditableBriefKey, value: string): void {
-    if (!briefEditing.value || !briefDraft.value) return
-    briefDraft.value = { ...briefDraft.value, [key]: value }
-    if (briefFieldErrors.value[key]) {
-      const next = { ...briefFieldErrors.value }
-      delete next[key]
-      briefFieldErrors.value = next
-    }
-    briefSaveError.value = ''
-  }
-
-  function validateBriefDraft(fields: BriefFields): Partial<Record<EditableBriefKey, string>> {
-    const errors: Partial<Record<EditableBriefKey, string>> = {}
-    if (!fields.product_description.trim()) {
-      errors.product_description = '商品描述不能为空。'
-    }
-    for (const field of editableBriefFields) {
-      const length = fields[field.key].length
-      if (length > 8000) {
-        errors[field.key] = `${field.label}不能超过 8,000 个字符（当前 ${length} 个）。`
-      }
-    }
-    return errors
-  }
-
-  function buildBriefPatch(project: ProjectView, fields: BriefFields): PatchBriefRequest | null {
-    const patch: PatchBriefRequest = { expected_revision: project.revision }
-    let changed = false
-    for (const field of editableBriefFields) {
-      if (fields[field.key] !== project.brief[field.key]) {
-        patch[field.key] = fields[field.key]
-        changed = true
-      }
-    }
-    return changed ? patch : null
-  }
-
-  async function saveBrief(): Promise<void> {
-    if (sendBusy.value || briefBusy.value || referenceBusy.value) return
-    const project = currentProject.value
-    const fields = briefDraft.value
-    if (!project || !fields || !briefEditing.value || !briefDirty.value) return
-    const patch = buildBriefPatch(project, fields)
-    if (!patch) return
-    const errors = validateBriefDraft(fields)
-    if (Object.keys(errors).length) {
-      briefFieldErrors.value = errors
-      briefSaveError.value = '请先修正标出的字段后再保存。'
-      return
-    }
-    const contextToken = projectContextToken
-    briefAction.value = 'save'
-    briefSaveError.value = ''
-    briefConfirmError.value = ''
-    briefSaveNotice.value = ''
-    try {
-      const updated = await api.updateBrief(project.id, patch)
-      if (projectContextToken !== contextToken || projectParam.value !== project.id) return
-      currentProject.value = updated
-      resetBriefDraft(updated)
-      briefEditing.value = false
-      const promptIsCurrent = Boolean(updated.brief.prompt.trim()) && updated.prompt_revision === updated.revision
-      briefSaveNotice.value = promptIsCurrent
-        ? '需求已保存。'
-        : '需求已保存。旧提示词已过期，请重新整理需求后再确认。'
-      announce('需求已保存。')
-    } catch (error) {
-      if (projectContextToken !== contextToken) return
-      if (error instanceof ApiError && error.status === 409) {
-        briefConflict.value = true
-        briefSaveError.value = '需求已在别处更新，本地修改仍保留。请加载最新需求后再操作。'
-      } else if (error instanceof ApiError && error.status === 413) {
-        briefSaveError.value = '保存内容过大，请精简字段后再试；本地修改仍保留。'
-      } else if (error instanceof ApiError && error.status === 422) {
-        briefSaveError.value = '部分字段不符合要求，请检查后再试；本地修改仍保留。'
-      } else {
-        briefSaveError.value = writeErrorMessage(error, '需求保存失败，本地修改仍保留，请稍后重试。')
-      }
-    } finally {
-      briefAction.value = null
-    }
-  }
-
-  async function confirmBrief(): Promise<void> {
-    if (sendBusy.value || briefBusy.value || referenceBusy.value) return
-    const reason = confirmDisabledReason.value
-    if (reason) {
-      briefConfirmError.value = reason
-      return
-    }
-    const project = currentProject.value
-    if (!project) return
-    const contextToken = projectContextToken
-    briefAction.value = 'confirm'
-    briefConfirmError.value = ''
-    briefSaveError.value = ''
-    briefSaveNotice.value = ''
-    try {
-      const updated = await api.confirmBrief(project.id, project.revision)
-      if (projectContextToken !== contextToken || projectParam.value !== project.id) return
-      currentProject.value = updated
-      resetBriefDraft(updated)
-      briefEditing.value = false
-      briefSaveNotice.value = '需求已确认。'
-      announce('需求已确认。')
-    } catch (error) {
-      if (projectContextToken !== contextToken) return
-      if (error instanceof ApiError && error.status === 409) {
-        briefConflict.value = true
-        briefConfirmError.value = '需求已在别处更新或尚不能确认，请加载最新需求后再操作。'
-      } else {
-        briefConfirmError.value = writeErrorMessage(error, '需求确认失败，请稍后重试。')
-      }
-    } finally {
-      briefAction.value = null
-    }
-  }
-
-  async function reloadLatestBrief(): Promise<void> {
-    if (sendBusy.value || briefBusy.value || referenceBusy.value) return
-    const id = projectParam.value ?? currentProject.value?.id
-    if (!id) return
-    const contextToken = projectContextToken
-    briefAction.value = 'reload'
-    briefSaveError.value = ''
-    briefConfirmError.value = ''
-    try {
-      const response = await api.getProject(id)
-      if (projectContextToken !== contextToken || projectParam.value !== id) return
-      currentProject.value = response.project
-      projectMessages.value = response.messages
-      projectGenerations.value = response.generations
-      resetBriefDraft(response.project)
-      briefEditing.value = false
-      briefConflict.value = false
-      briefSaveNotice.value = '已加载最新需求。'
-      announce('已加载最新需求。')
-    } catch (error) {
-      if (projectContextToken !== contextToken) return
-      briefSaveError.value = writeErrorMessage(error, '最新需求加载失败，请稍后重试。')
-    } finally {
-      briefAction.value = null
-    }
-  }
-
-  function viewLocalBriefCopy(): void {
-    if (!briefConflict.value || !briefDraft.value) return
-    briefEditing.value = false
-    briefLocalCopy.value = true
-    briefSaveError.value = ''
-    briefConfirmError.value = ''
-    const notice = '正在查看未保存的本地副本（只读），可复制内容或加载最新需求。'
-    briefSaveNotice.value = notice
-    announce(notice)
   }
 
   function selectProject(id: string): void {
@@ -2854,7 +1294,7 @@ function createWorkspace(): WorkspaceStore {
     if (id === projectParam.value) return
     if (hasUnsavedChanges.value) {
       const target = router.resolve({
-        name: stage.value,
+        name: 'describe',
         query: routeQueryWithProject(),
         hash: route.hash,
       }).fullPath
@@ -2866,7 +1306,6 @@ function createWorkspace(): WorkspaceStore {
     projectParam.value = id
     if (id === null) {
       clearProjectDetail()
-      stage.value = 'describe'
       return
     }
     void loadProject(id)
@@ -2879,7 +1318,6 @@ function createWorkspace(): WorkspaceStore {
     if (id === null) {
       clearProjectDetail()
       projectParam.value = null
-      stage.value = 'describe'
       sideDrawerOpen.value = false
       projectDrawerOpen.value = false
       updateProjectUrl(null, 'push')
@@ -2890,45 +1328,6 @@ function createWorkspace(): WorkspaceStore {
     updateProjectUrl(id, 'push')
     void loadProject(id)
   }
-
-  function setStage(id: StageId): void {
-    const target = stages.value.find((item) => item.id === id)
-    if (!target || target.locked) {
-      if (target?.locked) announce(target.reason)
-      return
-    }
-    stage.value = id
-    if (id === 'generate') {
-      void nextTick(() => {
-        const heading = document.getElementById('generation-title')
-        const summary = document.getElementById('generation-summary')
-        const focusTarget = (heading ?? summary) as HTMLElement | null
-        if (!focusTarget) return
-        focusTarget.setAttribute('tabindex', '-1')
-        focusTarget.focus()
-        focusTarget.scrollIntoView?.({ block: 'start' })
-      })
-    }
-  }
-
-  watch(
-    () => stageIdFromRouteName(route.name),
-    (next) => {
-      if (!next || next === stage.value) return
-      const target = stages.value.find((item) => item.id === next)
-      if (!target || target.locked) {
-        if (target?.locked) announce(target.reason)
-        void router.replace({ name: stage.value, query: routeQueryWithProject(), hash: route.hash }).catch(() => undefined)
-        return
-      }
-      stage.value = next
-    },
-  )
-
-  watch(stage, (next) => {
-    if (stageIdFromRouteName(route.name) === next) return
-    void router.replace({ name: next, query: routeQueryWithProject(), hash: route.hash }).catch(() => undefined)
-  })
 
   watch(
     () => route.query.project,
@@ -2990,16 +1389,11 @@ function createWorkspace(): WorkspaceStore {
   }
 
   function handleVisibilityChange(): void {
-    if (pageIsHidden()) {
-      pauseStatusQueriesForHiddenPage()
-      return
-    }
+    if (document.visibilityState === 'hidden') return
     if (!configStatus.value) {
       void checkHealth()
       void refreshConfig()
     }
-    if (generationQueryError.value) return
-    if (organizing.value || activeGeneration.value) scheduleStatusQuery(0)
   }
 
   watch(
@@ -3016,11 +1410,7 @@ function createWorkspace(): WorkspaceStore {
     void checkHealth()
     void refreshConfig()
     if (hasUnsavedChanges.value) window.addEventListener('beforeunload', handleBeforeUnload)
-    if (projectParam.value !== null) {
-      void loadProject(projectParam.value)
-    } else if (stage.value !== 'describe') {
-      stage.value = 'describe'
-    }
+    if (projectParam.value !== null) void loadProject(projectParam.value)
     window.addEventListener('popstate', syncProjectFromUrl)
     document.addEventListener('visibilitychange', handleVisibilityChange)
   })
@@ -3034,7 +1424,6 @@ function createWorkspace(): WorkspaceStore {
     moreController = null
     detailController?.abort()
     detailController = null
-    resetGenerationState()
     clearReferenceState()
     window.removeEventListener('popstate', syncProjectFromUrl)
     window.removeEventListener('beforeunload', handleBeforeUnload)
@@ -3050,8 +1439,6 @@ function createWorkspace(): WorkspaceStore {
     confirmNavigation,
     cancelNavigation,
     projectParam,
-    stage,
-    stages,
     configStatus,
     configError,
     configLoading,
@@ -3085,17 +1472,6 @@ function createWorkspace(): WorkspaceStore {
     creationUnknown,
     organizing,
     sendDisabledReason,
-    briefDraft,
-    briefEditing,
-    briefFieldErrors,
-    briefDirty,
-    briefAction,
-    briefBusy,
-    briefSaveError,
-    briefConfirmError,
-    briefSaveNotice,
-    briefConflict,
-    briefLocalCopy,
     referencePending,
     referenceError,
     referenceNotice,
@@ -3105,58 +1481,15 @@ function createWorkspace(): WorkspaceStore {
     referenceCapability,
     referenceLimitBytes,
     referenceMimeTypes,
-    referenceGenerationBlockedReason,
     referenceUploadDisabledReason,
     referenceRemoveDisabledReason,
-    generationSubmitBusy,
-    generationSubmitError,
-    generationSubmitNotice,
-    generationUncertain,
-    generationPendingRestored,
-    generationRecoveryAvailable,
-    generationCredentialWarning,
-    generationRecoveryAction,
-    generationRiskDialogOpen,
-    generationRetrieveBusy,
-    generationRetrieveError,
-    generationRetrieveNotice,
-    resultRetrievalGeneration,
-    resultRetrievalAvailable,
-    resultRetrievalUnavailableReason,
-    generationRetrieveDisabledReason,
-    retrieveGenerationResult,
-    confirmGenerationRisk,
-    cancelGenerationRisk,
-    generationQuerying,
-    generationQueryError,
-    statusQueryInterruptionTitle,
-    generationDisabledReason,
     latestGenerationView,
-    latestSucceededGeneration,
     activeGeneration,
     latestGenerationError,
-    succeededGenerations,
-    selectedResultGenerationId,
-    selectedResultGeneration,
-    selectResultGeneration,
-    submitGeneration,
-    verifyGenerationSubmission,
-    resumeGenerationSubmission,
-    retryGenerationQuery,
     chooseReferenceFiles,
     retryReferenceUpload,
     removeReference,
     reloadLatestReference,
-    promptStale,
-    saveDisabledReason,
-    confirmDisabledReason,
-    startBriefEdit,
-    cancelBriefEdit,
-    setBriefField,
-    saveBrief,
-    confirmBrief,
-    reloadLatestBrief,
-    viewLocalBriefCopy,
     send,
     retryOrganize,
     toggleSidebar,
@@ -3174,7 +1507,6 @@ function createWorkspace(): WorkspaceStore {
     createNewProject,
     fillExample,
     refreshConfig,
-    setStage,
     announce,
   }
 }

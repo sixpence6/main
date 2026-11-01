@@ -4,11 +4,9 @@ import { RouterView } from 'vue-router'
 import { currentAccount, sessionEstablished, sessionInvalidated, sessionRevalidating } from '@/auth/session'
 import AppHeader from '@/components/AppHeader.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
-import GenerationRiskDialog from '@/components/GenerationRiskDialog.vue'
 import ModelStatusDrawer from '@/components/ModelStatusDrawer.vue'
 import ProjectDrawer from '@/components/ProjectDrawer.vue'
 import SideDrawer from '@/components/SideDrawer.vue'
-import StageNav from '@/components/StageNav.vue'
 import StatusAnnouncer from '@/components/StatusAnnouncer.vue'
 import UnsavedChangesDialog from '@/components/UnsavedChangesDialog.vue'
 import { provideWorkspace } from '@/composables/useWorkspace'
@@ -28,17 +26,8 @@ const {
   navigationConfirmOpen,
   navigationIntentLabel,
   draftDirty,
-  briefDirty,
   confirmNavigation,
   cancelNavigation,
-  generationQueryError,
-  statusQueryInterruptionTitle,
-  generationQuerying,
-  retryGenerationQuery,
-  generationRiskDialogOpen,
-  latestGenerationView,
-  confirmGenerationRisk,
-  cancelGenerationRisk,
   currentProject,
 } = workspace
 </script>
@@ -62,20 +51,8 @@ const {
             </button>
           </div>
 
-          <section v-if="generationQueryError" class="status-query-alert" role="alert" aria-labelledby="status-query-title">
-            <strong id="status-query-title">{{ statusQueryInterruptionTitle }}</strong>
-            <p>{{ generationQueryError }}</p>
-            <button
-              type="button"
-              class="secondary-button"
-              :disabled="generationQuerying"
-              @click="retryGenerationQuery"
-            >
-              {{ generationQuerying ? '正在查询…' : '重新查询状态' }}
-            </button>
-          </section>
+          
 
-          <StageNav />
           <section
             v-if="currentProject?.legacy_unreviewed"
             class="legacy-isolation-banner"
@@ -93,17 +70,10 @@ const {
     <SideDrawer />
     <ProjectDrawer />
     <ModelStatusDrawer />
-    <GenerationRiskDialog
-      :open="generationRiskDialogOpen"
-      :version-no="latestGenerationView?.version_no ?? null"
-      @cancel="cancelGenerationRisk"
-      @confirm="confirmGenerationRisk"
-    />
     <UnsavedChangesDialog
       :open="navigationConfirmOpen"
       :destination="navigationIntentLabel"
       :draft-dirty="draftDirty"
-      :brief-dirty="briefDirty"
       @cancel="cancelNavigation"
       @confirm="confirmNavigation"
     />

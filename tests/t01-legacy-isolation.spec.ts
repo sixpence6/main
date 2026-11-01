@@ -218,15 +218,10 @@ describe('T01 旧产物默认隔离', () => {
       '/results?project=' + PROJECT_A,
     )
 
-    await screen.findByRole('heading', { name: '查看结果' })
-    await waitFor(() => expect(harness!.router.currentRoute.value.name).toBe('results'))
-    expect(await screen.findByRole('img', { name: '生成结果图' })).toHaveAttribute(
-      'src',
-      '/api/assets/' + allowedAsset.id,
-    )
-    expect(screen.getByText('共 1 个成功版本')).toBeVisible()
-    expect(screen.queryByText('第 1 版')).toBeNull()
-    expect(screen.queryByRole('img', { name: '第 1 版缩略图' })).toBeNull()
+    expect(await screen.findByRole('heading', { name: '历史托特包项目' })).toBeVisible()
+    await waitFor(() => expect(harness!.router.currentRoute.value.name).toBe('describe'))
+    expect(screen.queryByRole('heading', { name: '查看结果' })).toBeNull()
+    expect(screen.queryByRole('navigation', { name: '工作阶段' })).toBeNull()
 
     const imageSources = Array.from(document.querySelectorAll('img')).map((img) => img.getAttribute('src'))
     expect(imageSources).not.toContain('/api/assets/' + OLD_ASSET_ID)

@@ -143,7 +143,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     expect(window.location.search).toBe('')
   })
 
-  it('切换项目时取消确认会恢复原项目、URL 和未保存的需求字段', async () => {
+  it('切换项目时取消确认会恢复原项目、URL 和未发送草稿', async () => {
     harness = await mountProjectA([
       { method: 'GET', url: detailPathB, responses: [{ body: detailResponse(projectB()) }] },
       {
@@ -161,22 +161,19 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
       },
     ])
 
-    await goToStage('确认需求')
-    await harness.user.click(screen.getByRole('button', { name: '编辑需求' }))
-    const product = screen.getByLabelText('商品描述')
-    await harness.user.clear(product)
-    await harness.user.type(product, '本地尚未保存的商品描述')
+    const composer = screen.getByLabelText('描述商品与图片需求')
+    await harness.user.type(composer, '本地尚未发送的草稿')
 
     let drawer = await openProjectDrawer()
     await harness.user.click(within(drawer).getByRole('button', { name: /陶瓷马克杯/ }))
     const dialog = await screen.findByRole('alertdialog', { name: '放弃未保存的修改？' })
-    expect(within(dialog).getByText('需求卡片中尚未保存的修改')).toBeVisible()
+    expect(within(dialog).getByText('输入框中尚未发送的文字')).toBeVisible()
     expect(within(dialog).getByText(/将前往「切换项目」/)).toBeVisible()
     await harness.user.click(within(dialog).getByRole('button', { name: '继续编辑' }))
 
     expect(window.location.search).toBe(`?project=${PROJECT_A}`)
     expect(screen.getByRole('heading', { name: '春季托特包主图' })).toBeVisible()
-    expect(screen.getByLabelText('商品描述')).toHaveValue('本地尚未保存的商品描述')
+    expect(screen.getByLabelText('描述商品与图片需求')).toHaveValue('本地尚未发送的草稿')
     expect(harness.fetch.count('GET', detailPathB)).toBe(0)
 
     drawer = await openProjectDrawer()
@@ -186,7 +183,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
 
     expect(await screen.findByRole('heading', { name: '陶瓷马克杯' })).toBeVisible()
     expect(window.location.search).toBe(`?project=${PROJECT_B}`)
-    expect(screen.queryByLabelText('商品描述')).toBeNull()
+    expect(screen.getByLabelText('描述商品与图片需求')).toHaveValue('')
     expect(harness.fetch.writes).toHaveLength(0)
   })
 
@@ -194,7 +191,6 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     harness = await mountProjectA([
       { method: 'GET', url: detailPathB, responses: [{ body: detailResponse(projectB()) }] },
     ])
-    await goToStage('描述需求')
     const composer = screen.getByLabelText('描述商品与图片需求')
     await harness.user.type(composer, '后退前的草稿')
 
@@ -219,23 +215,13 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     expect(window.location.search).toBe(`?project=${PROJECT_B}`)
   })
 
-  it('beforeunload 只在存在未发送文字或未保存字段时注册，保存后移除', async () => {
-    const updated = projectA({
-      revision: 4,
-      prompt_revision: null,
-      confirmed_revision: null,
-      brief_status: 'draft',
-      brief: sampleBrief({ product_description: '保存后的商品描述' }),
-    })
-    harness = await mountProjectA([
-      { method: 'PATCH', url: briefPathA, responses: [{ body: updated }] },
-    ])
+  it('beforeunload 只在存在未发送文字时注册，清空后移除', async () => {
+    harness = await mountProjectA()
 
     let event = beforeUnloadEvent()
     window.dispatchEvent(event)
     expect(event.defaultPrevented).toBe(false)
 
-    await goToStage('描述需求')
     const composer = screen.getByLabelText('描述商品与图片需求')
     await harness.user.type(composer, '临时草稿')
     event = beforeUnloadEvent()
@@ -246,23 +232,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     event = beforeUnloadEvent()
     window.dispatchEvent(event)
     expect(event.defaultPrevented).toBe(false)
-
-    await goToStage('确认需求')
-    await harness.user.click(screen.getByRole('button', { name: '编辑需求' }))
-    const product = screen.getByLabelText('商品描述')
-    await harness.user.clear(product)
-    await harness.user.type(product, '保存后的商品描述')
-    event = beforeUnloadEvent()
-    window.dispatchEvent(event)
-    expect(event.defaultPrevented).toBe(true)
-
-    await harness.user.click(screen.getByRole('button', { name: '保存需求' }))
-    expect(await screen.findByText('需求已保存。旧提示词已过期，请重新整理需求后再确认。')).toBeVisible()
-    event = beforeUnloadEvent()
-    window.dispatchEvent(event)
-    expect(event.defaultPrevented).toBe(false)
   })
-
   it('离开项目后迟到的消息响应不会覆盖新工作台，返回原项目只读取详情', async () => {
     harness = await mountWorkspace({
       config: configuredConfig(),
@@ -285,7 +255,6 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
       ],
     })
     await screen.findByRole('heading', { name: '春季托特包主图' })
-    await goToStage('描述需求')
     const composer = screen.getByLabelText('描述商品与图片需求')
     await harness.user.type(composer, '发送后立刻离开')
 
@@ -306,104 +275,6 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     expect(screen.queryByText('迟到的助手回复')).toBeNull()
     expect(harness.fetch.count('GET', detailPathA)).toBe(2)
     expect(harness.fetch.count('POST', messagesPathA)).toBe(1)
-  })
-
-  it('离开项目后迟到的保存响应不会覆盖新工作台，也不自动重发', async () => {
-    const initial = projectA()
-    const updated = projectA({
-      revision: 4,
-      prompt_revision: null,
-      confirmed_revision: null,
-      brief_status: 'draft',
-      brief: sampleBrief({ product_description: '迟到的保存结果' }),
-    })
-    harness = await mountWorkspace({
-      config: configuredConfig(),
-      viewportWidth: 1440,
-      url: `/?project=${PROJECT_A}`,
-      routes: [
-        { method: 'GET', url: detailPathA, responses: [{ body: detailResponse(initial) }] },
-        { method: 'PATCH', url: briefPathA, responses: [{ body: updated, delayMs: 250 }] },
-      ],
-    })
-    await screen.findByRole('heading', { name: '春季托特包主图' })
-    await goToStage('确认需求')
-    await harness.user.click(screen.getByRole('button', { name: '编辑需求' }))
-    const product = screen.getByLabelText('商品描述')
-    await harness.user.clear(product)
-    await harness.user.type(product, '离开前保存的内容')
-
-    await harness.user.click(screen.getByRole('button', { name: '保存需求' }))
-    await harness.user.click(screen.getByRole('button', { name: '新建项目' }))
-    await screen.findByRole('alertdialog', { name: '放弃未保存的修改？' })
-    await harness.user.click(screen.getByRole('button', { name: '放弃修改' }))
-
-    await harness.waitFor(() => expect(harness!.fetch.count('PATCH', briefPathA)).toBe(1))
-    await new Promise((resolve) => setTimeout(resolve, 320))
-    expect(screen.queryByRole('heading', { name: '春季托特包主图' })).toBeNull()
-
-    window.history.pushState({}, '', `/?project=${PROJECT_A}`)
-    window.dispatchEvent(new PopStateEvent('popstate'))
-    await screen.findByRole('heading', { name: '春季托特包主图' })
-    await goToStage('确认需求')
-    expect(within(currentCard()).getByText('米色亚麻托特包')).toBeVisible()
-    expect(harness.fetch.count('PATCH', briefPathA)).toBe(1)
-    expect(harness.fetch.count('GET', detailPathA)).toBe(2)
-  })
-
-  it('版本冲突时保留可复制的本地副本，不自动重试，加载最新需求后替换', async () => {
-    const initial = projectA()
-    const latest = projectA({
-      revision: 6,
-      prompt_revision: 6,
-      confirmed_revision: null,
-      brief_status: 'review',
-      brief: sampleBrief({ product_description: '其他端已更新的商品', prompt: '其他端的最新提示词。' }),
-    })
-    harness = await mountWorkspace({
-      config: configuredConfig(),
-      viewportWidth: 1440,
-      url: `/?project=${PROJECT_A}`,
-      routes: [
-        {
-          method: 'GET',
-          url: detailPathA,
-          responses: [{ body: detailResponse(initial) }, { body: detailResponse(latest) }],
-        },
-        {
-          method: 'PATCH',
-          url: briefPathA,
-          responses: [{
-            status: 409,
-            body: { error: { code: 'REVISION_CONFLICT', message: '版本冲突。' } },
-          }],
-        },
-      ],
-    })
-    await screen.findByRole('heading', { name: '春季托特包主图' })
-    await goToStage('确认需求')
-    await harness.user.click(screen.getByRole('button', { name: '编辑需求' }))
-    const product = screen.getByLabelText('商品描述')
-    await harness.user.clear(product)
-    await harness.user.type(product, '冲突时保留的本地内容')
-
-    await harness.user.click(screen.getByRole('button', { name: '保存需求' }))
-    expect(await screen.findByText(/需求已在别处更新，本地修改仍保留/)).toBeVisible()
-    expect(harness.fetch.count('PATCH', briefPathA)).toBe(1)
-
-    await harness.user.click(screen.getByRole('button', { name: '只读查看本地副本' }))
-    expect(await screen.findByText('正在查看未保存的本地副本（只读），可复制内容或加载最新需求。')).toBeVisible()
-    const localCopy = screen.getByLabelText('商品描述')
-    expect(localCopy).toHaveValue('冲突时保留的本地内容')
-    expect(localCopy).toHaveAttribute('readonly')
-    expect(screen.queryByRole('button', { name: '保存需求' })).toBeNull()
-
-    await harness.user.click(screen.getByRole('button', { name: '加载最新需求' }))
-    expect(await screen.findByText('已加载最新需求。', { selector: '.status-notice' })).toBeVisible()
-    expect(within(currentCard()).getByText('其他端已更新的商品')).toBeVisible()
-    expect(screen.queryByLabelText('商品描述')).toBeNull()
-    expect(harness.fetch.count('GET', detailPathA)).toBe(2)
-    expect(harness.fetch.count('PATCH', briefPathA)).toBe(1)
   })
 
   it('导航确认支持初始焦点、Tab 循环、Escape 关闭并恢复触发按钮焦点', async () => {
