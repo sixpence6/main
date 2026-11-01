@@ -35,7 +35,6 @@ const {
   sendDisabledReason,
   send,
   retryOrganize,
-  generationSubmitBusy,
   latestGenerationError,
   activeGeneration,
 } = workspace
@@ -266,7 +265,7 @@ watch(
         aria-label="描述商品与图片需求"
         rows="6"
         placeholder="例如：为米色亚麻托特包生成一张简洁主图，浅暖色背景，突出材质与轮廓……"
-        :disabled="sendBusy || organizing || generationSubmitBusy || Boolean(activeGeneration)"
+        :disabled="sendBusy || organizing || Boolean(activeGeneration)"
         @keydown="onKeydown"
         @compositionstart="onCompositionStart"
         @compositionend="onCompositionEnd"

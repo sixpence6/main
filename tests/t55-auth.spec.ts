@@ -36,7 +36,7 @@ describe('T55 登录与认证守卫', () => {
     await router.isReady()
 
     expect(router.currentRoute.value.name).toBe('login')
-    expect(router.currentRoute.value.query.redirect).toBe('/generate?project=abc')
+    expect(router.currentRoute.value.query.redirect).toBe('/?project=abc')
     expect(fetchController.count('GET', '/api/auth/session')).toBeGreaterThanOrEqual(1)
   })
 

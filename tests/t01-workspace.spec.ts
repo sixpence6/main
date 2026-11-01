@@ -27,7 +27,6 @@ describe('T01 空配置工作台', () => {
     expect(textarea).toHaveValue('米色亚麻托特包，简洁主图')
     expect(harness.fetch.writes).toHaveLength(0)
     expect(harness.fetch.count('GET', '/api/config/status')).toBe(1)
-    expect(screen.getByRole('button', { name: '查看结果' })).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('新建项目清空草稿并移除项目参数，不读取或创建项目', async () => {
@@ -46,31 +45,22 @@ describe('T01 空配置工作台', () => {
     expect(harness.fetch.writes).toHaveLength(0)
   })
 
-  it('Head 仅显示产品名，未解锁阶段可取得原因且操作不触发生成请求', async () => {
+  it('Head 仅显示产品名，旧阶段导航已移除且操作不触发生成请求', async () => {
     harness = await mountWorkspace({ config: emptyConfig() })
 
     const header = screen.getByRole('banner')
     expect(header.textContent?.trim()).toBe('电商生图智能体')
     expect(within(header).queryByRole('navigation')).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: '工作阶段' })).toBeNull()
 
-    const nav = screen.getByRole('navigation', { name: '工作阶段' })
-    const describe = within(nav).getByRole('button', { name: '描述需求' })
-    const confirm = within(nav).getByRole('button', { name: '确认需求' })
-    expect(describe).toHaveAttribute('aria-current', 'step')
-    expect(confirm).toHaveAttribute('aria-disabled', 'true')
-    const reasonId = confirm.getAttribute('aria-describedby')
-    expect(reasonId).toBeTruthy()
-    expect(document.getElementById(reasonId!)).toHaveTextContent('尚未选择项目')
-
-    await harness.user.click(confirm)
-    confirm.focus()
+    const textarea = screen.getByRole('textbox', { name: '描述商品与图片需求' })
+    await harness.user.type(textarea, '仍留在当前工作台')
     await harness.user.keyboard('{Enter}')
 
     expect(harness.fetch.writes).toHaveLength(0)
     expect(harness.fetch.count('POST', /\/generations$/)).toBe(0)
   })
 })
-
 
 async function openModelDrawer(h: WorkspaceHarness) {
   await h.user.click(screen.getByRole('button', { name: '模型状态' }))

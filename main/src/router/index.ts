@@ -1,15 +1,10 @@
 import { createRouter, createWebHistory, type Router, type RouterHistory } from 'vue-router'
 import WorkspaceLayout from '@/layouts/WorkspaceLayout.vue'
 import DescribePage from '@/pages/DescribePage.vue'
-import ConfirmPage from '@/pages/ConfirmPage.vue'
-import GeneratePage from '@/pages/GeneratePage.vue'
-import ResultsPage from '@/pages/ResultsPage.vue'
 import LoginPage from '@/pages/LoginPage.vue'
 import AdminAccountsPage from '@/pages/AdminAccountsPage.vue'
 import AccountSecurityPage from '@/pages/AccountSecurityPage.vue'
 import SetPasswordPage from '@/pages/SetPasswordPage.vue'
-
-export const STAGE_ROUTE_NAMES = ['describe', 'confirm', 'generate', 'results'] as const
 
 export function createAppRouter(history?: RouterHistory): Router {
   return createRouter({
@@ -27,13 +22,13 @@ export function createAppRouter(history?: RouterHistory): Router {
       {
         path: '/',
         component: WorkspaceLayout,
-        children: [
-          { path: '', name: 'describe', component: DescribePage },
-          { path: 'confirm', name: 'confirm', component: ConfirmPage },
-          { path: 'generate', name: 'generate', component: GeneratePage },
-          { path: 'results', name: 'results', component: ResultsPage },
-        ],
+        children: [{ path: '', name: 'describe', component: DescribePage }],
       },
+      // 外部遗留书签只做无副作用跳转，不重放确认、生成或恢复动作。
+      { path: '/describe', redirect: (to) => ({ name: 'describe', query: to.query, hash: to.hash }) },
+      { path: '/confirm', redirect: (to) => ({ name: 'describe', query: to.query, hash: to.hash }) },
+      { path: '/generate', redirect: (to) => ({ name: 'describe', query: to.query, hash: to.hash }) },
+      { path: '/results', redirect: (to) => ({ name: 'describe', query: to.query, hash: to.hash }) },
       { path: '/:pathMatch(.*)*', redirect: { name: 'describe' } },
     ],
   })

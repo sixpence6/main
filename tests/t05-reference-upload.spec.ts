@@ -69,8 +69,6 @@ async function mountProject(project: ProjectView, responses = [{ body: detailRes
     url: `/?project=${PROJECT_A}`,
     routes: [{ method: 'GET', url: detailPath, responses }],
   })
-  const nav = await screen.findByRole('navigation', { name: '工作阶段' })
-  await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
   await screen.findByRole('heading', { name: '春季托特包主图' })
   return harness
 }
@@ -286,10 +284,6 @@ describe('T05 参考图校验与失败恢复', () => {
     expect(
       await screen.findByText('参考图已上传。旧提示词与确认已失效，请重新整理并确认需求。', { selector: '.status-notice' }),
     ).toBeVisible()
-    expect(screen.getByRole('button', { name: '生成图片' })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    )
     expect(harness.fetch.last('POST', referencePath)?.body).toMatchObject({
       expected_revision: '3',
     })
@@ -382,9 +376,7 @@ describe('T05 参考图替换、移除与回执不明', () => {
       ],
     })
     await screen.findByRole('heading', { name: '春季托特包主图' })
-    const nav = screen.getByRole('navigation', { name: '工作阶段' })
-    await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
-    expect(await screen.findByRole('heading', { name: '描述需求' })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: '春季托特包主图' })).toBeVisible()
     harness.fetch.route('DELETE', referencePath, () => ({
       status: 500,
       body: { error: { code: 'INTERNAL', message: '服务异常' } },
@@ -430,9 +422,7 @@ describe('T05 能力边界与资源释放', () => {
       routes: [{ method: 'GET', url: detailPath, responses: [{ body: detailResponse(projectWithReference()) }] }],
     })
     await screen.findByRole('heading', { name: '春季托特包主图' })
-    const nav = screen.getByRole('navigation', { name: '工作阶段' })
-    await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
-    expect(await screen.findByRole('heading', { name: '描述需求' })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: '春季托特包主图' })).toBeVisible()
 
     expect(screen.getByText('当前模型明确不支持参考图；已有参考图时可移除后继续纯文字流程。')).toBeVisible()
     expect(screen.getByLabelText('选择参考图文件')).toBeDisabled()
@@ -460,10 +450,7 @@ describe('T05 能力边界与资源释放', () => {
     await screen.findByRole('heading', { name: '春季托特包主图' })
 
     expect(screen.getByText('参考图能力待核实；带参考图时不能生成图片。')).toBeVisible()
-    expect(screen.getByRole('button', { name: '生成图片' })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    )
+    expect(harness.fetch.writes).toHaveLength(0)
   })
 
 

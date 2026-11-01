@@ -70,8 +70,6 @@ async function mountProject(
       { method: 'GET', url: workflowPath, responses: [{ body: workflow }, { body: workflow }] },
     ],
   })
-  const nav = await screen.findByRole('navigation', { name: '工作阶段' })
-  await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
   await screen.findByRole('heading', { name: '春季托特包主图' })
   return harness
 }
@@ -249,8 +247,6 @@ describe('T04 上传后识图与参考报告审查', () => {
         { method: 'POST', url: analyzePath, responses: [{ body: waiting }] },
       ],
     })
-    const nav = await screen.findByRole('navigation', { name: '工作阶段' })
-    await harness.user.click(within(nav).getByRole('button', { name: '描述需求' }))
     await screen.findByRole('heading', { name: '春季托特包主图' })
     expect(await screen.findByText('尚未开始')).toBeVisible()
 

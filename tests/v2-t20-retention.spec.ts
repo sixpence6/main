@@ -50,7 +50,7 @@ function detail(generation: GenerationView): ProjectDetailResponse {
 }
 
 describe('T20 保留期', () => {
-  it('到期候选显示固定过期提示，不展示图片、缩略图或下载入口，也不触发生成', async () => {
+  it('旧结果链接无副作用地回到当前工作台，过期候选不展示图片、缩略图或下载入口，也不触发生成', async () => {
     harness = await mountWorkspace({
       config: configuredConfig(),
       viewportWidth: 1440,
@@ -58,13 +58,16 @@ describe('T20 保留期', () => {
       routes: [{ method: 'GET', url: detailPath, responses: [{ body: detail(expiredGeneration()) }] }],
     })
 
-    expect(await screen.findByRole('heading', { name: '查看结果' })).toBeVisible()
-    expect(await screen.findByText('结果已过保留期')).toBeVisible()
-    expect(screen.getByText('该候选图已按保留期清理，无法预览或下载。继续编辑不会自动重新生成。')).toBeVisible()
+    expect(await screen.findByRole('heading', { name: '春季托特包主图' })).toBeVisible()
+    expect(harness.router.currentRoute.value.name).toBe('describe')
+    expect(screen.queryByRole('heading', { name: '查看结果' })).toBeNull()
+    expect(screen.queryByText('结果已过保留期')).toBeNull()
+    expect(screen.queryByRole('region', { name: '历史图片预览' })).toBeNull()
     expect(screen.queryByRole('img', { name: '生成结果图' })).toBeNull()
-    expect(screen.queryByRole('img', { name: '第 1 版缩略图' })).toBeNull()
-    expect(screen.queryByRole('link', { name: '下载当前图片' })).toBeNull()
+    expect(screen.queryByRole('img', { name: '第 1 次生成的历史预览' })).toBeNull()
+    expect(screen.queryByRole('link', { name: '下载当前交付' })).toBeNull()
     expect(screen.queryByText('结果文件缺失')).toBeNull()
     expect(harness.fetch.count('POST', '/api/projects/' + PROJECT_A + '/generations')).toBe(0)
+    expect(harness.fetch.writes).toHaveLength(0)
   })
 })

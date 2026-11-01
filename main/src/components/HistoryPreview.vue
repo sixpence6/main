@@ -10,6 +10,8 @@ const previews = computed(() =>
     .filter(
       (generation) =>
         generation.status === 'succeeded' &&
+        generation.retention_status !== 'expired' &&
+        generation.legacy_unreviewed !== true &&
         generation.result_asset?.availability === 'available',
     )
     .slice()

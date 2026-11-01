@@ -96,17 +96,6 @@ async function chooseFile(file: File): Promise<void> {
 }
 
 describe('代码审查修复回归', () => {
-  it('打开有成功版本的项目直接进入结果页时展示最新结果', async () => {
-    const generation = succeededGeneration()
-    await mountProject(confirmedProject(), [generation], configuredConfig(), 'results')
-
-    expect(await screen.findByRole('heading', { name: '查看结果' })).toBeVisible()
-    expect(await screen.findByRole('img', { name: '生成结果图' })).toHaveAttribute(
-      'src',
-      '/api/assets/' + generation.result_asset_id,
-    )
-  })
-
   it('最近一次生成失败时默认打开对话，保留失败信息供用户处理', async () => {
     const failed = sampleGeneration({
       status: 'failed',
@@ -119,21 +108,6 @@ describe('代码审查修复回归', () => {
 
     expect(await screen.findByRole('heading', { name: '春季托特包主图' })).toBeVisible()
     expect(screen.getByText('最近生成失败：模型处理失败')).toBeVisible()
-    const nav = screen.getByRole('navigation', { name: '工作阶段' })
-    expect(within(nav).getByRole('button', { name: '查看结果' })).not.toHaveAttribute('aria-disabled', 'true')
-  })
-
-  it('有生成记录时生成图片阶段解锁，并把焦点移到生成概览', async () => {
-    await mountProject(sampleProject({ brief_status: 'draft' }), [succeededGeneration()], configuredConfig(), 'results')
-    await screen.findByRole('heading', { name: '查看结果' })
-
-    const nav = screen.getByRole('navigation', { name: '工作阶段' })
-    const generate = within(nav).getByRole('button', { name: '生成图片' })
-    await waitFor(() => expect(generate).not.toHaveAttribute('aria-disabled', 'true'))
-    await harness!.user.click(generate)
-
-    const heading = await screen.findByRole('heading', { name: '生成概览' })
-    await waitFor(() => expect(document.activeElement).toBe(heading))
   })
 
   it('签名正确但 CRC 损坏的 PNG 在本地被拒绝，不创建项目或上传', async () => {
@@ -189,7 +163,6 @@ describe('代码审查修复回归', () => {
       body: { error: { code: 'REVISION_CONFLICT', message: '修订冲突' } },
     }))
     await screen.findByRole('heading', { name: '春季托特包主图' })
-    await goToStage('描述需求', 'describe')
 
     const draft = '这条消息没有发送，但必须保留。'
     await harness.user.type(screen.getByLabelText('描述商品与图片需求'), draft)
@@ -206,60 +179,6 @@ describe('代码审查修复回归', () => {
     expect(harness.fetch.count('GET', detailPathA)).toBe(2)
     expect(screen.getByLabelText('描述商品与图片需求')).toHaveValue(draft)
     expect(harness.fetch.count('POST', detailPathA + '/messages')).toBe(1)
-  })
-
-  it('2xx 响应体不是合法 JSON 时按提交回执不明处理，并保留恢复凭据', async () => {
-    const project = confirmedProject()
-    harness = await mountWorkspace({
-      config: configuredConfig(),
-      viewportWidth: 1440,
-      url: '/?project=' + PROJECT_A,
-      routes: [{ method: 'GET', url: detailPathA, responses: [{ body: detail(project) }] }],
-    })
-    harness.fetch.route('POST', generationsPathA, () => ({ status: 202, body: '{not-json' }))
-    await screen.findByRole('heading', { name: '春季托特包主图' })
-    await goToStage('生成图片', 'generate')
-
-    await harness.user.click(screen.getByRole('button', { name: '生成首图' }))
-
-    expect(
-      await screen.findByText('提交待核实：生成请求可能已发出，但尚未收到确认。确认前不会再次提交。'),
-    ).toBeVisible()
-    expect(harness.fetch.count('POST', generationsPathA)).toBe(1)
-    const entries = harness.storage.session.entries()
-    expect(Object.keys(entries)).toContain('ecommerce-generation-pending:' + PROJECT_A)
-  })
-
-  it('不同项目的未确认提交凭据同时保留，不会互相覆盖', async () => {
-    const projectB = confirmedProject({ id: PROJECT_B, title: '陶瓷马克杯', brief: sampleBrief({ product_description: '陶瓷马克杯' }) })
-    const oldCredential = {
-      projectId: PROJECT_A,
-      requestId: 'request-a',
-      confirmedRevision: 2,
-      acknowledgeUnknownPresent: false,
-      acknowledgeUnknownValue: null,
-      generationId: null,
-    }
-    harness = await mountWorkspace({
-      config: configuredConfig(),
-      viewportWidth: 1440,
-      url: '/?project=' + PROJECT_B,
-      sessionState: {
-        ['ecommerce-generation-pending:' + PROJECT_A]: JSON.stringify(oldCredential),
-      },
-      routes: [{ method: 'GET', url: detailPathB, responses: [{ body: detail(projectB) }] }],
-    })
-    harness.fetch.networkError('POST', detailPathB + '/generations')
-    await screen.findByRole('heading', { name: '陶瓷马克杯' })
-    await goToStage('生成图片', 'generate')
-
-    await harness.user.click(screen.getByRole('button', { name: '生成首图' }))
-    await screen.findByText('提交待核实：生成请求可能已发出，但尚未收到确认。确认前不会再次提交。')
-
-    const entries = harness.storage.session.entries()
-    expect(entries['ecommerce-generation-pending:' + PROJECT_A]).toBe(JSON.stringify(oldCredential))
-    expect(entries['ecommerce-generation-pending:' + PROJECT_B]).toBeTruthy()
-    expect(entries['ecommerce-generation-pending']).toBeUndefined()
   })
 
   it('模型状态抽屉显示真实的健康检查结果', async () => {
