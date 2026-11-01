@@ -114,7 +114,11 @@ async def _disable(app: Any, account_id: str) -> None:
 
 
 def test_app_public_url_validation() -> None:
-    assert Settings(_env_file=None, app_public_url=" HTTPS://Example.COM/ ").app_public_url == "https://example.com"
+    assert Settings(
+        _env_file=None,
+        app_public_url=" HTTPS://Example.COM/ ",
+        allowed_hosts=["example.com"],
+    ).app_public_url == "https://example.com"
     for value in (
         "https://user:pass@example.com",
         "https://example.com/path",

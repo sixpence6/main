@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ipaddress
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -36,6 +38,9 @@ LOCAL_RESULT_MAX_BYTES = 64 * 1024 * 1024
 
 REQUIRED_ROLE_FIELDS = ("adapter", "base_url", "api_key", "model")
 
+_HOSTNAME_RE = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$"
+)
 
 def _resolve_backend_path(value: str | Path) -> Path:
     path = Path(value)
@@ -75,6 +80,7 @@ class Settings(BaseSettings):
     allow_loopback_http: bool = False
     auth_cookie_secure: bool = True
     app_public_url: str | None = None
+    trusted_proxy_cidrs: list[str] = Field(default_factory=list)
 
     # R2 acceptance limits. Positive integers; they apply to every account,
     # including administrators. Changing a limit never deletes usage.
@@ -103,6 +109,100 @@ class Settings(BaseSettings):
             "VISUAL_TASK_TIMEOUT_SECONDS", "VISUAL_TIMEOUT_SECONDS"
         ),
     )
+
+    @field_validator("allowed_hosts", mode="before")
+    @classmethod
+    def _validate_allowed_hosts(cls, value: object) -> object:
+        if value is None:
+            return value
+        if not isinstance(value, list):
+            raise ValueError("ALLOWED_HOSTS must be a list of host names")
+        hosts: list[str] = []
+        for raw in value:
+            if not isinstance(raw, str):
+                raise ValueError("ALLOWED_HOSTS entries must be strings")
+            host = raw.strip().lower()
+            if not host:
+                raise ValueError("ALLOWED_HOSTS entries must not be empty")
+            if any(ch in host for ch in "*/@?#") or "://" in host:
+                raise ValueError("ALLOWED_HOSTS must contain exact host names, not wildcards")
+            if host.startswith("["):
+                if not host.endswith("]"):
+                    raise ValueError("ALLOWED_HOSTS contains an invalid IPv6 literal")
+                try:
+                    ipaddress.IPv6Address(host[1:-1])
+                except ValueError as exc:
+                    raise ValueError("ALLOWED_HOSTS contains an invalid IPv6 literal") from exc
+            elif ":" in host:
+                raise ValueError("ALLOWED_HOSTS must not contain ports")
+            else:
+                try:
+                    ipaddress.ip_address(host)
+                except ValueError:
+                    if not _HOSTNAME_RE.fullmatch(host):
+                        raise ValueError(
+                            "ALLOWED_HOSTS contains an invalid host name"
+                        ) from None
+            if host not in hosts:
+                hosts.append(host)
+        return hosts
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def _validate_allowed_origins(cls, value: object) -> object:
+        if value is None:
+            return value
+        if not isinstance(value, list):
+            raise ValueError("ALLOWED_ORIGINS must be a list of exact origins")
+        origins: list[str] = []
+        for raw in value:
+            if not isinstance(raw, str):
+                raise ValueError("ALLOWED_ORIGINS entries must be strings")
+            text = raw.strip()
+            if not text or "*" in text:
+                raise ValueError("ALLOWED_ORIGINS must contain exact origins, not wildcards")
+            try:
+                parts = urlsplit(text)
+                _ = parts.port
+            except ValueError as exc:
+                raise ValueError("ALLOWED_ORIGINS contains an invalid origin") from exc
+            if parts.scheme.lower() not in {"http", "https"}:
+                raise ValueError("ALLOWED_ORIGINS must use http or https")
+            if not parts.netloc or not parts.hostname:
+                raise ValueError("ALLOWED_ORIGINS must include a host")
+            if parts.username is not None or parts.password is not None:
+                raise ValueError("ALLOWED_ORIGINS must not contain credentials")
+            if parts.query or parts.fragment or parts.path not in {"", "/"}:
+                raise ValueError("ALLOWED_ORIGINS must not contain a path, query or fragment")
+            origin = f"{parts.scheme.lower()}://{parts.netloc.lower()}"
+            if origin not in origins:
+                origins.append(origin)
+        return origins
+
+    @field_validator("trusted_proxy_cidrs", mode="before")
+    @classmethod
+    def _validate_trusted_proxy_cidrs(cls, value: object) -> object:
+        if value is None:
+            return value
+        if not isinstance(value, list):
+            raise ValueError("TRUSTED_PROXY_CIDRS must be a list of CIDRs")
+        networks: list[str] = []
+        for raw in value:
+            if not isinstance(raw, str):
+                raise ValueError("TRUSTED_PROXY_CIDRS entries must be strings")
+            text = raw.strip()
+            if not text:
+                raise ValueError("TRUSTED_PROXY_CIDRS entries must not be empty")
+            try:
+                network = ipaddress.ip_network(text, strict=False)
+            except ValueError as exc:
+                raise ValueError("TRUSTED_PROXY_CIDRS contains an invalid CIDR") from exc
+            if network.prefixlen == 0:
+                raise ValueError("TRUSTED_PROXY_CIDRS must not trust every address")
+            canonical = str(network)
+            if canonical not in networks:
+                networks.append(canonical)
+        return networks
 
     @field_validator("app_public_url", mode="before")
     @classmethod
@@ -138,6 +238,35 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return Path(value)
         return value
+
+    @model_validator(mode="after")
+    def _validate_https_boundary(self) -> Settings:
+        """HTTP is only a loopback development exception; production is HTTPS."""
+        http_origins = [o for o in self.allowed_origins if o.startswith("http://")]
+        if http_origins:
+            if not self.allow_loopback_http:
+                raise ValueError("HTTP origins require ALLOW_LOOPBACK_HTTP=true")
+            for origin in http_origins:
+                host = (urlsplit(origin).hostname or "").lower()
+                if host not in {"127.0.0.1", "localhost", "::1"}:
+                    raise ValueError("HTTP origins are allowed only for loopback hosts")
+            if self.auth_cookie_secure:
+                raise ValueError("AUTH_COOKIE_SECURE must be false for loopback HTTP")
+        if self.app_public_url:
+            parts = urlsplit(self.app_public_url)
+            if parts.scheme == "http":
+                if not self.allow_loopback_http:
+                    raise ValueError("APP_PUBLIC_URL may use HTTP only for loopback development")
+                if (parts.hostname or "").lower() not in {"127.0.0.1", "localhost", "::1"}:
+                    raise ValueError("APP_PUBLIC_URL may use HTTP only for loopback hosts")
+                if self.auth_cookie_secure:
+                    raise ValueError("AUTH_COOKIE_SECURE must be false for loopback HTTP")
+            public_host = (parts.hostname or "").lower()
+            allowed = {host.lower() for host in self.allowed_hosts}
+            allowed.add(self.host.lower())
+            if public_host not in allowed:
+                raise ValueError("APP_PUBLIC_URL host must be present in ALLOWED_HOSTS")
+        return self
 
     @model_validator(mode="after")
     def _keep_public_build_outside_data_dir(self) -> Settings:

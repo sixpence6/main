@@ -22,7 +22,8 @@
     "backend/uv.lock",
     "backend/app/**",
     "backend/migrations/**",
-    "dist/**"
+    "dist/**",
+    "docker-compose.lan.yml"
   ],
   "required": [
     "README.md",
@@ -44,7 +45,11 @@
     "backend/uv.lock",
     "backend/app/main.py",
     "backend/app/production.py",
-    "backend/migrations/env.py"
+    "backend/migrations/env.py",
+    "docker-compose.lan.yml",
+    "docker/nginx-tls.conf.template",
+    "docker/security-headers.conf",
+    "docker/hsts.conf"
   ],
   "forbidden_components": [
     "tests",

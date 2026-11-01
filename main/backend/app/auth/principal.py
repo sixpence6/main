@@ -6,6 +6,7 @@ from fastapi import Request
 
 from app.auth.tokens import source_ref
 from app.errors import ApiError
+from app.request_source import client_ip
 
 
 @dataclass(frozen=True)
@@ -48,7 +49,7 @@ async def _audit_denial(request: Request, principal: Principal) -> None:
         clock = getattr(request.app.state, "clock", None)
         if factory is None or clock is None:
             return
-        host = request.client.host if request.client else "unknown"
+        host = client_ip(request)
         await record_permission_denied(
             factory,
             account_id=principal.account_id,

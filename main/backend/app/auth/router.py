@@ -23,6 +23,7 @@ from app.auth.tokens import constant_time_equals, new_token, source_ref, token_d
 from app.auth.views import AccountView, SessionView, account_view, session_view
 from app.config import Settings
 from app.errors import ApiError
+from app.request_source import client_ip
 from app.schemas import ERROR_RESPONSE
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -104,8 +105,7 @@ def _clear_auth_cookies(response: Response, settings: Settings) -> None:
 
 
 def _request_source(request: Request) -> str:
-    host = request.client.host if request.client else "unknown"
-    return source_ref(host or "unknown")
+    return source_ref(client_ip(request))
 
 
 @router.get("/csrf", response_model=CsrfResponse)
@@ -135,7 +135,7 @@ async def csrf(request: Request) -> JSONResponse:
 @router.post("/login", response_model=LoginResponse, responses={422: ERROR_RESPONSE})
 async def login_endpoint(request: Request, payload: LoginRequest) -> JSONResponse:
     settings: Settings = request.app.state.settings
-    client_host = request.client.host if request.client else "unknown"
+    client_host = client_ip(request)
     result = await login(
         request.app.state.session_factory,
         email=payload.email,

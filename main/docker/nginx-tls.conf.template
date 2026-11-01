@@ -1,0 +1,68 @@
+# HTTPS/LAN frontend. The HTTP listener is only a health endpoint and a
+# redirect; no browser credentials are accepted over plaintext.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${PUBLIC_HOSTNAME};
+
+    location = /api/health {
+        add_header Content-Type text/plain always;
+        return 200 'ok\n';
+    }
+
+    location / {
+        return 308 https://${PUBLIC_HOSTNAME}:${PUBLIC_HTTPS_PORT}$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ${PUBLIC_HOSTNAME};
+
+    ssl_certificate ${TLS_CERT_PATH};
+    ssl_certificate_key ${TLS_KEY_PATH};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    root /usr/share/nginx/html;
+    index index.html;
+    client_max_body_size 12m;
+
+    location /api/ {
+        proxy_pass ${API_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header X-Content-Type-Options;
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header X-Frame-Options;
+        proxy_hide_header Permissions-Policy;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        include /etc/nginx/security-headers.conf;
+        include /etc/nginx/hsts.conf;
+    }
+
+    location /assets/ {
+        try_files $uri =404;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        include /etc/nginx/security-headers.conf;
+        include /etc/nginx/hsts.conf;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache";
+        include /etc/nginx/security-headers.conf;
+        include /etc/nginx/hsts.conf;
+    }
+}

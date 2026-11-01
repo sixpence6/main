@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request
 from app.auth.principal import require_principal
 from app.errors import ApiError, conflict
 from app.operator_audit import record_operator_event_safely
+from app.request_source import client_ip
 from app.schemas import ERROR_RESPONSE
 from app.workflow import dispatch, state
 from app.workflow.schemas_workflow import WorkflowActionRequest, WorkflowView
@@ -47,7 +48,7 @@ async def run_action(
 
     app = request.app
     principal = require_principal(request)
-    source = request.client.host if request.client else None
+    source = client_ip(request)
     async with app.state.locks.hold(project_id):
         ctx = await state.load_context(app, project_id, principal=principal)
         if ctx.project.revision != body.expected_revision:

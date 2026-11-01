@@ -16,6 +16,7 @@ from app.models import Asset, Project
 from app.operator_audit import record_operator_event_safely
 from app.ownership import require_project_owner, revalidate_principal
 from app.presenters import project_view
+from app.request_source import client_ip
 from app.schemas import ERROR_RESPONSE, ProjectView
 from app.services.assets import (
     ImageValidationError,
@@ -172,7 +173,7 @@ async def upload_reference(project_id: str, request: Request) -> ProjectView:
         event_type="reference_uploaded",
         principal=principal,
         project_id=project_id,
-        source=request.client.host if request.client else None,
+        source=client_ip(request),
         detail={
             "mime_type": image.mime_type,
             "width": image.width,
@@ -220,7 +221,7 @@ async def delete_reference(
         event_type="reference_removed",
         principal=principal,
         project_id=project_id,
-        source=request.client.host if request.client else None,
+        source=client_ip(request),
         detail={"had_reference": result.removed},
     )
     await _sync_reference_workflow(request.app, project_id, removed=True, principal=principal)
