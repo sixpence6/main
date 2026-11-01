@@ -25,7 +25,7 @@
 
 ~~~bash
 python -m app.maintenance.cli inspect-sources --json
-python -m app.maintenance.cli verify /path/to/backups/backup-<utc>-<hex>
+python -m app.maintenance.cli verify --backup /path/to/backups/backup-<utc>-<hex>
 ~~~
 
 确认备份包含完整账本与资源文件清单；不要在未验证的目录上执行恢复。
