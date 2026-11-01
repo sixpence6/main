@@ -14,6 +14,12 @@ from app.maintenance.backup import (
 )
 from app.maintenance.claim import CLAIM_CONFIRMATION, claim_legacy, inspect_legacy_projects
 from app.maintenance.errors import BackupError
+from app.maintenance.restore import (
+    CLEAR_CONFIRMATION,
+    RESTORE_CONFIRMATION,
+    clear_restore_gap,
+    restore_switch,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -67,6 +73,52 @@ def build_parser() -> argparse.ArgumentParser:
     restore_parser.add_argument("--output", required=True)
     restore_parser.add_argument("--confirm-restore", required=True)
     restore_parser.add_argument("--json", action="store_true")
+
+    restore_switch_parser = subparsers.add_parser(
+        "restore", help="switch one verified snapshot into the explicit data root"
+    )
+    restore_switch_parser.add_argument("--source", required=True)
+    restore_switch_parser.add_argument("--backup", required=True)
+    restore_switch_parser.add_argument("--output", required=True)
+    restore_switch_parser.add_argument(
+        "--confirm-restore",
+        required=True,
+        help=f"explicit confirmation; must be {RESTORE_CONFIRMATION}",
+    )
+    restore_switch_parser.add_argument(
+        "--service-stopped",
+        action="store_true",
+        help="required acknowledgement that the application process is stopped",
+    )
+    restore_switch_parser.add_argument(
+        "--allow-real-data-root",
+        action="store_true",
+        help="allow the protected default data root after an explicit maintainer source choice",
+    )
+    restore_switch_parser.add_argument("--gap-seconds", type=int, default=86400)
+    restore_switch_parser.add_argument("--json", action="store_true")
+
+    clear_gap_parser = subparsers.add_parser(
+        "clear-restore-gap", help="audit and clear an open post-restore ledger gap"
+    )
+    clear_gap_parser.add_argument("--source", required=True)
+    clear_gap_parser.add_argument(
+        "--confirm-clear",
+        required=True,
+        help=f"explicit confirmation; must be {CLEAR_CONFIRMATION}",
+    )
+    clear_gap_parser.add_argument("--reason", required=True)
+    clear_gap_parser.add_argument(
+        "--service-stopped",
+        action="store_true",
+        help="required acknowledgement that the application process is stopped",
+    )
+    clear_gap_parser.add_argument(
+        "--allow-real-data-root",
+        action="store_true",
+        help="allow the protected default data root after an explicit maintainer source choice",
+    )
+    clear_gap_parser.add_argument("--json", action="store_true")
 
     inspect_legacy_parser = subparsers.add_parser(
         "inspect-legacy", help="list unowned projects that contain legacy evidence"
@@ -139,6 +191,34 @@ def main(argv: Sequence[str] | None = None) -> int:
                 output=args.output,
                 confirmation=args.confirm_restore,
             ).as_dict()
+        elif args.command == "restore":
+            if not args.service_stopped:
+                raise BackupError(
+                    "SERVICE_MUST_BE_STOPPED",
+                    "restore is offline-only; stop the service and pass --service-stopped",
+                )
+            payload = restore_switch(
+                source=args.source,
+                backup=args.backup,
+                output=args.output,
+                confirmation=args.confirm_restore,
+                service_stopped=True,
+                allow_real_data_root=args.allow_real_data_root,
+                gap_seconds=args.gap_seconds,
+            ).as_dict()
+        elif args.command == "clear-restore-gap":
+            if not args.service_stopped:
+                raise BackupError(
+                    "SERVICE_MUST_BE_STOPPED",
+                    "gap clearing is offline-only; stop the service and pass --service-stopped",
+                )
+            payload = clear_restore_gap(
+                source=args.source,
+                confirmation=args.confirm_clear,
+                reason=args.reason,
+                service_stopped=True,
+                allow_real_data_root=args.allow_real_data_root,
+            )
         elif args.command == "inspect-legacy":
             payload = asyncio.run(
                 inspect_legacy_projects(

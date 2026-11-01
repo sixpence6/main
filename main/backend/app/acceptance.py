@@ -28,6 +28,7 @@ from app.config import Settings
 from app.db import read_session
 from app.errors import ApiError, conflict, validation_error
 from app.generation_quota import default_limits, effective_limits
+from app.maintenance.restore_state import gate_is_open, slot_floor_count, usage_floor_count
 from app.models import Base, Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow.tables import Artifact, WorkflowRun
@@ -353,9 +354,19 @@ async def accept_in_session(
             )
         return AcceptanceResult(intent=existing, replay=True)
 
+    if gate_is_open(settings.resolved_data_dir(), now=now):
+        raise ApiError(
+            409,
+            "RESTORE_GAP_BLOCKED",
+            "恢复后的账本核对尚未完成，暂时不能发起新的生成任务。",
+        )
+
     now_dt = now or utc_now()
     now_ms = _now_ms(now_dt)
     used = await _used_count(session, account_id=operator_account_id, now_ms=now_ms)
+    used += usage_floor_count(
+        settings.resolved_data_dir(), account_id=operator_account_id, now_ms=now_ms
+    )
     limits = await effective_limits(
         session, settings=settings, account_id=operator_account_id
     )
@@ -371,6 +382,9 @@ async def accept_in_session(
     personal_active = await _active_count(
         session, scope="personal", scope_id=operator_account_id
     )
+    personal_active += slot_floor_count(
+        settings.resolved_data_dir(), scope="personal", scope_id=operator_account_id, now=now
+    )
     if personal_active >= personal_limit:
         raise _limit_error(
             "GENERATION_SLOT_BUSY",
@@ -380,6 +394,9 @@ async def accept_in_session(
         )
     instance_limit = limits.instance_slots
     instance_active = await _active_count(session, scope="instance", scope_id="instance")
+    instance_active += slot_floor_count(
+        settings.resolved_data_dir(), scope="instance", scope_id="instance", now=now
+    )
     if instance_active >= instance_limit:
         raise _limit_error(
             "GENERATION_SLOT_BUSY",
@@ -390,6 +407,9 @@ async def accept_in_session(
     project_limit = limits.project_slots
     project_active = await _active_count(
         session, scope="project", scope_id=project.id
+    )
+    project_active += slot_floor_count(
+        settings.resolved_data_dir(), scope="project", scope_id=project.id, now=now
     )
     if project_active >= project_limit:
         raise _limit_error(
@@ -515,17 +535,32 @@ async def usage_snapshot(
             if account_id
             else 0
         )
+        if account_id:
+            used += usage_floor_count(
+                settings.resolved_data_dir(), account_id=account_id, now_ms=now_ms
+            )
         personal = (
             await _active_count(session, scope="personal", scope_id=account_id)
             if account_id
             else 0
         )
+        if account_id:
+            personal += slot_floor_count(
+                settings.resolved_data_dir(), scope="personal", scope_id=account_id, now=now
+            )
         instance = await _active_count(session, scope="instance", scope_id="instance")
+        instance += slot_floor_count(
+            settings.resolved_data_dir(), scope="instance", scope_id="instance", now=now
+        )
         project = (
             await _active_count(session, scope="project", scope_id=project_id)
             if project_id
             else 0
         )
+        if project_id:
+            project += slot_floor_count(
+                settings.resolved_data_dir(), scope="project", scope_id=project_id, now=now
+            )
         limits = (
             await effective_limits(session, settings=settings, account_id=account_id)
             if account_id
