@@ -38,8 +38,11 @@
 
 先把 backend/.env 填好（内容与 .env.example 相同，都是空白模板；按目标机器填入
 provider 地址和 key。至少把 APP_PUBLIC_URL 设为浏览器实际访问的源，例如
-http://127.0.0.1:8090；正式环境使用 HTTPS 时填对应的 https 源。全部为空的模型配置
-也能启动，只是模型操作会失败）：
+http://127.0.0.1:8090；正式环境使用 HTTPS 时填对应的 https 源。如果通过本机 HTTP 地址
+访问，还必须显式设置 ALLOW_LOOPBACK_HTTP=true 与 AUTH_COOKIE_SECURE=false；这两个例外
+只允许回环开发，不能用于局域网或生产。前端从 8090 访问时，ALLOWED_ORIGINS 必须包含
+该源（JSON 数组，例如 ["http://127.0.0.1:8090"]），否则写请求会因来源不匹配被拒绝。
+全部为空的模型配置也能启动，只是模型操作会失败）：
 
     cd main
     docker compose up -d --build
