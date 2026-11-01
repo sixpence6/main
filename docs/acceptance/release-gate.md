@@ -2,7 +2,7 @@
 
 ## 1. 结论与边界
 
-本记录是 GitHub issue #52 的最终发布关口（#85 / V3 T33）验收证据，汇总 C0、R1、R2、R3 与 Release 各阶段的可复现结果。生产代码基线为 `f8f30d9af93e8632e1253a0b45a193b1245c5496`，合并前基线为 `integration/v3 5304734`。
+本记录是 GitHub issue #52 的最终发布关口（#85 / V3 T33）验收证据，汇总 C0、R1、R2、R3 与 Release 各阶段的可复现结果。生产代码基线为 `f8f30d9af93e8632e1253a0b45a193b1245c5496`；发布包 `source_commit` 为文档提交 `2cb9d7f7adbecefef51b86ae7f292e0d953318ef`；合并前基线为 `integration/v3 5304734`。
 
 结论：**代理可执行范围内的发布关口通过；物理手机与真实第二台局域网设备由用户按其指令 m22428 自行测试，代理不代签。** 没有发现可在现有环境中复现的阻断性代码失败；所有自动化测试、迁移、构建、发布包、秘密扫描、真实供应商闭环、HTTPS 容器客户端、独立操作者本机维护与容器 HTTPS 复现均已执行。物理设备自测、Pixel API 计费比例暂停与操作者环境 Docker Compose 插件缺失列在 §9 残余风险。
 
@@ -17,6 +17,7 @@
 | 分支 | ticket/85 |
 | 合并基线 | integration/v3 5304734 |
 | 生产代码提交 | f8f30d9af93e8632e1253a0b45a193b1245c5496 |
+| 发布包 source_commit | 2cb9d7f7adbecefef51b86ae7f292e0d953318ef |
 | 迁移头 | 0010 |
 | Python | 3.12.13 |
 | 操作系统 | Windows 10.0.19045 SP0 |
@@ -53,7 +54,7 @@
 | TLS 入口本机 | nginx TLS 容器 + 127.0.0.1:18822 | health/index/CSRF/login/session/logout/Origin/CSRF/HTTP 308 全部符合 | .scratch/t85-evidence/tls-client-http-smoke.json |
 | TLS 第二网络命名空间客户端 | node:24-alpine 容器，独立网络，CA 校验 | 12 项检查 ok true；TLS authorized true；无证书绕过 | .scratch/t85-evidence/container-tls-client.json |
 | 路由清单 | route_inventory.py | 37 operations = 6 public + 31 protected；31 匿名全部 401 | .scratch/t85-evidence/route-inventory.json |
-| 发布包 | tools/release_package.py --build --no-build；--check --require-dist | 185 files，zip 983,276 bytes；179 tracked，24 required，issues [] | .scratch/t85-evidence/release-build-final.json、release-check-final.json |
+| 发布包 | tools/release_package.py --build --no-build；--check --require-dist | 185 files，zip 983,274 bytes；179 tracked，24 required，issues [] | .scratch/t85-evidence/release-build-final.json、release-check-final.json |
 | 发布包秘密扫描 | tools/secret_scan.py --root … --zip … | ok true，markers 0，hits [] | .scratch/t85-evidence/secret-scan-release-final.json |
 | 独立操作者 | 独立上下文复制发布包、全新数据、TTY 首管理员、启动、备份、恢复、故障关闭、容器 HTTPS 入口 | 本地运维路径 PASS；容器 HTTPS 12 项 PASS；生产 LAN/防火墙/物理设备由用户自测 | .scratch/t85-independent-operator/operator-report.md |
 | 真实数据演练 | #84 真实根只读核源 + 字节副本迁移/认领/恢复 | 实际根未修改；副本演练完成 | docs/acceptance/release-real-data-rehearsal.md、.scratch/t84-evidence |
@@ -175,7 +176,7 @@ python tools/release_package.py --check --require-dist --json
 python tools/secret_scan.py --root release-artifacts/ecommerce-image-workspace-0.1.0 --zip release-artifacts/ecommerce-image-workspace-0.1.0.zip --json
 ~~~
 
-结果：`ecommerce-image-workspace 0.1.0`，185 files，zip 983,276 bytes，source_commit `f8f30d9af93e8632e1253a0b45a193b1245c5496`；check 选中 179 个 tracked 文件、dist 3 个、required 24 个、issues []；secret scan ok true、markers 0、hits []。日志：`.scratch/t85-evidence/release-build-final.json`、`release-check-final.json`、`secret-scan-release-final.json`。
+结果：`ecommerce-image-workspace 0.1.0`，185 files，zip 983,274 bytes，source_commit `2cb9d7f7adbecefef51b86ae7f292e0d953318ef`；check 选中 179 个 tracked 文件、dist 3 个、required 24 个、issues []；secret scan ok true、markers 0、hits []。日志：`.scratch/t85-evidence/release-build-final.json`、`release-check-final.json`、`secret-scan-release-final.json`。
 
 发布包只包含 `backend`、`dist`、`src`、`docker`、配置/文档与必要元数据；排除 `.env`、`.venv`、`tests`、`__pycache__`、数据库、日志和临时目录。唯一允许的敏感外观路径为 `backend/.env.example` 与 `backend/data/.gitkeep`。
 
@@ -373,6 +374,7 @@ python tools/secret_scan.py --root release-artifacts/ecommerce-image-workspace-0
 | 证据 | 路径 | 复核方式 |
 |---|---|---|
 | 最终代码提交 | `f8f30d9af93e8632e1253a0b45a193b1245c5496` | `git show --stat f8f30d9` |
+| 发布包构建提交 | `2cb9d7f7adbecefef51b86ae7f292e0d953318ef` | `git show --stat 2cb9d7f` |
 | 最终后端回归 | `.scratch/t85-evidence/backend-nonv2-final.log`、`backend-v2-final.log` | 396 + 247 = 643 passed，0 failed |
 | 聚焦发布门禁 | `.scratch/t85-evidence/release-gate-tests.log` | 9 个门禁文件 55 passed |
 | 前端 | `.scratch/t85-evidence/frontend-typecheck-final.log`、`frontend-test-final.log`、`frontend-build-final.log` | typecheck 0；38 files/173 tests；build 1664 modules |
