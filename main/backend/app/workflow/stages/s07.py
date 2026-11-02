@@ -31,9 +31,9 @@ from app.workflow.reasons import (
     is_auto_repairable,
     repair_codes_from_defects,
 )
-from app.workflow.roles import RoleOutput, run_role
+from app.workflow.roles import RoleOutput, run_role, run_role_request
 from app.workflow.state import WorkflowContext
-from app.workflow.tables import ArtifactReview, GenerationJob, RevisionBudget
+from app.workflow.tables import Artifact, ArtifactReview, GenerationJob, RevisionBudget
 
 STAGE = "S07"
 ACTIONS = ["compile_prompt", "revise_prompt"]
@@ -83,6 +83,24 @@ async def _mark_failed(ctx: WorkflowContext, template_id: str) -> None:
         issue_code=template_id,
         template_id=template_id,
     )
+
+
+async def _producer_failed(
+    ctx: WorkflowContext,
+    exc: ApiError,
+    attempt: int,
+    intent: Any,
+) -> None:
+    await _record_transition(
+        ctx,
+        classify_api_error(exc.code),
+        "producer_failed",
+        attempt=attempt,
+        intent_id=getattr(intent, "id", None) if intent is not None else None,
+        detail={"error_code": exc.code},
+    )
+    if exc.code in {"SERVICE_UNAVAILABLE", "CAPABILITY_NOT_READY"}:
+        await _mark_failed(ctx, exc.code)
 
 
 async def _ensure_budget(ctx: WorkflowContext) -> None:
@@ -617,6 +635,7 @@ async def _compile(
     *,
     advance: bool = True,
     allow_known_rejection: bool = False,
+    recovery: dict[str, Any] | None = None,
 ) -> None:
     intent = None
     if ctx.project.owner_account_id is not None:
@@ -625,6 +644,37 @@ async def _compile(
         )
     await _ensure_budget(ctx)
     repair_codes = await _previous_repair_codes(ctx) if revision_note else ()
+    recovery_request = ""
+    recovery_attempt = 0
+    recovery_input: dict[str, Any] = {}
+    if recovery is not None:
+        recovery_request = str(recovery.get("request_json") or "")
+        try:
+            parsed_request = json.loads(recovery_request)
+        except ValueError:
+            raise conflict("STALE_RECOVERY", templates.render("RUN_SUPERSEDED")) from None
+        parsed_payload = (
+            parsed_request.get("payload") if isinstance(parsed_request, dict) else None
+        )
+        if not isinstance(parsed_payload, dict):
+            raise conflict("STALE_RECOVERY", templates.render("RUN_SUPERSEDED"))
+        task = parsed_payload.get("task")
+        if (
+            not isinstance(task, dict)
+            or task.get("role") != "generation_engineer"
+            or not recovery_request
+        ):
+            raise conflict("STALE_RECOVERY", templates.render("RUN_SUPERSEDED"))
+        recovery_attempt = int(recovery.get("attempt") or 1)
+        raw_input = parsed_payload.get("input_data")
+        recovery_input = raw_input if isinstance(raw_input, dict) else {}
+        raw_repair = parsed_payload.get("repair_codes")
+        repair_codes = (
+            tuple(str(item) for item in raw_repair)
+            if isinstance(raw_repair, list)
+            else ()
+        )
+
     while True:
         # Re-read the original snapshot, confirmation and dependencies before
         # every text attempt. A change here is drift, never an auto repair.
@@ -652,59 +702,96 @@ async def _compile(
         configured_size = (
             ctx.project.image_size or ctx.settings.visual().image_size or ""
         )
-        reservation = await state.reserve_artifact_revision(ctx, "prompt_plan")
-        await state.record_diagnostic(
-            ctx,
-            "prompt_candidate_reserved",
-            {
-                "attempt": reservation.revision_no,
-                "budget_used": reservation.used,
-                "budget_max": reservation.max_allowed,
-                "ruleset_version": RULESET_VERSION,
-                "intent_id": intent.id if intent is not None else None,
-                "repair_codes": list(repair_codes),
-            },
-        )
-        input_data = {
-            "final_brief_artifact_id": final_artifact.id,
-            "confirmed_revision": ctx.project.revision,
-            "hard_requirements": requirements,
-            "revision_note": revision_note or "",
-        }
-        try:
-            output = await run_role(
+
+        if recovery is None:
+            reservation = await state.reserve_artifact_revision(ctx, "prompt_plan")
+            await state.record_diagnostic(
                 ctx,
-                "generation_engineer",
-                STAGE,
-                input_data,
-                approved_inputs={
-                    "final_brief": brief,
-                    "final_brief_artifact_id": final_artifact.id,
-                    "reference_asset_id": brief.get("reference_asset_id"),
+                "prompt_candidate_reserved",
+                {
+                    "attempt": reservation.revision_no,
+                    "budget_used": reservation.used,
+                    "budget_max": reservation.max_allowed,
+                    "ruleset_version": RULESET_VERSION,
+                    "intent_id": intent.id if intent is not None else None,
+                    "repair_codes": list(repair_codes),
                 },
-                repair_codes=list(repair_codes),
-                attempt=reservation.revision_no,
-                required_rule_ids=tuple(item["rule_id"] for item in requirements),
-                allowed_evidence_ids=(final_artifact.id,),
             )
-        except ApiError as exc:
-            reason = classify_api_error(exc.code)
-            await _record_transition(
-                ctx,
-                reason,
-                "producer_failed",
-                attempt=reservation.revision_no,
-                intent_id=intent.id if intent is not None else None,
-                detail={"error_code": exc.code},
-            )
-            if exc.code in {"SERVICE_UNAVAILABLE", "CAPABILITY_NOT_READY"}:
-                await _mark_failed(
+            input_data = {
+                "final_brief_artifact_id": final_artifact.id,
+                "confirmed_revision": ctx.project.revision,
+                "hard_requirements": requirements,
+                "revision_note": revision_note or "",
+            }
+            try:
+                output = await run_role(
                     ctx,
-                    "SERVICE_UNAVAILABLE"
-                    if exc.code == "SERVICE_UNAVAILABLE"
-                    else "CAPABILITY_NOT_READY",
+                    "generation_engineer",
+                    STAGE,
+                    input_data,
+                    approved_inputs={
+                        "final_brief": brief,
+                        "final_brief_artifact_id": final_artifact.id,
+                        "reference_asset_id": brief.get("reference_asset_id"),
+                    },
+                    repair_codes=list(repair_codes),
+                    attempt=reservation.revision_no,
+                    required_rule_ids=tuple(item["rule_id"] for item in requirements),
+                    allowed_evidence_ids=(final_artifact.id,),
                 )
-            raise
+            except ApiError as exc:
+                await _producer_failed(ctx, exc, reservation.revision_no, intent)
+                raise
+        else:
+            async with read_session(ctx.session_factory) as session:
+                budget = await session.get(
+                    RevisionBudget, (ctx.run_id, "prompt_plan")
+                )
+                existing = await session.scalar(
+                    select(Artifact).where(
+                        Artifact.run_id == ctx.run_id,
+                        Artifact.kind == "prompt_plan",
+                        Artifact.revision_no == recovery_attempt,
+                    )
+                )
+            if (
+                budget is None
+                or budget.used != recovery_attempt
+                or existing is not None
+                or recovery_input.get("final_brief_artifact_id") != final_artifact.id
+                or recovery_input.get("confirmed_revision") != ctx.project.revision
+                or recovery_input.get("hard_requirements") != requirements
+            ):
+                raise conflict("STALE_RECOVERY", templates.render("RUN_SUPERSEDED"))
+            reservation = state.RevisionReservation(
+                revision_no=recovery_attempt,
+                used=budget.used,
+                max_allowed=budget.max_allowed,
+            )
+            await state.record_diagnostic(
+                ctx,
+                "prompt_candidate_replayed",
+                {
+                    "attempt": reservation.revision_no,
+                    "budget_used": reservation.used,
+                    "budget_max": reservation.max_allowed,
+                    "ruleset_version": RULESET_VERSION,
+                    "intent_id": intent.id if intent is not None else None,
+                    "repair_codes": list(repair_codes),
+                },
+            )
+            try:
+                output = await run_role_request(
+                    ctx,
+                    "generation_engineer",
+                    STAGE,
+                    recovery_request,
+                    capability=str(recovery.get("capability") or "TEXT"),
+                    attempt=recovery_attempt,
+                )
+            except ApiError as exc:
+                await _producer_failed(ctx, exc, reservation.revision_no, intent)
+                raise
 
         if output.status == "blocked":
             issue_code = "PROMPT_BLOCKED"
@@ -793,7 +880,8 @@ async def _compile(
                 },
             )
             if (
-                reason == ReasonCode.REPAIRABLE_COMPOSITION
+                recovery is None
+                and reason == ReasonCode.REPAIRABLE_COMPOSITION
                 and is_auto_repairable(defects)
                 and reservation.revision_no < reservation.max_allowed
             ):
@@ -945,7 +1033,6 @@ async def _compile(
         if advance:
             await state.set_stage(ctx, "S08", "active")
         return
-
 
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
     if action not in ACTIONS:
