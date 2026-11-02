@@ -808,7 +808,7 @@ async def _resume_s05_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
 
 async def _s09_recovery_inputs(ctx: WorkflowContext) -> dict[str, Any]:
     candidate = await s09._load_candidate(ctx)
-    snapshot, snapshot_digest, _execution_snapshot = await s09._confirmed_snapshot(ctx)
+    snapshot, snapshot_digest, execution_snapshot = await s09._confirmed_snapshot(ctx)
     (
         reference,
         reference_usage,
@@ -823,7 +823,9 @@ async def _s09_recovery_inputs(ctx: WorkflowContext) -> dict[str, Any]:
         or ctx.settings.visual().image_size
         or "unknown"
     )
-    rules = s09._rule_specs(reference is not None and reference_usage == "product")
+    rules = s09._rule_specs(
+        reference is not None and reference_usage == "product", execution_snapshot
+    )
     requirement_text = str(
         snapshot.get("product_description")
         or snapshot.get("purpose")
@@ -847,6 +849,7 @@ async def _s09_recovery_inputs(ctx: WorkflowContext) -> dict[str, Any]:
     return {
         "candidate": candidate,
         "snapshot": snapshot,
+        "execution_snapshot": execution_snapshot,
         "reference": reference,
         "reference_usage": reference_usage,
         "rules": rules,
@@ -857,7 +860,14 @@ async def _s09_recovery_inputs(ctx: WorkflowContext) -> dict[str, Any]:
         "image_target": image_target,
         "allowed": allowed,
         "images": images,
-        "rule_payload": s09._rule_payload(rules, snapshot, requirement_text, forbidden, size),
+        "rule_payload": s09._rule_payload(
+            rules,
+            snapshot,
+            requirement_text,
+            forbidden,
+            size,
+            execution_snapshot,
+        ),
     }
 
 

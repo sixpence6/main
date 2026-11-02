@@ -17,7 +17,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    with op.batch_alter_table("workflow_runs") as batch:
+    # Recreate the table so a failed upgrade cannot leave only one of the two
+    # columns behind on SQLite (all-or-nothing DDL).
+    with op.batch_alter_table("workflow_runs", recreate="always") as batch:
         batch.add_column(sa.Column("recovery_claim_id", sa.String(length=64), nullable=True))
         batch.add_column(sa.Column("recovery_claimed_at", sa.String(length=32), nullable=True))
 
