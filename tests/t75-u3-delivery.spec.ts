@@ -232,19 +232,16 @@ describe('T23 U3 当前交付、历史预览与反馈新版本', () => {
     })
     harness = await mountU3({ view: workflowView() })
     harness.fetch.json('POST', FEEDBACK_PATH, newView)
-    const panel = await findPanel()
+    await findPanel()
 
-    const feedbackHeading = await within(panel).findByRole('heading', { name: '基于当前交付继续调整' })
-    expect(feedbackHeading).toBeVisible()
-    const feedbackSection = feedbackHeading.closest('.workflow-feedback') as HTMLElement
-    expect(feedbackSection).not.toBeNull()
-    expect(feedbackSection.textContent).toContain('当前交付为第 3 版（bag-v3.png），尺寸 3840×2160')
-    expect(feedbackSection.textContent).toContain('不承诺局部像素不变或只修改指定区域')
-    const textarea = within(panel).getByRole('textbox', { name: '说明本次修改要求' })
+    const revisionNote = await screen.findByRole('note')
+    expect(revisionNote.textContent).toContain('当前交付为第 3 版（bag-v3.png），尺寸 3840×2160')
+    expect(revisionNote.textContent).toContain('不承诺局部像素不变或只修改指定区域')
+    const textarea = screen.getByRole('textbox', { name: '描述商品与图片需求' })
     textarea.focus()
     expect(textarea).toHaveFocus()
     await harness.user.type(textarea, '把背景换成浅灰色')
-    await harness.user.click(within(panel).getByRole('button', { name: '基于反馈生成新版本' }))
+    await harness.user.click(screen.getByRole('button', { name: '发送' }))
 
     expect(harness.fetch.last('POST', FEEDBACK_PATH)?.body).toEqual({
       expected_revision: 3,
@@ -266,8 +263,8 @@ describe('T23 U3 当前交付、历史预览与反馈新版本', () => {
     oldTab.focus()
     await harness.user.keyboard(' ')
     expect(oldTab).toHaveAttribute('aria-pressed', 'true')
-    expect(within(panel).getByRole('textbox', { name: '说明本次修改要求' })).toBeVisible()
-    expect(within(panel).getByRole('button', { name: '基于反馈生成新版本' })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: '描述商品与图片需求' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '发送' })).toBeVisible()
     expect(harness.fetch.count('POST')).toBe(0)
   })
 

@@ -100,6 +100,7 @@ export interface WorkspaceStore {
   messageLocalCopy: Ref<boolean>
   showMessageLocalCopy: () => void
   loadLatestAfterMessageConflict: () => Promise<void>
+  refreshProjectDetail: () => Promise<boolean>
   creationUnknown: Ref<boolean>
   organizing: ComputedRef<boolean>
   sendDisabledReason: ComputedRef<string>
@@ -1371,6 +1372,27 @@ function createWorkspace(): WorkspaceStore {
     announce('正在查看未发送文字的只读本地副本。')
   }
 
+  async function refreshProjectDetail(): Promise<boolean> {
+    const id = projectParam.value ?? currentProject.value?.id
+    if (!id) return false
+    const contextToken = projectContextToken
+    const sessionAtStart = sessionRevision.value
+    try {
+      const response = await api.getProject(id)
+      if (
+        sessionAtStart !== sessionRevision.value ||
+        projectContextToken !== contextToken ||
+        projectParam.value !== id
+      ) {
+        return false
+      }
+      adoptProjectDetail(response)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   async function loadLatestAfterMessageConflict(): Promise<void> {
     if (sendBusy.value) return
     const id = projectParam.value ?? currentProject.value?.id
@@ -1598,6 +1620,7 @@ function createWorkspace(): WorkspaceStore {
     messageLocalCopy,
     showMessageLocalCopy,
     loadLatestAfterMessageConflict,
+    refreshProjectDetail,
     creationUnknown,
     organizing,
     sendDisabledReason,
