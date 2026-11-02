@@ -20,6 +20,10 @@ from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
 from app.workflow.access import can_access_asset, load_project_access_policy
 from app.workflow.contracts import digest_payload, validate_data
+from app.workflow.snapshot import (
+    SnapshotCompatibilityError,
+    execution_snapshot_from_checks,
+)
 from app.workflow.schemas_workflow import (
     ApprovalView,
     ArtifactView,
@@ -735,6 +739,38 @@ def _json_dict(value: str | None) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
+async def _version_execution_snapshot(
+    session: AsyncSession, project_id: str, brief_artifact: Artifact | None
+) -> dict[str, Any] | None:
+    """Load the confirmation snapshot that belongs to this version's brief.
+
+    History must never resolve the snapshot through current project columns or
+    the currently active approval. Matching the published run's approved
+    final_brief artifact keeps the original confirmation immutable.
+    """
+    if brief_artifact is None:
+        return None
+    approval = await session.scalar(
+        select(Approval)
+        .where(
+            Approval.project_id == project_id,
+            Approval.approval_type == "requirements_card",
+            Approval.artifact_id == brief_artifact.id,
+            Approval.artifact_digest == brief_artifact.digest,
+        )
+        .order_by(Approval.created_at.asc())
+        .limit(1)
+    )
+    if approval is None:
+        return None
+    try:
+        return execution_snapshot_from_checks(_json_dict(approval.checks_json))
+    except SnapshotCompatibilityError as exc:
+        raise conflict(
+            "SNAPSHOT_INCOMPATIBLE", "历史确认快照版本不兼容，不能静默重解释"
+        ) from exc
+
+
 async def _build_versions(
     session: AsyncSession, project_id: str, settings: Settings
 ) -> list[WorkflowVersionView]:
@@ -800,6 +836,9 @@ async def _build_versions(
             .order_by(Artifact.created_at.desc())
             .limit(1)
         )
+        execution_snapshot = await _version_execution_snapshot(
+            session, project_id, brief_artifact
+        )
         can_download = bool(
             asset is not None
             and delivery.filename
@@ -819,6 +858,22 @@ async def _build_versions(
                 brief=_json_dict(brief_artifact.payload_json) if brief_artifact else None,
                 prompt=_json_dict(prompt_artifact.payload_json) if prompt_artifact else None,
                 quality=_json_dict(quality_artifact.payload_json) if quality_artifact else None,
+                execution_snapshot=execution_snapshot,
+                execution_snapshot_digest=(
+                    execution_snapshot.get("snapshot_digest")
+                    if execution_snapshot is not None
+                    else None
+                ),
+                snapshot_schema_version=(
+                    execution_snapshot.get("snapshot_schema_version")
+                    if execution_snapshot is not None
+                    else None
+                ),
+                contract_version=(
+                    execution_snapshot.get("contract_version")
+                    if execution_snapshot is not None
+                    else None
+                ),
                 can_download=can_download,
                 created_at=job.created_at,
             )
@@ -976,6 +1031,24 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
         for approval in approvals
     ]
 
+    active_execution_snapshot = None
+    for approval in approvals:
+        if (
+            approval.approval_type != "requirements_card"
+            or approval.revoked_at is not None
+        ):
+            continue
+        try:
+            candidate_snapshot = execution_snapshot_from_checks(
+                _json_dict(approval.checks_json)
+            )
+        except SnapshotCompatibilityError as exc:
+            raise conflict(
+                "SNAPSHOT_INCOMPATIBLE", "确认快照版本不兼容，不能静默重解释"
+            ) from exc
+        if candidate_snapshot is not None:
+            active_execution_snapshot = candidate_snapshot
+
     return WorkflowView(
         project_id=ctx.project_id,
         run_id=ctx.run.id,
@@ -1008,6 +1081,12 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
             else None
         ),
         versions=versions,
+        execution_snapshot=active_execution_snapshot,
+        execution_snapshot_digest=(
+            active_execution_snapshot.get("snapshot_digest")
+            if active_execution_snapshot is not None
+            else None
+        ),
         usage=usage,
         intent=intent_view,
         delivery=(

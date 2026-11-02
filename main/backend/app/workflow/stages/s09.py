@@ -28,11 +28,16 @@ from app.workflow.adjudication import (
     review_results,
 )
 from app.workflow.roles import RoleOutput, run_role
+from app.workflow.snapshot import (
+    SnapshotCompatibilityError,
+    execution_snapshot_from_checks,
+)
 from app.workflow.state import (
     WorkflowContext,
     add_approval,
     add_review,
     approved_artifact,
+    latest_approval,
     latest_artifact,
     latest_model_fingerprint,
     requirement_snapshot_digest,
@@ -268,14 +273,48 @@ def _json_dict(raw: str | None) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-async def _confirmed_snapshot(ctx: WorkflowContext) -> tuple[dict[str, Any], str]:
+async def _confirmed_snapshot(
+    ctx: WorkflowContext,
+) -> tuple[dict[str, Any], str, dict[str, Any] | None]:
+    """Read the confirmation snapshot that governs this quality review.
+
+    The canonical execution snapshot stored on the active requirements_card
+    approval is authoritative. A legacy approval without the canonical keys
+    falls back explicitly to the approved final_brief artifact so old projects
+    keep their original semantics. A malformed canonical snapshot is never
+    silently reinterpreted from project columns.
+    """
     artifact = await approved_artifact(ctx, "final_brief")
     if artifact is None:
         artifact = await approved_artifact(ctx, "brief_draft")
     if artifact is not None:
+        approval = await latest_approval(ctx, "requirements_card")
+        execution_snapshot: dict[str, Any] | None = None
+        if approval is not None and approval.artifact_id == artifact.id:
+            checks = _json_dict(approval.checks_json)
+            try:
+                execution_snapshot = execution_snapshot_from_checks(checks)
+            except SnapshotCompatibilityError as exc:
+                raise ApiError(
+                    409, "SNAPSHOT_INCOMPATIBLE", "确认快照版本不兼容，请重新确认需求"
+                ) from exc
+            if execution_snapshot is not None:
+                if (
+                    execution_snapshot.get("artifact_id") != artifact.id
+                    or execution_snapshot.get("artifact_digest") != artifact.digest
+                ):
+                    raise ApiError(
+                        409, "SNAPSHOT_INCOMPATIBLE", "确认快照与已批准需求不一致"
+                    )
+                payload = execution_snapshot.get("brief")
+                if not isinstance(payload, dict) or not payload:
+                    raise ApiError(
+                        409, "SNAPSHOT_INCOMPATIBLE", "确认快照缺少需求内容"
+                    )
+                return payload, artifact.digest, execution_snapshot
         payload = _json_dict(artifact.payload_json)
         if payload:
-            return payload, artifact.digest
+            return payload, artifact.digest, None
     payload = {
         "product_description": ctx.project.product_description or "",
         "purpose": ctx.project.purpose or "",
@@ -289,7 +328,7 @@ async def _confirmed_snapshot(ctx: WorkflowContext) -> tuple[dict[str, Any], str
         "reference_asset_id": ctx.project.reference_asset_id,
         "reference_usage": "none",
     }
-    return payload, await requirement_snapshot_digest(ctx)
+    return payload, await requirement_snapshot_digest(ctx), None
 
 
 async def _reference_context(
@@ -379,6 +418,20 @@ def _composition_requirement(snapshot: dict[str, Any], fallback: str) -> str:
     lighting = snapshot.get("lighting")
     if isinstance(lighting, str) and lighting:
         parts.append(f"光影：{lighting}")
+    background = snapshot.get("background")
+    if isinstance(background, str) and background:
+        parts.append(f"背景：{background}")
+    palette = snapshot.get("palette")
+    if isinstance(palette, list) and palette:
+        colors = "、".join(str(item) for item in palette if isinstance(item, str))
+        if colors:
+            parts.append(f"配色：{colors}")
+    text_layout = snapshot.get("text_layout")
+    if isinstance(text_layout, str) and text_layout:
+        parts.append(f"文字布局：{text_layout}")
+    reference_treatment = snapshot.get("reference_treatment")
+    if isinstance(reference_treatment, str) and reference_treatment:
+        parts.append(f"参考处理：{reference_treatment}")
     return "；".join(parts) or fallback
 
 
@@ -854,6 +907,7 @@ async def _review_and_apply(
     image_target: str,
     quality_allowed: set[str],
     snapshot: dict[str, Any],
+    execution_snapshot: dict[str, Any] | None,
     size: str,
     rule_payload: list[dict[str, Any]],
     existing_artifact: Artifact | None = None,
@@ -893,6 +947,8 @@ async def _review_and_apply(
             },
             approved_inputs={
                 "confirmed_snapshot": snapshot,
+                "final_brief": snapshot,
+                "execution_snapshot": execution_snapshot,
                 "reference_usage": reference_usage,
                 "reference_asset_id": reference.id if reference is not None else None,
             },
@@ -1191,7 +1247,7 @@ async def handle(
         if exc.code == "SERVICE_UNAVAILABLE":
             await _fail_stage(ctx, "SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE")
         raise
-    snapshot, snapshot_digest = await _confirmed_snapshot(ctx)
+    snapshot, snapshot_digest, execution_snapshot = await _confirmed_snapshot(ctx)
     reference, reference_usage, reference_bytes = await _reference_context(ctx, snapshot)
     if reference_usage != "none" and (reference is None or reference_bytes is None):
         # A declared reference must be readable before it can be used as
@@ -1252,9 +1308,16 @@ async def handle(
                 "rules": rule_payload,
                 "reference_usage": reference_usage,
                 "reference_asset_id": reference.id if reference is not None else None,
+                "approved_inputs": {
+                    "confirmed_snapshot": snapshot,
+                    "final_brief": snapshot,
+                    "execution_snapshot": execution_snapshot,
+                },
             },
             approved_inputs={
                 "confirmed_snapshot": snapshot,
+                "final_brief": snapshot,
+                "execution_snapshot": execution_snapshot,
                 "reference_usage": reference_usage,
                 "reference_asset_id": reference.id if reference is not None else None,
             },
@@ -1310,6 +1373,7 @@ async def handle(
         image_target=image_target,
         quality_allowed=allowed,
         snapshot=snapshot,
+        execution_snapshot=execution_snapshot,
         size=size,
         rule_payload=rule_payload,
         artifact_kind=artifact_kind,

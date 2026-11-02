@@ -122,6 +122,27 @@ class BriefData(StrictModel):
     unresolved: Annotated[list[str], Field(max_length=64)]
 
 
+class FinalBriefData(BriefData):
+    """Approved execution brief.
+
+    The base brief fields are the historical v2 contract. T10 adds the
+    dedicated visual and creative fields that previously existed only in the
+    approved visual_plan/creative_direction artifacts, plus source and lock
+    metadata needed to build an immutable execution snapshot without
+    consulting current project rows.
+    """
+
+    background: str | None = Field(default=None, max_length=2000)
+    palette: Annotated[list[str], Field(max_length=32)] = Field(default_factory=list)
+    text_layout: str | None = Field(default=None, max_length=2000)
+    reference_treatment: str | None = Field(default=None, max_length=2000)
+    preservation_rules: Annotated[list[str], Field(max_length=128)] = Field(default_factory=list)
+    selling_points: Annotated[list[Claim], Field(max_length=64)] = Field(default_factory=list)
+    copy_lines: Annotated[list[str], Field(max_length=64)] = Field(default_factory=list)
+    field_sources: dict[str, str] = Field(default_factory=dict)
+    user_locks: dict[str, str] = Field(default_factory=dict)
+
+
 class CreativeData(StrictModel):
     direction: str = Field(min_length=1, max_length=3000)
     selling_points: Annotated[list[Claim], Field(max_length=64)]
@@ -218,7 +239,7 @@ ARTIFACT_DATA: dict[str, type[BaseModel]] = {
     "brief_draft": BriefData,
     "creative_direction": CreativeData,
     "visual_plan": VisualData,
-    "final_brief": BriefData,
+    "final_brief": FinalBriefData,
     "prompt_plan": GenerationData,
     "quality_report": QualityData,
     "quality_recheck": QualityData,

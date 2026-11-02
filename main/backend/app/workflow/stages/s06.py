@@ -17,6 +17,7 @@ from app.errors import ApiError, conflict, validation_error
 from app.models import Asset, Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
+from app.workflow.snapshot import build_execution_snapshot
 from app.workflow.stages import s03
 from app.workflow.state import (
     WorkflowContext,
@@ -139,6 +140,28 @@ async def _require_approved_card(
         raise _unresolved_error()
     return artifact, data
 
+
+
+
+def _execution_snapshot(
+    artifact: Artifact,
+    data: dict[str, Any],
+    ctx: WorkflowContext,
+    material: str,
+    reference_usage: str | None,
+) -> dict[str, Any]:
+    return build_execution_snapshot(
+        artifact_id=artifact.id,
+        artifact_digest=artifact.digest,
+        artifact_revision_no=artifact.revision_no,
+        project_revision=ctx.project.revision,
+        requirement_revision=ctx.run.requirement_revision,
+        reference_asset_id=ctx.project.reference_asset_id,
+        reference_usage=reference_usage or "none",
+        referenced_material_digest=material,
+        brief=data,
+        hard_requirements=_hard_requirements(artifact, data),
+    )
 
 def _client_binding(
     payload: dict[str, Any], artifact: Artifact, data: dict[str, Any], ctx: WorkflowContext
@@ -435,6 +458,9 @@ async def _confirm_atomic(
         "confirmed_by": "user",
         "confirmed_at": now,
     }
+    snapshot.update(
+        _execution_snapshot(artifact, data, ctx, material, reference_usage)
+    )
     async with write_transaction(ctx.session_factory) as session:
         project = await session.get(Project, ctx.project_id)
         run = await session.get(WorkflowRun, ctx.run_id)
@@ -649,6 +675,9 @@ async def _confirm(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
         "confirmed_by": "user",
         "confirmed_at": now,
     }
+    snapshot.update(
+        _execution_snapshot(artifact, data, ctx, material, data.get("reference_usage"))
+    )
     approval = await add_approval(
         ctx,
         approval_type=_APPROVAL_TYPE,

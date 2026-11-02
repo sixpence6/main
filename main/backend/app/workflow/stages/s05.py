@@ -523,6 +523,33 @@ def _compose_final_brief(
     if not style_keywords:
         raise _drift()
 
+    field_sources = {
+        "product_description": "brief_draft",
+        "purpose": "brief_draft",
+        "facts": "brief_draft",
+        "creative_direction": "creative_direction",
+        "style_keywords": "visual_plan" if visual["style_keywords"] else "brief_draft",
+        "composition": "visual_plan",
+        "lighting": "visual_plan",
+        "background": "visual_plan",
+        "palette": "visual_plan",
+        "text_layout": "visual_plan",
+        "reference_treatment": "visual_plan",
+        "texts": "creative_direction",
+        "must_include": "brief_draft",
+        "must_preserve": (
+            "brief_draft+visual_plan" if visual["preservation_rules"] else "brief_draft"
+        ),
+        "preservation_rules": "visual_plan",
+        "forbidden": "brief_draft",
+        "size": "brief_draft",
+        "reference_asset_id": "brief_draft",
+        "reference_usage": "brief_draft",
+        "assumptions": "brief_draft",
+        "unresolved": "brief_draft",
+        "selling_points": "creative_direction",
+        "copy_lines": "creative_direction",
+    }
     payload = {
         "product_description": product,
         "purpose": purpose,
@@ -531,15 +558,24 @@ def _compose_final_brief(
         "style_keywords": style_keywords,
         "composition": composition,
         "lighting": lighting,
+        "background": str(visual["background"]),
+        "palette": [str(item) for item in visual["palette"]],
+        "text_layout": str(visual["text_layout"]),
+        "reference_treatment": str(visual["reference_treatment"]),
         "texts": texts,
         "must_include": [str(item) for item in brief["must_include"]],
         "must_preserve": must_preserve,
+        "preservation_rules": [str(item) for item in visual["preservation_rules"]],
         "forbidden": [str(item) for item in brief["forbidden"]],
         "size": brief["size"],
         "reference_asset_id": brief["reference_asset_id"],
         "reference_usage": brief["reference_usage"],
         "assumptions": [str(item) for item in brief["assumptions"]],
         "unresolved": [str(item) for item in brief["unresolved"]],
+        "selling_points": [dict(item) for item in creative["selling_points"]],
+        "copy_lines": [str(item) for item in creative["copy_lines"]],
+        "field_sources": field_sources,
+        "user_locks": dict(brief.get("user_locks") or {}),
     }
     try:
         validate_data("final_brief", payload)
