@@ -57,6 +57,7 @@ type NavigationIntent =
 export interface WorkspaceStore {
   draft: Ref<string>
   draftDirty: ComputedRef<boolean>
+  attachmentPending: ComputedRef<boolean>
   hasUnsavedChanges: ComputedRef<boolean>
   navigationConfirmOpen: Ref<boolean>
   navigationIntentLabel: ComputedRef<string>
@@ -338,7 +339,8 @@ function createWorkspace(): WorkspaceStore {
     return ''
   })
   const draftDirty = computed(() => draft.value.trim().length > 0)
-  const hasUnsavedChanges = computed(() => draftDirty.value)
+  const attachmentPending = computed(() => referencePending.value !== null)
+  const hasUnsavedChanges = computed(() => draftDirty.value || attachmentPending.value)
   const sendDisabledReason = computed(() => {
     if (sendBusy.value) return '正在发送消息，请稍候。'
     if (activeGeneration.value) return '生成任务进行中，完成前不能发送消息。'
@@ -399,6 +401,11 @@ function createWorkspace(): WorkspaceStore {
     announce('当前有未保存的修改，请确认是否放弃。')
   }
 
+  function discardCurrentEditingState(): void {
+    drafts.delete(draftKey.value)
+    clearReferenceState()
+  }
+
   function cancelNavigation(): void {
     navigationIntent.value = null
     navigationConfirmOpen.value = false
@@ -410,6 +417,7 @@ function createWorkspace(): WorkspaceStore {
     navigationIntent.value = null
     navigationConfirmOpen.value = false
     if (!intent) return
+    discardCurrentEditingState()
     if (intent.kind === 'new') {
       performCreateNewProject()
       return
@@ -1587,6 +1595,7 @@ function createWorkspace(): WorkspaceStore {
   return {
     draft,
     draftDirty,
+    attachmentPending,
     hasUnsavedChanges,
     navigationConfirmOpen,
     navigationIntentLabel,
