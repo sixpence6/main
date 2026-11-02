@@ -33,6 +33,7 @@ from app.maintenance.restore_state import (
 from app.maintenance.sources import DB_NAME, inspect_candidate
 from app.startup import head_revision
 from app.timeutil import format_timestamp, utc_now
+from app.workflow.snapshot import SnapshotCompatibilityError, execution_snapshot_from_checks
 
 RESTORE_CONFIRMATION = "RESTORE"
 CLEAR_CONFIRMATION = "CLEAR_RESTORE_GAP"
@@ -208,6 +209,123 @@ def _read_current_metrics(source: Path, now: datetime) -> _CurrentMetrics:
         rejected_assets=rejected_assets,
         accounts=accounts,
     )
+
+
+_TERMINAL_JOB_STATUSES = frozenset({"published", "failed", "rejected"})
+_ACTIVE_RUN_STATUSES = frozenset({"active", "needs_input", "blocked", "failed"})
+
+
+@dataclass
+class _WorkflowLedger:
+    runs: dict[str, tuple[str, str | None]]
+    jobs: dict[str, str]
+    budgets: dict[tuple[str, str], int]
+    approvals: dict[str, tuple[str, str]]
+
+
+def _read_workflow_ledger(database: Path, *, error_code: str) -> _WorkflowLedger:
+    connection = _open_readonly(database)
+    try:
+        runs = {
+            str(run_id): (str(status), recovery_claim_id)
+            for run_id, status, recovery_claim_id in connection.execute(
+                "SELECT id, status, recovery_claim_id FROM workflow_runs"
+            )
+        }
+        jobs = {
+            str(job_id): str(status)
+            for job_id, status in connection.execute(
+                "SELECT id, status FROM generation_jobs"
+            )
+        }
+        budgets = {
+            (str(run_id), str(kind)): int(used)
+            for run_id, kind, used in connection.execute(
+                "SELECT run_id, artifact_kind, used FROM revision_budgets"
+            )
+        }
+        approvals = {
+            str(approval_id): (str(approval_type), str(artifact_digest))
+            for approval_id, approval_type, artifact_digest in connection.execute(
+                "SELECT id, approval_type, artifact_digest FROM approvals "
+                "WHERE revoked_at IS NULL"
+            )
+        }
+    except sqlite3.Error as exc:
+        raise BackupError(
+            error_code,
+            f"could not read the workflow ledger: {type(exc).__name__}",
+        ) from exc
+    finally:
+        connection.close()
+    return _WorkflowLedger(runs=runs, jobs=jobs, budgets=budgets, approvals=approvals)
+
+
+def _ledger_gaps(current: _WorkflowLedger, backup: _WorkflowLedger) -> list[dict[str, Any]]:
+    gaps: list[dict[str, Any]] = []
+    for run_id, (status, claim_id) in current.runs.items():
+        if status in _ACTIVE_RUN_STATUSES and run_id not in backup.runs:
+            gaps.append({"kind": "active_run", "run_id": run_id, "status": status})
+        if claim_id and backup.runs.get(run_id, (None, None))[1] != claim_id:
+            gaps.append({"kind": "recovery_claim", "run_id": run_id, "claim_id": claim_id})
+    for job_id, status in current.jobs.items():
+        if status not in _TERMINAL_JOB_STATUSES and job_id not in backup.jobs:
+            gaps.append({"kind": "unresolved_job", "job_id": job_id, "status": status})
+    for (run_id, kind), used in current.budgets.items():
+        if used > backup.budgets.get((run_id, kind), 0):
+            gaps.append(
+                {
+                    "kind": "revision_budget",
+                    "run_id": run_id,
+                    "artifact_kind": kind,
+                    "current_used": used,
+                    "backup_used": backup.budgets.get((run_id, kind), 0),
+                }
+            )
+    for approval_id, (approval_type, digest) in current.approvals.items():
+        if approval_id not in backup.approvals:
+            gaps.append(
+                {
+                    "kind": "approval_missing",
+                    "approval_id": approval_id,
+                    "approval_type": approval_type,
+                }
+            )
+        elif backup.approvals[approval_id][1] != digest:
+            gaps.append({"kind": "approval_changed", "approval_id": approval_id})
+    return gaps
+
+
+def _assert_restore_snapshots(database: Path) -> None:
+    connection = _open_readonly(database)
+    try:
+        rows = connection.execute(
+            "SELECT id, checks_json FROM approvals WHERE revoked_at IS NULL"
+        ).fetchall()
+    except sqlite3.Error as exc:
+        raise BackupError(
+            "RESTORE_DATABASE_UNREADABLE",
+            f"could not read confirmation snapshots: {type(exc).__name__}",
+        ) from exc
+    finally:
+        connection.close()
+    for approval_id, checks_json in rows:
+        try:
+            checks = json.loads(checks_json or "{}")
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise BackupError(
+                "RESTORE_SNAPSHOT_INCOMPATIBLE",
+                "an approval checks blob is not valid JSON",
+                details={"approval_id": str(approval_id), "reason": "INVALID_CHECKS_JSON"},
+            ) from exc
+        try:
+            execution_snapshot_from_checks(checks)
+        except SnapshotCompatibilityError as exc:
+            raise BackupError(
+                "RESTORE_SNAPSHOT_INCOMPATIBLE",
+                "an approval execution snapshot is not compatible with this application",
+                details={"approval_id": str(approval_id), "reason": exc.code},
+            ) from exc
 
 
 def _now_ms(value: datetime) -> int:
@@ -520,6 +638,20 @@ def restore_switch(
         stage_data = stage_backup / DATA_DIR_NAME
         stage_db = stage_data / DB_NAME
         _validate_staged_database(stage_db, backup_version)
+        _assert_restore_snapshots(stage_db)
+        current_ledger = _read_workflow_ledger(
+            source_path / DB_NAME, error_code="SOURCE_DATABASE_UNREADABLE"
+        )
+        staged_ledger = _read_workflow_ledger(
+            stage_db, error_code="RESTORE_DATABASE_UNREADABLE"
+        )
+        gaps = _ledger_gaps(current_ledger, staged_ledger)
+        if gaps:
+            raise BackupError(
+                "RESTORE_LEDGER_GAP",
+                "restore would erase active workflow facts that are absent from the backup",
+                details={"count": len(gaps), "gaps": gaps[:20]},
+            )
         current = _read_current_metrics(source_path, current_time)
         staged_usage, staged_slots = _staged_counts(stage_db)
         usage_floors = _build_usage_floors(current, staged_usage, now=current_time)
