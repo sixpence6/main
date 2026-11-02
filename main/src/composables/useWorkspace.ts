@@ -230,6 +230,7 @@ function createWorkspace(): WorkspaceStore {
   const nextCursor = ref<string | null>(null)
   const projectListLoadingMore = ref(false)
   let listController: AbortController | null = null
+  let listLoadingQuery: string | null = null
   let moreController: AbortController | null = null
 
   const currentProject = ref<ProjectView | null>(null)
@@ -541,13 +542,14 @@ function createWorkspace(): WorkspaceStore {
   }
 
   async function loadProjects(): Promise<void> {
-    if (projectListLoading.value) return
     const sessionAtStart = sessionRevision.value
     const queryAtStart = projectQuery.value.trim()
+    if (projectListLoading.value && listLoadingQuery === queryAtStart) return
     listController?.abort()
     moreController?.abort()
     const controller = new AbortController()
     listController = controller
+    listLoadingQuery = queryAtStart
     projectListLoading.value = true
     projectSearchBusy.value = Boolean(queryAtStart)
     projectListLoadingMore.value = false
@@ -573,6 +575,7 @@ function createWorkspace(): WorkspaceStore {
         error instanceof ApiError ? error.message : '项目列表读取失败，请稍后重试。'
     } finally {
       if (listController === controller) {
+        listLoadingQuery = null
         listController = null
         projectListLoading.value = false
         projectSearchBusy.value = false
@@ -646,27 +649,34 @@ function createWorkspace(): WorkspaceStore {
       return false
     }
     if (projectRenameBusy.value) return false
+    const sessionAtStart = sessionRevision.value
+    const queryAtStart = projectQuery.value.trim()
     projectRenameBusy.value = true
     projectRenameError.value = ''
     try {
       const updated = await api.renameProject(id, normalized)
+      // 账号或登录生命周期变化后，旧账号的晚到回执不得再写入当前工作台。
+      if (sessionAtStart !== sessionRevision.value) return false
       if (currentProject.value?.id === id) currentProject.value = updated
-      const index = projectList.value.findIndex((item) => item.id === id)
-      if (index >= 0) {
-        projectList.value[index] = {
-          ...projectList.value[index],
-          title: updated.title,
-          updated_at: updated.updated_at,
+      if (queryAtStart === projectQuery.value.trim()) {
+        const index = projectList.value.findIndex((item) => item.id === id)
+        if (index >= 0) {
+          projectList.value[index] = {
+            ...projectList.value[index],
+            title: updated.title,
+            updated_at: updated.updated_at,
+          }
         }
       }
       announce('项目标题已更新。')
       return true
     } catch (error) {
+      if (sessionAtStart !== sessionRevision.value) return false
       projectRenameError.value =
         error instanceof ApiError ? error.message : '项目标题保存失败，请稍后重试。'
       return false
     } finally {
-      projectRenameBusy.value = false
+      if (sessionAtStart === sessionRevision.value) projectRenameBusy.value = false
     }
   }
 
