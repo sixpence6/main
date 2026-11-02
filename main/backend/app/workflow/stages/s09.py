@@ -531,6 +531,7 @@ def _rule_requirement(
     requirement_text: str,
     forbidden: str,
     size: str,
+    execution_snapshot: dict[str, Any] | None = None,
 ) -> str:
     if rule_id == "hard:forbidden":
         return forbidden
@@ -539,7 +540,7 @@ def _rule_requirement(
     if rule_id == "hard:text_logo":
         return _text_requirement(snapshot)
     if rule_id == "hard:composition":
-        return _composition_requirement(snapshot, requirement_text)
+        return _composition_requirement(execution_snapshot or snapshot, requirement_text)
     if rule_id == "hard:quantity":
         count = _brief_value(snapshot, "count")
         return str(count) if count not in (None, "") else "1"
@@ -554,6 +555,7 @@ def _rule_payload(
     requirement_text: str,
     forbidden: str,
     size: str,
+    execution_snapshot: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     return [
         {
@@ -562,7 +564,12 @@ def _rule_payload(
             "applicability": "applicable" if rule.applicable else "not_applicable",
             "evidence_types": list(rule.evidence_types),
             "requirement": _rule_requirement(
-                rule.rule_id, snapshot, requirement_text, forbidden, size
+                rule.rule_id,
+                snapshot,
+                requirement_text,
+                forbidden,
+                size,
+                execution_snapshot,
             ),
         }
         for rule in rules
@@ -1377,7 +1384,9 @@ async def handle(
     images = [OrganizeImage(data=candidate.data, mime_type=candidate.mime_type)]
     if reference_bytes is not None and reference is not None:
         images.append(OrganizeImage(data=reference_bytes, mime_type=reference.mime_type))
-    rule_payload = _rule_payload(rules, snapshot, requirement_text, forbidden, size)
+    rule_payload = _rule_payload(
+        rules, snapshot, requirement_text, forbidden, size, execution_snapshot
+    )
     try:
         quality = await run_role(
             ctx,

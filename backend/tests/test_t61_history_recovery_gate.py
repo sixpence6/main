@@ -64,6 +64,7 @@ PROTECTED_ROUTES: tuple[tuple[str, str], ...] = (
     ("GET", "/api/projects"),
     ("POST", "/api/projects"),
     ("GET", "/api/projects/{project_id}"),
+    ("PATCH", "/api/projects/{project_id}"),
     ("PATCH", "/api/projects/{project_id}/brief"),
     ("POST", "/api/projects/{project_id}/confirm"),
     ("POST", "/api/projects/{project_id}/generations"),
