@@ -1,0 +1,107 @@
+{
+  "ticket": "#98 / T12 — legacy compatibility and R1/R2 merge gate",
+  "batch": "P3 / T12 — old cards, approvals, snapshots and recovery checkpoints stay read-only",
+  "code": {
+    "baseline_head": "53c0c9f (integration/v3)",
+    "app_code_head": "3b33aaa",
+    "branch": "ticket/98",
+    "rule_version": "v3.rules.2",
+    "prompt_version": "unchanged prompt role contracts; execution snapshot schema 1.1.0 (reads stored 1.0.0)",
+    "rule_catalog_version": "v3.rules.2",
+    "snapshot_schema_version": "1.1.0 (supported: 1.1.0 and 1.0.0)",
+    "contract_version": "1.0.0",
+    "migration_head": "0011_recovery_claims (batch recreate for atomic SQLite DDL)",
+    "files": [
+      "main/backend/app/workflow/stages/s09.py",
+      "main/backend/app/workflow/stages/s12.py",
+      "backend/migrations/versions/0011_recovery_claims.py",
+      "main/backend/migrations/versions/0011_recovery_claims.py",
+      "backend/tests/test_v3_p1_t12_legacy_compat.py",
+      "backend/tests/test_t61_history_recovery_gate.py",
+      "backend/tests/test_t64_r1_gate.py"
+    ],
+    "commit": "3b33aaa"
+  },
+  "environment": {
+    "os": "Windows 10.0.19045",
+    "python": "backend/.venv Python 3.12.12",
+    "database": "temporary SQLite upgraded from 0010 through 0011_recovery_claims",
+    "adapters": "LLMStub and VisualStub for P1 regression; T12 focused tests use no provider adapter and make no network calls"
+  },
+  "scope": {
+    "legacy_read": "An approval without a snapshot keeps legacy semantics. A stored 1.0.0 snapshot is validated as read-only, its digest is not recomputed or rewritten, and its old hard fields remain hard through requirements_from_snapshot.",
+    "unsupported": "Unknown snapshot versions raise SNAPSHOT_VERSION_UNSUPPORTED; a 1.1.0 snapshot missing user_locks raises SNAPSHOT_LOCKS_MISSING. Nothing is guessed or silently upgraded.",
+    "normal_recovery": "Normal S09 and S12 recovery build rule specs and rule payloads from the same frozen execution snapshot, including locked soft fields promoted to hard.",
+    "migration": "0011 uses batch recreate=always so SQLite applies both recovery columns as one table rebuild. Upgrade from 0010 preserves approval checks_json byte-for-byte; an injected batch failure leaves alembic_version at 0010 and no recovery_claim_id column.",
+    "route_inventory": "T14 added PATCH /api/projects/{project_id}; the R1 default-deny inventory now includes it and exact route count is 38."
+  },
+  "commands": [
+    "cd .worktrees/t98/backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m pytest -q tests/test_v3_p1_t12_legacy_compat.py",
+    "cd .worktrees/t98/backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m pytest -q tests/test_v3_p1_t02_adjudication.py tests/test_v3_p1_t03_review_catalogue.py tests/test_v3_p1_t04_production_reviews.py tests/test_v3_p1_t05_image_delivery.py tests/test_v3_p1_t06_gate.py tests/test_v3_p1_t07_text_repair.py tests/test_v3_p1_t08_recovery.py tests/test_v3_p1_t09_text_coverage.py tests/test_v3_p1_t10_execution_snapshot.py tests/test_v3_p1_t11_constraint_layers.py tests/test_v3_p1_t12_legacy_compat.py",
+    "cd .worktrees/t98/backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m pytest -q tests/test_t64_r1_gate.py",
+    "cd .worktrees/t98/backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m pytest -q tests/test_t70_r2_gate.py tests/test_t61_history_recovery_gate.py",
+    "cd .worktrees/t98/backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m pytest -q tests/test_t59_isolation.py tests/test_t60_ownership_closure.py tests/test_t61_history_recovery_gate.py tests/test_t62_background_ownership.py tests/test_t63_legacy_claim.py tests/test_t65_generation_cycle.py tests/test_t66_replay_drift.py tests/test_t67_generation_quota.py tests/test_t68_recovery.py tests/test_t69_local_closure.py tests/test_t71_session_binding.py",
+    "cd .worktrees/t98/backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m ruff check ../main/backend/app/workflow/stages/s09.py ../main/backend/app/workflow/stages/s12.py tests/test_v3_p1_t12_legacy_compat.py ../main/backend/migrations/versions/0011_recovery_claims.py migrations/versions/0011_recovery_claims.py"
+  ],
+  "commands_output": [
+    {
+      "command": "T12 focused compatibility suite",
+      "result": "6 passed in 1.69s"
+    },
+    {
+      "command": "full P1 regression (T02-T12)",
+      "result": "116 passed in 96.31s (0:01:36)"
+    },
+    {
+      "command": "R1 gate after route inventory update",
+      "result": "6 passed in 11.08s"
+    },
+    {
+      "command": "R2 gate plus history/recovery gate",
+      "result": "16 passed in 26.18s"
+    },
+    {
+      "command": "R1/R2 isolation, ownership, quota, slot, recovery and no-resend regression",
+      "result": "58 passed in 106.58s (0:01:46)"
+    },
+    {
+      "command": "ruff check changed source, migrations and tests",
+      "result": "All checks passed!"
+    }
+  ],
+  "candidate_budget": {
+    "focused_t12": "0 candidates — direct validation, rule projection and migration tests; no model or image call",
+    "p1_regression": "P1 suites use counting LLMStub/VisualStub but counts are not aggregated here; no real-provider calls",
+    "reset_scope": "T12 changes no RevisionBudget code and does not reset or refund any candidate; T07/T08 persistence remains authoritative"
+  },
+  "calls": {
+    "focused_t12": {
+      "model_text": 0,
+      "model_vision": 0,
+      "image_generation": 0
+    },
+    "p1_regression": "not centrally aggregated; stub-only, no network",
+    "note": "counts are observations, not real-provider billing evidence"
+  },
+  "acceptance": {
+    "WG3-AC-01": "pass in full P1 regression — S07 all-N/A, empty evidence and missing required review cases remain covered by the existing gate suites; the legacy no-snapshot path keeps its documented semantics.",
+    "WG3-AC-02": "pass — full P1 regression covers mandatory-pass with advisory pass/fail/unknown/N/A; T12 specifically confirms S12 recovery uses the same rule specs and payload as normal S09.",
+    "WG3-AC-03": "pass in full P1 regression — forged rule, illegal source and contradictory evidence cases remain in S03/S04/S09 suites; no advisory bypass was introduced.",
+    "WG3-AC-04": "pass — T11/T10 P1 tests confirm soft style/background unknowns do not create a hard quarantine while hard evidence unknown still blocks; T12 does not weaken the rule catalogue.",
+    "WG3-AC-05": "pass — T11 user_locks tests confirm an explicit lock becomes hard with a traceable basis; changing the lock changes the snapshot digest and the old approval does not match.",
+    "WG3-AC-06": "pass — T10 dedicated visual fields and T12 normal/recovery binding prove the same 1.1.0 snapshot reaches S07/S09; stored 1.0.0 history is read without rewriting its digest.",
+    "WG3-AC-07": "pass in full P1 regression — T07/T08 bounded text repair and recovery ledger suites remain green; T12 resets no budget.",
+    "WG3-AC-08": "pass in full P1 regression — remote-unknown/no-resend, restart and technical-failure coverage from T08 remains green; T12 adds no resend path.",
+    "WG3-AC-09": "pass in full P1 regression — T09 exact multi-sentence coverage and anti-fake-pass suite remains green.",
+    "WG3-AC-12": "pass — T10/T11 history tests and T12 legacy compatibility confirm history reads its own approved snapshot; no image/download path is changed by T12.",
+    "R1_default_deny": "pass — 38 exact operations including PATCH /api/projects/{project_id}; anonymous requests still receive AUTH_REQUIRED.",
+    "R2_resources": "pass — 58 isolation/ownership/quota/slot/recovery/no-resend tests pass on temporary SQLite."
+  },
+  "residual_unknowns": [
+    "The full backend suite was not rerun; T12 evidence is the focused 6, full P1 116, R1/R2 gates 22 and 58 resource regressions.",
+    "No real provider, image service, browser or production database was exercised.",
+    "The migration failure is an injected pre-existing batch temp table; it proves the batch rebuild and alembic version stay atomic but is not a power-loss test.",
+    "T12 does not claim R3 or V3 release acceptance; P4/T13 remains the next frontier."
+  ],
+  "p3_entry": "T12 closes P3 compatibility and merge-gate evidence; T13/T14 P4 work may proceed without changing legacy approval or recovery semantics."
+}
