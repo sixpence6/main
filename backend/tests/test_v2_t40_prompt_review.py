@@ -56,11 +56,6 @@ def base_brief(reference_id: str | None = None) -> dict:
 def expected_rule_ids(brief: dict) -> set[str]:
     ids = {
         "hard:subject",
-        "hard:purpose",
-        "hard:creative",
-        "hard:style",
-        "hard:composition",
-        "hard:lighting",
         "hard:size",
         "hard:count",
     }
@@ -486,7 +481,7 @@ async def test_compile_prompt_keeps_original_reference_id_and_explicit_usage(ful
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("omit", ["hard:subject", "hard:purpose"])
+@pytest.mark.parametrize("omit", ["hard:subject", "hard:must_include:0"])
 async def test_omitted_hard_requirement_blocks_before_any_submission(full_settings, omit: str):
     brief = base_brief()
     async with environment(

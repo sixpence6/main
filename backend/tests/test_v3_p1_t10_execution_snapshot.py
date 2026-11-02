@@ -15,11 +15,17 @@ from app.db import read_session, write_transaction
 from app.models import Project
 from app.workflow import state
 from app.workflow.contracts import digest_payload
+from app.workflow.snapshot import requirements_from_snapshot
 from app.workflow.stages import s05
 from app.workflow.tables import Approval, Artifact, GenerationJob
 from tests.support.adapters import LLMStub, VisualStub
 from tests.test_t65_generation_cycle import _drain, _environment, _responder
-from tests.test_v2_t40_prompt_review import base_brief, png_bytes
+from tests.test_v2_t40_prompt_review import (
+    base_brief,
+    candidate_data,
+    engineer_response,
+    png_bytes,
+)
 from tests.test_v3_p1_t04_production_reviews import creative_payload, visual_payload
 
 _DEDICATED = {
@@ -61,6 +67,34 @@ def _execution_brief() -> dict[str, Any]:
     brief.update(_DEDICATED)
     brief["field_sources"] = dict(_SOURCES)
     return brief
+
+
+def _execution_responder(request: Any) -> dict[str, Any]:
+    role = request.payload["task"]["role"]
+    if role == "generation_engineer":
+        brief = request.payload["approved_inputs"]["final_brief"]
+        snapshot = request.payload["approved_inputs"]["execution_snapshot"]
+        data = candidate_data(brief)
+        allowed = {item["rule_id"] for item in requirements_from_snapshot(snapshot)}
+        data["requirement_coverage"] = [
+            item for item in data["requirement_coverage"] if item["rule_id"] in allowed
+        ]
+        return engineer_response(data)
+    return _responder(request)
+
+
+async def _wait_for_role(app: Any, llm: LLMStub, role: str) -> list[Any]:
+    for _ in range(500):
+        await _drain(app)
+        calls = [
+            call
+            for call in llm.role_calls_received
+            if call.payload["task"]["role"] == role
+        ]
+        if calls:
+            return calls
+        await asyncio.sleep(0.01)
+    raise AssertionError(f"{role} was not called")
 
 
 async def _setup_execution_snapshot(app: Any, client: AsyncClient) -> dict[str, Any]:
@@ -130,19 +164,6 @@ def _fields(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {item["path"]: item for item in snapshot["fields"]}
 
 
-async def _wait_for_role(llm: LLMStub, role: str) -> list[Any]:
-    for _ in range(500):
-        calls = [
-            call
-            for call in llm.role_calls_received
-            if call.payload["task"]["role"] == role
-        ]
-        if calls:
-            return calls
-        await asyncio.sleep(0.01)
-    raise AssertionError(f"role {role} was not called")
-
-
 def test_s05_composer_keeps_dedicated_visual_and_creative_fields() -> None:
     ctx = types.SimpleNamespace(
         project=types.SimpleNamespace(image_size="1024x1024"),
@@ -175,7 +196,7 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
     # Hold S07 so the idempotent replay is compared before generation advances.
     llm.gate = asyncio.Event()
     request_id = str(uuid.uuid4())
-    async with _environment(full_settings, llm, visual, _responder) as (app, client):
+    async with _environment(full_settings, llm, visual, _execution_responder) as (app, client):
         setup = await _setup_execution_snapshot(app, client)
         confirmed = await client.post(
             f"/api/projects/{setup['project_id']}/workflow/actions/confirm_requirements",
@@ -195,9 +216,9 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         snapshot = _confirmation(view)
         digest = snapshot["snapshot_digest"]
         assert len(digest) == 64
-        assert snapshot["snapshot_schema_version"] == "1.0.0"
+        assert snapshot["snapshot_schema_version"] == "1.1.0"
         assert snapshot["contract_version"] == "1.0.0"
-        assert snapshot["rules_version"] == "v3.rules.1"
+        assert snapshot["rules_version"] == "v3.rules.2"
         assert snapshot["snapshot_encoding"] == "canonical-json-sha256-v1"
         assert snapshot["artifact_digest"] == setup["final_digest"]
 
@@ -219,6 +240,7 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         assert fields["assumptions"]["executable"] is False
         assert fields["assumptions"]["reason"]
 
+
         replay = await client.post(
             f"/api/projects/{setup['project_id']}/workflow/actions/confirm_requirements",
             json={
@@ -232,18 +254,17 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
             },
         )
         assert replay.status_code == 200, replay.text
-        replay_snapshot = _confirmation(replay.json())
-        assert replay_snapshot["snapshot_digest"] == digest
+        assert _confirmation(replay.json())["snapshot_digest"] == digest
 
         llm.gate.set()
         await _drain(app)
-        engineer = (await _wait_for_role(llm, "generation_engineer"))[0]
+        engineer = (await _wait_for_role(app, llm, "generation_engineer"))[0]
         approved_inputs = engineer.payload["approved_inputs"]
         assert approved_inputs["final_brief"]["background"] == "浅灰无缝背景"
         assert approved_inputs["execution_snapshot"]["snapshot_digest"] == digest
         assert approved_inputs["execution_snapshot"]["fields"] == snapshot["fields"]
 
-        quality = (await _wait_for_role(llm, "quality_compliance"))[0]
+        quality = (await _wait_for_role(app, llm, "quality_compliance"))[0]
         quality_input = quality.payload["input_data"]
         quality_snapshot = quality_input["approved_inputs"]["execution_snapshot"]
         assert quality_snapshot["snapshot_digest"] == digest
@@ -264,13 +285,8 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         composition_rule = next(
             rule for rule in quality_input["rules"] if rule["rule_id"] == "hard:composition"
         )
-        for value in (
-            "浅灰无缝背景",
-            "白色、浅灰",
-            "主标题置于画面下方居中",
-            "无参考图，按确认需求构图",
-        ):
-            assert value in composition_rule["requirement"]
+        assert composition_rule["applicability"] == "not_applicable"
+        assert composition_rule["requirement"]
 
         preparing = (await client.get(
             f"/api/projects/{setup['project_id']}/workflow"
@@ -293,7 +309,7 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         )).json()
         version = workflow["versions"][0]
         assert version["execution_snapshot_digest"] == digest
-        assert version["snapshot_schema_version"] == "1.0.0"
+        assert version["snapshot_schema_version"] == "1.1.0"
         assert version["contract_version"] == "1.0.0"
         assert version["brief"]["background"] == "浅灰无缝背景"
         assert version["execution_snapshot"]["snapshot_digest"] == digest
@@ -346,8 +362,6 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         assert stored["snapshot_digest"] != stored["artifact_digest"]
 
         # A later approved revision must not rewrite what this job consumed.
-        # Regression guard for history selecting latest-per-run instead of the
-        # exact brief digest and prompt artifact bound to the generation job.
         async with write_transaction(app.state.session_factory) as session:
             job = await session.get(GenerationJob, version["generation_job_id"])
             assert job is not None
@@ -386,12 +400,13 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
             )
             await session.flush()
 
-        history_after_revision = (await client.get(
-            f"/api/projects/{setup['project_id']}/workflow"
-        )).json()["versions"][0]
+        history_after_revision = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()["versions"][0]
         assert history_after_revision["brief"]["background"] == "浅灰无缝背景"
-        assert history_after_revision["prompt"]["positive_prompt"] == (
-            old_prompt_payload["positive_prompt"]
+        assert (
+            history_after_revision["prompt"]["positive_prompt"]
+            == old_prompt_payload["positive_prompt"]
         )
         assert history_after_revision["execution_snapshot_digest"] == digest
 

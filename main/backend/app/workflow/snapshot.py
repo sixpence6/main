@@ -8,10 +8,10 @@ from app.workflow.contracts import digest_payload
 # Frozen compatibility surface for T10. Changing any of these values requires a
 # new snapshot/contract version and an explicit compatibility test; existing
 # confirmations must never be reinterpreted under a newer shape.
-EXECUTION_SNAPSHOT_SCHEMA_VERSION = "1.0.0"
+EXECUTION_SNAPSHOT_SCHEMA_VERSION = "1.1.0"
 EXECUTION_CONTRACT_VERSION = "1.0.0"
 EXECUTION_SNAPSHOT_ENCODING = "canonical-json-sha256-v1"
-SUPPORTED_SNAPSHOT_SCHEMA_VERSIONS = frozenset({EXECUTION_SNAPSHOT_SCHEMA_VERSION})
+SUPPORTED_SNAPSHOT_SCHEMA_VERSIONS = frozenset({"1.0.0", EXECUTION_SNAPSHOT_SCHEMA_VERSION})
 SUPPORTED_CONTRACT_VERSIONS = frozenset({EXECUTION_CONTRACT_VERSION})
 
 # These keys belong to the surrounding legacy confirmation envelope. They are
@@ -19,7 +19,7 @@ SUPPORTED_CONTRACT_VERSIONS = frozenset({EXECUTION_CONTRACT_VERSION})
 # whether the snapshot is built standalone or embedded in Approval.checks.
 _LEGACY_ENVELOPE_KEYS = frozenset({"schema_version", "confirmed_by", "confirmed_at"})
 
-_RULES_VERSION = "v3.rules.1"
+_RULES_VERSION = "v3.rules.2"
 
 _FIELD_ORDER = (
     "product_description",
@@ -48,23 +48,21 @@ _FIELD_ORDER = (
     "copy_lines",
 )
 
-_LEGACY_HARD_FIELDS = frozenset(
+# WG3-AC-04: only confirmed mandate categories are hard by default. General
+# style, mood, background, palette, lighting, composition and model-created
+# copy remain soft unless the user explicitly locks that exact field.
+_HARD_FIELDS = frozenset(
     {
         "product_description",
-        "purpose",
         "facts",
-        "creative_direction",
-        "style_keywords",
-        "composition",
-        "lighting",
         "texts",
         "must_include",
         "must_preserve",
         "forbidden",
         "size",
+        "count",
         "reference_asset_id",
         "reference_usage",
-        "count",
     }
 )
 _NON_EXECUTABLE_REASONS = {
@@ -129,10 +127,39 @@ def _user_lock(brief: dict[str, Any], path: str) -> str | None:
 def _strength(brief: dict[str, Any], path: str) -> str:
     if _user_lock(brief, path):
         return "hard"
-    # The pre-T10 fields keep their historical blocking semantics. Only the
-    # newly introduced dedicated visual fields default to soft guidance, so an
-    # old confirmed card is never silently weakened or strengthened.
-    return "hard" if path in _LEGACY_HARD_FIELDS else "soft"
+    return "hard" if path in _HARD_FIELDS else "soft"
+
+
+def normalize_user_locks(value: object) -> dict[str, str]:
+    """Validate the explicit, per-field non-negotiable markers.
+
+    A lock is a user decision, never a model decision. Unknown paths and empty
+    bases are rejected so a client cannot silently turn an arbitrary blob into
+    hard constraints.
+    """
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("user_locks must be an object")
+    result: dict[str, str] = {}
+    for path, basis in value.items():
+        if not isinstance(path, str) or path not in _FIELD_ORDER:
+            raise ValueError("unknown user_locks path")
+        if not isinstance(basis, str) or not basis.strip() or len(basis.strip()) > 200:
+            raise ValueError("invalid user_locks basis")
+        result[path] = basis.strip()
+    return result
+
+
+def default_field_strengths(brief: dict[str, Any]) -> dict[str, str]:
+    """Project the default must/preference split for the confirmation card."""
+    result: dict[str, str] = {}
+    for path in _FIELD_ORDER:
+        if path in _NON_EXECUTABLE_REASONS:
+            result[path] = "not_applicable"
+        else:
+            result[path] = _strength(brief, path)
+    return result
 
 
 def _normal_text(value: Any) -> str:
@@ -453,8 +480,14 @@ def build_execution_snapshot(
     referenced_material_digest: str,
     brief: dict[str, Any],
     hard_requirements: list[dict[str, Any]] | None = None,
+    user_locks: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    fields, constraints = _build_fields(brief)
+    locks = normalize_user_locks(
+        user_locks if user_locks is not None else brief.get("user_locks")
+    )
+    working = copy.deepcopy(brief)
+    working["user_locks"] = locks
+    fields, constraints = _build_fields(working)
     body: dict[str, Any] = {
         "snapshot_schema_version": EXECUTION_SNAPSHOT_SCHEMA_VERSION,
         "contract_version": EXECUTION_CONTRACT_VERSION,
@@ -469,6 +502,7 @@ def build_execution_snapshot(
         "reference_usage": reference_usage,
         "referenced_material_digest": referenced_material_digest,
         "brief": copy.deepcopy(brief),
+        "user_locks": locks,
         "fields": fields,
         "constraints": constraints,
     }
@@ -513,6 +547,17 @@ def validate_execution_snapshot(snapshot: dict[str, Any]) -> None:
         raise SnapshotCompatibilityError(
             "SNAPSHOT_ENCODING_UNSUPPORTED", "确认快照编码不受支持。"
         )
+    if schema_version == EXECUTION_SNAPSHOT_SCHEMA_VERSION:
+        if "user_locks" not in snapshot:
+            raise SnapshotCompatibilityError(
+                "SNAPSHOT_LOCKS_MISSING", "确认快照缺少用户锁定信息。"
+            )
+        try:
+            normalize_user_locks(snapshot.get("user_locks"))
+        except ValueError as exc:
+            raise SnapshotCompatibilityError(
+                "SNAPSHOT_LOCKS_INVALID", "确认快照的用户锁定信息无效。"
+            ) from exc
     stored = snapshot.get("snapshot_digest")
     if not isinstance(stored, str) or len(stored) != 64:
         raise SnapshotCompatibilityError("SNAPSHOT_DIGEST_MISSING", "确认快照摘要缺失。")

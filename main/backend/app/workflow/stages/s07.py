@@ -236,7 +236,18 @@ async def _require_confirmed(
     return final_artifact, brief, execution_snapshot
 
 
-def _hard_requirements(brief: dict[str, Any]) -> list[dict[str, Any]]:
+def _hard_requirements(
+    brief: dict[str, Any], *, legacy: bool = False
+) -> list[dict[str, Any]]:
+    """Project only confirmed hard constraints into prompt coverage.
+
+    New cards use the WG3-AC-04 split: product identity/facts, exact text,
+    must-include/preserve/forbid, output size/count and references are hard;
+    general style, mood, background, palette, lighting and model-created copy
+    are soft. A field becomes hard only when the user explicitly locked that
+    exact field. legacy=True preserves the pre-snapshot interpretation for old
+    approvals that have no execution snapshot to read.
+    """
     requirements: list[dict[str, Any]] = []
 
     def add(rule_id: str, requirement: str, binding: str) -> None:
@@ -248,32 +259,75 @@ def _hard_requirements(brief: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
 
+    locks = brief.get("user_locks")
+    if not isinstance(locks, dict):
+        locks = {}
+
+    def locked(path: str) -> bool:
+        basis = locks.get(path)
+        return isinstance(basis, str) and bool(basis.strip())
+
     if brief.get("product_description"):
         add("hard:subject", brief["product_description"], "positive_prompt")
-    if brief.get("purpose"):
+    if legacy and brief.get("purpose"):
         add("hard:purpose", brief["purpose"], "positive_prompt")
-    if brief.get("creative_direction"):
+    if legacy and brief.get("creative_direction"):
         add("hard:creative", brief["creative_direction"], "positive_prompt")
-    if brief.get("style_keywords"):
-        add("hard:style", "、".join(brief["style_keywords"]), "positive_prompt")
-    if brief.get("composition"):
+    style = brief.get("style_keywords") or []
+    if legacy and style:
+        add("hard:style", "\u3001".join(str(item) for item in style), "positive_prompt")
+    if legacy and brief.get("composition"):
         add("hard:composition", brief["composition"], "positive_prompt")
-    if brief.get("lighting"):
+    if legacy and brief.get("lighting"):
         add("hard:lighting", brief["lighting"], "positive_prompt")
     for index, text in enumerate(brief.get("texts") or []):
         add(f"hard:text:{index}", text, "positive_prompt")
     for index, fact in enumerate(brief.get("facts") or []):
-        add(f"hard:fact:{index}", fact["text"], "positive_prompt")
+        value = fact.get("text") if isinstance(fact, dict) else fact
+        if value:
+            add(f"hard:fact:{index}", str(value), "positive_prompt")
     for index, value in enumerate(brief.get("must_include") or []):
-        add(f"hard:must_include:{index}", value, "positive_prompt")
+        add(f"hard:must_include:{index}", str(value), "positive_prompt")
     for index, value in enumerate(brief.get("must_preserve") or []):
-        add(f"hard:must_preserve:{index}", value, "positive_prompt")
+        add(f"hard:must_preserve:{index}", str(value), "positive_prompt")
     for index, value in enumerate(brief.get("forbidden") or []):
-        add(f"hard:forbidden:{index}", value, "negative_prompt")
+        add(f"hard:forbidden:{index}", str(value), "negative_prompt")
     add("hard:size", brief["size"], "size")
     add("hard:count", "1", "count")
     if brief.get("reference_asset_id"):
         add("hard:reference_asset_id", brief["reference_asset_id"], "reference_asset_id")
+
+    # Explicit user locks are the only way a soft field becomes a hard prompt
+    # requirement. Without a lock, model suggestions remain advisory and do
+    # not reject an otherwise compliant image.
+    soft_fields = (
+        ("purpose", "hard:purpose", "positive_prompt"),
+        ("creative_direction", "hard:creative", "positive_prompt"),
+        ("composition", "hard:composition", "positive_prompt"),
+        ("lighting", "hard:lighting", "positive_prompt"),
+        ("background", "hard:background", "positive_prompt"),
+        ("text_layout", "hard:text_layout", "positive_prompt"),
+        ("reference_treatment", "hard:reference_treatment", "positive_prompt"),
+    )
+    for path, rule_id, binding in soft_fields:
+        value = brief.get(path)
+        if locked(path) and isinstance(value, str) and value:
+            add(rule_id, value, binding)
+    if locked("style_keywords") and style:
+        add("hard:style", "\u3001".join(str(item) for item in style), "positive_prompt")
+    palette = brief.get("palette") or []
+    if locked("palette") and palette:
+        add("hard:palette", "\u3001".join(str(item) for item in palette), "positive_prompt")
+    preservation = brief.get("preservation_rules") or []
+    if locked("preservation_rules") and preservation:
+        add(
+            "hard:preservation_rules",
+            "\u3001".join(str(item) for item in preservation),
+            "positive_prompt",
+        )
+    copy_lines = brief.get("copy_lines") or []
+    if locked("copy_lines") and copy_lines:
+        add("hard:copy_lines", "\u3001".join(str(item) for item in copy_lines), "positive_prompt")
     return requirements
 
 
@@ -435,6 +489,29 @@ def _has_claimed_coverage_value_mismatch(
     return False
 
 
+_SOFT_COVERAGE_ALIASES = {
+    "hard:purpose": "purpose",
+    "hard:creative": "creative_direction",
+    "hard:style": "style_keywords",
+    "hard:composition": "composition",
+    "hard:lighting": "lighting",
+    "hard:background": "background",
+    "hard:palette": "palette",
+    "hard:text_layout": "text_layout",
+    "hard:reference_treatment": "reference_treatment",
+    "hard:preservation_rules": "preservation_rules",
+    "hard:copy_lines": "copy_lines",
+}
+
+
+def _is_soft_extra_coverage(rule_id: str, brief: dict[str, Any]) -> bool:
+    path = _SOFT_COVERAGE_ALIASES.get(rule_id)
+    if path is None:
+        return False
+    value = brief.get(path)
+    return value not in (None, "", [])
+
+
 def _candidate_defects(
     payload: dict[str, Any],
     requirements: list[dict[str, Any]],
@@ -459,6 +536,8 @@ def _candidate_defects(
         seen.add(str(rule_id))
         requirement = expected.get(rule_id)
         if requirement is None:
+            if _is_soft_extra_coverage(str(rule_id), brief):
+                continue
             defects.append(
                 CandidateDefect(
                     CandidateDefectCode.UNKNOWN_COVERAGE,
@@ -602,7 +681,8 @@ def _validated_payload(
             CandidateDefectCode.CONTRACT_INVALID, _INVALID_MESSAGE, content_intact=False
         )
         return {}, [defect]
-    return payload, _candidate_defects(payload, requirements, brief, configured_size)
+    defects = _candidate_defects(payload, requirements, brief, configured_size)
+    return payload, defects
 
 
 def _validate_candidate(

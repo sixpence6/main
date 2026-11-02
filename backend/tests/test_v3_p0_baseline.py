@@ -66,10 +66,6 @@ def test_f2_s07_advisory_failure_does_not_block() -> None:
     s07._validate_review(output, target_id="art-1", allowed_evidence=("art-1", "art-2"))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WG3-AC-05/06: general creative/style/lighting stay soft until P3 (#96)",
-)
 def test_f4_creative_style_lighting_are_not_hard_requirements() -> None:
     brief = {
         "product_description": "白色陶瓷马克杯",
