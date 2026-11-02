@@ -31,6 +31,7 @@ const {
   messageLocalCopy,
   showMessageLocalCopy,
   loadLatestAfterMessageConflict,
+  chooseReferenceFiles,
   organizing,
   sendDisabledReason,
   send,
@@ -97,10 +98,27 @@ function onSubmit(): void {
 function onKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Enter') return
   if (event.isComposing || composing.value || event.keyCode === 229) return
-  if (event.ctrlKey || event.metaKey) {
-    event.preventDefault()
-    void send()
-  }
+  if (event.shiftKey) return
+  event.preventDefault()
+  void send()
+}
+
+function filesFrom(list: FileList | null | undefined): File[] {
+  return list ? Array.from(list).filter((file) => file.type.startsWith('image/')) : []
+}
+
+function onComposerPaste(event: ClipboardEvent): void {
+  const files = filesFrom(event.clipboardData?.files)
+  if (!files.length) return
+  event.preventDefault()
+  void chooseReferenceFiles(files)
+}
+
+function onComposerDrop(event: DragEvent): void {
+  const files = filesFrom(event.dataTransfer?.files)
+  if (!files.length) return
+  event.preventDefault()
+  void chooseReferenceFiles(files)
 }
 
 function onCompositionStart(): void {
@@ -132,7 +150,7 @@ watch(
 <template>
   <section class="conversation-panel" aria-labelledby="conversation-title">
     <template v-if="hasProjectParam">
-      <div v-if="projectLoading" class="project-loading" role="status">正在读取项目详情…</div>
+      <div v-if="projectLoading" class="project-loading" role="status">正在读取项目</div>
 
       <div v-else-if="projectError" class="project-error" role="alert">
         <strong>项目读取失败</strong>
@@ -234,7 +252,7 @@ watch(
 
     <ReferenceUploader v-if="showComposer" />
 
-    <form v-if="showComposer" class="composer" @submit.prevent="onSubmit">
+    <form v-if="showComposer" class="composer" @submit.prevent="onSubmit" @dragover.prevent @drop.prevent="onComposerDrop">
       <div v-if="messageConflict" class="composer-conflict" role="alert">
         <p>
           <strong>需求已在别处更新，这条消息未发送。</strong>
@@ -267,11 +285,12 @@ watch(
         placeholder="例如：为米色亚麻托特包生成一张简洁主图，浅暖色背景，突出材质与轮廓……"
         :disabled="sendBusy || organizing || Boolean(activeGeneration)"
         @keydown="onKeydown"
+        @paste="onComposerPaste"
         @compositionstart="onCompositionStart"
         @compositionend="onCompositionEnd"
       />
       <div class="composer-actions">
-        <p class="composer-hint">Enter 换行；Ctrl/⌘ + Enter 发送。</p>
+        <p class="composer-hint">Enter 发送；Shift + Enter 换行；Ctrl/⌘ + Enter 也可发送。</p>
         <div class="composer-buttons">
           <button type="submit" class="primary-button" :disabled="Boolean(sendDisabledReason)">
             发送

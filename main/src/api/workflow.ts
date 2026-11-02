@@ -42,6 +42,9 @@ export interface WorkflowApproval {
   revocation_reason: string | null
 }
 
+export type WorkflowActionEffect = 'read_only' | 'write' | 'model_call'
+export type WorkflowRetryMode = 'none' | 'manual_only'
+
 export interface WorkflowAction {
   id: string
   label: string
@@ -49,6 +52,11 @@ export interface WorkflowAction {
   requires_text: boolean
   text_label: string | null
   requires_confirmation: boolean
+  effect?: WorkflowActionEffect
+  read_only?: boolean
+  requires_model_call?: boolean
+  retry_mode?: WorkflowRetryMode
+  automatic_retry?: boolean
 }
 
 export interface WorkflowLegacyItem {
@@ -241,6 +249,7 @@ export interface WorkflowView {
   versions?: WorkflowVersion[]
   usage?: WorkflowUsage | null
   intent?: WorkflowIntent | null
+  task_state?: WorkflowTaskState | null
   updated_at: string | null
 }
 

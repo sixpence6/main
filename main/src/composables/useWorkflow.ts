@@ -1,4 +1,4 @@
-import { onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { inject, onBeforeUnmount, ref, watch, type ComputedRef, type InjectionKey, type Ref } from 'vue'
 import { ApiError } from '@/api/client'
 import { sessionRevision } from '@/auth/session'
 import {
@@ -11,6 +11,8 @@ import {
 export type WorkflowProjectId = Ref<string | null | undefined> | ComputedRef<string | null | undefined>
 
 const POLL_INTERVAL_MS = 2500
+export type WorkflowController = ReturnType<typeof useWorkflow>
+export const WORKFLOW_KEY: InjectionKey<WorkflowController> = Symbol('workflow')
 
 function canObserveBackground(next: WorkflowView | null): boolean {
   if (!next || !next.run_id || next.status !== 'active') return false

@@ -127,7 +127,8 @@ describe('T03 首次描述创建项目', () => {
     expect(create?.body).toEqual({})
     const message = harness.fetch.last('POST', /\/messages$/)
     expect(message?.body).toEqual({ content, expected_revision: 0 })
-    expect(window.location.search).toBe('?project=' + PROJECT_A)
+    expect(harness.router.currentRoute.value.name).toBe('project-chat')
+    expect(harness.router.currentRoute.value.params.projectId).toBe(PROJECT_A)
     expect(screen.getByRole('heading', { name: '米色亚麻托特包主图' })).toBeVisible()
     expect(screen.getByText('待确认')).toBeVisible()
     expect(screen.getByText(content)).toBeVisible()
@@ -234,13 +235,13 @@ describe('T03 澄清与需求卡', () => {
     expect(screen.getByText('待确认')).toBeVisible()
   })
 
-  it('Enter 只换行，Ctrl+Enter 发送，中文组合输入不误发，纯空白不可发送', async () => {
+  it('Enter 发送，Shift+Enter 换行，中文组合输入不误发，纯空白不可发送', async () => {
     harness = await mountWorkspace({ config: configuredConfig(), viewportWidth: 1440 })
     harness.fetch.json('POST', '/api/projects', draftProject(), 201)
     harness.fetch.route('POST', /\/messages$/, () => ({ body: messageResponse(reviewProject(), '第一行\n第二行') }))
 
     const textarea = screen.getByRole('textbox', { name: '描述商品与图片需求' })
-    await harness.user.type(textarea, '第一行{enter}第二行')
+    await harness.user.type(textarea, '第一行{shift>}{enter}{/shift}第二行')
     expect((textarea as HTMLTextAreaElement).value).toBe('第一行\n第二行')
     expect(harness.fetch.writes).toHaveLength(0)
 
@@ -402,7 +403,8 @@ describe('T03 失败恢复与修订值', () => {
     expect(screen.getByRole('textbox', { name: '描述商品与图片需求' })).toHaveValue('冲突时不能丢的描述')
     expect(harness.fetch.count('POST', '/api/projects')).toBe(1)
     expect(harness.fetch.count('POST', /\/messages$/)).toBe(1)
-    expect(window.location.search).toBe('?project=' + PROJECT_A)
+    expect(harness.router.currentRoute.value.name).toBe('project-chat')
+    expect(harness.router.currentRoute.value.params.projectId).toBe(PROJECT_A)
   })
 
   it('第二次发送使用响应中的新修订号，不再使用本地推算', async () => {

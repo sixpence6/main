@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import { assetUrl } from '@/api/client'
 import type {
   WorkflowAction,
@@ -8,7 +8,7 @@ import type {
   WorkflowVersion,
 } from '@/api/workflow'
 import { currentSessionId } from '@/auth/session'
-import { useWorkflow } from '@/composables/useWorkflow'
+import { useWorkflow, WORKFLOW_KEY, type WorkflowController } from '@/composables/useWorkflow'
 import { useWorkspace } from '@/composables/useWorkspace'
 import { LEGACY_UNREVIEWED_NOTICE } from '@/utils/format'
 import {
@@ -21,7 +21,9 @@ import {
 
 const { currentProject } = useWorkspace()
 const projectId = computed(() => currentProject.value?.id ?? null)
-const { view, loading, error, errorCode, actionBusy, refresh, runAction } = useWorkflow(projectId)
+const injected = inject<WorkflowController | null>(WORKFLOW_KEY, null)
+const controller = injected ?? useWorkflow(projectId)
+const { view, loading, error, errorCode, actionBusy, refresh, runAction } = controller
 
 const actionText = ref<Record<string, string>>({})
 const actionConfirmed = ref<Record<string, boolean>>({})
@@ -685,10 +687,22 @@ async function submit(action: WorkflowAction): Promise<void> {
 // analysis immediately. A missing or failing adapter leaves the original image
 // and the fixed stage status visible; there is no text-only fallback and no
 // automatic retry loop.
+let referenceProjectId: string | null = null
+let referenceBaselineId: string | null = null
+
 watch(
-  () => currentProject.value?.reference_asset?.id ?? null,
-  async (id, previous) => {
-    if (!id || id === previous || !view.value) return
+  () => ({
+    projectId: currentProject.value?.id ?? null,
+    referenceId: currentProject.value?.reference_asset?.id ?? null,
+  }),
+  async ({ projectId, referenceId }) => {
+    if (projectId !== referenceProjectId) {
+      referenceProjectId = projectId
+      referenceBaselineId = referenceId
+      return
+    }
+    if (!referenceId || referenceId === referenceBaselineId || !view.value) return
+    referenceBaselineId = referenceId
     await refresh()
     if (view.value?.status !== 'none') return
     const action = view.value?.available_actions.find((item) => item.id === 'analyze_reference')

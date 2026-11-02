@@ -89,7 +89,7 @@ function onDragLeave(): void {
       <h3 id="reference-uploader-title">参考图</h3>
       <span class="reference-capability">{{ capabilityText }}</span>
     </div>
-    <p class="reference-help">{{ limitText }} 不接受粘贴上传。</p>
+    <p class="reference-help">{{ limitText }} 可点击选择、粘贴到输入框或拖放到输入区。</p>
 
     <div
       class="reference-dropzone"
