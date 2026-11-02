@@ -1,0 +1,77 @@
+{
+  "ticket": "#87",
+  "code": {
+    "integration_head": "072c446",
+    "previous_head": "b0ae81c",
+    "branch": "ticket/87 (plan) / integration/v3 (baseline)",
+    "rule_version": null,
+    "prompt_version": "2.0.0"
+  },
+  "environment": {
+    "type": "isolated-temp-sqlite",
+    "backend_python": "backend/.venv/Scripts/python.exe",
+    "data_root": "temp",
+    "network": "stubbed"
+  },
+  "inputs": [
+    "baseline-condition-record",
+    "historical-findings-triage",
+    "review-consumer-inventory",
+    "gate-evidence-reuse-verdict"
+  ],
+  "commands": [
+    "git show --stat --oneline 072c446",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests/test_v3_p0_baseline.py -q",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests/test_t03_intent_review.py::test_failed_s01_review_can_be_continued_from_completed_checkpoint \"tests/test_t11_retrieve.py::test_failed_download_can_retrieve_same_version_and_downloads_real_file\" \"tests/test_t11_retrieve.py::test_retrieval_stays_failed_while_waiting_and_blocks_other_write\" -q"
+  ],
+  "candidate_budget": {
+    "artifact": "prompt_plan",
+    "limit": 3,
+    "used": 0
+  },
+  "calls": {
+    "model_text": 0,
+    "model_vision": 0,
+    "image_generation": 0
+  },
+  "acceptance": {
+    "WG3-AC-01": "still-reproducing (F1 probe strict-xfail on baseline; owner #88)",
+    "WG3-AC-02": "still-reproducing (F2 probe strict-xfail on baseline; owner #88, #89/#90/#91 per stage)",
+    "WG3-AC-03": "not-covered (typed protocol boundary introduced by #88)",
+    "WG3-AC-05": "still-reproducing (F4 probe strict-xfail; owner #96)",
+    "WG3-AC-06": "unknown (F5 needs #97 field mapping)",
+    "WG3-AC-07": "still-reproducing (F3 substring routing; owner #93)",
+    "WG3-AC-08": "still-reproducing (same routing; owner #93)",
+    "WG3-AC-09": "changed-needs-verification (code fixed in baseline, runtime unverified; owner #95)",
+    "WG3-AC-10": "has-current-evidence (baseline red: allowed_actions leaks submit_requirement; owner #93)",
+    "WG3-AC-11": "not-covered (owner #98/#101)",
+    "WG3-AC-12": "unknown (owner #91)"
+  },
+  "probes": {
+    "file": "backend/tests/test_v3_p0_baseline.py",
+    "results": "3 passed, 3 xfailed (strict)"
+  },
+  "known_red_baseline": [
+    "tests/test_t03_intent_review.py::test_failed_s01_review_can_be_continued_from_completed_checkpoint",
+    "tests/test_t11_retrieve.py::test_failed_download_can_retrieve_same_version_and_downloads_real_file",
+    "tests/test_t11_retrieve.py::test_retrieval_stays_failed_while_waiting_and_blocks_other_write"
+  ],
+  "slots": {
+    "rolling_24h_accepted": 0,
+    "personal_active": 0,
+    "instance_concurrency": 0
+  },
+  "results": {
+    "ui": "n/a",
+    "resources": [
+      "no new byte outlets exercised at P0"
+    ]
+  },
+  "residual_unknowns": [
+    "H1 runtime-side verification pending",
+    "F5 code-level evidence pending (#97)",
+    "FE3-AC-01..15 all unknown",
+    "root cause of 3 baseline red tests not yet located (owners #91/#93)",
+    "no real-data or real-provider conclusions at P0"
+  ]
+}
