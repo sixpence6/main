@@ -290,11 +290,6 @@ const hasRun = computed(() => Boolean(view.value?.run_id))
 const usage = computed(() => view.value?.usage ?? null)
 const generationIntent = computed(() => view.value?.intent ?? null)
 
-const feedbackAction = computed<WorkflowAction | null>(() => {
-  if (!currentVersion.value) return null
-  return view.value?.available_actions.find((action) => action.id === 'request_new_version') ?? null
-})
-
 const visibleActions = computed(() => {
   const actions = view.value?.available_actions ?? []
   return actions
@@ -312,17 +307,6 @@ const visibleActions = computed(() => {
 const primaryActions = computed(() =>
   visibleActions.value.filter((action) => action.id !== 'request_new_version'),
 )
-
-const feedbackContext = computed(() => {
-  const version = currentVersion.value
-  if (!version) return ''
-  let context = '当前交付为第 ' + version.requirement_revision + ' 版（' + version.filename + '），尺寸 ' + versionSize(version) + '。反馈会重新确认需求并生成一个新版本，不承诺局部像素不变或只修改指定区域。每次生成仍仅一张图并使用固定尺寸。'
-  const active = activeHistoryVersion.value
-  if (active && active.run_id !== version.run_id) {
-    context += ' 当前选择的是第 ' + active.requirement_revision + ' 版历史预览，不会修改当前需求；反馈始终基于当前交付。'
-  }
-  return context
-})
 
 const generationJobPending = computed(() => view.value?.generation_job?.status === 'quarantined')
 
@@ -1112,39 +1096,6 @@ watch(
           当前正在查看第 {{ activeHistoryVersion.requirement_revision }} 版历史预览；这不会修改当前需求、确认或调用模型。
         </p>
       </article>
-    </section>
-
-    <section
-      v-if="feedbackAction && currentVersion"
-      class="workflow-feedback"
-      aria-labelledby="workflow-feedback-title"
-    >
-      <header>
-        <p class="eyebrow">反馈新版本</p>
-        <h4 id="workflow-feedback-title">基于当前交付继续调整</h4>
-      </header>
-      <p class="muted workflow-feedback-context">{{ feedbackContext }}</p>
-      <label :for="'workflow-' + feedbackAction.id">{{ feedbackAction.text_label || feedbackAction.label }}</label>
-      <textarea
-        :id="'workflow-' + feedbackAction.id"
-        v-model="actionText[feedbackAction.id]"
-        rows="2"
-        :disabled="loading || actionBusy"
-      />
-      <button
-        type="button"
-        :class="actionClass(feedbackAction)"
-        :disabled="!canSubmit(feedbackAction)"
-        :aria-busy="actionBusy || loading"
-        :title="actionDisabledReason(feedbackAction) || undefined"
-        @click="submit(feedbackAction)"
-      >
-        {{ actionBusy ? '处理中…' : actionLabel(feedbackAction) }}
-      </button>
-      <p v-if="actionHelp(feedbackAction)" class="muted workflow-action-help">{{ actionHelp(feedbackAction) }}</p>
-      <p v-if="actionDisabledReason(feedbackAction)" class="muted workflow-action-reason">
-        {{ actionDisabledReason(feedbackAction) }}
-      </p>
     </section>
 
     <div v-if="view?.legacy.length" class="workflow-legacy">
