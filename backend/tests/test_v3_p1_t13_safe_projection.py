@@ -225,6 +225,20 @@ async def test_safe_reason_is_typed_and_does_not_read_raw_issue_text(
         assert action["retry_mode"] == "manual_only"
         assert action["automatic_retry"] is False
 
+        async with write_transaction(app.state.session_factory) as session:
+            run = await session.scalar(
+                select(WorkflowRun).where(
+                    WorkflowRun.project_id == setup["project_id"]
+                )
+            )
+            assert run is not None
+            run.template_id = None
+            run.issue_message = _SENTINEL
+            await session.flush()
+        fallback_view = await _workflow(client, setup["project_id"])
+        assert fallback_view["issue"]["message"] == ""
+        assert _SENTINEL not in json.dumps(fallback_view, ensure_ascii=False)
+
 
 def test_resource_state_does_not_promote_an_old_success() -> None:
     version = WorkflowVersionView(

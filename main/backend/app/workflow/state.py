@@ -1055,11 +1055,13 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
         )
         # Templated issues always use the reviewed copy. The legacy issue_message
         # field may contain reviewer prose and must stay out of the safe view.
-        message = (
-            templates.render(ctx.run.template_id, **params)
-            if ctx.run.template_id
-            else ctx.run.issue_message
-        )
+        if ctx.run.template_id:
+            message = templates.render(ctx.run.template_id, **params)
+        elif ctx.run.stage == "S03" and ctx.run.status == "needs_input":
+            # Legacy requirement questions have no template id.
+            message = ctx.run.issue_message
+        else:
+            message = None
         issue = IssueView(
             code=ctx.run.issue_code or ctx.run.template_id or "ISSUE",
             message=message or "",
