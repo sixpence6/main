@@ -370,69 +370,159 @@ async def _reference_context(
 
 
 def _text_requirement(snapshot: dict[str, Any]) -> str:
-    texts = snapshot.get("texts")
+    texts = _brief_value(snapshot, "texts")
     if isinstance(texts, list) and texts:
-        return "；".join(str(item) for item in texts if isinstance(item, str))
-    value = snapshot.get("text_content")
+        return "\uff1b".join(str(item) for item in texts if isinstance(item, str))
+    value = _brief_value(snapshot, "text_content")
     if isinstance(value, str) and value:
         return value
-    return "无确认画面文字，也不得出现额外文字或 Logo"
+    return (
+        "无确认画面文字，也不得出现额外文字或 "
+        "Logo"
+    )
 
 
 def _forbidden_requirement(snapshot: dict[str, Any]) -> str:
-    forbidden = snapshot.get("forbidden")
+    forbidden = _brief_value(snapshot, "forbidden")
     if isinstance(forbidden, list) and forbidden:
-        return "；".join(str(item) for item in forbidden if isinstance(item, str))
-    return "无确认禁止项"
+        return "\uff1b".join(str(item) for item in forbidden if isinstance(item, str))
+    return "\u65e0\u786e\u8ba4\u7981\u6b62\u9879"
 
 
-def _rule_specs(has_product_reference: bool) -> list[_RuleSpec]:
-    result: list[_RuleSpec] = []
-    for rule_id, label, evidence_types, applicable in _RULES:
-        if rule_id == "hard:product_consistency":
-            applicable = has_product_reference
+_VISUAL_PATHS = (
+    "composition",
+    "style_keywords",
+    "lighting",
+    "background",
+    "palette",
+    "text_layout",
+    "reference_treatment",
+)
+
+
+def _constraint_map(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]] | None:
+    constraints = snapshot.get("constraints")
+    if not isinstance(constraints, list):
+        return None
+    result: dict[str, dict[str, Any]] = {}
+    for item in constraints:
+        if isinstance(item, dict) and isinstance(item.get("path"), str):
+            result[item["path"]] = item
+    return result
+
+
+def _brief_value(snapshot: dict[str, Any], path: str) -> Any:
+    brief = snapshot.get("brief")
+    if isinstance(brief, dict) and path in brief:
+        return brief.get(path)
+    return snapshot.get(path)
+
+
+def _rule_specs(
+    has_product_reference: bool,
+    execution_snapshot: dict[str, Any] | None = None,
+) -> list[_RuleSpec]:
+    if execution_snapshot is None:
+        # Legacy approvals have no per-field strength metadata. Their old
+        # seven-rule catalogue and all-hard semantics must remain readable.
+        result: list[_RuleSpec] = []
+        for rule_id, label, evidence_types, applicable in _RULES:
+            if rule_id == "hard:product_consistency":
+                applicable = has_product_reference
+            result.append(
+                _RuleSpec(
+                    rule_id=rule_id,
+                    label=label,
+                    evidence_types=evidence_types,
+                    applicable=applicable,
+                )
+            )
+        return result
+
+    constraints = _constraint_map(execution_snapshot) or {}
+    hard = {
+        path
+        for path, item in constraints.items()
+        if item.get("strength") == "hard"
+    }
+    applicable_by_id = {
+        "hard:subject": "product_description" in hard,
+        "hard:product_consistency": has_product_reference,
+        "hard:quantity": "count" in hard,
+        # The absence of unconfirmed text/logo is itself a hard output rule.
+        "hard:text_logo": True,
+        "hard:forbidden": "forbidden" in hard,
+        "hard:composition": any(path in hard for path in _VISUAL_PATHS),
+        "hard:size_format": "size" in hard,
+    }
+    result = []
+    for rule_id, label, evidence_types, _applicable in _RULES:
         result.append(
             _RuleSpec(
                 rule_id=rule_id,
                 label=label,
                 evidence_types=evidence_types,
-                applicable=applicable,
+                applicable=applicable_by_id.get(rule_id, False),
             )
         )
     return result
 
 
-def _composition_requirement(snapshot: dict[str, Any], fallback: str) -> str:
+def _subject_requirement(snapshot: dict[str, Any]) -> str:
     parts: list[str] = []
-    composition = snapshot.get("composition")
-    if isinstance(composition, str) and composition:
-        parts.append(f"构图：{composition}")
-    creative = snapshot.get("creative_direction")
-    if isinstance(creative, str) and creative:
-        parts.append(f"创意方向：{creative}")
-    style = snapshot.get("style_keywords")
-    if isinstance(style, list) and style:
-        styles = "、".join(str(item) for item in style if isinstance(item, str))
-        if styles:
-            parts.append(f"风格：{styles}")
-    lighting = snapshot.get("lighting")
-    if isinstance(lighting, str) and lighting:
-        parts.append(f"光影：{lighting}")
-    background = snapshot.get("background")
-    if isinstance(background, str) and background:
-        parts.append(f"背景：{background}")
-    palette = snapshot.get("palette")
-    if isinstance(palette, list) and palette:
-        colors = "、".join(str(item) for item in palette if isinstance(item, str))
-        if colors:
-            parts.append(f"配色：{colors}")
-    text_layout = snapshot.get("text_layout")
-    if isinstance(text_layout, str) and text_layout:
-        parts.append(f"文字布局：{text_layout}")
-    reference_treatment = snapshot.get("reference_treatment")
-    if isinstance(reference_treatment, str) and reference_treatment:
-        parts.append(f"参考处理：{reference_treatment}")
-    return "；".join(parts) or fallback
+    product = _brief_value(snapshot, "product_description")
+    if isinstance(product, str) and product:
+        parts.append(product)
+    facts = _brief_value(snapshot, "facts")
+    if isinstance(facts, list):
+        for fact in facts:
+            value = fact.get("text") if isinstance(fact, dict) else fact
+            if isinstance(value, str) and value:
+                parts.append(value)
+    for key in ("must_include", "must_preserve"):
+        values = _brief_value(snapshot, key)
+        if isinstance(values, list):
+            parts.extend(str(item) for item in values if isinstance(item, str) and item)
+    return "\uff1b".join(parts)
+
+
+def _composition_requirement(snapshot: dict[str, Any], fallback: str) -> str:
+    constraints = _constraint_map(snapshot)
+    if constraints is None:
+        # A plain legacy dict has no strength metadata. Only the explicit
+        # composition value is a composition requirement; never merge model
+        # suggestions into a hidden hard fallback.
+        composition = _brief_value(snapshot, "composition")
+        if isinstance(composition, str) and composition:
+            return f"\u6784\u56fe\uff1a{composition}"
+        return fallback
+
+    labels = {
+        "composition": "\u6784\u56fe\uff1a",
+        "style_keywords": "\u98ce\u683c\uff1a",
+        "lighting": "\u5149\u5f71\uff1a",
+        "background": "\u80cc\u666f\uff1a",
+        "palette": "\u914d\u8272\uff1a",
+        "text_layout": "\u6587\u5b57\u5e03\u5c40\uff1a",
+        "reference_treatment": "\u53c2\u8003\u5904\u7406\uff1a",
+    }
+    parts: list[str] = []
+    for path in _VISUAL_PATHS:
+        item = constraints.get(path)
+        if not item or item.get("strength") != "hard":
+            continue
+        value = item.get("normalized_value")
+        if value in (None, "", []):
+            value = _brief_value(snapshot, path)
+        if isinstance(value, list):
+            rendered = "\u3001".join(str(entry) for entry in value if isinstance(entry, str))
+        elif isinstance(value, str):
+            rendered = value
+        else:
+            rendered = ""
+        if rendered:
+            parts.append(f"{labels[path]}{rendered}")
+    return "\uff1b".join(parts) or fallback
 
 
 def _rule_requirement(
@@ -451,7 +541,10 @@ def _rule_requirement(
     if rule_id == "hard:composition":
         return _composition_requirement(snapshot, requirement_text)
     if rule_id == "hard:quantity":
-        return "画面中的商品数量与确认需求一致；确认快照未另列数量时按单件呈现"
+        count = _brief_value(snapshot, "count")
+        return str(count) if count not in (None, "") else "1"
+    if rule_id == "hard:subject":
+        return _subject_requirement(snapshot) or requirement_text
     return requirement_text
 
 
@@ -1255,7 +1348,7 @@ async def handle(
         await _block_stage(ctx, "IMAGE_NOT_APPROVED", "UNREADABLE_IMAGE")
         return
     has_product = reference is not None and reference_usage == "product"
-    rules = _rule_specs(has_product)
+    rules = _rule_specs(has_product, execution_snapshot)
     size = str(
         snapshot.get("size")
         or ctx.project.image_size

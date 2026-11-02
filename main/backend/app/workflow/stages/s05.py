@@ -19,6 +19,7 @@ from app.workflow.adjudication import (
 )
 from app.workflow.contracts import ContractError, digest_payload, validate_data
 from app.workflow.roles import RoleOutput, run_role
+from app.workflow.snapshot import default_field_strengths
 from app.workflow.state import (
     WorkflowContext,
     add_review,
@@ -577,6 +578,7 @@ def _compose_final_brief(
         "field_sources": field_sources,
         "user_locks": dict(brief.get("user_locks") or {}),
     }
+    payload["field_strengths"] = default_field_strengths(payload)
     try:
         validate_data("final_brief", payload)
     except ContractError as exc:

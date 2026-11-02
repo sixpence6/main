@@ -160,10 +160,6 @@ async def test_prompt_coverage_format_error_keeps_original_intent(full_settings)
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("rule_id", ["hard:creative", "hard:style", "hard:lighting"])
-@pytest.mark.xfail(
-    strict=True,
-    reason="WG3-AC-04: fixed by #97",
-)
 async def test_soft_visual_preferences_are_not_hard_prompt_coverage_requirements(
     full_settings, rule_id: str
 ):
@@ -183,10 +179,6 @@ async def test_soft_visual_preferences_are_not_hard_prompt_coverage_requirements
         assert visual.submit_calls == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WG3-AC-04: fixed by #97",
-)
 def test_image_composition_rule_does_not_merge_soft_preferences():
     """WG3-AC-04：图片 composition 规则不得把一般创意、风格、光线并入硬性要求。"""
     requirement = s09._composition_requirement(
@@ -202,10 +194,6 @@ def test_image_composition_rule_does_not_merge_soft_preferences():
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    strict=True,
-    reason="WG3-AC-06: fixed by #96",
-)
 async def test_final_card_preserves_dedicated_visual_fields(full_settings):
     """WG3-AC-06：背景、色板、文字布局、参考处理必须进入最终执行快照。"""
     visual = visual_data()
@@ -275,10 +263,10 @@ async def test_negation_flip_is_not_covered(full_settings):
 async def test_cross_clause_character_stitching_is_not_covered(full_settings):
     """WG3-AC-09：不得从互不相关的句子中拼出已确认要求。"""
     brief = base_brief()
-    brief["purpose"] = "电商主图；用于大屏展示"
+    brief["must_include"] = ["杯身蓝色鲸鱼图案；用于大屏展示"]
     data = candidate_data(brief)
     data["positive_prompt"] = data["positive_prompt"].replace(
-        "电商主图；用于大屏展示", "电商主图用于品牌宣传；大屏展示"
+        "杯身蓝色鲸鱼图案；用于大屏展示", "杯身蓝色鲸鱼图案用于品牌宣传；大屏展示"
     )
     async with environment(
         full_settings,

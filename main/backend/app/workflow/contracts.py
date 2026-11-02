@@ -140,6 +140,7 @@ class FinalBriefData(BriefData):
     selling_points: Annotated[list[Claim], Field(max_length=64)] = Field(default_factory=list)
     copy_lines: Annotated[list[str], Field(max_length=64)] = Field(default_factory=list)
     field_sources: dict[str, str] = Field(default_factory=dict)
+    field_strengths: dict[str, str] = Field(default_factory=dict)
     user_locks: dict[str, str] = Field(default_factory=dict)
 
 

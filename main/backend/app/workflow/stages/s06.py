@@ -17,7 +17,7 @@ from app.errors import ApiError, conflict, validation_error
 from app.models import Asset, Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
-from app.workflow.snapshot import build_execution_snapshot
+from app.workflow.snapshot import build_execution_snapshot, normalize_user_locks
 from app.workflow.stages import s03
 from app.workflow.state import (
     WorkflowContext,
@@ -149,6 +149,7 @@ def _execution_snapshot(
     ctx: WorkflowContext,
     material: str,
     reference_usage: str | None,
+    user_locks: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     return build_execution_snapshot(
         artifact_id=artifact.id,
@@ -161,7 +162,18 @@ def _execution_snapshot(
         referenced_material_digest=material,
         brief=data,
         hard_requirements=_hard_requirements(artifact, data),
+        user_locks=user_locks,
     )
+
+def _requested_user_locks(payload: dict[str, Any], data: dict[str, Any]) -> dict[str, str]:
+    raw = payload.get("user_locks")
+    if raw is None:
+        raw = data.get("user_locks")
+    try:
+        return normalize_user_locks(raw)
+    except ValueError:
+        raise validation_error("用户锁定信息无效") from None
+
 
 def _client_binding(
     payload: dict[str, Any], artifact: Artifact, data: dict[str, Any], ctx: WorkflowContext
@@ -198,6 +210,8 @@ def _client_binding(
     reference_asset_id = payload.get("reference_asset_id")
     if reference_asset_id is not None and reference_asset_id != data.get("reference_asset_id"):
         raise _changed_error()
+    if "user_locks" in payload:
+        _requested_user_locks(payload, data)
 
 
 def _hard_requirements(artifact: Artifact, data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -284,6 +298,7 @@ async def _matches_existing(
     approval: Approval,
     artifact: Artifact,
     data: dict[str, Any],
+    user_locks: dict[str, str] | None = None,
 ) -> bool:
     snapshot = _confirmation(approval)
     if snapshot is None:
@@ -307,11 +322,24 @@ async def _matches_existing(
     material = await referenced_material_digest(ctx)
     if snapshot.get("referenced_material_digest") != material:
         return False
+    try:
+        stored_locks = normalize_user_locks(snapshot.get("user_locks"))
+        requested_locks = normalize_user_locks(
+            user_locks if user_locks is not None else data.get("user_locks")
+        )
+    except ValueError:
+        return False
+    if stored_locks != requested_locks:
+        return False
     return snapshot.get("hard_requirements") == _hard_requirements(artifact, data)
 
 
 async def _reject_stale_existing(
-    ctx: WorkflowContext, approval: Approval, artifact: Artifact | None, data: dict[str, Any] | None
+    ctx: WorkflowContext,
+    approval: Approval,
+    artifact: Artifact | None,
+    data: dict[str, Any] | None,
+    user_locks: dict[str, str] | None = None,
 ) -> bool:
     """Revoke a confirmation that no longer matches the current card.
 
@@ -321,7 +349,7 @@ async def _reject_stale_existing(
     if (
         artifact is None
         or data is None
-        or not await _matches_existing(ctx, approval, artifact, data)
+        or not await _matches_existing(ctx, approval, artifact, data, user_locks)
     ):
         await invalidate_requirements(ctx, "requirements_changed")
         await record_diagnostic(
@@ -425,6 +453,7 @@ async def _confirm_atomic(
     data: dict[str, Any],
     material: str,
     request_id: str,
+    user_locks: dict[str, str] | None = None,
 ) -> GenerationIntent:
     """Confirm and accept in one BEGIN IMMEDIATE transaction.
 
@@ -455,11 +484,14 @@ async def _confirm_atomic(
         "reference_usage": reference_usage,
         "referenced_material_digest": material,
         "hard_requirements": _hard_requirements(artifact, data),
+        "user_locks": dict(user_locks or {}),
         "confirmed_by": "user",
         "confirmed_at": now,
     }
     snapshot.update(
-        _execution_snapshot(artifact, data, ctx, material, reference_usage)
+        _execution_snapshot(
+            artifact, data, ctx, material, reference_usage, user_locks=user_locks
+        )
     )
     async with write_transaction(ctx.session_factory) as session:
         project = await session.get(Project, ctx.project_id)
@@ -612,22 +644,29 @@ async def _confirm(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
     data = _payload(artifact) if artifact is not None else None
     if artifact is not None and data is not None:
         _client_binding(payload, artifact, data, ctx)
+    user_locks = (
+        _requested_user_locks(payload, data)
+        if artifact is not None and data is not None
+        else {}
+    )
     existing = await latest_approval(ctx, _APPROVAL_TYPE)
     if existing is not None:
         if (
             artifact is not None
             and data is not None
-            and await _matches_existing(ctx, existing, artifact, data)
+            and await _matches_existing(ctx, existing, artifact, data, user_locks)
         ):
             # Idempotent replay: return the original snapshot untouched. A
             # v3 client that supplies a request id also backfills the durable
             # intent/usage/slot fact if an older confirmation lacks one.
             if request_id is not None and ctx.project.owner_account_id is not None:
                 material = await referenced_material_digest(ctx)
-                intent = await _confirm_atomic(ctx, artifact, data, material, request_id)
+                intent = await _confirm_atomic(
+                    ctx, artifact, data, material, request_id, user_locks=user_locks
+                )
                 await _after_acceptance(ctx, intent)
             return
-        await _reject_stale_existing(ctx, existing, artifact, data)
+        await _reject_stale_existing(ctx, existing, artifact, data, user_locks)
         raise _changed_error()
 
     artifact, data = await _require_approved_card(ctx)
@@ -655,8 +694,11 @@ async def _confirm(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
         raise _changed_error()
 
     material = await referenced_material_digest(ctx)
+    user_locks = _requested_user_locks(payload, data)
     if request_id is not None and ctx.project.owner_account_id is not None:
-        intent = await _confirm_atomic(ctx, artifact, data, material, request_id)
+        intent = await _confirm_atomic(
+            ctx, artifact, data, material, request_id, user_locks=user_locks
+        )
         await _after_acceptance(ctx, intent)
         return
 
@@ -672,11 +714,19 @@ async def _confirm(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
         "reference_usage": data.get("reference_usage"),
         "referenced_material_digest": material,
         "hard_requirements": _hard_requirements(artifact, data),
+        "user_locks": dict(user_locks),
         "confirmed_by": "user",
         "confirmed_at": now,
     }
     snapshot.update(
-        _execution_snapshot(artifact, data, ctx, material, data.get("reference_usage"))
+        _execution_snapshot(
+            artifact,
+            data,
+            ctx,
+            material,
+            data.get("reference_usage"),
+            user_locks=user_locks,
+        )
     )
     approval = await add_approval(
         ctx,

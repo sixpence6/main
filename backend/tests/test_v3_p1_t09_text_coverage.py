@@ -36,10 +36,17 @@ from tests.test_v2_t40_prompt_review import (
 )
 
 
-def _brief_with(*, purpose: str | None = None, must_preserve: list[str] | None = None) -> dict:
+def _brief_with(
+    *,
+    purpose: str | None = None,
+    must_include: list[str] | None = None,
+    must_preserve: list[str] | None = None,
+) -> dict:
     brief = base_brief()
     if purpose is not None:
         brief["purpose"] = purpose
+    if must_include is not None:
+        brief["must_include"] = must_include
     if must_preserve is not None:
         brief["must_preserve"] = must_preserve
     return brief
@@ -231,7 +238,7 @@ async def test_negation_change_is_not_covered(full_settings, old: str, new: str)
 
 @pytest.mark.asyncio
 async def test_cross_sentence_word_stitching_is_not_covered(full_settings) -> None:
-    brief = _brief_with(purpose="电商主图；用于大屏展示")
+    brief = _brief_with(purpose="商品展示", must_include=["电商主图；用于大屏展示"])
     data = _replace_prompt(
         candidate_data(brief), "电商主图；用于大屏展示", "电商主图；用于品牌宣传大屏展示"
     )
@@ -249,7 +256,7 @@ async def test_cross_sentence_word_stitching_is_not_covered(full_settings) -> No
 
 @pytest.mark.asyncio
 async def test_merged_source_clauses_are_not_covered(full_settings) -> None:
-    brief = _brief_with(purpose="电商主图；用于大屏展示")
+    brief = _brief_with(purpose="商品展示", must_include=["电商主图；用于大屏展示"])
     data = _replace_prompt(candidate_data(brief), "电商主图；用于大屏展示", "电商主图用于大屏展示")
     async with environment(
         full_settings,
@@ -293,8 +300,10 @@ async def test_requirement_split_across_clauses_is_not_covered(full_settings) ->
 async def test_connective_wording_has_explainable_coverage_and_independent_review(
     full_settings,
 ) -> None:
-    brief = base_brief()
-    data = _replace_prompt(candidate_data(brief), "主体居中，留白充足", "主体居中，四周留白充足")
+    brief = _brief_with(must_include=["画面主体居中，留白充足"])
+    data = _replace_prompt(
+        candidate_data(brief), "画面主体居中，留白充足", "画面主体居中，四周留白充足"
+    )
     _replace_prompt(data, "杯口金色描边", "杯口保留金色描边")
     async with environment(
         full_settings,
@@ -308,7 +317,7 @@ async def test_connective_wording_has_explainable_coverage_and_independent_revie
         notes = _reviewer_input(llm)["coverage_explanations"]
         assert any(note["explanation"] == "connective" for note in notes), notes
         assert {note["rule_id"] for note in notes} >= {
-            "hard:composition",
+            "hard:must_include:0",
             "hard:must_preserve:0",
         }
         assert visual.submit_calls == []
@@ -318,7 +327,7 @@ async def test_connective_wording_has_explainable_coverage_and_independent_revie
 async def test_word_order_change_has_explainable_coverage_and_independent_review(
     full_settings,
 ) -> None:
-    brief = _brief_with(purpose="电商主图；用于大屏展示")
+    brief = _brief_with(purpose="商品展示", must_include=["电商主图；用于大屏展示"])
     data = _replace_prompt(
         candidate_data(brief), "电商主图；用于大屏展示", "用于大屏展示；电商主图"
     )
@@ -340,7 +349,7 @@ async def test_word_order_change_has_explainable_coverage_and_independent_review
 async def test_word_order_change_is_rejected_by_independent_semantic_review(
     full_settings,
 ) -> None:
-    brief = _brief_with(purpose="电商主图；用于大屏展示")
+    brief = _brief_with(purpose="商品展示", must_include=["电商主图；用于大屏展示"])
     data = _replace_prompt(
         candidate_data(brief), "电商主图；用于大屏展示", "用于大屏展示；电商主图"
     )

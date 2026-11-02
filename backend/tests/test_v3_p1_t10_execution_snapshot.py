@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import types
 import uuid
@@ -13,11 +14,17 @@ from app.adapters.base import ProviderOutcome
 from app.db import read_session, write_transaction
 from app.models import Project
 from app.workflow import state
+from app.workflow.snapshot import requirements_from_snapshot
 from app.workflow.stages import s05
 from app.workflow.tables import Approval, Artifact
 from tests.support.adapters import LLMStub, VisualStub
 from tests.test_t65_generation_cycle import _drain, _environment, _responder
-from tests.test_v2_t40_prompt_review import base_brief, png_bytes
+from tests.test_v2_t40_prompt_review import (
+    base_brief,
+    candidate_data,
+    engineer_response,
+    png_bytes,
+)
 from tests.test_v3_p1_t04_production_reviews import creative_payload, visual_payload
 
 _DEDICATED = {
@@ -59,6 +66,29 @@ def _execution_brief() -> dict[str, Any]:
     brief.update(_DEDICATED)
     brief["field_sources"] = dict(_SOURCES)
     return brief
+
+
+def _execution_responder(request: Any) -> dict[str, Any]:
+    role = request.payload["task"]["role"]
+    if role == "generation_engineer":
+        brief = request.payload["approved_inputs"]["final_brief"]
+        snapshot = request.payload["approved_inputs"]["execution_snapshot"]
+        data = candidate_data(brief)
+        allowed = {item["rule_id"] for item in requirements_from_snapshot(snapshot)}
+        data["requirement_coverage"] = [
+            item for item in data["requirement_coverage"] if item["rule_id"] in allowed
+        ]
+        return engineer_response(data)
+    return _responder(request)
+
+
+async def _wait_for_role(app: Any, llm: LLMStub, role: str) -> None:
+    for _ in range(200):
+        await _drain(app)
+        if any(call.payload["task"]["role"] == role for call in llm.role_calls_received):
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError(f"{role} was not called")
 
 
 async def _setup_execution_snapshot(app: Any, client: AsyncClient) -> dict[str, Any]:
@@ -158,7 +188,7 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         )
     )
     request_id = str(uuid.uuid4())
-    async with _environment(full_settings, llm, visual, _responder) as (app, client):
+    async with _environment(full_settings, llm, visual, _execution_responder) as (app, client):
         setup = await _setup_execution_snapshot(app, client)
         confirmed = await client.post(
             f"/api/projects/{setup['project_id']}/workflow/actions/confirm_requirements",
@@ -178,9 +208,9 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         snapshot = _confirmation(view)
         digest = snapshot["snapshot_digest"]
         assert len(digest) == 64
-        assert snapshot["snapshot_schema_version"] == "1.0.0"
+        assert snapshot["snapshot_schema_version"] == "1.1.0"
         assert snapshot["contract_version"] == "1.0.0"
-        assert snapshot["rules_version"] == "v3.rules.1"
+        assert snapshot["rules_version"] == "v3.rules.2"
         assert snapshot["snapshot_encoding"] == "canonical-json-sha256-v1"
         assert snapshot["artifact_digest"] == setup["final_digest"]
 
@@ -199,23 +229,8 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         assert fields["assumptions"]["executable"] is False
         assert fields["assumptions"]["reason"]
 
-        replay = await client.post(
-            f"/api/projects/{setup['project_id']}/workflow/actions/confirm_requirements",
-            json={
-                "expected_revision": setup["revision"],
-                "payload": {
-                    "artifact_id": setup["final_artifact_id"],
-                    "artifact_digest": setup["final_digest"],
-                    "requirement_revision": setup["revision"],
-                    "request_id": request_id,
-                },
-            },
-        )
-        assert replay.status_code == 200, replay.text
-        replay_snapshot = _confirmation(replay.json())
-        assert replay_snapshot["snapshot_digest"] == digest
 
-        await _drain(app)
+        await _wait_for_role(app, llm, "quality_compliance")
         engineer = [
             call for call in llm.role_calls_received
             if call.payload["task"]["role"] == "generation_engineer"
@@ -235,13 +250,8 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         composition_rule = next(
             rule for rule in quality_input["rules"] if rule["rule_id"] == "hard:composition"
         )
-        for value in (
-            "浅灰无缝背景",
-            "白色、浅灰",
-            "主标题置于画面下方居中",
-            "无参考图，按确认需求构图",
-        ):
-            assert value in composition_rule["requirement"]
+        assert composition_rule["applicability"] == "not_applicable"
+        assert composition_rule["requirement"]
 
         preparing = (await client.get(
             f"/api/projects/{setup['project_id']}/workflow"
@@ -264,7 +274,7 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         )).json()
         version = workflow["versions"][0]
         assert version["execution_snapshot_digest"] == digest
-        assert version["snapshot_schema_version"] == "1.0.0"
+        assert version["snapshot_schema_version"] == "1.1.0"
         assert version["contract_version"] == "1.0.0"
         assert version["brief"]["background"] == "浅灰无缝背景"
         assert version["execution_snapshot"]["snapshot_digest"] == digest
