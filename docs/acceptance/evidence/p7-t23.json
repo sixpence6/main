@@ -16,7 +16,7 @@
       "backend/tests/test_v3_p7_t23_full_chain_acceptance.py"
     ],
     "commit": "86c848a",
-    "evidence_commit": "pending docs commit"
+    "evidence_commit": "07636c6"
   },
   "environment": {
     "os": "Windows 10.0.19045",
@@ -76,7 +76,11 @@
     },
     {
       "command": "full backend suite",
-      "result": "started in background; result recorded in p7-t23-full-chain.md; not claimed until completes"
+      "result": "final integration HEAD cd627ea; non-v2 573 passed, 1 xfailed, 2 warnings in 702.51s; v2 257 passed, 1 warning in 483.58s; total 830 passed, 1 xfailed, 3 warnings; run from .worktrees/t111/backend"
+    },
+    {
+      "command": "release gate suite",
+      "result": "55 passed in 48.13s; 9 release-related backend files from .worktrees/t111/backend"
     }
   ],
   "candidate_budget": {
@@ -160,13 +164,13 @@
     "P1_snapshot_rules": "T10/T11/T12 regression 16 passed with T23.",
     "P4_projection": "T13 regression 24 passed with T75/T65 group; T23 fixes a real binding defect where a published job was reported history_only.",
     "full_frontend": "46 files / 217 tests passed.",
-    "full_backend": "see commands_output and residual note"
+    "full_backend": "830 passed, 1 xfailed, 3 warnings across 63 non-v2 + 19 v2 test files on integration HEAD cd627ea; release gate 55 passed."
   },
   "residual_unknowns": [
     "T23 uses LLMStub/VisualStub and temporary SQLite; it does not prove real-provider image quality, billing, retention or production data behaviour.",
     "Real physical desktop/mobile, soft keyboard, trusted HTTPS LAN and multi-device access are not exercised here; they remain T25 / release verification.",
-    "The full backend suite is long-running; its completion and any unrelated pre-existing failures are recorded in the companion document rather than assumed.",
+    "The full backend suite now completes green apart from one expected xfail; warnings are recorded, not treated as failures.",
     "T23 does not claim formal V3 release acceptance. It closes the simulated full-chain and R3 integration evidence only."
   ],
-  "acceptance_notes": "T23 completion is based on two HTTP acceptance tests, affected backend regressions, the full 217-test frontend suite, typecheck and production build. Source commit 86c848a; evidence committed separately. T25 remains the release-evidence owner."
+  "acceptance_notes": "T23 completion is based on two HTTP acceptance tests, affected backend regressions, the full 217-test frontend suite, typecheck, production build and the final 830-passed split backend run. Source commit 86c848a; evidence commit 07636c6; T25 remains the release-evidence owner."
 }
