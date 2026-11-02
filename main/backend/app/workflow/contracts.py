@@ -214,10 +214,18 @@ def _envelope(role: str, statuses: tuple[str, ...], data_type: type[BaseModel]):
 
 IntentEnvelope = _envelope("intent_router", ("ready", "blocked"), IntentData)
 ReferenceEnvelope = _envelope("reference_analyst", ("ready", "blocked"), ReferenceData)
-RequirementsEnvelope = _envelope("requirements_consultant", ("ready", "blocked", "needs_input"), BriefData)
-CreativeEnvelope = _envelope("creative_planner", ("ready", "blocked", "needs_input"), CreativeData)
-VisualEnvelope = _envelope("visual_director", ("ready", "blocked", "needs_input"), VisualData)
-GenerationEnvelope = _envelope("generation_engineer", ("ready", "blocked", "needs_input"), GenerationData)
+RequirementsEnvelope = _envelope(
+    "requirements_consultant", ("ready", "blocked", "needs_input"), BriefData
+)
+CreativeEnvelope = _envelope(
+    "creative_planner", ("ready", "blocked", "needs_input"), CreativeData
+)
+VisualEnvelope = _envelope(
+    "visual_director", ("ready", "blocked", "needs_input"), VisualData
+)
+GenerationEnvelope = _envelope(
+    "generation_engineer", ("ready", "blocked", "needs_input"), GenerationData
+)
 QualityEnvelope = _envelope("quality_compliance", ("ready", "blocked"), QualityData)
 DeliveryEnvelope = _envelope("delivery_manager", ("ready", "blocked"), DeliveryData)
 ReviewEnvelope = _envelope("output_reviewer", ("ready", "blocked"), ReviewData)
@@ -246,7 +254,12 @@ ARTIFACT_DATA: dict[str, type[BaseModel]] = {
     "delivery_manifest": DeliveryData,
 }
 
-NEEDS_INPUT_ROLES = {"requirements_consultant", "creative_planner", "visual_director", "generation_engineer"}
+NEEDS_INPUT_ROLES = {
+    "requirements_consultant",
+    "creative_planner",
+    "visual_director",
+    "generation_engineer",
+}
 
 
 def _validate_envelope(role: str, obj: object) -> BaseModel:

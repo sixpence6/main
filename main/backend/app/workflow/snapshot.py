@@ -103,7 +103,13 @@ def _source(brief: dict[str, Any], path: str) -> str:
     sources = brief.get("field_sources")
     if isinstance(sources, dict) and isinstance(sources.get(path), str) and sources[path]:
         return sources[path]
-    if path in {"background", "palette", "text_layout", "reference_treatment", "preservation_rules"}:
+    if path in {
+        "background",
+        "palette",
+        "text_layout",
+        "reference_treatment",
+        "preservation_rules",
+    }:
         return "visual_plan"
     if path in {"creative_direction", "selling_points", "copy_lines"}:
         return "creative_direction"
@@ -410,10 +416,7 @@ def _rule_sort_key(constraint: dict[str, Any]) -> tuple[int, int]:
     if not rule_id:
         return (99, 0)
     prefix, _, suffix = rule_id.rpartition(":")
-    if prefix in _RULE_ORDER:
-        rank = _RULE_ORDER[prefix]
-    else:
-        rank = _RULE_ORDER.get(rule_id, 99)
+    rank = _RULE_ORDER[prefix] if prefix in _RULE_ORDER else _RULE_ORDER.get(rule_id, 99)
     try:
         index = int(suffix)
     except ValueError:

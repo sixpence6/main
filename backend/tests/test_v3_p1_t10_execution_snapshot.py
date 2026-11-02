@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import types
 import uuid
@@ -128,6 +129,19 @@ def _fields(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {item["path"]: item for item in snapshot["fields"]}
 
 
+async def _wait_for_role(llm: LLMStub, role: str) -> list[Any]:
+    for _ in range(500):
+        calls = [
+            call
+            for call in llm.role_calls_received
+            if call.payload["task"]["role"] == role
+        ]
+        if calls:
+            return calls
+        await asyncio.sleep(0.01)
+    raise AssertionError(f"role {role} was not called")
+
+
 def test_s05_composer_keeps_dedicated_visual_and_creative_fields() -> None:
     ctx = types.SimpleNamespace(
         project=types.SimpleNamespace(image_size="1024x1024"),
@@ -216,19 +230,13 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         assert replay_snapshot["snapshot_digest"] == digest
 
         await _drain(app)
-        engineer = [
-            call for call in llm.role_calls_received
-            if call.payload["task"]["role"] == "generation_engineer"
-        ][0]
+        engineer = (await _wait_for_role(llm, "generation_engineer"))[0]
         approved_inputs = engineer.payload["approved_inputs"]
         assert approved_inputs["final_brief"]["background"] == "浅灰无缝背景"
         assert approved_inputs["execution_snapshot"]["snapshot_digest"] == digest
         assert approved_inputs["execution_snapshot"]["fields"] == snapshot["fields"]
 
-        quality = [
-            call for call in llm.role_calls_received
-            if call.payload["task"]["role"] == "quality_compliance"
-        ][0]
+        quality = (await _wait_for_role(llm, "quality_compliance"))[0]
         quality_input = quality.payload["input_data"]
         assert quality_input["approved_inputs"]["execution_snapshot"]["snapshot_digest"] == digest
         assert quality_input["approved_inputs"]["final_brief"]["background"] == "浅灰无缝背景"
