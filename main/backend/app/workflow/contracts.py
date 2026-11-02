@@ -46,6 +46,9 @@ class Check(StrictModel):
     outcome: Outcome
     evidence_ids: EvidenceIds
     note: str = Field(max_length=800)
+    # Optional stable identity for a rule that is checked more than once (for
+    # example per text item). Empty means the catalogue has one instance.
+    instance: str = Field(default="", max_length=160)
 
 
 class Fact(StrictModel):

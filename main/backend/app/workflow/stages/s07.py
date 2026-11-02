@@ -10,6 +10,13 @@ from app.errors import ApiError, conflict
 from app.models import Asset
 from app.prompt_guard import prompt_drift_errors
 from app.workflow import state, templates
+from app.workflow.adjudication import (
+    RULESET_VERSION,
+    ProtocolIssue,
+    RuleSet,
+    adjudicate,
+    s07_rules,
+)
 from app.workflow.contracts import ContractError, validate_data
 from app.workflow.roles import RoleOutput, run_role
 from app.workflow.state import WorkflowContext
@@ -17,7 +24,6 @@ from app.workflow.tables import RevisionBudget
 
 STAGE = "S07"
 ACTIONS = ["compile_prompt", "revise_prompt"]
-_REVIEW_RULES = ("G03_CONFIRMATION", "G05_EXECUTION_BOUNDARY")
 # Natural-language prompt writing may add connective words around a confirmed
 # requirement. Compare normalized, ordered characters instead of requiring a
 # brittle byte-for-byte substring while still rejecting missing content.
@@ -313,49 +319,37 @@ def _validate_review(
     *,
     target_id: str,
     allowed_evidence: tuple[str, ...],
+    ruleset: RuleSet | None = None,
 ) -> tuple[str, str, list[dict[str, Any]]]:
+    """Adjudicate one reviewer result against the server-owned S07 catalog.
+
+    The catalog decides which rules are required and whether the reported
+    outcomes are legal. A contract defect is a typed protocol rejection, never a
+    service outage, and it can never open the gate.
+    """
     if output.status != "ready" or not isinstance(output.data, dict):
         raise _invalid_review()
     results = output.data.get("results")
     if not isinstance(results, list) or len(results) != 1:
         raise _invalid_review()
     result = results[0]
-    if not isinstance(result, dict) or result.get("target_id") != target_id:
-        raise _invalid_review()
-    decision = result.get("decision")
-    if decision not in {"pass", "revise", "reject", "unknown"}:
+    if not isinstance(result, dict):
         raise _invalid_review()
     checks = result.get("checks")
-    if not isinstance(checks, list) or not checks:
+    if not isinstance(checks, list):
         raise _invalid_review()
-    seen: set[str] = set()
-    for check in checks:
-        if not isinstance(check, dict):
-            raise _invalid_review()
-        rule_id = check.get("rule_id")
-        outcome = check.get("outcome")
-        if not isinstance(rule_id, str) or not rule_id:
-            raise _invalid_review()
-        if outcome not in {"pass", "fail", "unknown", "not_applicable"}:
-            raise _invalid_review()
-        seen.add(rule_id)
-        evidence = check.get("evidence_ids")
-        if not isinstance(evidence, list):
-            raise _invalid_review()
-        if outcome != "not_applicable" and not evidence:
-            raise _invalid_review()
-        if any(item not in allowed_evidence for item in evidence):
-            raise _invalid_review()
-        note = check.get("note") or ""
-        if "://" in note:
-            raise _invalid_review()
-    if not set(_REVIEW_RULES).issubset(seen):
-        raise _invalid_review()
-    if decision == "pass" and any(
-        check.get("outcome") not in {"pass", "not_applicable"} for check in checks
-    ):
-        raise _invalid_review()
-    return target_id, decision, checks
+    try:
+        adjudication = adjudicate(
+            ruleset or s07_rules(),
+            target_id=target_id,
+            result_target_id=result.get("target_id"),
+            declared_decision=result.get("decision"),
+            checks=checks,
+            allowed_evidence=allowed_evidence,
+        )
+    except ProtocolIssue as exc:
+        raise ApiError(409, "PROMPT_REVIEW_INVALID", exc.message) from None
+    return target_id, adjudication.decision, adjudication.check_payloads()
 
 
 async def _reconfirm_prompt(
@@ -478,6 +472,7 @@ async def _compile(
         await state.set_artifact_status(ctx, previous.id, "superseded")
     artifact = await state.start_artifact(ctx, "prompt_plan", payload)
 
+    ruleset = s07_rules(echo_rules=tuple(item["rule_id"] for item in requirements))
     try:
         review_output = await run_role(
             ctx,
@@ -487,6 +482,8 @@ async def _compile(
                 "reviewed_role": "generation_engineer",
                 "target_kind": "prompt_plan",
                 "hard_requirements": requirements,
+                "ruleset_version": ruleset.version,
+                "rules": ruleset.describe(),
             },
             approved_inputs={"final_brief": brief},
             review_targets=[
@@ -496,29 +493,29 @@ async def _compile(
                     "payload": payload,
                 }
             ],
-            required_rule_ids=_REVIEW_RULES,
+            required_rule_ids=tuple(rule.rule_id for rule in ruleset.blocking()),
             allowed_evidence_ids=(artifact.id, final_artifact.id),
         )
     except ApiError:
         await _mark_failed(ctx, "REVIEW_UNAVAILABLE")
         raise
 
-    try:
-        _target_id, decision, checks = _validate_review(
-            review_output,
-            target_id=artifact.id,
-            allowed_evidence=(artifact.id, final_artifact.id),
-        )
-    except ApiError:
-        await _mark_failed(ctx, "REVIEW_UNAVAILABLE")
-        raise
+    # A reviewer contract defect is a typed protocol rejection: the run is not
+    # marked failed, the candidate stays invisible and the gate stays closed.
+    _target_id, decision, checks = _validate_review(
+        review_output,
+        target_id=artifact.id,
+        allowed_evidence=(artifact.id, final_artifact.id),
+        ruleset=ruleset,
+    )
 
+    review_checks = {"ruleset_version": RULESET_VERSION, "checks": checks}
     await state.add_review(
         ctx,
         artifact,
         reviewer_role="output_reviewer",
         decision=decision,
-        checks={"checks": checks},
+        checks=review_checks,
         raw=review_output.data,
     )
     if decision != "pass":
@@ -532,7 +529,7 @@ async def _compile(
         approval_type="generation_prompt",
         artifact=approved,
         approved_by="output_reviewer",
-        checks={"checks": checks},
+        checks=review_checks,
         model_fingerprint=review_output.model_fingerprint,
     )
     if advance:

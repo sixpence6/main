@@ -5,10 +5,9 @@ tickets will move, so that a later change cannot quietly "fix" a symptom
 without the owning ticket. They are intentionally cheap pure-function probes:
 the HTTP level regressions live in the owning stage tickets.
 
-F1 / F2 / F4 are still reproducing on the recorded baseline, so they are
-marked strict xfail: once the owning ticket lands, the probe turns into a
-failure and the marker must be removed (that is the intent - the removal is
-part of the ticket's diff).
+F1 and F2 were still reproducing on the recorded baseline and are now plain
+regressions: #88 replaced the S07 review gate with the server rule catalog.
+F4 is still reproducing, so it stays a strict xfail until P3 (#96).
 
 H1 (multi sentence verbatim requirement was not covered) has already been
 repaired by the local revisions captured in the P0 baseline commit, so it is
@@ -37,10 +36,6 @@ def _check(rule_id: str, outcome: str) -> dict[str, object]:
     return {"rule_id": rule_id, "outcome": outcome, "evidence_ids": evidence, "note": "ok"}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WG3-AC-01: S07 accepts prompt approval when every blocking rule is not_applicable (#88)",
-)
 def test_f1_s07_all_not_applicable_cannot_be_approved() -> None:
     output = _review(
         "pass",
@@ -57,10 +52,6 @@ def test_f1_s07_all_not_applicable_cannot_be_approved() -> None:
     assert caught.value.code == "PROMPT_REVIEW_INVALID"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WG3-AC-02: advisory fail/unknown must not block an already satisfied gate (#88)",
-)
 def test_f2_s07_advisory_failure_does_not_block() -> None:
     output = _review(
         "pass",

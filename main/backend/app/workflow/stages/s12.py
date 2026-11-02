@@ -11,6 +11,7 @@ from app.db import read_session
 from app.errors import ApiError, conflict
 from app.models import Asset, Message, Project
 from app.workflow import templates
+from app.workflow.adjudication import RULESET_VERSION, ruleset_from_payload, s07_rules
 from app.workflow.roles import (
     RoleOutput,
     _capability_error,
@@ -18,9 +19,10 @@ from app.workflow.roles import (
     run_role,
     run_role_request,
 )
-from app.workflow.stages import s01, s02, s03, s04, s05, s09
+from app.workflow.stages import s01, s02, s03, s04, s05, s07, s09
 from app.workflow.state import (
     WorkflowContext,
+    add_approval,
     add_review,
     latest_artifact,
     record_diagnostic,
@@ -352,6 +354,100 @@ async def _resume_s01_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
         await set_stage(ctx, "S01", "failed", issue_code=template_id, template_id=template_id)
         raise
     await _apply_s01_route(ctx, target)
+
+
+async def _resume_s07_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    """Replay a persisted S07 reviewer request through the same rule catalog."""
+    request_raw, _, payload = _request_parts(checkpoint)
+    task = payload.get("task") if isinstance(payload.get("task"), dict) else {}
+    targets = payload.get("review_targets") or []
+    target = targets[0] if targets and isinstance(targets[0], dict) else {}
+    target_id = str(target.get("target_id") or "")
+    if task.get("role") != "output_reviewer" or not request_raw or not target_id:
+        raise _stale()
+    artifact = await _artifact_by_id(ctx, target_id)
+    latest = await latest_artifact(ctx, "prompt_plan")
+    if artifact is not None and (
+        artifact.kind != "prompt_plan"
+        or latest is None
+        or latest.id != artifact.id
+        or artifact.status != "candidate"
+    ):
+        if artifact.status == "candidate":
+            await set_artifact_status(ctx, artifact.id, "superseded")
+        artifact = None
+    if artifact is None:
+        raise _stale()
+    input_data = (
+        payload.get("input_data") if isinstance(payload.get("input_data"), dict) else {}
+    )
+    ruleset = ruleset_from_payload(input_data) or s07_rules()
+    allowed = set(task.get("allowed_evidence_ids") or []) | {target_id}
+    try:
+        output = await run_role_request(
+            ctx,
+            "output_reviewer",
+            "S07",
+            request_raw,
+            capability="TEXT",
+            attempt=int(checkpoint.get("attempt") or 1),
+        )
+    except ApiError:
+        await set_stage(
+            ctx,
+            "S07",
+            "failed",
+            issue_code="REVIEW_UNAVAILABLE",
+            template_id="REVIEW_UNAVAILABLE",
+        )
+        raise _fixed_review() from None
+    # A contract defect stays a typed protocol rejection: the candidate is not
+    # approved, the run is not marked failed and no approval is issued.
+    _, decision, checks = s07._validate_review(
+        output,
+        target_id=target_id,
+        allowed_evidence=tuple(allowed),
+        ruleset=ruleset,
+    )
+    if ctx.project.revision != checkpoint.get(
+        "project_revision"
+    ) or ctx.run.requirement_revision != checkpoint.get("requirement_revision"):
+        await set_artifact_status(ctx, artifact.id, "superseded")
+        raise _stale()
+    review_checks = {"ruleset_version": RULESET_VERSION, "checks": checks}
+    await add_review(
+        ctx,
+        artifact,
+        reviewer_role="output_reviewer",
+        decision=decision,
+        checks=review_checks,
+        raw=output.data,
+    )
+    if decision == "pass":
+        approved = await latest_artifact(ctx, "prompt_plan", status="approved")
+        if approved is None:
+            raise ApiError(
+                409,
+                "PROMPT_REVIEW_INVALID",
+                "独立审查结果不完整，提示词未放行。",
+            )
+        await add_approval(
+            ctx,
+            approval_type="generation_prompt",
+            artifact=approved,
+            approved_by="output_reviewer",
+            checks=review_checks,
+            model_fingerprint=output.model_fingerprint,
+        )
+        await set_stage(ctx, "S08", "active")
+    else:
+        await set_stage(
+            ctx,
+            "S07",
+            "blocked",
+            issue_code=f"REVIEW_{decision.upper()}",
+            template_id="REVIEW_UNAVAILABLE",
+        )
 
 
 async def _resume_s03_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
@@ -911,6 +1007,8 @@ async def _resume_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> No
         await _resume_s02_review(ctx, checkpoint)
     elif stage == "S05":
         await _resume_s05_review(ctx, checkpoint)
+    elif stage == "S07":
+        await _resume_s07_review(ctx, checkpoint)
     elif stage == "S09":
         await _resume_s09_review(ctx, checkpoint)
     else:

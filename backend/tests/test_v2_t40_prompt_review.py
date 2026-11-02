@@ -505,8 +505,8 @@ async def test_omitted_hard_requirement_blocks_before_any_submission(full_settin
 
 
 @pytest.mark.asyncio
-@pytest.mark.asyncio
-async def test_reviewer_may_group_checks_under_one_required_rule(full_settings):
+async def test_duplicate_rule_instance_is_rejected_as_protocol_issue(full_settings):
+    """WG3-AC-03: two results for one catalog slot are a contract defect."""
     brief = base_brief()
     async with environment(
         full_settings,
@@ -519,10 +519,15 @@ async def test_reviewer_may_group_checks_under_one_required_rule(full_settings):
         setup = await setup_confirmed_project(app, client)
         response = await workflow_action(client, setup, "compile_prompt")
 
-        assert response.status_code == 200
-        view = response.json()
-        assert view["stage"] == "S08"
-        assert any(item["kind"] == "prompt_plan" and item["status"] == "approved" for item in view["artifacts"])
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "PROMPT_REVIEW_INVALID"
+        assert visual.submit_calls == []
+        view = (await client.get(f"/api/projects/{setup['project_id']}/workflow")).json()
+        assert view["stage"] == "S07"
+        prompt = next(item for item in view["artifacts"] if item["kind"] == "prompt_plan")
+        assert prompt["status"] == "candidate"
+        assert prompt["payload"] is None
+        assert not any(item["approval_type"] == "generation_prompt" for item in view["approvals"])
 
 
 async def test_duplicate_requirement_coverage_blocks_before_any_submission(full_settings):
