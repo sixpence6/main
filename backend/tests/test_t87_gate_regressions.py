@@ -295,10 +295,6 @@ async def test_cross_clause_character_stitching_is_not_covered(full_settings):
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    strict=True,
-    reason="WG3-AC-09: fixed by #95",
-)
 async def test_numeric_quantity_change_is_not_false_passed(full_settings):
     """WG3-AC-09：数值或数量变化不得因插入字符被字符子序列算法忽略。"""
     brief = base_brief()

@@ -37,10 +37,19 @@ from app.workflow.tables import Artifact, ArtifactReview, GenerationJob, Revisio
 
 STAGE = "S07"
 ACTIONS = ["compile_prompt", "revise_prompt"]
-# Natural-language prompt writing may add connective words around a confirmed
-# requirement. Compare normalized, ordered characters instead of requiring a
-# brittle byte-for-byte substring while still rejecting missing content.
-_COVERAGE_STRIP = re.compile(r"[\s，,。；;：:、\-—()（）\[\]【】“”\"'!?！？/]+")
+# Coverage is clause-scoped and token-aware. Natural-language prompt writing
+# may add a small, explicit set of connective words, but it can never be used
+# to stitch characters across clauses or to hide a numeric/semantic change.
+_CLAUSE_SPLIT = re.compile(r"[；;。\n]+|(?<!\d)\.|\.(?!\d)|[!?！？]+")
+_COVERAGE_TOKEN = re.compile(
+    r"\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百千万亿]+|[A-Za-z]+|[^\W\d_]",
+    re.UNICODE,
+)
+_COVERAGE_FILLERS: tuple[tuple[str, ...], ...] = (
+    ("四", "周"),
+    ("保", "留"),
+)
+_POLARITY_TOKENS = frozenset("不无未非勿莫没否禁免")
 
 _CONFIRM_MESSAGE = "请先确认当前需求卡，再明确提交生成。"
 _DRIFT_MESSAGE = "确认需求已变化，请重新确认需求版本后再编制提示词。"
@@ -238,40 +247,162 @@ def _hard_requirements(brief: dict[str, Any]) -> list[dict[str, Any]]:
     return requirements
 
 
-def _coverage_text(text: str) -> str:
-    return _COVERAGE_STRIP.sub("", text)
+def _clauses(text: str) -> list[str]:
+    return [clause for clause in _CLAUSE_SPLIT.split(text) if clause.strip()]
+
+
+def _tokens(text: str) -> tuple[str, ...]:
+    return tuple(token.casefold() for token in _COVERAGE_TOKEN.findall(text))
+
+
+def _strip_fillers(tokens: tuple[str, ...]) -> tuple[str, ...]:
+    stripped = list(tokens)
+    for filler in _COVERAGE_FILLERS:
+        index = 0
+        while index <= len(stripped) - len(filler):
+            if tuple(stripped[index : index + len(filler)]) == filler:
+                del stripped[index : index + len(filler)]
+            else:
+                index += 1
+    return tuple(stripped)
+
+
+def _is_subsequence(actual: tuple[str, ...], expected: tuple[str, ...]) -> bool:
+    position = 0
+    for token in actual:
+        if position < len(expected) and token == expected[position]:
+            position += 1
+    return position == len(expected)
+
+
+def _polarity_conflict(expected: tuple[str, ...], actual: tuple[str, ...]) -> bool:
+    expected_polarity = sum(token in _POLARITY_TOKENS for token in expected)
+    actual_polarity = sum(token in _POLARITY_TOKENS for token in actual)
+    return expected_polarity != actual_polarity
+
+
+def _relevant_to_expected(
+    expected: tuple[str, ...], actual: tuple[str, ...]
+) -> bool:
+    shared = set(expected) & set(actual)
+    return len(shared) >= 2 and len(shared) * 2 >= len(expected)
+
+
+def _assess_requirement(
+    requirement: str,
+    field_value: str,
+    *,
+    binding: str = "positive_prompt",
+) -> dict[str, Any]:
+    """Assess one requirement against one prompt field.
+
+    Each expected clause must be found as a contiguous token sequence in one
+    actual clause. The only tolerated insertions are the explicit connective
+    fillers above. A reordered but otherwise exact mapping is accepted only as
+    an explainable change that the independent reviewer must still approve.
+    """
+    expected_clauses = [tokens for tokens in map(_tokens, _clauses(requirement)) if tokens]
+    actual_clauses = [tokens for tokens in map(_tokens, _clauses(field_value)) if tokens]
+    if not expected_clauses:
+        return {"covered": False, "content_intact": False, "explanations": []}
+    allow_fillers = binding == "positive_prompt"
+    candidates: list[list[tuple[int, bool]]] = []
+    for expected in expected_clauses:
+        matches: list[tuple[int, bool]] = []
+        for index, actual in enumerate(actual_clauses):
+            if actual == expected:
+                matches.append((index, False))
+            elif allow_fillers and _strip_fillers(actual) == expected:
+                matches.append((index, True))
+        candidates.append(matches)
+
+    assignment: list[tuple[int, bool]] | None = []
+    last_index = -1
+    for matches in candidates:
+        selected = next((item for item in matches if item[0] > last_index), None)
+        if selected is None:
+            assignment = None
+            break
+        assignment.append(selected)
+        last_index = selected[0]
+
+    reordered = False
+    if assignment is None:
+        used: set[int] = set()
+        alternate: list[tuple[int, bool]] = []
+        for matches in candidates:
+            selected = next((item for item in matches if item[0] not in used), None)
+            if selected is None:
+                alternate = []
+                break
+            alternate.append(selected)
+            used.add(selected[0])
+        if alternate:
+            assignment = alternate
+            reordered = True
+
+    if assignment is not None:
+        explanations: list[str] = []
+        if any(stripped for _index, stripped in assignment):
+            explanations.append("connective")
+        if reordered:
+            explanations.append("word_order")
+        return {"covered": True, "content_intact": True, "explanations": explanations}
+
+    conflict = False
+    for expected in expected_clauses:
+        relevant = [
+            actual
+            for actual in actual_clauses
+            if _relevant_to_expected(expected, actual)
+        ]
+        for actual in relevant:
+            if not _is_subsequence(actual, expected) or _polarity_conflict(
+                expected, actual
+            ):
+                conflict = True
+    return {"covered": False, "content_intact": not conflict, "explanations": []}
 
 
 def _covers_requirement(requirement: str, field_value: str) -> bool:
-    """True when every requirement clause is kept in order in a prompt clause.
-
-    A requirement may contain multiple clauses joined by semicolons. Each
-    requirement clause must be covered by one prompt clause, so characters
-    cannot be assembled across unrelated prompt clauses.
-    """
-    expected_clauses = [
-        _coverage_text(clause)
-        for clause in re.split(r"[；;。\n]+", requirement)
-    ]
-    expected_clauses = [clause for clause in expected_clauses if clause]
-    if not expected_clauses:
-        return False
-    actual_clauses = [
-        _coverage_text(clause)
-        for clause in re.split(r"[；;。\n]+", field_value)
-    ]
-    for expected in expected_clauses:
-        if not any(_keeps_characters_in_order(expected, actual) for actual in actual_clauses):
-            return False
-    return True
+    """True when every requirement clause is covered by one prompt clause."""
+    return bool(_assess_requirement(requirement, field_value)["covered"])
 
 
-def _keeps_characters_in_order(expected: str, actual: str) -> bool:
-    position = 0
-    for character in actual:
-        if position < len(expected) and character == expected[position]:
-            position += 1
-    return position == len(expected)
+def _coverage_explanations(
+    requirements: list[dict[str, Any]], payload: dict[str, Any]
+) -> list[dict[str, Any]]:
+    explanations: list[dict[str, Any]] = []
+    for requirement in requirements:
+        binding = requirement["allowed_bindings"][0]
+        if binding not in {"positive_prompt", "negative_prompt"}:
+            continue
+        field_value = payload.get(binding) or ""
+        assessment = _assess_requirement(
+            requirement["requirement"], field_value, binding=binding
+        )
+        for explanation in assessment["explanations"]:
+            explanations.append(
+                {
+                    "rule_id": requirement["rule_id"],
+                    "binding": binding,
+                    "explanation": explanation,
+                    "expected": requirement["requirement"],
+                    "actual": field_value,
+                }
+            )
+    return explanations
+
+
+def _has_claimed_coverage_value_mismatch(
+    payload: dict[str, Any], requirements: list[dict[str, Any]]
+) -> bool:
+    expected = {item["rule_id"]: item for item in requirements}
+    for item in payload.get("requirement_coverage") or []:
+        requirement = expected.get(item.get("rule_id"))
+        if requirement is not None and item.get("value") != requirement["requirement"]:
+            return True
+    return False
 
 
 def _candidate_defects(
@@ -319,6 +450,9 @@ def _candidate_defects(
         value = item.get("value")
         if binding in {"positive_prompt", "negative_prompt"}:
             field_value = payload.get(binding) or ""
+            assessment = _assess_requirement(
+                requirement["requirement"], field_value, binding=binding
+            )
             if (
                 not value
                 or value != requirement["requirement"]
@@ -329,8 +463,7 @@ def _candidate_defects(
                         CandidateDefectCode.COVERAGE_MISMATCH,
                         f"提示词覆盖值与已确认要求不一致：{rule_id}",
                         rule_id=rule_id,
-                        content_intact=bool(value)
-                        and _covers_requirement(requirement["requirement"], field_value),
+                        content_intact=bool(value) and assessment["content_intact"],
                     )
                 )
         elif binding == "size":
@@ -368,9 +501,11 @@ def _candidate_defects(
         if rule_id not in seen:
             binding = requirement["allowed_bindings"][0]
             if binding in {"positive_prompt", "negative_prompt"}:
-                intact = _covers_requirement(
-                    requirement["requirement"], payload.get(binding) or ""
-                )
+                intact = _assess_requirement(
+                    requirement["requirement"],
+                    payload.get(binding) or "",
+                    binding=binding,
+                )["content_intact"]
             elif binding == "size":
                 intact = payload.get("size") == configured_size
             elif binding == "count":
@@ -879,10 +1014,16 @@ async def _compile(
                     ]
                 },
             )
+            mapping_only = all(
+                defect.code == CandidateDefectCode.COVERAGE_MISMATCH
+                and defect.content_intact
+                for defect in defects
+            ) and _has_claimed_coverage_value_mismatch(payload, requirements)
             if (
                 recovery is None
                 and reason == ReasonCode.REPAIRABLE_COMPOSITION
                 and is_auto_repairable(defects)
+                and (intent is not None or mapping_only)
                 and reservation.revision_no < reservation.max_allowed
             ):
                 repair_codes = rule_ids
@@ -928,6 +1069,16 @@ async def _compile(
             },
         )
 
+        coverage_explanations = _coverage_explanations(requirements, payload)
+        await state.record_diagnostic(
+            ctx,
+            "prompt_coverage_review",
+            {
+                "artifact_id": artifact.id,
+                "attempt": artifact.revision_no,
+                "explanations": coverage_explanations,
+            },
+        )
         ruleset = s07_rules(
             echo_rules=tuple(item["rule_id"] for item in requirements)
         )
@@ -942,6 +1093,7 @@ async def _compile(
                     "hard_requirements": requirements,
                     "ruleset_version": ruleset.version,
                     "rules": ruleset.describe(),
+                    "coverage_explanations": coverage_explanations,
                 },
                 approved_inputs={"final_brief": brief},
                 review_targets=[
