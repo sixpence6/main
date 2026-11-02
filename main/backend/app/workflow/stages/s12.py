@@ -24,8 +24,10 @@ from app.workflow.state import (
     WorkflowContext,
     add_approval,
     add_review,
+    claim_recovery,
     latest_artifact,
     record_diagnostic,
+    release_recovery,
     set_artifact_status,
     set_intent,
     set_stage,
@@ -1110,6 +1112,38 @@ async def _resume_s10_review(
     )
 
 
+async def _resume_s07_producer(
+    ctx: WorkflowContext, checkpoint: dict[str, Any]
+) -> None:
+    """Replay the exact persisted prompt producer request without a new budget claim."""
+    request_raw, _, payload = _request_parts(checkpoint)
+    task = payload.get("task") if isinstance(payload.get("task"), dict) else {}
+    if task.get("role") != "generation_engineer" or not request_raw:
+        raise _stale()
+    try:
+        await s07._compile(ctx, None, recovery=checkpoint)
+    except ApiError as exc:
+        if exc.code == "PROMPT_INVALID":
+            await set_stage(ctx, "S07", "active")
+        elif exc.code == "PROMPT_REVIEW_INVALID":
+            await set_stage(
+                ctx,
+                "S07",
+                "blocked",
+                issue_code="REVIEW_INVALID",
+                template_id="REVIEW_INVALID",
+            )
+        elif exc.code == "PROMPT_REVIEW_REJECTED":
+            await set_stage(
+                ctx,
+                "S07",
+                "blocked",
+                issue_code="REVIEW_REJECTED",
+                template_id="REVIEW_REJECTED",
+            )
+        raise
+
+
 async def _resume_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
     stage = str(checkpoint.get("stage"))
     if stage == "S01":
@@ -1148,6 +1182,9 @@ async def _resume_producer(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> 
         return
     if stage == "S02":
         await s02.analyze(ctx)
+        return
+    if stage == "S07":
+        await _resume_s07_producer(ctx, checkpoint)
         return
     if stage == "S09":
         await _resume_s09_producer(ctx, checkpoint)
@@ -1217,12 +1254,17 @@ async def _continue(ctx: WorkflowContext) -> None:
     await _ensure_budget(ctx, checkpoint)
     capability = str(checkpoint.get("capability") or "TEXT")
     _ensure_capability(ctx, capability)
-    if checkpoint.get("phase") == "review":
-        await _resume_review(ctx, checkpoint)
-    else:
-        await _resume_producer(ctx, checkpoint)
-    await _guard_after_recovery(ctx, checkpoint)
-    await _record_resumed(ctx, checkpoint)
+    operation_id = str(checkpoint.get("operation_id") or "")
+    await claim_recovery(ctx, operation_id, stage=str(checkpoint.get("stage")))
+    try:
+        if checkpoint.get("phase") == "review":
+            await _resume_review(ctx, checkpoint)
+        else:
+            await _resume_producer(ctx, checkpoint)
+        await _guard_after_recovery(ctx, checkpoint)
+        await _record_resumed(ctx, checkpoint)
+    finally:
+        await release_recovery(ctx, operation_id)
 
 
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
