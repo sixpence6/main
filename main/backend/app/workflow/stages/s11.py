@@ -17,6 +17,13 @@ from app.services.assets import ImageValidationError, inspect_image, resolve_ass
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
 from app.workflow.access import can_access_asset
+from app.workflow.adjudication import (
+    RULESET_VERSION,
+    ProtocolIssue,
+    RuleSet,
+    governance_ruleset,
+    review_output,
+)
 from app.workflow.contracts import ContractError, digest_payload, validate_data
 from app.workflow.roles import RoleOutput, run_role
 from app.workflow.state import (
@@ -166,51 +173,46 @@ def _service_unavailable() -> ApiError:
     return ApiError(503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE"))
 
 
+def _review_ruleset(target_kind: str, required_rules: tuple[str, ...]) -> RuleSet:
+    return governance_ruleset(
+        target_kind,
+        tuple((rule_id, "历史内容核验") for rule_id in required_rules),
+        evidence_types=(
+            "artifact",
+            "report",
+            "image",
+            "requirement",
+            "technical",
+            "reference",
+            "snapshot",
+        ),
+    )
+
+
+def _review_invalid(message: str) -> ApiError:
+    return ApiError(409, "REVIEW_INVALID", message)
+
+
 def _validate_review(
     output: RoleOutput,
     target_id: str,
     required_rules: tuple[str, ...],
     allowed_evidence: set[str],
+    *,
+    target_kind: str,
 ) -> tuple[str, list[dict[str, Any]]]:
     if output.status != "ready" or output.data is None:
         raise _review_unavailable()
-    results = output.data.get("results")
-    if not isinstance(results, list) or len(results) != 1:
-        raise _review_unavailable()
-    result = results[0]
-    if not isinstance(result, dict) or result.get("target_id") != target_id:
-        raise _review_unavailable()
-    decision = result.get("decision")
-    if decision not in {"pass", "revise", "reject", "unknown"}:
-        raise _review_unavailable()
-    checks = result.get("checks")
-    if not isinstance(checks, list) or not checks:
-        raise _review_unavailable()
-    seen: list[str] = []
-    for check in checks:
-        if not isinstance(check, dict):
-            raise _review_unavailable()
-        rule_id = check.get("rule_id")
-        if not isinstance(rule_id, str) or rule_id not in required_rules:
-            raise _review_unavailable()
-        evidence = check.get("evidence_ids")
-        if not isinstance(evidence, list) or not evidence:
-            raise _review_unavailable()
-        if any(not isinstance(item, str) or item not in allowed_evidence for item in evidence):
-            raise _review_unavailable()
-        note = check.get("note")
-        if isinstance(note, str) and _contains_url(note):
-            raise _review_unavailable()
-        if decision == "pass" and check.get("outcome") != "pass":
-            raise _review_unavailable()
-        seen.append(rule_id)
-    if decision == "pass":
-        if set(seen) != set(required_rules) or len(seen) != len(set(seen)):
-            raise _review_unavailable()
-    elif len(seen) != len(set(seen)):
-        raise _review_unavailable()
-    return str(decision), checks
-
+    try:
+        adjudication = review_output(
+            output.data,
+            target_id=target_id,
+            ruleset=_review_ruleset(target_kind, required_rules),
+            allowed_evidence=allowed_evidence,
+        )
+    except ProtocolIssue as exc:
+        raise _review_invalid(exc.message) from None
+    return adjudication.decision, adjudication.check_payloads()
 
 def _validate_quality(
     output: RoleOutput,
@@ -458,12 +460,13 @@ async def _review_text_target(
                 "reviewed_role": "legacy_review",
                 "target_kind": target_kind,
                 "source": "v1_legacy",
+                "ruleset_version": RULESET_VERSION,
+                "rules": _review_ruleset(target_kind, rules).describe(),
             },
             review_targets=[target],
             required_rule_ids=rules,
             allowed_evidence_ids=tuple(sorted(allowed)),
         )
-        decision, checks = _validate_review(output, item.id, rules, allowed)
     except ApiError:
         await set_stage(
             ctx,
@@ -471,6 +474,19 @@ async def _review_text_target(
             "failed",
             issue_code="REVIEW_UNAVAILABLE",
             template_id="REVIEW_UNAVAILABLE",
+        )
+        raise
+    try:
+        decision, checks = _validate_review(
+            output, item.id, rules, allowed, target_kind=target_kind
+        )
+    except ApiError as exc:
+        await set_stage(
+            ctx,
+            STAGE,
+            "blocked" if exc.status_code == 409 else "failed",
+            issue_code=exc.code,
+            template_id=exc.code,
         )
         raise
     return decision, checks, output
@@ -514,6 +530,7 @@ async def _record_text_approval(
                         "content_digest": content_digest,
                         "snapshot_digest": snapshot_digest,
                         "rule_ids": list(rules),
+                        "ruleset_version": RULESET_VERSION,
                         "checks": checks,
                         "source": "v1_legacy",
                     },
@@ -715,6 +732,8 @@ async def _review_quality_report(
                 "reviewed_role": "quality_compliance",
                 "target_kind": "quality_report",
                 "source": "v1_legacy",
+                "ruleset_version": RULESET_VERSION,
+                "rules": _review_ruleset("quality_report", LEGACY_REPORT_RULES).describe(),
             },
             approved_inputs={"quality_report": quality},
             review_targets=[target],
@@ -723,7 +742,6 @@ async def _review_quality_report(
             images=images,
             capability="VISION",
         )
-        decision, checks = _validate_review(output, artifact.id, LEGACY_REPORT_RULES, allowed)
     except ApiError:
         await set_stage(
             ctx,
@@ -731,6 +749,23 @@ async def _review_quality_report(
             "failed",
             issue_code="REVIEW_UNAVAILABLE",
             template_id="REVIEW_UNAVAILABLE",
+        )
+        raise
+    try:
+        decision, checks = _validate_review(
+            output,
+            artifact.id,
+            LEGACY_REPORT_RULES,
+            allowed,
+            target_kind="quality_report",
+        )
+    except ApiError as exc:
+        await set_stage(
+            ctx,
+            STAGE,
+            "blocked" if exc.status_code == 409 else "failed",
+            issue_code=exc.code,
+            template_id=exc.code,
         )
         raise
     return decision, checks, output
@@ -771,14 +806,19 @@ async def _review_image_target(
             ctx,
             "output_reviewer",
             STAGE,
-            {"reviewed_role": "quality_compliance", "target_kind": "image", "source": "v1_legacy"},
+            {
+                "reviewed_role": "quality_compliance",
+                "target_kind": "image",
+                "source": "v1_legacy",
+                "ruleset_version": RULESET_VERSION,
+                "rules": _review_ruleset("image", rules).describe(),
+            },
             review_targets=[target],
             required_rule_ids=rules,
             allowed_evidence_ids=tuple(sorted(allowed)),
             images=images,
             capability="VISION",
         )
-        decision, checks = _validate_review(output, asset.id, rules, allowed)
     except ApiError:
         await set_stage(
             ctx,
@@ -786,6 +826,19 @@ async def _review_image_target(
             "failed",
             issue_code="REVIEW_UNAVAILABLE",
             template_id="REVIEW_UNAVAILABLE",
+        )
+        raise
+    try:
+        decision, checks = _validate_review(
+            output, asset.id, rules, allowed, target_kind="image"
+        )
+    except ApiError as exc:
+        await set_stage(
+            ctx,
+            STAGE,
+            "blocked" if exc.status_code == 409 else "failed",
+            issue_code=exc.code,
+            template_id=exc.code,
         )
         raise
     return decision, checks, output
@@ -851,13 +904,17 @@ async def _delivery_review(
             ctx,
             "output_reviewer",
             STAGE,
-            {"reviewed_role": "delivery_manager", "target_kind": "delivery_manifest"},
+            {
+                "reviewed_role": "delivery_manager",
+                "target_kind": "delivery_manifest",
+                "ruleset_version": RULESET_VERSION,
+                "rules": _review_ruleset("delivery_manifest", LEGACY_DELIVERY_RULES).describe(),
+            },
             approved_inputs={"delivery_manifest": data},
             review_targets=[target],
             required_rule_ids=LEGACY_DELIVERY_RULES,
             allowed_evidence_ids=tuple(sorted(allowed)),
         )
-        decision, checks = _validate_review(review, artifact.id, LEGACY_DELIVERY_RULES, allowed)
     except ApiError:
         await set_stage(
             ctx,
@@ -865,6 +922,23 @@ async def _delivery_review(
             "failed",
             issue_code="REVIEW_UNAVAILABLE",
             template_id="REVIEW_UNAVAILABLE",
+        )
+        raise
+    try:
+        decision, checks = _validate_review(
+            review,
+            artifact.id,
+            LEGACY_DELIVERY_RULES,
+            allowed,
+            target_kind="delivery_manifest",
+        )
+    except ApiError as exc:
+        await set_stage(
+            ctx,
+            STAGE,
+            "blocked" if exc.status_code == 409 else "failed",
+            issue_code=exc.code,
+            template_id=exc.code,
         )
         raise
     if decision != "pass":
@@ -1018,6 +1092,7 @@ async def _publish_legacy_image(
                 "asset_digest": asset_digest,
                 "quality_report_id": quality_artifact.id,
                 "rule_ids": list(rules),
+                "ruleset_version": RULESET_VERSION,
                 "checks": checks,
                 "source": "v1_legacy",
             },
@@ -1036,6 +1111,7 @@ async def _publish_legacy_image(
                 "asset_id": asset.id,
                 "asset_digest": asset_digest,
                 "manifest_artifact_id": delivery_artifact.id,
+                "ruleset_version": RULESET_VERSION,
                 "source": "v1_legacy",
             },
             requirement_digest=snapshot_digest,

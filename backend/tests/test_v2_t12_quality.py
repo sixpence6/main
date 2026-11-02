@@ -453,6 +453,13 @@ async def _load_job(application: Any, job_id: str) -> GenerationJob:
         return job
 
 
+async def _load_run(application: Any, run_id: str) -> WorkflowRun:
+    async with read_session(application.state.session_factory) as session:
+        run = await session.get(WorkflowRun, run_id)
+        assert run is not None
+        return run
+
+
 async def _approvals(application: Any, project_id: str) -> list[Approval]:
     async with read_session(application.state.session_factory) as session:
         return list(
@@ -591,7 +598,7 @@ async def test_size_rule_accepts_technical_and_requirement_without_image(
     assert not any(item.startswith("image:") for item in size_check["evidence_ids"])
 
 
-async def test_reviewer_may_group_report_checks_under_default_rule(
+async def test_duplicate_report_rule_is_a_protocol_defect(
     llm_app: Any, llm_client: Any, llm_settings: Any
 ) -> None:
     stub = llm_app.state.registry.stub_llm
@@ -600,8 +607,15 @@ async def test_reviewer_may_group_report_checks_under_default_rule(
 
     response = await _post_review(llm_client, seed)
 
-    assert response.status_code == 200, response.text
-    assert response.json()["stage"] == "S10"
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "REVIEW_INVALID"
+    run = await _load_run(llm_app, seed.run_id)
+    assert run.status == "blocked"
+    assert run.issue_code == "REVIEW_INVALID"
+    assert not any(
+        item.approval_type == "image"
+        for item in await _approvals(llm_app, seed.project_id)
+    )
 
 
 async def test_reviewer_may_add_advisory_review_rule(
@@ -617,7 +631,7 @@ async def test_reviewer_may_add_advisory_review_rule(
     assert response.json()["stage"] == "S10"
 
 
-async def test_reviewer_may_add_unregistered_advisory_review_rule(
+async def test_unregistered_advisory_review_rule_is_a_protocol_defect(
     llm_app: Any, llm_client: Any, llm_settings: Any
 ) -> None:
     stub = llm_app.state.registry.stub_llm
@@ -626,8 +640,15 @@ async def test_reviewer_may_add_unregistered_advisory_review_rule(
 
     response = await _post_review(llm_client, seed)
 
-    assert response.status_code == 200, response.text
-    assert response.json()["stage"] == "S10"
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "REVIEW_INVALID"
+    run = await _load_run(llm_app, seed.run_id)
+    assert run.status == "blocked"
+    assert run.issue_code == "REVIEW_INVALID"
+    assert not any(
+        item.approval_type == "image"
+        for item in await _approvals(llm_app, seed.project_id)
+    )
 
 
 async def test_hard_failure_keeps_image_quarantined_but_report_may_pass(
@@ -877,8 +898,11 @@ async def test_reviewer_missing_required_image_rule_is_rejected(
 
     response = await _post_review(llm_client, seed)
 
-    assert response.status_code == 502, response.text
-    assert response.json()["error"]["code"] == "CONTRACT_ERROR"
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "REVIEW_INVALID"
+    run = await _load_run(llm_app, seed.run_id)
+    assert run.status == "blocked"
+    assert run.issue_code == "REVIEW_INVALID"
     assert len(stub.role_calls_received) == 2
     assert (await _load_asset(llm_app, seed.asset_id)).review_status == "quarantined"
     assert not any(
@@ -932,8 +956,11 @@ async def test_reviewer_unknown_rule_is_rejected(
 
     response = await _post_review(llm_client, seed)
 
-    assert response.status_code == 502, response.text
-    assert response.json()["error"]["code"] == "CONTRACT_ERROR"
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "REVIEW_INVALID"
+    run = await _load_run(llm_app, seed.run_id)
+    assert run.status == "blocked"
+    assert run.issue_code == "REVIEW_INVALID"
     assert (await _load_asset(llm_app, seed.asset_id)).review_status == "quarantined"
     assert not any(
         item.approval_type == "image"

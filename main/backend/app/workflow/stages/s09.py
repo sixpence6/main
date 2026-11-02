@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -18,6 +17,16 @@ from app.models import Asset, Generation
 from app.services.assets import inspect_image, resolve_asset_file
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
+from app.workflow.adjudication import (
+    ADVISORY_GOVERNANCE_RULES,
+    RULESET_VERSION,
+    ProtocolIssue,
+    Rule,
+    RuleSet,
+    adjudicate,
+    governance_ruleset,
+    review_results,
+)
 from app.workflow.roles import RoleOutput, run_role
 from app.workflow.state import (
     WorkflowContext,
@@ -69,28 +78,7 @@ _RULES: tuple[tuple[str, str, tuple[str, ...], bool], ...] = (
 )
 _RULE_ORDER = tuple(rule[0] for rule in _RULES)
 _DEFAULT_REVIEW_RULE = "review:quality_report"
-_ADVISORY_REVIEW_RULE = re.compile(r"^review:[a-z][a-z0-9_]{0,63}$")
-_REVIEW_RULE_IDS = frozenset(
-    _RULE_ORDER
-    + (
-        _DEFAULT_REVIEW_RULE,
-        "review:scope",
-        "review:evidence",
-        "review:consistency",
-        "review:summary",
-        "review:scope_and_duty",
-        "review:fact_source",
-        "review:unknown_as_certain",
-        "review:evidence_coverage",
-        "review:unauthorized_action",
-        "review:no_unresolved_critical",
-        "review:unauthorized_claim",
-        "review:scope_and_unauthorized",
-        "review:evidence_and_unknowns",
-        "review:scope_and_evidence",
-        "review:unauthorized",
-    )
-)
+
 
 # A quality or reviewer role can fail after the candidate bytes are already
 # durable. Those failures are safe to recheck without generating another image:
@@ -456,8 +444,8 @@ def _invalid_contract() -> ApiError:
     return ApiError(502, "CONTRACT_ERROR", templates.render("SERVICE_UNAVAILABLE"))
 
 
-def _invalid_review() -> ApiError:
-    return ApiError(502, "CONTRACT_ERROR", templates.render("REVIEW_UNAVAILABLE"))
+def _invalid_review(message: str | None = None) -> ApiError:
+    return ApiError(409, "REVIEW_INVALID", message or templates.render("REVIEW_INVALID"))
 
 
 def _check_evidence(
@@ -600,6 +588,48 @@ def _review_targets(
     ]
 
 
+def _quality_ruleset() -> RuleSet:
+    return governance_ruleset(
+        "quality_report",
+        ((_DEFAULT_REVIEW_RULE, "质检报告独立核验"),),
+        evidence_types=("artifact", "report"),
+    )
+
+
+def _image_ruleset(rules: list[_RuleSpec]) -> RuleSet:
+    blocking = tuple(
+        Rule(
+            rule.rule_id,
+            rule.label,
+            evidence_types=rule.evidence_types,
+            applicable=rule.applicable,
+            reason=(
+                "当前确认快照没有商品参考图，商品一致性规则不适用"
+                if not rule.applicable
+                else ""
+            ),
+        )
+        for rule in rules
+    )
+    known = {rule.rule_id for rule in rules} | {_DEFAULT_REVIEW_RULE}
+    evidence_types = tuple(
+        dict.fromkeys(
+            [item for rule in rules for item in rule.evidence_types]
+            + ["artifact", "report"]
+        )
+    )
+    advisories = tuple(
+        Rule(
+            rule_id,
+            "治理观察项（不改变放行结论）",
+            kind="advisory",
+            evidence_types=evidence_types,
+        )
+        for rule_id in sorted(ADVISORY_GOVERNANCE_RULES - known)
+    )
+    return RuleSet("image", blocking + advisories)
+
+
 def _validate_review(
     output: RoleOutput,
     *,
@@ -607,141 +637,39 @@ def _validate_review(
     image_target: str,
     rules: list[_RuleSpec],
     allowed: set[str],
-) -> tuple[str, dict[str, Any], str, dict[str, Any]]:
+) -> tuple[str, list[dict[str, Any]], str, list[dict[str, Any]]]:
     if output.status != "ready" or output.data is None:
         raise _invalid_review()
-    results = output.data.get("results")
-    if not isinstance(results, list) or len(results) != 2:
-        raise _invalid_review()
-    by_target: dict[str, dict[str, Any]] = {}
-    for result in results:
-        if not isinstance(result, dict):
-            raise _invalid_review()
-        target_id = result.get("target_id")
-        if target_id not in {quality_target, image_target} or target_id in by_target:
-            raise _invalid_review()
-        by_target[target_id] = result
-    if set(by_target) != {quality_target, image_target}:
-        raise _invalid_review()
-    for target_id, result in by_target.items():
-        checks = result.get("checks")
-        if not isinstance(checks, list) or not checks:
-            raise _invalid_review()
-        seen: set[str] = set()
-        for check in checks:
-            if not isinstance(check, dict):
-                raise _invalid_review()
-            rule_id = check.get("rule_id")
-            if not isinstance(rule_id, str):
-                raise _invalid_review()
-            if rule_id in seen and not rule_id.startswith("review:"):
-                raise _invalid_review()
-            if rule_id not in _REVIEW_RULE_IDS and not _ADVISORY_REVIEW_RULE.match(rule_id):
-                raise _invalid_review()
-            seen.add(rule_id)
-            outcome = check.get("outcome")
-            if outcome not in {"pass", "fail", "unknown", "not_applicable"}:
-                raise _invalid_review()
-            evidence = check.get("evidence_ids")
-            if not isinstance(evidence, list):
-                raise _invalid_review()
-            for evidence_id in evidence:
-                if not isinstance(evidence_id, str) or evidence_id not in allowed:
-                    raise _invalid_review()
-        decision = result.get("decision")
-        if decision not in {"pass", "revise", "reject", "unknown"}:
-            raise _invalid_review()
-        if target_id == quality_target:
-            report_checks = [
-                item
-                for item in checks
-                if item.get("rule_id") == _DEFAULT_REVIEW_RULE
-            ]
-            if not report_checks:
-                raise _invalid_review()
-            for report_check in report_checks:
-                report_outcome = report_check.get("outcome")
-                if report_outcome not in {"pass", "fail", "unknown"}:
-                    raise _invalid_review()
-                if report_outcome == "pass" and not report_check.get("evidence_ids"):
-                    raise _invalid_review()
-            if decision == "pass" and any(
-                item.get("outcome") != "pass" for item in report_checks
-            ):
-                raise _invalid_review()
-            if decision != "pass" and not any(
-                item.get("outcome") in {"fail", "unknown"}
-                for item in report_checks
-            ):
-                raise _invalid_review()
-            if decision == "pass":
-                for check in checks:
-                    if check.get("outcome") != "pass":
-                        raise _invalid_review()
-            continue
-        # The independent reviewer must attest every applicable hard rule
-        # exactly once, with evidence from this review call. A fail/unknown is
-        # a legitimate review finding, not a contract violation: it simply
-        # prevents an image approval below. A non-applicable hard rule, when
-        # present, must be marked not_applicable.
-        applicable_ids = {rule.rule_id for rule in rules if rule.applicable}
-        by_rule = {
-            item.get("rule_id"): item
-            for item in checks
-            if isinstance(item, dict) and item.get("rule_id") in _RULE_ORDER
-        }
-        for rule in rules:
-            if not rule.applicable:
-                continue
-            check = by_rule.get(rule.rule_id)
-            if check is None:
-                raise _invalid_review()
-            outcome = check.get("outcome")
-            if outcome not in {"pass", "fail", "unknown"}:
-                raise _invalid_review()
-            evidence = check.get("evidence_ids")
-            if not isinstance(evidence, list):
-                raise _invalid_review()
-            for evidence_id in evidence:
-                if not isinstance(evidence_id, str) or evidence_id not in allowed:
-                    raise _invalid_review()
-                evidence_type = _evidence_type(evidence_id)
-                if evidence_type is None or evidence_type not in rule.evidence_types:
-                    raise _invalid_review()
-            if outcome == "pass" and (
-                not evidence
-                or not _check_evidence(check, rule.evidence_types, allowed)
-            ):
-                raise _invalid_review()
-        for check in checks:
-            rule_id = check.get("rule_id")
-            if (
-                rule_id in _RULE_ORDER
-                and rule_id not in applicable_ids
-                and check.get("outcome") != "not_applicable"
-            ):
-                raise _invalid_review()
-        if decision == "pass":
-            for check in checks:
-                rule_id = check.get("rule_id")
-                expected = (
-                    "not_applicable"
-                    if rule_id in _RULE_ORDER and rule_id not in applicable_ids
-                    else "pass"
-                )
-                if check.get("outcome") != expected:
-                    raise _invalid_review()
-        elif not any(
-            check.get("outcome") in {"fail", "unknown"} for check in checks
-        ):
-            raise _invalid_review()
+    try:
+        by_target = review_results(
+            output.data, target_ids=(quality_target, image_target)
+        )
+        report = by_target[quality_target]
+        image = by_target[image_target]
+        quality = adjudicate(
+            _quality_ruleset(),
+            target_id=quality_target,
+            result_target_id=report.get("target_id"),
+            declared_decision=report.get("decision"),
+            checks=report.get("checks"),
+            allowed_evidence=allowed,
+        )
+        picture = adjudicate(
+            _image_ruleset(rules),
+            target_id=image_target,
+            result_target_id=image.get("target_id"),
+            declared_decision=image.get("decision"),
+            checks=image.get("checks"),
+            allowed_evidence=allowed,
+        )
+    except ProtocolIssue as exc:
+        raise _invalid_review(exc.message) from None
     return (
-        str(by_target[quality_target].get("decision")),
-        by_target[quality_target],
-        str(by_target[image_target].get("decision")),
-        by_target[image_target],
+        quality.decision,
+        quality.check_payloads(),
+        picture.decision,
+        picture.check_payloads(),
     )
-
 
 async def _set_asset(
     ctx: WorkflowContext, asset: Asset, status: str, note: str, sha256: str
@@ -812,7 +740,11 @@ async def _add_image_review(
                 target_kind="image",
                 decision=decision,
                 checks_json=json.dumps(
-                    {"target_id": target_id, "checks": checks},
+                    {
+                        "target_id": target_id,
+                        "ruleset_version": RULESET_VERSION,
+                        "checks": checks,
+                    },
                     ensure_ascii=False,
                     sort_keys=True,
                 ),
@@ -956,6 +888,7 @@ async def _review_and_apply(
                 "reviewed_role": "quality_compliance",
                 "quality_target": quality_target,
                 "image_target": image_target,
+                "ruleset_version": RULESET_VERSION,
                 "rules": rule_payload,
             },
             approved_inputs={
@@ -1024,10 +957,13 @@ async def _apply_review(
             rules=rules,
             allowed=review_allowed,
         )
-    except ApiError:
-        await _fail_stage(ctx, "REVIEW_UNAVAILABLE", "REVIEW_UNAVAILABLE")
+    except ApiError as exc:
+        if exc.code == "REVIEW_INVALID":
+            await _block_stage(ctx, "REVIEW_INVALID", "REVIEW_INVALID")
+        else:
+            await _fail_stage(ctx, "REVIEW_UNAVAILABLE", "REVIEW_UNAVAILABLE")
         raise
-    report_checks = report_result.get("checks")
+    report_checks = report_result
     if not isinstance(report_checks, list):
         raise _invalid_review()
     await add_review(
@@ -1054,13 +990,14 @@ async def _apply_review(
         approved_by="output_reviewer",
         checks={
             "target_id": quality_target,
+            "ruleset_version": RULESET_VERSION,
             "checks": report_checks,
         },
         model_fingerprint=review.model_fingerprint,
     )
-    image_checks = image_result.get("checks")
+    image_checks = image_result
     if not isinstance(image_checks, list):
-        image_checks = []
+        raise _invalid_review()
     all_quality_pass = (
         quality_data.get("decision") == "pass"
         and all(
@@ -1098,6 +1035,7 @@ async def _apply_review(
                 "quality_target_id": quality_target,
                 "image_target_id": image_target,
                 "report_target_id": quality_target,
+                "ruleset_version": RULESET_VERSION,
                 "review_model_fingerprint": await latest_model_fingerprint(
                     ctx, "output_reviewer"
                 ),

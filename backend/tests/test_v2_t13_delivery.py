@@ -10,7 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from PIL import Image
 from sqlalchemy import select
 
@@ -423,7 +423,7 @@ def prepared_text(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
-async def test_reviewer_may_group_checks_under_one_required_rule(full_settings):
+async def test_duplicate_required_rule_is_a_protocol_defect(full_settings):
     stub = LLMStub()
 
     async def seed(settings: Any, session: Any) -> SeedIds:
@@ -432,13 +432,27 @@ async def test_reviewer_may_group_checks_under_one_required_rule(full_settings):
         return ids
 
     async with _delivery_env(full_settings, stub, seed) as env:
-        prepared = await _prepare(env)
-        assert prepared["stage"] == "S10"
-        assert prepared["issue"]["code"] == "DELIVERY_MANIFEST_READY"
-        manifest = next(
-            item for item in prepared["artifacts"] if item["kind"] == "delivery_manifest"
-        )
-        assert manifest["status"] == "approved"
+        response = await _post_action(env, "prepare_delivery")
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "REVIEW_INVALID"
+        async with env.app.state.session_factory() as session:
+            run = await session.scalar(
+                select(WorkflowRun)
+                .where(WorkflowRun.project_id == env.ids.project_id)
+                .order_by(WorkflowRun.created_at.desc())
+                .limit(1)
+            )
+            assert run is not None
+            assert run.status == "blocked"
+            assert run.issue_code == "REVIEW_INVALID"
+            manifest = await session.scalar(
+                select(Artifact).where(
+                    Artifact.run_id == run.id,
+                    Artifact.kind == "delivery_manifest",
+                )
+            )
+            assert manifest is not None
+            assert manifest.status == "candidate"
 
 
 async def test_reviewer_may_add_extra_g07_semantic_checks(full_settings):

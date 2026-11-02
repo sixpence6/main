@@ -472,6 +472,21 @@ ADVISORY_GOVERNANCE_RULES: Final[frozenset[str]] = frozenset(
         "G07_UNKNOWN_AS_FACT",
         "G08_AUTH",
         "review:quality_report",
+        "review:scope",
+        "review:evidence",
+        "review:consistency",
+        "review:summary",
+        "review:scope_and_duty",
+        "review:fact_source",
+        "review:unknown_as_certain",
+        "review:evidence_coverage",
+        "review:unauthorized_action",
+        "review:no_unresolved_critical",
+        "review:unauthorized_claim",
+        "review:scope_and_unauthorized",
+        "review:evidence_and_unknowns",
+        "review:scope_and_evidence",
+        "review:unauthorized",
     }
 )
 
@@ -499,13 +514,14 @@ def governance_ruleset(
                 evidence_types=tuple(evidence_types),
             )
         )
+    advisory_evidence = tuple(dict.fromkeys((*evidence_types, "artifact")))
     for rule_id in sorted(ADVISORY_GOVERNANCE_RULES - known):
         rules.append(
             Rule(
                 rule_id,
                 "治理观察项（不改变放行结论）",
                 kind="advisory",
-                evidence_types=("artifact",),
+                evidence_types=advisory_evidence,
             )
         )
     return RuleSet(
@@ -545,6 +561,37 @@ def review_output(
     )
 
 
+def review_results(
+    output_data: object,
+    *,
+    target_ids: Iterable[str],
+) -> dict[str, dict[str, Any]]:
+    """Shape-check a multi-target reviewer answer and index results by target."""
+    expected = tuple(target_ids)
+    if not isinstance(output_data, dict):
+        raise ProtocolIssue(MISSING_RESULT, "审查输出缺少 data，未放行")
+    results = output_data.get("results")
+    if not isinstance(results, list):
+        raise ProtocolIssue(MISSING_RESULT, "审查结果必须是目标列表，未放行")
+    indexed: dict[str, dict[str, Any]] = {}
+    for result in results:
+        if not isinstance(result, dict):
+            raise ProtocolIssue(MISSING_RESULT, "审查结果格式不可识别，未放行")
+        target_id = result.get("target_id")
+        if target_id not in expected:
+            raise ProtocolIssue(WRONG_TARGET, "审查结果声明了本次调用之外的目标，未放行")
+        if target_id in indexed:
+            raise ProtocolIssue(WRONG_TARGET, "审查结果重复声明同一目标，未放行")
+        checks = result.get("checks")
+        if not isinstance(checks, list) or not checks:
+            raise ProtocolIssue(MISSING_RESULT, "审查结果没有给出任何规则核验，未放行")
+        indexed[target_id] = result
+    missing = [target_id for target_id in expected if target_id not in indexed]
+    if missing:
+        raise ProtocolIssue(MISSING_RESULT, "审查结果缺少目标，未放行")
+    return indexed
+
+
 __all__ = [
     "ADVISORY_GOVERNANCE_RULES",
     "Adjudication",
@@ -557,6 +604,7 @@ __all__ = [
     "evidence_type",
     "governance_ruleset",
     "review_output",
+    "review_results",
     "ruleset_from_payload",
     "s07_rules",
 ]

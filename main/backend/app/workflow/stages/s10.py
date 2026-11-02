@@ -30,6 +30,13 @@ from app.services.assets import (
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
 from app.workflow.access import asset_approval_matches
+from app.workflow.adjudication import (
+    RULESET_VERSION,
+    Adjudication,
+    ProtocolIssue,
+    governance_ruleset,
+    review_output,
+)
 from app.workflow.contracts import DeliveryData, digest_payload
 from app.workflow.roles import RoleOutput, run_role
 from app.workflow.state import (
@@ -59,6 +66,11 @@ _MANIFEST_RULES = (
     "G07_MANIFEST_EVIDENCE",
     "G07_MANIFEST_FILENAME",
     "G07_MANIFEST_CAPTION",
+)
+_MANIFEST_RULESET = governance_ruleset(
+    "delivery_manifest",
+    tuple((rule_id, "交付清单核验") for rule_id in _MANIFEST_RULES),
+    evidence_types=("artifact", "report", "image"),
 )
 _EXECUTABLE_SUFFIXES = {
     ".exe",
@@ -260,49 +272,25 @@ async def _require_manifest_evidence(
     return artifact, approval, payload.model_dump(mode="json")
 
 
-def _validate_review(output: RoleOutput, target_id: str, allowed_evidence: set[str]) -> None:
+def _validate_review(
+    output: RoleOutput, target_id: str, allowed_evidence: set[str]
+) -> Adjudication:
     if output.status != "ready" or output.data is None:
-        raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
-    results = output.data.get("results")
-    if not isinstance(results, list) or len(results) != 1:
-        raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
-    result = results[0]
-    if not isinstance(result, dict) or result.get("target_id") != target_id:
-        raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
-    if result.get("decision") != "pass":
-        raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
-    checks = result.get("checks")
-    if not isinstance(checks, list) or not checks:
-        raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
-    seen: list[str] = []
-    for check in checks:
-        if not isinstance(check, dict):
-            raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
-        rule_id = check.get("rule_id")
-        if (
-            not isinstance(rule_id, str)
-            or (rule_id not in _MANIFEST_RULES and not rule_id.startswith("G07_"))
-            or check.get("outcome") != "pass"
-        ):
-            raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
-        evidence = check.get("evidence_ids")
-        if (
-            not isinstance(evidence, list)
-            or not evidence
-            or any(not isinstance(item, str) or item not in allowed_evidence for item in evidence)
-        ):
-            raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
-        note = check.get("note")
-        if isinstance(note, str) and "://" in note.lower():
-            raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
-        seen.append(str(rule_id))
-    # Multiple checks may be grouped under one required rule by a real reviewer
-    # (for example asset identity, visual ratio and scope in separate notes).
-    # Every required rule must still appear at least once and every check has
-    # already been validated individually; duplicates add no authority.
-    if not set(_MANIFEST_RULES).issubset(seen):
-        raise ApiError(409, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
-
+        raise ApiError(
+            503, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE")
+        )
+    try:
+        adjudication = review_output(
+            output.data,
+            target_id=target_id,
+            ruleset=_MANIFEST_RULESET,
+            allowed_evidence=allowed_evidence,
+        )
+    except ProtocolIssue as exc:
+        raise ApiError(409, "REVIEW_INVALID", exc.message) from None
+    if not adjudication.approved:
+        raise ApiError(409, "REVIEW_REJECTED", templates.render("REVIEW_REJECTED"))
+    return adjudication
 
 async def _requirement_payload(ctx: WorkflowContext, job: GenerationJob) -> dict[str, Any]:
     """只使用生成确认时的不可变需求快照；找不到同摘要快照就拒绝。"""
@@ -421,6 +409,8 @@ async def _prepare(ctx: WorkflowContext) -> None:
                 "target_asset": target_asset,
                 "requirement": requirement,
                 "image_approval": approval_evidence,
+                "ruleset_version": RULESET_VERSION,
+                "rules": _MANIFEST_RULESET.describe(),
             },
             review_targets=[
                 {
@@ -435,7 +425,6 @@ async def _prepare(ctx: WorkflowContext) -> None:
             allowed_evidence_ids=allowed_evidence,
             attempt=1,
         )
-        _validate_review(review, target_id, set(allowed_evidence))
     except ApiError:
         await set_stage(
             ctx,
@@ -445,14 +434,24 @@ async def _prepare(ctx: WorkflowContext) -> None:
             template_id="REVIEW_UNAVAILABLE",
         )
         raise
+    try:
+        adjudication = _validate_review(review, target_id, set(allowed_evidence))
+    except ApiError as exc:
+        await set_stage(
+            ctx,
+            STAGE,
+            "blocked" if exc.status_code == 409 else "failed",
+            issue_code=exc.code,
+            template_id=exc.code,
+        )
+        raise
 
-    checks = review.require_data()["results"][0]["checks"]
     await add_review(
         ctx,
         artifact,
         reviewer_role="output_reviewer",
         decision="pass",
-        checks=checks,
+        checks=adjudication.review_checks(),
         target_kind="artifact",
         raw=review.data,
     )
@@ -468,6 +467,7 @@ async def _prepare(ctx: WorkflowContext) -> None:
             "asset_digest": asset.sha256,
             "target_id": target_id,
             "requirement_revision": ctx.run.requirement_revision,
+            "ruleset_version": RULESET_VERSION,
         },
         requirement_digest=job.confirmed_snapshot_digest,
         model_fingerprint=review.model_fingerprint,
