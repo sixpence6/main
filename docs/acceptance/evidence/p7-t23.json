@@ -1,0 +1,172 @@
+{
+  "ticket": "#109 / T23 full creation chain and R3 integration acceptance",
+  "batch": "P7 / T23 end-to-end HTTP workflow acceptance, release-candidate regression and acceptance matrix",
+  "code": {
+    "baseline_head": "06cc738 (integration/v3)",
+    "app_code_head": "86c848a",
+    "branch": "ticket/109",
+    "rule_version": "v3.rules.2",
+    "prompt_version": "2.0.0",
+    "rule_catalog_version": "v3.rules.2",
+    "snapshot_schema_version": "1.1.0 (supported: 1.1.0 and 1.0.0)",
+    "contract_version": "1.0.0",
+    "migration_head": "0011_recovery_claims",
+    "files": [
+      "main/backend/app/workflow/projection.py",
+      "backend/tests/test_v3_p7_t23_full_chain_acceptance.py"
+    ],
+    "commit": "86c848a",
+    "evidence_commit": "pending docs commit"
+  },
+  "environment": {
+    "os": "Windows 10.0.19045",
+    "python": "backend/.venv Python 3.12.12",
+    "database": "temporary SQLite per test, alembic 0001->0011",
+    "adapters": "counting LLMStub and VisualStub; no real provider or network call",
+    "frontend": "Vitest jsdom, vue-tsc and Vite production build using repository node_modules"
+  },
+  "scope": [
+    "one full HTTP chain: prepared final brief -> single confirm_requirements -> S07 prompt compile and review -> one image submission -> independent report/image approval -> delivery list -> atomic publish -> read-only result preview/download -> request_new_version from the original chat",
+    "acceptance accounting: exactly one GenerationIntent, one GenerationUsage and three scopes of GenerationSlot for repeated confirmation; rejected replay keeps the same intent and adds no model/image call; hard quality failure releases all three slots with generation_terminal",
+    "candidate budget: RevisionBudget prompt_plan used=1 and max_allowed=3 in both normal and failed chains; confirmation replays do not consume another candidate",
+    "projection: task_state binding current must compare the job with its approved final_brief artifact digest, not the execution snapshot digest; before publish current is pending, after publish it is published/current, after request_new_version the old version is history_only",
+    "results resource access: candidate asset is not downloadable before approval, preview equals download bytes after publish, refresh adds zero calls, old asset stays downloadable after a new requirement version starts",
+    "failure boundary: a hard quality rejection yields S09 blocked IMAGE_NOT_APPROVED, no version, no delivery, no publish/download action and no downloadable asset",
+    "no claim of formal V3 release: real provider, real device, HTTPS LAN and production data remain T25/release work"
+  ],
+  "inputs": [
+    "real FastAPI app and HTTP endpoints with temporary SQLite database",
+    "LLMStub role responder for generation_engineer, output_reviewer, quality_compliance and delivery_manager",
+    "VisualStub returning one 1024x1024 PNG result",
+    "existing fixture brief from tests.test_t65_generation_cycle._setup_s06"
+  ],
+  "commands": [
+    "cd .worktrees/t109/backend && backend/.venv/Scripts/python.exe -m pytest -q tests/test_v3_p7_t23_full_chain_acceptance.py",
+    "cd .worktrees/t109/backend && backend/.venv/Scripts/python.exe -m pytest -q tests/test_v3_p1_t13_safe_projection.py tests/test_t75_delivery_history.py tests/test_t65_generation_cycle.py",
+    "cd .worktrees/t109/backend && backend/.venv/Scripts/python.exe -m pytest -q tests/test_v3_p1_t10_execution_snapshot.py tests/test_v3_p1_t11_constraint_layers.py tests/test_v3_p1_t12_legacy_compat.py tests/test_v3_p7_t23_full_chain_acceptance.py",
+    "cd .worktrees/t109 && node_modules/.bin/vitest.cmd run",
+    "cd .worktrees/t109/main && node_modules/.bin/vue-tsc.cmd --noEmit -p tsconfig.json",
+    "cd .worktrees/t109/main && npm run build",
+    "cd .worktrees/t109/backend && backend/.venv/Scripts/python.exe -m pytest -q (full backend suite attempt)"
+  ],
+  "commands_output": [
+    {
+      "command": "T23 focused full-chain suite",
+      "result": "2 passed in 3.67s"
+    },
+    {
+      "command": "T13 projection + T75 delivery + T65 generation-cycle regression",
+      "result": "24 passed in 21.94s"
+    },
+    {
+      "command": "T10/T11/T12/T23 snapshot and chain regression",
+      "result": "16 passed in 8.53s"
+    },
+    {
+      "command": "full frontend Vitest suite",
+      "result": "46 files passed; 217 tests passed in 42.45s; exit 0"
+    },
+    {
+      "command": "vue-tsc typecheck",
+      "result": "exit 0; no diagnostics"
+    },
+    {
+      "command": "Vite production build",
+      "result": "exit 0; 1669 modules transformed; built in 1.01s"
+    },
+    {
+      "command": "full backend suite",
+      "result": "started in background; result recorded in p7-t23-full-chain.md; not claimed until completes"
+    }
+  ],
+  "candidate_budget": {
+    "normal_chain": "prompt_plan used=1, max_allowed=3; exact confirm replay kept used=1",
+    "hard_failure_chain": "prompt_plan used=1, max_allowed=3; no refund and no automatic retry",
+    "total_candidates": "2 prompt_plan candidates across the two tests",
+    "note": "budget rows are read from persisted RevisionBudget; counts are stub observations"
+  },
+  "calls": {
+    "normal_chain": {
+      "role_requests": 6,
+      "roles": [
+        "generation_engineer",
+        "output_reviewer",
+        "quality_compliance",
+        "output_reviewer",
+        "delivery_manager",
+        "output_reviewer"
+      ],
+      "image_generation": 1,
+      "preview_download_extra_calls": 0
+    },
+    "hard_failure_chain": {
+      "role_requests": 4,
+      "roles": [
+        "generation_engineer",
+        "output_reviewer",
+        "quality_compliance",
+        "output_reviewer"
+      ],
+      "image_generation": 1
+    },
+    "total": {
+      "llm_role_requests": 10,
+      "image_generation": 2,
+      "provider_network": 0
+    },
+    "note": "LLMStub/VisualStub observations, not real-provider billing evidence"
+  },
+  "acceptance_counts": {
+    "normal_chain": "GenerationIntent=1 accepted->delivered, GenerationUsage=1, GenerationSlot=3 (personal/instance/project), Delivery=1 published, Asset=1 downloadable, version=1",
+    "confirm_replay": "GenerationIntent=1, GenerationUsage=1, GenerationSlot=3; same intent id; one generation_engineer request",
+    "hard_failure_chain": "GenerationIntent=1 failed, GenerationUsage=1, GenerationSlot=3 all released generation_terminal, Delivery=0, downloadable version=0",
+    "new_version": "project_revision +1, WorkflowRun sequence_no=2 active at S03, old run completed, old delivery remains published"
+  },
+  "acceptance": {
+    "WG3-AC-01": "pass by owner evidence #98 p1-t12: S07 full N/A/empty evidence cannot approve while complete required-pass control advances; T23 confirms the normal chain reaches S07 only through one valid confirm.",
+    "WG3-AC-02": "pass by owner evidence #98 p1-t12: required reviewers all pass and advisory outcomes do not change the gate, including S12 recovery.",
+    "WG3-AC-03": "pass by owner evidence #98 p1-t12: forged rules, illegal sources and conflicting evidence are refused; advisory labels cannot swallow a real safety finding.",
+    "WG3-AC-04": "pass by owner evidence #97 p1-t11: only soft style/mood unknown may deliver; product/quantity/text/forbidden unknown stays isolated.",
+    "WG3-AC-05": "pass by owner evidence #97 p1-t11: explicit user lock upgrades the named soft field to hard, changes the card digest and requires new confirmation; old approval is non-portable.",
+    "WG3-AC-06": "pass by owner evidence #96 p1-t10 and #98/#110: dedicated background/palette/text_layout/reference_treatment/preservation_rules fields are frozen through confirmation/compile/QC and history reads its own snapshot.",
+    "WG3-AC-07": "pass by owner evidence #94 p1-t08: same accepted intent with unchanged snapshot and provably unsubmitted candidate repairs do not add an acceptance; budget survives recovery and exhaustion stops.",
+    "WG3-AC-08": "pass by owner evidence #94 p1-t08 and #93 p1-t07: format/coverage repair does not force requirement edits; real text/reference/hard changes need a new version; timeout/restart/remote-unknown never auto-resend images.",
+    "WG3-AC-09": "pass by owner evidence #95 p1-t09: exact multiline/punctuation copy passes; missing chars, negation, quantity, numeric changes and cross-sentence stitching fail.",
+    "WG3-AC-10": "pass by owner evidence #99 p1-t13 and #103/#104 fe3-t17/t18: task card uses safe server reasons and only available actions; suggestions require approval; results has no second input.",
+    "WG3-AC-11": "pass by owner evidence #101/#102 fe3-t15/t16: route entry, refresh, history, download and back-to-modify add no model call; one publish jump only for the active current chat; unpublished images are not reached through cache.",
+    "WG3-AC-12": "pass by T23 hard-failure test plus #105 fe3-t19 and #96 p1-t10: report pass without image approval yields no image/download; unpublished candidate asset is 409 and versions list is empty; published preview equals downloaded bytes."
+  },
+  "fe3_acceptance": {
+    "FE3-AC-01": "pass by #108 fe3-t22: own brand 电商生图工作台, assistant signature 智能生图助手, local purple/white shell, auth design preserved.",
+    "FE3-AC-02": "pass by #108 fe3-t22 and #103 fe3-t17: description/supplement/card/authorization/generation status in one conversation; no permanent right workflow rail or four-page navigation.",
+    "FE3-AC-03": "pass by #103 fe3-t17: known info not re-asked, quick options editable, unapproved body hidden, only the current valid card can authorize.",
+    "FE3-AC-04": "pass by #103 fe3-t17 and T23 confirm replay: one primary action acceptance; repeated clicks/replays keep one intent/usage/three slots and no extra generation.",
+    "FE3-AC-05": "pass by #102 fe3-t16: only the active current project chat observes unpublished->published and jumps once; initial load, refresh, project switch and account switch do not re-jump or leak.",
+    "FE3-AC-06": "pass by #101 fe3-t15: route entry, browser history, result download and history view add no model call; the original accepted task remains separately attributed.",
+    "FE3-AC-07": "pass by #105 fe3-t19 and T23 results checks: large image and download correspond to the accessible published version; unpublished/revoked/expired/missing cases show no cached substitute.",
+    "FE3-AC-08": "pass by #104/#105 fe3-t18/t19: results body and folds contain no requirement feedback form; 返回修改 only navigates/focuses and writes nothing.",
+    "FE3-AC-09": "pass by #104 fe3-t18: sending in the original composer creates a new requirement revision, re-review/check and later explicit authorization; history preview does not change the edit baseline.",
+    "FE3-AC-10": "pass by #106 fe3-t20 and #100 p4-t14: owner-title search reaches unloaded pages; rename persists without changing requirement/confirmation/intent and adds no model call; late searches do not leak.",
+    "FE3-AC-11": "pass by #107 fe3-t21: Enter/Shift+Enter/Ctrl or Cmd+Enter, Chinese IME guard, one-image upload/paste/drop/replace/remove are isolated per project.",
+    "FE3-AC-12": "pass by #107 fe3-t21 and #101 fe3-t15: per-project draft survives in-project body switch; leave warning; logout/account switch clears draft/list/pending image and A->B->A stays isolated.",
+    "FE3-AC-13": "pass by #103 fe3-t17 and #99 p1-t13: explicit failure, unknown result and content rejection are distinct; only real available actions submit; no fake percentage, auto retry or unsupported remote cancel.",
+    "FE3-AC-14": "pass by #108 fe3-t22 with release residual: 320/768/1440 no whole-page horizontal overflow, drawer/focus/helper labels usable in real Edge; physical mobile/soft keyboard remains pending T25.",
+    "FE3-AC-15": "pass by #103 fe3-t17 and #99 p1-t13: task card distinguishes requirement change, prompt repair, hard failure, missing evidence, protocol/technical fault and remote unknown; buttons match backend actions and unapproved suggestions stay hidden."
+  },
+  "regression_matrix": {
+    "R1_auth_ownership": "not modified by T23; prior R1 gates and full-suite regression remain the evidence owners; T23 uses authenticated HTTP and does not relax ownership checks.",
+    "R2_acceptance_quota": "T23 directly exercises one accepted intent/usage and three slots, confirm replay without double counting, terminal slot release and no auto resend.",
+    "R3_workflow_ui": "T23 exercises the complete HTTP chain; FE3 criteria are owned by merged T15-T22 browser/jsdom evidence listed above.",
+    "P1_snapshot_rules": "T10/T11/T12 regression 16 passed with T23.",
+    "P4_projection": "T13 regression 24 passed with T75/T65 group; T23 fixes a real binding defect where a published job was reported history_only.",
+    "full_frontend": "46 files / 217 tests passed.",
+    "full_backend": "see commands_output and residual note"
+  },
+  "residual_unknowns": [
+    "T23 uses LLMStub/VisualStub and temporary SQLite; it does not prove real-provider image quality, billing, retention or production data behaviour.",
+    "Real physical desktop/mobile, soft keyboard, trusted HTTPS LAN and multi-device access are not exercised here; they remain T25 / release verification.",
+    "The full backend suite is long-running; its completion and any unrelated pre-existing failures are recorded in the companion document rather than assumed.",
+    "T23 does not claim formal V3 release acceptance. It closes the simulated full-chain and R3 integration evidence only."
+  ],
+  "acceptance_notes": "T23 completion is based on two HTTP acceptance tests, affected backend regressions, the full 217-test frontend suite, typecheck and production build. Source commit 86c848a; evidence committed separately. T25 remains the release-evidence owner."
+}
