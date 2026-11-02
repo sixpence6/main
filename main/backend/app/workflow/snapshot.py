@@ -101,14 +101,13 @@ def _source(brief: dict[str, Any], path: str) -> str:
     sources = brief.get("field_sources")
     if isinstance(sources, dict) and isinstance(sources.get(path), str) and sources[path]:
         return sources[path]
-    visual_defaults = {
+    if path in {
         "background",
         "palette",
         "text_layout",
         "reference_treatment",
         "preservation_rules",
-    }
-    if path in visual_defaults:
+    }:
         return "visual_plan"
     if path in {"creative_direction", "selling_points", "copy_lines"}:
         return "creative_direction"

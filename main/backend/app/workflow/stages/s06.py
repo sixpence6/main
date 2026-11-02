@@ -597,20 +597,26 @@ async def _confirm_atomic(
         project.brief_status = "confirmed"
         project.confirmed_revision = project.revision
         project.updated_at = now
-        run.stage = "S07"
-        run.status = "active"
-        run.issue_code = None
-        run.issue_message = None
-        run.template_id = None
-        run.template_params_json = None
-        run.updated_at = now
+        # Idempotent replays may arrive after the confirmed cycle has already
+        # advanced. They must return the original snapshot without rewinding
+        # the run to S07 (which would strand an in-flight S08/S09 review).
+        advance_confirmation = run.stage in {"S06", "S07"}
+        if advance_confirmation:
+            run.stage = "S07"
+            run.status = "active"
+            run.issue_code = None
+            run.issue_message = None
+            run.template_id = None
+            run.template_params_json = None
+            run.updated_at = now
         await session.flush()
     ctx.project.brief_status = "confirmed"
     ctx.project.confirmed_revision = ctx.project.revision
     ctx.project.updated_at = now
-    ctx.run.stage = "S07"
-    ctx.run.status = "active"
-    ctx.run.updated_at = now
+    if advance_confirmation:
+        ctx.run.stage = "S07"
+        ctx.run.status = "active"
+        ctx.run.updated_at = now
     return intent
 
 
