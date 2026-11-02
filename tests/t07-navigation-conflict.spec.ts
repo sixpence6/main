@@ -183,7 +183,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     await harness.user.click(screen.getByRole('button', { name: '放弃修改' }))
 
     expect(await screen.findByRole('heading', { name: '陶瓷马克杯' })).toBeVisible()
-    expect(harness.router.currentRoute.value.name).toBe('project-chat')
+    expect(harness!.router.currentRoute.value.name).toBe('project-chat')
     expect(harness.router.currentRoute.value.params.projectId).toBe(PROJECT_B)
     expect(screen.getByLabelText('描述商品与图片需求')).toHaveValue('')
     expect(harness.fetch.writes).toHaveLength(0)
@@ -200,16 +200,16 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     window.dispatchEvent(new PopStateEvent('popstate'))
     const dialog = await screen.findByRole('alertdialog', { name: '放弃未保存的修改？' })
     await harness.waitFor(() => {
-      expect(harness.router.currentRoute.value.name).toBe('project-chat')
-      expect(harness.router.currentRoute.value.params.projectId).toBe(PROJECT_A)
+      expect(harness!.router.currentRoute.value.name).toBe('project-chat')
+      expect(harness!.router.currentRoute.value.params.projectId).toBe(PROJECT_A)
     })
     expect(screen.getByRole('heading', { name: '春季托特包主图' })).toBeVisible()
     expect(within(dialog).getByText(/将前往「离开当前项目」/)).toBeVisible()
 
     await harness.user.click(within(dialog).getByRole('button', { name: '继续编辑' }))
     await harness.waitFor(() => {
-      expect(harness.router.currentRoute.value.name).toBe('project-chat')
-      expect(harness.router.currentRoute.value.params.projectId).toBe(PROJECT_A)
+      expect(harness!.router.currentRoute.value.name).toBe('project-chat')
+      expect(harness!.router.currentRoute.value.params.projectId).toBe(PROJECT_A)
     })
     expect(screen.getByRole('heading', { name: '春季托特包主图' })).toBeVisible()
     expect(composer).toHaveValue('后退前的草稿')
@@ -221,7 +221,7 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     await harness.user.click(screen.getByRole('button', { name: '放弃修改' }))
 
     expect(await screen.findByRole('heading', { name: '陶瓷马克杯' })).toBeVisible()
-    expect(harness.router.currentRoute.value.name).toBe('project-chat')
+    expect(harness!.router.currentRoute.value.name).toBe('project-chat')
     expect(harness.router.currentRoute.value.params.projectId).toBe(PROJECT_B)
   })
 

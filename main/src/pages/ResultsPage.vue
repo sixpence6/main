@@ -97,6 +97,15 @@ function selectVersion(runId: string): void {
 function versionLabel(version: WorkflowVersion): string {
   return '版本 ' + version.sequence_no + ' · 需求 v' + version.requirement_revision
 }
+
+function formatVersionSize(version: WorkflowVersion): string {
+  if (version.width && version.height) return version.width + ' × ' + version.height
+  const item = projectGenerations.value.find(
+    (generation) => generation.result_asset?.id === version.asset_id,
+  )
+  if (item?.result_asset) return item.result_asset.width + ' × ' + item.result_asset.height
+  return '尺寸信息不可用'
+}
 </script>
 
 <template>
@@ -132,6 +141,11 @@ function versionLabel(version: WorkflowVersion): string {
             {{ isHistory ? '历史版本' : '当前版本' }} · {{ versionLabel(displayedVersion) }}
           </figcaption>
         </figure>
+        <p v-if="isHistory" class="results-history-note" role="note">
+          第 {{ displayedVersion.sequence_no }} 版历史成果；
+          <template v-if="currentVersion">修改仍基于当前第 {{ currentVersion.sequence_no }} 版交付。</template>
+          <template v-else>当前没有可调整的当前交付，修改请在原对话继续完善当前需求。</template>
+        </p>
         <dl class="results-meta">
           <div>
             <dt>需求版本</dt>
@@ -139,10 +153,7 @@ function versionLabel(version: WorkflowVersion): string {
           </div>
           <div>
             <dt>实际尺寸</dt>
-            <dd v-if="generation?.result_asset">
-              {{ generation.result_asset.width }} × {{ generation.result_asset.height }}
-            </dd>
-            <dd v-else>尺寸信息不可用</dd>
+            <dd>{{ formatVersionSize(displayedVersion) }}</dd>
           </div>
           <div>
             <dt>生成时间</dt>
@@ -171,26 +182,39 @@ function versionLabel(version: WorkflowVersion): string {
         <p>该版本未保存可展示的已批准提示词；系统不会用当前提示词替代。</p>
       </details>
 
-      <section v-if="historyVersions.length" class="results-history" aria-labelledby="results-history-title">
-        <h2 id="results-history-title">历史结果</h2>
-        <ul>
-          <li v-for="version in historyVersions" :key="version.run_id">
-            <button
-              type="button"
-              class="history-version-button"
-              :class="{ 'is-current': version.run_id === displayedVersion.run_id }"
-              @click="selectVersion(version.run_id)"
-            >
-              <img :src="assetUrl(version.asset_id!)" alt="" />
-              <span>{{ versionLabel(version) }}</span>
-              <time :datetime="version.published_at || version.created_at">
-                {{ formatDateTime(version.published_at || version.created_at) }}
-              </time>
-            </button>
-          </li>
-        </ul>
-      </section>
     </template>
+
+    <details
+      v-if="historyVersions.length"
+      class="results-history"
+      role="group"
+      aria-labelledby="results-history-title"
+    >
+      <summary>
+        <span id="results-history-title">历史结果</span>
+        <span class="results-history-count">（{{ historyVersions.length }}）</span>
+      </summary>
+      <ul>
+        <li v-for="version in historyVersions" :key="version.run_id">
+          <button
+            type="button"
+            class="history-version-button"
+            :class="{ 'is-current': version.run_id === displayedVersion?.run_id }"
+            :aria-current="version.run_id === displayedVersion?.run_id ? 'true' : undefined"
+            @click="selectVersion(version.run_id)"
+          >
+            <img :src="assetUrl(version.asset_id!)" alt="" />
+            <span>{{ versionLabel(version) }}</span>
+            <time :datetime="version.published_at || version.created_at">
+              {{ formatDateTime(version.published_at || version.created_at) }}
+            </time>
+            <span class="history-version-meta">
+              需求 v{{ version.requirement_revision }} · {{ formatVersionSize(version) }}
+            </span>
+          </button>
+        </li>
+      </ul>
+    </details>
   </section>
 </template>
 
@@ -217,13 +241,15 @@ function versionLabel(version: WorkflowVersion): string {
 .results-prompt summary { cursor: pointer; font-weight: 600; }
 .results-prompt pre { margin: var(--space-3) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-text-muted); font-family: inherit; }
 .results-prompt p { margin: var(--space-2) 0 0; color: var(--color-text-muted); }
-.results-history { display: grid; gap: var(--space-3); }
-.results-history h2 { margin: 0; font-size: var(--text-heading); }
-.results-history ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3); }
+.results-history-note { margin: 0; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-page); color: var(--color-text-muted); }
+.results-history { border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-panel); padding: var(--space-3) var(--space-4); }
+.results-history summary { cursor: pointer; font-weight: 600; }
+.results-history-count { color: var(--color-text-muted); font-weight: 400; }
+.results-history ul { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3); }
 .history-version-button { width: 100%; display: grid; gap: 4px; padding: var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-panel); color: inherit; text-align: left; cursor: pointer; }
 .history-version-button.is-current { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary); }
 .history-version-button img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-control); background: var(--color-page); }
 .history-version-button span { font-size: var(--text-small); font-weight: 600; }
-.history-version-button time { color: var(--color-text-muted); font-size: var(--text-small); }
+.history-version-button time, .history-version-meta { color: var(--color-text-muted); font-size: var(--text-small); font-weight: 400; }
 @media (max-width: 767px) { .results-meta { grid-template-columns: minmax(0, 1fr); } .results-current { padding: var(--space-3); } }
 </style>

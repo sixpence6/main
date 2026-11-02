@@ -93,6 +93,8 @@ class WorkflowVersionView(BaseModel):
     generation_job_id: str | None = None
     asset_id: str | None = None
     filename: str | None = None
+    width: int | None = None
+    height: int | None = None
     caption: str | None = None
     published_at: str | None = None
     brief: dict[str, Any] | None = None

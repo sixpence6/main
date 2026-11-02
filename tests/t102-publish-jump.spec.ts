@@ -73,7 +73,11 @@ function activeView(projectId = PROJECT_A): WorkflowView {
     generation_job: {
       id: 'job-active',
       status: 'running',
-      stage: 'S10',
+      request_id: 'request-active',
+      submit_attempted: true,
+      result_asset_id: null,
+      error_code: null,
+      error_message: null,
       created_at: '2026-10-21T06:00:00.000Z',
       updated_at: '2026-10-21T06:00:00.000Z',
     },
