@@ -18,6 +18,7 @@ from app.config import Settings
 from app.main import create_app
 from app.models import Asset
 from app.workflow import state as workflow_state
+from app.workflow import templates
 from app.workflow.stages import s02
 from app.workflow.tables import Artifact, GenerationJob, RoleCall
 from tests.conftest import migrate
@@ -613,8 +614,8 @@ async def test_rejected_or_unknown_review_blocks_without_candidate_leak(
         view = response.json()
         assert view["stage"] == "S02"
         assert view["status"] == "blocked"
-        assert view["issue"]["template_id"] == "REVIEW_UNAVAILABLE"
-        assert view["issue"]["message"] == "审查暂不可用，内容尚未放行。"
+        assert view["issue"]["template_id"] == "REVIEW_REJECTED"
+        assert view["issue"]["message"] == templates.render("REVIEW_REJECTED")
         assert view["available_actions"] == []
         artifact = next(item for item in view["artifacts"] if item["kind"] == "reference_report")
         assert artifact["payload"] is None
@@ -636,9 +637,9 @@ async def test_rejected_or_unknown_review_blocks_without_candidate_leak(
 @pytest.mark.parametrize(
     ("mode", "expected_status", "expected_code", "expected_artifact"),
     [
-        ("missing", 503, "REVIEW_UNAVAILABLE", "candidate"),
-        ("no_image", 503, "REVIEW_UNAVAILABLE", "candidate"),
-        ("foreign", 503, "REVIEW_UNAVAILABLE", "candidate"),
+        ("missing", 409, "REVIEW_INVALID", "candidate"),
+        ("no_image", 409, "REVIEW_INVALID", "candidate"),
+        ("foreign", 409, "REVIEW_INVALID", "candidate"),
     ],
 )
 @pytest.mark.asyncio
@@ -659,8 +660,8 @@ async def test_visual_review_contract_negatives_never_approve(
         assert response.status_code == expected_status, response.text
         assert response.json()["error"]["code"] == expected_code
         view = await workflow(client, project["id"])
-        assert view["status"] == "failed"
-        assert view["issue"]["template_id"] == "REVIEW_UNAVAILABLE"
+        assert view["status"] == "blocked"
+        assert view["issue"]["template_id"] == "REVIEW_INVALID"
         artifacts = [item for item in view["artifacts"] if item["kind"] == "reference_report"]
         assert len(artifacts) == 1
         assert artifacts[0]["status"] == expected_artifact

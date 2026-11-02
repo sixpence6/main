@@ -606,8 +606,10 @@ async def test_fabricated_text_without_user_authorization_is_rejected(full_setti
         assert visual.submit_calls == []
 
 
-@pytest.mark.parametrize("mode", ["missing", "foreign_evidence", "url", "provider_error"])
-async def test_review_failure_uses_fixed_template_without_candidate_leak(full_settings, mode):
+@pytest.mark.parametrize("mode", ["missing", "foreign_evidence", "url"])
+async def test_review_failure_is_a_typed_protocol_error_without_candidate_leak(
+    full_settings, mode
+):
     secret = "候选草稿不得回显"
     script = Script(
         [lambda request: _ready(request, product_description=secret, must_include=[secret])],
@@ -622,17 +624,48 @@ async def test_review_failure_uses_fixed_template_without_candidate_leak(full_se
             "compose_brief",
             expected_revision=started["project_revision"],
         )
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "REVIEW_INVALID"
+        assert response.json()["error"]["message"] != templates.render("REVIEW_UNAVAILABLE")
+        assert secret not in response.text
+
+        view = await _view(client, project["id"])
+        assert view["stage"] == "S03"
+        assert view["status"] == "blocked"
+        assert view["issue"]["code"] == "REVIEW_INVALID"
+        assert view["issue"]["template_id"] == "REVIEW_INVALID"
+        assert view["issue"]["message"] == templates.render("REVIEW_INVALID")
+        assert secret not in str(view)
+        assert all(item["payload"] is None for item in view["artifacts"])
+        artifacts, jobs = await _table_counts(application, project["id"])
+        assert artifacts == 1
+        assert jobs == 0
+        assert visual.submit_calls == []
+
+
+async def test_reviewer_outage_uses_fixed_template_without_candidate_leak(full_settings):
+    secret = "候选草稿不得回显"
+    script = Script(
+        [lambda request: _ready(request, product_description=secret, must_include=[secret])],
+        review_modes=["provider_error"],
+    )
+    async with _environment(full_settings, script) as (application, client, _, visual):
+        project = await _create_project(client)
+        started = await _start(client, project["id"], "做一张商品主图")
+        response = await _act(
+            client,
+            project["id"],
+            "compose_brief",
+            expected_revision=started["project_revision"],
+        )
         assert response.status_code == 503, response.text
         assert response.json()["error"]["code"] == "REVIEW_UNAVAILABLE"
         assert response.json()["error"]["message"] == templates.render("REVIEW_UNAVAILABLE")
         assert secret not in response.text
 
         view = await _view(client, project["id"])
-        assert view["stage"] == "S03"
         assert view["status"] == "failed"
-        assert view["issue"]["code"] == "REVIEW_UNAVAILABLE"
         assert view["issue"]["template_id"] == "REVIEW_UNAVAILABLE"
-        assert view["issue"]["message"] == templates.render("REVIEW_UNAVAILABLE")
         assert secret not in str(view)
         assert all(item["payload"] is None for item in view["artifacts"])
         artifacts, jobs = await _table_counts(application, project["id"])
@@ -664,10 +697,12 @@ async def test_needs_input_questions_are_not_shown_when_review_fails(full_settin
             "compose_brief",
             expected_revision=started["project_revision"],
         )
-        assert response.status_code == 503, response.text
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "REVIEW_INVALID"
         view = await _view(client, project["id"])
+        assert view["status"] == "blocked"
         assert secret not in str(view)
-        assert view["issue"]["template_id"] == "REVIEW_UNAVAILABLE"
+        assert view["issue"]["template_id"] == "REVIEW_INVALID"
         assert view["artifacts"] == []
 
 
@@ -716,12 +751,12 @@ async def test_required_review_check_still_requires_evidence(full_settings):
             "compose_brief",
             expected_revision=started["project_revision"],
         )
-        assert response.status_code == 503, response.text
-        assert response.json()["error"]["code"] == "REVIEW_UNAVAILABLE"
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "REVIEW_INVALID"
         view = await _view(client, project["id"])
         assert view["stage"] == "S03"
-        assert view["status"] == "failed"
-        assert view["issue"]["code"] == "REVIEW_UNAVAILABLE"
+        assert view["status"] == "blocked"
+        assert view["issue"]["code"] == "REVIEW_INVALID"
 
 
 async def test_revised_candidates_are_each_reviewed_and_budget_is_three(full_settings):
@@ -776,7 +811,7 @@ async def test_exhausted_revision_budget_stops_without_a_fourth_candidate(full_s
         view = response.json()
         assert view["stage"] == "S03"
         assert view["status"] == "blocked"
-        assert view["issue"]["template_id"] == "REVIEW_UNAVAILABLE"
+        assert view["issue"]["template_id"] == "REVIEW_REJECTED"
         assert script.brief_calls == 3
         assert script.review_calls == 3
         drafts = [item for item in view["artifacts"] if item["kind"] == "brief_draft"]
@@ -804,7 +839,7 @@ async def test_user_revision_after_reject_is_re_reviewed(full_settings):
         assert first.status_code == 200, first.text
         blocked = first.json()
         assert blocked["status"] == "blocked"
-        assert blocked["issue"]["template_id"] == "REVIEW_UNAVAILABLE"
+        assert blocked["issue"]["template_id"] == "REVIEW_REJECTED"
         rejected = [item for item in blocked["artifacts"] if item["kind"] == "brief_draft"]
         assert len(rejected) == 1
         assert rejected[0]["status"] == "rejected"

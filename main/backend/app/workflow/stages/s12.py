@@ -47,6 +47,11 @@ ACTIONS = [
 ]
 
 _TECHNICAL_RUN_CODES = {"SERVICE_UNAVAILABLE", "REVIEW_UNAVAILABLE", "CAPABILITY_NOT_READY"}
+# Reviewer contract defects surface as typed rejections, never as outages.
+_REVIEW_PROTOCOL_CODES = {"REVIEW_INVALID", "REVIEW_REJECTED"}
+# A malformed reviewer answer may be replayed once the contract is fixed; a
+# substantive rejection must not be retried without the user changing the input.
+RETRYABLE_REVIEW_ISSUES = frozenset({"REVIEW_UNAVAILABLE", "REVIEW_INVALID"})
 _RECOVERABLE_CALL_STATUSES = {"error", "timeout"}
 _ARTIFACT_KIND_BY_STAGE = {
     "S02": "reference_report",
@@ -64,7 +69,7 @@ def available(ctx: WorkflowContext) -> list[dict[str, Any]]:
         return []
     if ctx.run.status == "failed":
         return ["continue_workflow"]
-    if ctx.run.status == "blocked" and ctx.run.issue_code == "REVIEW_UNAVAILABLE":
+    if ctx.run.status == "blocked" and ctx.run.issue_code in RETRYABLE_REVIEW_ISSUES:
         return ["continue_workflow"]
     return []
 
@@ -75,6 +80,33 @@ def _fixed_service() -> ApiError:
 
 def _fixed_review() -> ApiError:
     return ApiError(503, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
+
+
+async def _stage_error(
+    ctx: WorkflowContext, stage: str, error: ApiError, *, fallback: str = "REVIEW_UNAVAILABLE"
+) -> str:
+    """Persist the typed failure before re-raising the matching public error."""
+    if error.code in _REVIEW_PROTOCOL_CODES:
+        await set_stage(ctx, stage, "blocked", issue_code=error.code, template_id=error.code)
+        return error.code
+    if error.code == "CAPABILITY_NOT_READY":
+        template_id = "CAPABILITY_NOT_READY"
+    elif error.code == "REVIEW_UNAVAILABLE":
+        template_id = "REVIEW_UNAVAILABLE"
+    else:
+        template_id = fallback
+    await set_stage(ctx, stage, "failed", issue_code=template_id, template_id=template_id)
+    return template_id
+
+
+async def _review_error(ctx: WorkflowContext, stage: str, error: ApiError) -> None:
+    if error.code in _REVIEW_PROTOCOL_CODES:
+        await set_stage(ctx, stage, "blocked", issue_code=error.code, template_id=error.code)
+        raise error
+    await set_stage(
+        ctx, stage, "failed", issue_code="REVIEW_UNAVAILABLE", template_id="REVIEW_UNAVAILABLE"
+    )
+    raise _fixed_review() from None
 
 
 def _stale() -> ApiError:
@@ -107,7 +139,7 @@ def _is_recoverable_checkpoint(ctx: WorkflowContext, checkpoint: dict[str, Any])
         and checkpoint.get("phase") == "review"
         and ctx.run is not None
         and ctx.run.status in {"failed", "blocked"}
-        and ctx.run.issue_code == "REVIEW_UNAVAILABLE"
+        and ctx.run.issue_code in RETRYABLE_REVIEW_ISSUES
     )
 
 
@@ -316,14 +348,7 @@ async def _resume_s01_producer(ctx: WorkflowContext, checkpoint: dict[str, Any])
         )
         s01._validate_review(review, evidence_id)
     except ApiError as exc:
-        template_id = (
-            "CAPABILITY_NOT_READY"
-            if exc.code == "CAPABILITY_NOT_READY"
-            else (
-                "REVIEW_UNAVAILABLE" if exc.code == "REVIEW_UNAVAILABLE" else "SERVICE_UNAVAILABLE"
-            )
-        )
-        await set_stage(ctx, "S01", "failed", issue_code=template_id, template_id=template_id)
+        await _stage_error(ctx, "S01", exc, fallback="SERVICE_UNAVAILABLE")
         raise
     await _apply_s01_route(ctx, {"route": route, "action": action, "target_id": evidence_id})
 
@@ -348,11 +373,7 @@ async def _resume_s01_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
         )
         s01._validate_review(output, target_id)
     except ApiError as exc:
-        template_id = (
-            "CAPABILITY_NOT_READY" if exc.code == "CAPABILITY_NOT_READY" else "REVIEW_UNAVAILABLE"
-        )
-        await set_stage(ctx, "S01", "failed", issue_code=template_id, template_id=template_id)
-        raise
+        await _review_error(ctx, "S01", exc)
     await _apply_s01_route(ctx, target)
 
 
@@ -446,7 +467,7 @@ async def _resume_s07_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
             "S07",
             "blocked",
             issue_code=f"REVIEW_{decision.upper()}",
-            template_id="REVIEW_UNAVAILABLE",
+            template_id=f"REVIEW_{decision.upper()}",
         )
 
 
@@ -477,15 +498,8 @@ async def _resume_s03_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
             decision, checks, _repair = s03._validate_review(
                 output, target_id=target_id, allowed_evidence=allowed
             )
-        except ApiError:
-            await set_stage(
-                ctx,
-                "S03",
-                "failed",
-                issue_code="REVIEW_UNAVAILABLE",
-                template_id="REVIEW_UNAVAILABLE",
-            )
-            raise _fixed_review() from None
+        except ApiError as exc:
+            await _review_error(ctx, "S03", exc)
         if ctx.project.revision != checkpoint.get(
             "project_revision"
         ) or ctx.run.requirement_revision != checkpoint.get("requirement_revision"):
@@ -507,7 +521,7 @@ async def _resume_s03_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
                 "S03",
                 "blocked",
                 issue_code=f"REVIEW_{decision.upper()}",
-                template_id="REVIEW_UNAVAILABLE",
+                template_id=f"REVIEW_{decision.upper()}",
             )
         return
 
@@ -542,15 +556,8 @@ async def _resume_s03_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
             allowed_evidence=set(payload.get("task", {}).get("allowed_evidence_ids") or [])
             | {target_id},
         )
-    except ApiError:
-        await set_stage(
-            ctx,
-            "S03",
-            "failed",
-            issue_code="REVIEW_UNAVAILABLE",
-            template_id="REVIEW_UNAVAILABLE",
-        )
-        raise _fixed_review() from None
+    except ApiError as exc:
+        await _review_error(ctx, "S03", exc)
     if decision != "pass":
         await set_stage(
             ctx,
@@ -677,15 +684,26 @@ async def _resume_s02_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
         )
         decision, checks = s02._validate_review(review, target_id, image_evidence)
     except ApiError as exc:
-        template_id = (
-            "CAPABILITY_NOT_READY" if exc.code == "CAPABILITY_NOT_READY" else "REVIEW_UNAVAILABLE"
+        if exc.code == "CAPABILITY_NOT_READY":
+            await set_stage(
+                ctx,
+                "S02",
+                "failed",
+                issue_code="CAPABILITY_NOT_READY",
+                template_id="CAPABILITY_NOT_READY",
+            )
+            raise _capability_error("VISION", "未配置") from None
+        if exc.code in _REVIEW_PROTOCOL_CODES:
+            await set_stage(ctx, "S02", "blocked", issue_code=exc.code, template_id=exc.code)
+            raise
+        await set_stage(
+            ctx,
+            "S02",
+            "failed",
+            issue_code="REVIEW_UNAVAILABLE",
+            template_id="REVIEW_UNAVAILABLE",
         )
-        await set_stage(ctx, "S02", "failed", issue_code=template_id, template_id=template_id)
-        raise (
-            _fixed_review()
-            if template_id == "REVIEW_UNAVAILABLE"
-            else _capability_error("VISION", "未配置")
-        ) from None
+        raise _fixed_review() from None
     if (
         ctx.project.revision != checkpoint.get("project_revision")
         or ctx.run.requirement_revision != checkpoint.get("requirement_revision")

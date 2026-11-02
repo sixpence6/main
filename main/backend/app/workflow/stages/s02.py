@@ -16,6 +16,11 @@ from app.services.assets import (
     resolve_asset_file,
 )
 from app.workflow import templates
+from app.workflow.adjudication import (
+    ProtocolIssue,
+    governance_ruleset,
+    review_output,
+)
 from app.workflow.roles import RoleOutput, run_role
 from app.workflow.state import (
     WorkflowContext,
@@ -53,6 +58,15 @@ _RETRYABLE_ISSUES = {
     "SERVICE_UNAVAILABLE",
     "REVIEW_UNAVAILABLE",
 }
+
+# Server-owned catalogue for the reference review: the four grounding rules are
+# blocking; the rest of the reviewer prompt's governance observations are
+# registered advisories.
+_RULESET = governance_ruleset(
+    "reference_report",
+    tuple((rule_id, "参考图报告核验") for rule_id in REQUIRED_REVIEW_RULES),
+    evidence_types=("artifact", "reference"),
+)
 
 _REPORT_KIND = "reference_report"
 
@@ -218,6 +232,10 @@ async def _set_failure(
         template_id = "REFERENCE_INVALID"
         params = {}
         status = "blocked"
+    elif error.code in {"REVIEW_INVALID", "REVIEW_REJECTED"}:
+        template_id = error.code
+        params = {}
+        status = "blocked"
     elif phase == "review":
         template_id = "REVIEW_UNAVAILABLE"
         params = {}
@@ -240,6 +258,15 @@ def _invalid_service() -> ApiError:
 
 def _invalid_review() -> ApiError:
     return ApiError(503, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
+
+
+def _review_invalid(message: str) -> ApiError:
+    """Typed protocol issue: the reviewer output cannot be adopted (not an outage)."""
+    return ApiError(409, "REVIEW_INVALID", message)
+
+
+def _review_rejected() -> ApiError:
+    return ApiError(409, "REVIEW_REJECTED", templates.render("REVIEW_REJECTED"))
 
 
 def _validate_report(
@@ -279,51 +306,27 @@ def _validate_review(
     image_evidence: str,
 ) -> tuple[str, list[dict[str, Any]]]:
     if output.status != "ready" or output.data is None:
-        raise _invalid_review()
-    results = output.data.get("results")
-    if not isinstance(results, list) or len(results) != 1:
-        raise _invalid_review()
-    result = results[0]
-    if not isinstance(result, dict) or result.get("target_id") != artifact_id:
-        raise _invalid_review()
-    decision = result.get("decision")
-    if decision not in {"pass", "revise", "reject", "unknown"}:
-        raise _invalid_review()
-    checks = result.get("checks")
-    if not isinstance(checks, list) or not checks:
-        raise _invalid_review()
-    allowed_evidence = {artifact_id, image_evidence}
-    seen: list[str] = []
-    cites_image = False
-    for check in checks:
-        if not isinstance(check, dict):
-            raise _invalid_review()
-        rule_id = check.get("rule_id")
-        if rule_id not in REQUIRED_REVIEW_RULES:
-            raise _invalid_review()
-        outcome = check.get("outcome")
-        if outcome not in {"pass", "fail", "unknown", "not_applicable"}:
-            raise _invalid_review()
-        if decision == "pass" and outcome != "pass":
-            raise _invalid_review()
-        evidence = check.get("evidence_ids")
-        if not isinstance(evidence, list) or not evidence:
-            raise _invalid_review()
-        if any(not isinstance(value, str) or value not in allowed_evidence for value in evidence):
-            raise _invalid_review()
-        if image_evidence in evidence:
-            cites_image = True
-        note = check.get("note")
-        if isinstance(note, str) and "://" in note.lower():
-            raise _invalid_review()
-        seen.append(str(rule_id))
-    if set(seen) != set(REQUIRED_REVIEW_RULES) or len(seen) != len(set(seen)):
-        raise _invalid_review()
-    if not cites_image:
+        raise _review_invalid("审查未给出可采纳的结论，未放行")
+    try:
+        adjudication = review_output(
+            output.data,
+            target_id=artifact_id,
+            ruleset=_RULESET,
+            allowed_evidence={artifact_id, image_evidence},
+        )
+    except ProtocolIssue as exc:
+        raise _review_invalid(exc.message) from None
+    if not any(
+        image_evidence in check.evidence_ids
+        for check in adjudication.checks
+        if check.outcome != "not_applicable"
+    ):
         # The reviewer must have looked at the actual original image, not only
         # at the producer's text claims.
-        raise _invalid_review()
-    return str(decision), checks
+        raise _review_invalid("审查未直接核对实际参考图，未放行")
+    if any("://" in check.note.lower() for check in adjudication.checks):
+        raise _review_invalid("审查说明不得包含外部链接，未放行")
+    return adjudication.decision, adjudication.check_payloads()
 
 
 async def _advance_after_usage(ctx: WorkflowContext) -> None:
@@ -444,7 +447,7 @@ async def analyze(ctx: WorkflowContext, usage: object = None) -> None:
             STAGE,
             "blocked",
             issue_code="G02_" + decision.upper(),
-            template_id="REVIEW_UNAVAILABLE",
+            template_id="REVIEW_REJECTED",
         )
         return
 

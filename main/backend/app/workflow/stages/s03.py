@@ -12,6 +12,7 @@ from app.errors import ApiError, conflict, validation_error
 from app.models import Message, Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
+from app.workflow.adjudication import ProtocolIssue, governance_ruleset, review_output
 from app.workflow.contracts import (
     BriefData,
     ContractError,
@@ -54,7 +55,14 @@ REVIEW_RULE_IDS = (
     "G03_SIZE",
     "G03_UNRESOLVED",
 )
-_ADVISORY_RULE_RE = re.compile(r"^(?:G\d{2}_[A-Z0-9_]+|review:[a-z][a-z0-9_]{0,63})$")
+# The server catalogue decides which rules are mandatory, which governance
+# observations are advisory and what evidence each rule accepts. A reviewer
+# cannot add, rename or waive a rule by returning a different list.
+_RULESET = governance_ruleset(
+    "requirement_draft",
+    tuple((rule_id, "需求草稿核验") for rule_id in REVIEW_RULE_IDS),
+    evidence_types=("artifact", "reference"),
+)
 
 _MAX_QUESTIONS_CHARS = 800
 _MAX_CANDIDATES = 3
@@ -133,6 +141,14 @@ def _invalid_service() -> ApiError:
 
 def _review_unavailable() -> ApiError:
     return ApiError(503, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
+
+
+def _review_invalid(message: str) -> ApiError:
+    return ApiError(409, "REVIEW_INVALID", message)
+
+
+def _review_rejected() -> ApiError:
+    return ApiError(409, "REVIEW_REJECTED", templates.render("REVIEW_REJECTED"))
 
 
 def _require_text(payload: dict[str, Any]) -> str:
@@ -576,73 +592,33 @@ def _joined_questions(output: RoleOutput) -> str:
     return text
 
 
+def _blocking_slot(rule_id: str, instance: str) -> bool:
+    rule = _RULESET.slot((rule_id, instance))
+    return rule is not None and rule.kind == "blocking"
+
+
 def _validate_review(
     output: RoleOutput, *, target_id: str, allowed_evidence: set[str]
 ) -> tuple[str, list[dict[str, Any]], list[str]]:
     if output.status != "ready" or output.data is None:
-        raise _review_unavailable()
-    results = output.data.get("results")
-    if not isinstance(results, list) or len(results) != 1:
-        raise _review_unavailable()
-    result = results[0]
-    if not isinstance(result, dict) or result.get("target_id") != target_id:
-        raise _review_unavailable()
-    decision = result.get("decision")
-    if decision not in {"pass", "revise", "reject", "unknown"}:
-        raise _review_unavailable()
-    checks = result.get("checks")
-    if not isinstance(checks, list) or not checks:
-        raise _review_unavailable()
-    required_seen: set[str] = set()
-    repair_codes: list[str] = []
-    for check in checks:
-        if not isinstance(check, dict):
-            raise _review_unavailable()
-        rule_id = check.get("rule_id")
-        if not isinstance(rule_id, str) or not rule_id:
-            raise _review_unavailable()
-        if rule_id in REVIEW_RULE_IDS:
-            # Required checks may be split into several occurrences; each one
-            # must be a substantive pass or a real finding, never not_applicable.
-            if check.get("outcome") not in {"pass", "fail", "unknown"}:
-                raise _review_unavailable()
-            required_seen.add(rule_id)
-        elif _ADVISORY_RULE_RE.fullmatch(rule_id):
-            if check.get("outcome") not in {"pass", "fail", "unknown", "not_applicable"}:
-                raise _review_unavailable()
-        else:
-            raise _review_unavailable()
-        outcome = check.get("outcome")
-        evidence = check.get("evidence_ids")
-        if outcome == "not_applicable":
-            if evidence not in (None, []) and not (
-                isinstance(evidence, list)
-                and all(
-                    isinstance(item, str) and item in allowed_evidence
-                    for item in evidence
-                )
-            ):
-                raise _review_unavailable()
-        elif (
-            not isinstance(evidence, list)
-            or not evidence
-            or not all(
-                isinstance(item, str) and item in allowed_evidence for item in evidence
-            )
-        ):
-            raise _review_unavailable()
-        note = check.get("note")
-        if isinstance(note, str) and "://" in note.lower():
-            raise _review_unavailable()
-        if outcome in {"fail", "unknown"}:
-            repair_codes.append(str(rule_id))
-    if required_seen != set(REVIEW_RULE_IDS):
-        raise _review_unavailable()
-    if decision == "pass" and repair_codes:
-        raise _review_unavailable()
-    if decision != "pass" and not repair_codes:
-        raise _review_unavailable()
-    return str(decision), checks, repair_codes
+        raise _review_invalid(templates.render("REVIEW_INVALID"))
+    try:
+        adjudication = review_output(
+            output.data,
+            target_id=target_id,
+            ruleset=_RULESET,
+            allowed_evidence=allowed_evidence,
+        )
+    except ProtocolIssue as exc:
+        raise _review_invalid(exc.message) from None
+    repair_codes = [
+        check.rule_id
+        for check in adjudication.checks
+        if check.outcome in {"fail", "unknown"} and _blocking_slot(check.rule_id, check.instance)
+    ]
+    return adjudication.decision, adjudication.check_payloads(), repair_codes
+
+
 async def _run_review(
     ctx: WorkflowContext,
     *,
@@ -686,8 +662,16 @@ async def _stop_review(ctx: WorkflowContext) -> None:
         STAGE,
         "blocked",
         issue_code="REVIEW_REJECTED",
-        template_id="REVIEW_UNAVAILABLE",
+        template_id="REVIEW_REJECTED",
     )
+
+
+async def _record_review_error(ctx: WorkflowContext, error: ApiError) -> None:
+    """Contract defects block the gate; only real outages mark the stage failed."""
+    if error.code in {"REVIEW_INVALID", "REVIEW_REJECTED"}:
+        await set_stage(ctx, STAGE, "blocked", issue_code=error.code, template_id=error.code)
+        return
+    await _fail_run(ctx, "REVIEW_UNAVAILABLE")
 
 
 def _blocked_template(output: RoleOutput) -> tuple[str, str]:
@@ -911,8 +895,8 @@ async def _compose(
                     allowed_evidence=(target_id, *evidence),
                     attempt=attempt,
                 )
-            except ApiError:
-                await _fail_run(ctx, "REVIEW_UNAVAILABLE")
+            except ApiError as exc:
+                await _record_review_error(ctx, exc)
                 raise
             if decision == "pass":
                 if output.status == "needs_input":
@@ -1007,8 +991,8 @@ async def _compose(
                 allowed_evidence=(artifact.id, *evidence),
                 attempt=attempt,
             )
-        except ApiError:
-            await _fail_run(ctx, "REVIEW_UNAVAILABLE")
+        except ApiError as exc:
+            await _record_review_error(ctx, exc)
             raise
 
         await add_review(

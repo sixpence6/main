@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import Any
 from uuid import uuid4
 
@@ -12,6 +11,11 @@ from app.errors import ApiError, conflict, validation_error
 from app.models import Message, Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
+from app.workflow.adjudication import (
+    ProtocolIssue,
+    governance_ruleset,
+    review_output,
+)
 from app.workflow.roles import RoleOutput, run_role
 from app.workflow.stages import s02
 from app.workflow.state import (
@@ -62,7 +66,14 @@ _PAIR_ACTIONS = {
 # occurrence must pass and each required rule must be covered at least once.
 # Missing, failed or malformed required checks still never open S01.
 _REQUIRED_RULES = ("G01_SCOPE", "G01_ACTION")
-_ADVISORY_RULE_RE = re.compile(r"^(?:G\d{2}_[A-Z0-9_]+|review:[a-z][a-z0-9_]{0,63})$")
+
+# Server-owned catalogue for the intent review: the two routing rules are
+# blocking; everything else the reviewer prompt asks about is a registered
+# advisory observation that can never open or close S01.
+_RULESET = governance_ruleset(
+    "intent_route",
+    (("G01_SCOPE", "请求范围判断"), ("G01_ACTION", "可用动作判断")),
+)
 
 
 def available(ctx: WorkflowContext) -> list[dict[str, Any]]:
@@ -173,6 +184,15 @@ def _invalid_review() -> ApiError:
     )
 
 
+def _review_invalid(message: str) -> ApiError:
+    """Typed protocol issue: the reviewer output cannot be adopted (not an outage)."""
+    return ApiError(409, "REVIEW_INVALID", message)
+
+
+def _review_rejected() -> ApiError:
+    return ApiError(409, "REVIEW_REJECTED", templates.render("REVIEW_REJECTED"))
+
+
 def _validate_intent(output: RoleOutput, evidence_id: str) -> tuple[str, str]:
     if output.status != "ready" or output.data is None:
         raise _invalid_service()
@@ -198,48 +218,21 @@ def _allowed_evidence(value: object, allowed: set[str]) -> bool:
 
 def _validate_review(output: RoleOutput, target_id: str) -> None:
     if output.status != "ready" or output.data is None:
-        raise _invalid_review()
-    results = output.data.get("results")
-    if not isinstance(results, list) or len(results) != 1:
-        raise _invalid_review()
-    result = results[0]
-    if not isinstance(result, dict) or result.get("target_id") != target_id:
-        raise _invalid_review()
-    if result.get("decision") != "pass":
-        raise _invalid_review()
-    checks = result.get("checks")
-    if not isinstance(checks, list) or not checks:
-        raise _invalid_review()
-    allowed = {target_id}
-    required_counts = dict.fromkeys(_REQUIRED_RULES, 0)
-    for check in checks:
-        if not isinstance(check, dict):
-            raise _invalid_review()
-        rule_id = check.get("rule_id")
-        if not isinstance(rule_id, str) or not rule_id:
-            raise _invalid_review()
-        if rule_id not in _REQUIRED_RULES and not _ADVISORY_RULE_RE.fullmatch(rule_id):
-            raise _invalid_review()
-        outcome = check.get("outcome")
-        if rule_id in _REQUIRED_RULES:
-            if outcome != "pass":
-                raise _invalid_review()
-            required_counts[rule_id] += 1
-        elif outcome not in {"pass", "not_applicable"}:
-            raise _invalid_review()
-        evidence = check.get("evidence_ids")
-        if outcome == "not_applicable":
-            if evidence not in (None, []) and not _allowed_evidence(evidence, allowed):
-                raise _invalid_review()
-        elif not _allowed_evidence(evidence, allowed):
-            raise _invalid_review()
-        note = check.get("note")
-        if isinstance(note, str) and "://" in note.lower():
-            raise _invalid_review()
-    # A reviewer may split one required rule into several checks; each occurrence
-    # must pass, and every required rule must be covered at least once.
-    if any(count == 0 for count in required_counts.values()):
-        raise _invalid_review()
+        raise _review_invalid("审查未给出可采纳的结论，未放行")
+    try:
+        adjudication = review_output(
+            output.data,
+            target_id=target_id,
+            ruleset=_RULESET,
+            allowed_evidence={target_id},
+        )
+    except ProtocolIssue as exc:
+        raise _review_invalid(exc.message) from None
+    for check in adjudication.checks:
+        if "://" in check.note.lower():
+            raise _review_invalid("审查说明不得包含外部链接，未放行")
+    if adjudication.decision != "pass":
+        raise _review_rejected()
 
 
 async def _route(ctx: WorkflowContext, text: str) -> None:
@@ -303,6 +296,16 @@ async def _route(ctx: WorkflowContext, text: str) -> None:
         # Technical failure never turns into a guessed route or an auto retry.
         if exc.code == "CAPABILITY_NOT_READY":
             template_id = "CAPABILITY_NOT_READY"
+        elif exc.code in {"REVIEW_INVALID", "REVIEW_REJECTED"}:
+            # Typed review defect or refusal: block with a reason, never an outage.
+            await set_stage(
+                ctx,
+                STAGE,
+                "blocked",
+                issue_code=exc.code,
+                template_id=exc.code,
+            )
+            raise
         else:
             template_id = (
                 "REVIEW_UNAVAILABLE" if phase == "review" else "SERVICE_UNAVAILABLE"

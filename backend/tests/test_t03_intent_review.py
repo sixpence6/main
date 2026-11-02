@@ -519,7 +519,8 @@ async def test_unfamiliar_intent_evidence_and_route_mismatch_are_rejected(llm_se
 
 
 @pytest.mark.parametrize(
-    "review_mode", ["revise", "missing", "unknown_rule", "foreign_evidence", "external_url"]
+    "review_mode",
+    ["revise", "missing", "unknown_rule", "foreign_evidence", "external_url"],
 )
 async def test_review_failure_blocks_and_is_not_retried(llm_settings, review_mode):
     async with _environment(
@@ -533,24 +534,27 @@ async def test_review_failure_blocks_and_is_not_retried(llm_settings, review_mod
             text="做一张商品图",
             expected_revision=0,
         )
-        assert response.status_code == 503, response.text
-        assert response.json()["error"]["code"] == "REVIEW_UNAVAILABLE"
-        assert response.json()["error"]["message"] == templates.render(
-            "REVIEW_UNAVAILABLE"
-        )
+        # Every one of these modes is a typed protocol defect now, never an
+        # "review unavailable" outage: revise with all-passing blocking rules is a
+        # contradiction, missing/unknown rules and foreign evidence are illegal.
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "REVIEW_INVALID"
+        assert response.json()["error"]["message"] != templates.render("REVIEW_UNAVAILABLE")
         assert len(stub.role_calls_received) == 2
         view = (await client.get(f"/api/projects/{project['id']}/workflow")).json()
         assert view["stage"] == "S01"
-        assert view["status"] == "failed"
-        assert view["issue"]["code"] == "REVIEW_UNAVAILABLE"
-        assert view["issue"]["template_id"] == "REVIEW_UNAVAILABLE"
+        assert view["status"] == "blocked"
+        assert view["issue"]["code"] == "REVIEW_INVALID"
+        assert view["issue"]["template_id"] == "REVIEW_INVALID"
         artifacts, jobs, _ = await _counts(application, project["id"])
         assert artifacts == 0
         assert jobs == 0
         assert visual.submit_calls == []
 
 
-async def test_review_accepts_repeated_required_checks(llm_settings):
+async def test_repeated_required_checks_without_instance_are_a_protocol_defect(
+    llm_settings,
+):
     async with _environment(
         llm_settings, _responder(review_mode="duplicate_required")
     ) as (application, client, stub, visual):
@@ -562,9 +566,12 @@ async def test_review_accepts_repeated_required_checks(llm_settings):
             text="做一张商品图",
             expected_revision=0,
         )
-        assert response.status_code == 200, response.text
-        assert response.json()["stage"] == "S03"
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "REVIEW_INVALID"
         assert len(stub.role_calls_received) == 2
+        view = (await client.get(f"/api/projects/{project['id']}/workflow")).json()
+        assert view["stage"] == "S01"
+        assert view["status"] == "blocked"
         artifacts, jobs, _ = await _counts(application, project["id"])
         assert artifacts == 0
         assert jobs == 0

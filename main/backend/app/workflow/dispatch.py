@@ -154,6 +154,11 @@ def available_actions(ctx: WorkflowContext) -> list[ActionView]:
             # explicit recovery action visible alongside continue_workflow.
             views = _views_for(stage_module, ctx) + views
         return views
+    if ctx.run.status == "blocked" and ctx.run.issue_code in s12.RETRYABLE_REVIEW_ISSUES:
+        # A typed reviewer contract defect exposes exactly one safe action: replay
+        # the persisted review request. Stage actions would suggest the user can
+        # repair the reviewer's own output.
+        return _views_for(s12, ctx)
     module = owner_for_stage(ctx.run.stage)
     if module is None:
         return []

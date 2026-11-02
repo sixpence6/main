@@ -35,6 +35,8 @@ TEMPLATES: Final[dict[str, str]] = {
     "CAPABILITY_NOT_READY": "当前{capability_label}能力未配置或不满足要求，流程已暂停。",
     "SERVICE_UNAVAILABLE": "当前处理服务暂不可用，已保留输入，本次未自动重试。",
     "REVIEW_UNAVAILABLE": "审查暂不可用，内容尚未放行。",
+    "REVIEW_INVALID": "独立审查结果不完整，内容尚未放行；可重新提交本次审查。",
+    "REVIEW_REJECTED": "独立审查未通过，本次内容未放行。",
     "CANDIDATE_EXPIRED": (
         "待审图片已超过保留期限，无法恢复或继续审查。"
         "如仍需图片，请重新确认需求并提交生成。"

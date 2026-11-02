@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 RULESET_VERSION = "v3.rules.1"
 
@@ -421,8 +421,132 @@ def ruleset_from_payload(payload: dict[str, Any]) -> RuleSet | None:
     version = str(payload.get("ruleset_version") or RULESET_VERSION)
     return RuleSet(target_kind=target_kind, rules=tuple(rules), version=version)
 
+# Governance observation rules the reviewer prompt asks reviewers to report.
+# They are registered explicitly (never by pattern): an id the server does not
+# know here is a protocol defect, not an extra advisory opinion.
+ADVISORY_GOVERNANCE_RULES: Final[frozenset[str]] = frozenset(
+    {
+        "G01_SCOPE",
+        "G01_ACTION",
+        "G02_FACT_SOURCE",
+        "G02_IMAGE_VISIBLE",
+        "G02_NO_UNSUPPORTED_INFERENCE",
+        "G02_OBSERVATION_GROUNDED",
+        "G02_REFERENCE_USAGE",
+        "G02_REPORT",
+        "G02_TEXT_IS_DATA",
+        "G02_UNKNOWN",
+        "G03_AUTH_BOUNDARY",
+        "G03_BRIEF",
+        "G03_CONFIRMATION",
+        "G03_CONFIRMATION_STATE",
+        "G03_CONSTRAINTS",
+        "G03_COPY",
+        "G03_EVIDENCE_COVERAGE",
+        "G03_REQUIREMENTS",
+        "G03_REQUIREMENT_CONSISTENCY",
+        "G03_SINGLE_DIRECTION",
+        "G03_SIZE",
+        "G03_SOURCE",
+        "G03_SOURCE_BASIS",
+        "G03_STRUCTURE",
+        "G03_SUBJECT_PURPOSE",
+        "G03_TEXTS",
+        "G03_UNRESOLVED",
+        "G04_PROHIBITED",
+        "G05_EXECUTION_BOUNDARY",
+        "G05_OUTPUT_STRUCTURE",
+        "G06_EVIDENCE_COVERAGE",
+        "G06_IMAGE",
+        "G07_FACT_SOURCE",
+        "G07_HARD_REQUIREMENT",
+        "G07_MANIFEST_ASSET",
+        "G07_MANIFEST_CAPTION",
+        "G07_MANIFEST_EVIDENCE",
+        "G07_MANIFEST_FILENAME",
+        "G07_MANIFEST_REQUIREMENT",
+        "G07_OUTPUT_STRUCTURE",
+        "G07_PROHIBITED_CONTENT",
+        "G07_SCOPE_ROLE",
+        "G07_UNAUTHORIZED_ACTION",
+        "G07_UNKNOWN_AS_FACT",
+        "G08_AUTH",
+        "review:quality_report",
+    }
+)
+
+
+def governance_ruleset(
+    target_kind: str,
+    blocking: Iterable[tuple[str, str]],
+    *,
+    decisions: Iterable[str] = ("pass", "revise", "reject", "unknown"),
+    evidence_types: Iterable[str] = ("artifact",),
+    version: str = RULESET_VERSION,
+) -> RuleSet:
+    """Build a stage catalogue: its blocking rules plus registered governance advisories."""
+    rules: list[Rule] = []
+    known: set[str] = set()
+    for rule_id, label in blocking:
+        if rule_id in known:
+            continue
+        known.add(rule_id)
+        rules.append(
+            Rule(
+                rule_id,
+                label,
+                kind="blocking",
+                evidence_types=tuple(evidence_types),
+            )
+        )
+    for rule_id in sorted(ADVISORY_GOVERNANCE_RULES - known):
+        rules.append(
+            Rule(
+                rule_id,
+                "治理观察项（不改变放行结论）",
+                kind="advisory",
+                evidence_types=("artifact",),
+            )
+        )
+    return RuleSet(
+        target_kind=target_kind,
+        rules=tuple(rules),
+        version=version,
+        decisions=tuple(decisions),
+    )
+
+
+def review_output(
+    output_data: object,
+    *,
+    target_id: str,
+    ruleset: RuleSet,
+    allowed_evidence: Iterable[str],
+) -> Adjudication:
+    """Shape-check one reviewer result for one target and adjudicate it."""
+    if not isinstance(output_data, dict):
+        raise ProtocolIssue(MISSING_RESULT, "审查输出缺少 data，未放行")
+    results = output_data.get("results")
+    if not isinstance(results, list) or len(results) != 1:
+        raise ProtocolIssue(MISSING_RESULT, "审查结果必须且只能包含一个目标，未放行")
+    result = results[0]
+    if not isinstance(result, dict):
+        raise ProtocolIssue(MISSING_RESULT, "审查结果格式不可识别，未放行")
+    checks = result.get("checks")
+    if not isinstance(checks, list) or not checks:
+        raise ProtocolIssue(MISSING_RESULT, "审查结果没有给出任何规则核验，未放行")
+    return adjudicate(
+        ruleset,
+        target_id=target_id,
+        result_target_id=result.get("target_id"),
+        declared_decision=result.get("decision"),
+        checks=checks,
+        allowed_evidence=allowed_evidence,
+    )
+
 
 __all__ = [
+    "ADVISORY_GOVERNANCE_RULES",
     "Adjudication",
     "Check",
     "ProtocolIssue",
@@ -431,6 +555,8 @@ __all__ = [
     "RuleSet",
     "adjudicate",
     "evidence_type",
+    "governance_ruleset",
+    "review_output",
     "ruleset_from_payload",
     "s07_rules",
 ]
