@@ -310,6 +310,50 @@ async def reserve_artifact_revision(
         )
 
 
+async def claim_recovery(
+    ctx: WorkflowContext, operation_id: str, *, stage: str
+) -> None:
+    """Atomically claim a failed/blocked run for one explicit recovery call.
+
+    The claim is persisted on the workflow run so two application instances
+    using independent SQLite connections cannot replay the same checkpoint at
+    the same time. It is released in a finally block by the caller; startup
+    repair clears claims left behind by a hard process crash.
+    """
+    if not operation_id:
+        raise conflict("ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    now = format_timestamp(utc_now())
+    async with write_transaction(ctx.session_factory) as session:
+        run = await _run_for_update(ctx, session)
+        if run.status not in {"blocked", "failed"} or run.stage != stage:
+            raise conflict(
+                "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
+            )
+        if run.recovery_claim_id is not None:
+            raise conflict(
+                "PROJECT_BUSY", "项目正在处理其他写操作，请稍后重试"
+            )
+        run.recovery_claim_id = operation_id
+        run.recovery_claimed_at = now
+        run.updated_at = now
+        await session.flush()
+
+
+async def release_recovery(
+    ctx: WorkflowContext, operation_id: str
+) -> None:
+    """Release a recovery claim owned by the given operation."""
+    now = format_timestamp(utc_now())
+    async with write_transaction(ctx.session_factory) as session:
+        run = await _run_for_update(ctx, session)
+        if run.recovery_claim_id != operation_id:
+            return
+        run.recovery_claim_id = None
+        run.recovery_claimed_at = None
+        run.updated_at = now
+        await session.flush()
+
+
 async def start_artifact(
     ctx: WorkflowContext,
     kind: str,

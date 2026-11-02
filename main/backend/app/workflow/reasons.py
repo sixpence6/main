@@ -73,7 +73,9 @@ _METADATA_DEFECTS = frozenset(
         CandidateDefectCode.BINDING_MISMATCH,
     }
 )
-_AUTO_REPAIRABLE_DEFECTS = frozenset({CandidateDefectCode.COVERAGE_MISMATCH})
+_AUTO_REPAIRABLE_DEFECTS = frozenset(
+    {CandidateDefectCode.COVERAGE_MISMATCH, CandidateDefectCode.MISSING_COVERAGE}
+)
 
 
 def classify_candidate_defects(defects: Iterable[CandidateDefect]) -> ReasonCode | None:
@@ -93,7 +95,7 @@ def classify_candidate_defects(defects: Iterable[CandidateDefect]) -> ReasonCode
 
 
 def is_auto_repairable(defects: Iterable[CandidateDefect]) -> bool:
-    """Only a pure coverage-value mapping defect with proven content is auto-repairable."""
+    """Only a coverage defect with proven intact content is auto-repairable."""
     items = list(defects)
     return bool(items) and all(
         item.code in _AUTO_REPAIRABLE_DEFECTS and item.content_intact for item in items

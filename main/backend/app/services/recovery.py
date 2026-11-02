@@ -194,6 +194,21 @@ async def _repair_generation_jobs(session, now: str) -> int:
     return repaired
 
 
+async def _clear_recovery_claims(session, now: str) -> int:
+    runs = list(
+        (
+            await session.scalars(
+                select(WorkflowRun).where(WorkflowRun.recovery_claim_id.is_not(None))
+            )
+        ).all()
+    )
+    for run in runs:
+        run.recovery_claim_id = None
+        run.recovery_claimed_at = None
+        run.updated_at = now
+    return len(runs)
+
+
 async def repair_leftover_state(app: FastAPI) -> None:
     """Repair persisted in-flight state before the app accepts requests.
 
@@ -236,13 +251,14 @@ async def repair_leftover_state(app: FastAPI) -> None:
                 generation.error_message = "生成过程因服务重启中断，可稍后重新生成"
                 generation.completed_at = now
 
+        claims = await _clear_recovery_claims(session, now)
         role_calls = await _repair_role_calls(session, now)
         jobs = await _repair_generation_jobs(session, now)
 
-    if organizing or interrupted or role_calls or jobs:
+    if organizing or interrupted or claims or role_calls or jobs:
         logger.info(
             "repaired leftover state: "
-            "organizing=%s generations=%s role_calls=%s jobs=%s",
+            "organizing=%s generations=%s claims=%s role_calls=%s jobs=%s",
             len(organizing),
             len(interrupted),
             role_calls,

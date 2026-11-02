@@ -3,11 +3,12 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.auth.principal import Principal
@@ -23,17 +24,44 @@ DEFAULT_LIST_LIMIT = 20
 MAX_LIST_LIMIT = 100
 DEFAULT_PROJECT_TITLE = "未命名项目"
 CURSOR_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+MAX_TITLE_LENGTH = 120
+MAX_QUERY_LENGTH = 120
 
 
 @dataclass(frozen=True)
 class ProjectCursor:
     updated_at: str
     project_id: str
+    query: str
+    owner: str | None
 
 
-def encode_cursor(updated_at: str, project_id: str) -> str:
+def normalize_project_query(raw: str | None) -> str:
+    """Collapse whitespace so cursor binding cannot be bypassed by spacing."""
+    if raw is None:
+        return ""
+    normalized = re.sub(r"\s+", " ", raw).strip()
+    if len(normalized) > MAX_QUERY_LENGTH:
+        raise ApiError(422, "VALIDATION_ERROR", "搜索关键词过长")
+    return normalized
+
+
+def normalize_project_title(raw: str) -> str:
+    normalized = re.sub(r"\s+", " ", raw).strip()
+    if not normalized or len(normalized) > MAX_TITLE_LENGTH:
+        raise ApiError(422, "VALIDATION_ERROR", "项目标题长度须为 1-120 个字符")
+    return normalized
+
+
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def encode_cursor(
+    updated_at: str, project_id: str, *, query: str = "", owner: str | None = None
+) -> str:
     payload = json.dumps(
-        {"id": project_id, "updated_at": updated_at},
+        {"id": project_id, "owner": owner, "q": query, "updated_at": updated_at},
         ensure_ascii=False,
         separators=(",", ":"),
         sort_keys=True,
@@ -54,18 +82,33 @@ def decode_cursor(raw: str | None) -> ProjectCursor | None:
         payload = json.loads(decoded.decode("utf-8"))
     except (binascii.Error, UnicodeDecodeError, UnicodeEncodeError, ValueError):
         raise _invalid_cursor() from None
-    if not isinstance(payload, dict) or set(payload) != {"id", "updated_at"}:
+    if not isinstance(payload, dict) or set(payload) != {
+        "id",
+        "owner",
+        "q",
+        "updated_at",
+    }:
         raise _invalid_cursor()
     updated_at = payload["updated_at"]
     project_id = payload["id"]
-    if not isinstance(updated_at, str) or not isinstance(project_id, str):
+    query = payload["q"]
+    owner = payload["owner"]
+    if (
+        not isinstance(updated_at, str)
+        or not isinstance(project_id, str)
+        or not isinstance(query, str)
+        or (owner is not None and not isinstance(owner, str))
+        or len(query) > MAX_QUERY_LENGTH
+    ):
         raise _invalid_cursor()
     try:
         datetime.strptime(updated_at, CURSOR_TIME_FORMAT)
         UUID(project_id)
     except ValueError:
         raise _invalid_cursor() from None
-    return ProjectCursor(updated_at=updated_at, project_id=project_id)
+    return ProjectCursor(
+        updated_at=updated_at, project_id=project_id, query=query, owner=owner
+    )
 
 
 async def create_project(
@@ -103,18 +146,32 @@ async def create_project(
 
 
 async def _latest_generation_statuses(
-    session: AsyncSession, project_ids: list[str]
+    session: AsyncSession, projects: list[Project]
 ) -> dict[str, str]:
-    if not project_ids:
+    if not projects:
         return {}
+    project_ids = [project.id for project in projects]
     rows = await session.execute(
-        select(Generation.project_id, Generation.status, Generation.version_no)
+        select(
+            Generation.project_id,
+            Generation.status,
+            Generation.confirmed_revision,
+            Generation.version_no,
+        )
         .where(Generation.project_id.in_(project_ids))
         .order_by(Generation.project_id, Generation.version_no.desc())
     )
+    revisions = {project.id: project.revision for project in projects}
     latest: dict[str, str] = {}
-    for project_id, status, _version_no in rows:
-        latest.setdefault(project_id, status)
+    for project_id, status, confirmed_revision, _version_no in rows:
+        if project_id in latest:
+            continue
+        # A historical success is not evidence that the current revision
+        # completed. Without a generation bound to the current revision the
+        # only honest list state is unknown.
+        latest[project_id] = (
+            status if confirmed_revision == revisions[project_id] else "unknown"
+        )
     return latest
 
 
@@ -124,12 +181,22 @@ async def list_projects(
     limit: int,
     cursor: ProjectCursor | None,
     principal: Principal | None = None,
+    query: str = "",
 ) -> tuple[list[ProjectSummary], str | None]:
+    normalized_query = normalize_project_query(query)
+    owner = principal.account_id if principal is not None else None
+    if cursor is not None and (cursor.query != normalized_query or cursor.owner != owner):
+        raise _invalid_cursor()
     async with read_session(session_factory) as session:
         statement = select(Project)
         if principal is not None:
             await revalidate_principal(session, principal)
             statement = statement.where(Project.owner_account_id == principal.account_id)
+        if normalized_query:
+            escaped = _escape_like(normalized_query.casefold())
+            statement = statement.where(
+                func.lower(Project.title).like(f"%{escaped}%", escape="\\")
+            )
         statement = (
             statement.order_by(Project.updated_at.desc(), Project.id.desc())
             .limit(limit + 1)
@@ -146,12 +213,17 @@ async def list_projects(
             )
         projects = list((await session.scalars(statement)).all())
         page = projects[:limit]
-        latest = await _latest_generation_statuses(session, [project.id for project in page])
+        latest = await _latest_generation_statuses(session, page)
         policies = await load_project_access_policies(session, [project.id for project in page])
 
     next_cursor = None
     if len(projects) > limit and page:
-        next_cursor = encode_cursor(page[-1].updated_at, page[-1].id)
+        next_cursor = encode_cursor(
+            page[-1].updated_at,
+            page[-1].id,
+            query=normalized_query,
+            owner=owner,
+        )
     items = []
     for project in page:
         policy = policies[project.id]
@@ -263,4 +335,30 @@ async def require_project(
         )
     if project is None:
         raise not_found_project()
+    return project
+
+
+async def rename_project(
+    session_factory: async_sessionmaker[AsyncSession],
+    project_id: str,
+    *,
+    principal: Principal,
+    title: str,
+) -> Project:
+    normalized_title = normalize_project_title(title)
+    async with write_transaction(session_factory) as session:
+        await revalidate_principal(session, principal)
+        project = await session.scalar(
+            select(Project).where(
+                Project.id == project_id,
+                Project.owner_account_id == principal.account_id,
+            )
+        )
+        if project is None:
+            raise not_found_project()
+        # Rename is presentation metadata only. Demand revision, confirmation,
+        # intent, prompt budget and slots must remain byte-for-byte untouched.
+        project.title = normalized_title
+        project.updated_at = format_timestamp(utc_now())
+        await session.flush()
     return project
