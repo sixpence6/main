@@ -208,7 +208,7 @@ onBeforeUnmount(() => {
       <div class="security-shell">
         <header class="security-topbar">
           <div class="security-heading">
-            <p class="security-brand"><BrandMark :size="18" /> 电商生图智能体 · ACCOUNT</p>
+            <p class="security-brand"><BrandMark :size="18" /> 电商生图工作台 · ACCOUNT</p>
             <h1>账号安全</h1>
             <p class="security-lede">管理本人密码、登录会话与安全事件。页面只展示必要的账号信息，不显示任何凭证。</p>
           </div>

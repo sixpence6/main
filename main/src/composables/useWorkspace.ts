@@ -75,6 +75,7 @@ export interface WorkspaceStore {
   announcement: Ref<string>
   breakpoint: ComputedRef<'narrow' | 'medium' | 'wide'>
   isMobile: ComputedRef<boolean>
+  isCompact: ComputedRef<boolean>
   projectList: Ref<ProjectSummary[]>
   projectListLoading: Ref<boolean>
   projectListError: Ref<string>
@@ -178,7 +179,7 @@ function dedupeProjects(items: ProjectSummary[]): ProjectSummary[] {
 }
 
 function createWorkspace(): WorkspaceStore {
-  const { breakpoint, isMobile } = useViewport()
+  const { breakpoint, isMobile, isCompact } = useViewport()
   const router = useRouter()
   const route = useRoute()
   let workspaceSessionRevision = sessionRevision.value
@@ -198,7 +199,7 @@ function createWorkspace(): WorkspaceStore {
   const projectSearchError = ref('')
   const projectRenameBusy = ref(false)
   const projectRenameError = ref('')
-  const sidebarExpanded = ref(breakpoint.value === 'wide')
+  const sidebarExpanded = ref(breakpoint.value !== 'narrow')
   const sideDrawerOpen = ref(false)
   const modelDrawerOpen = ref(false)
   const projectDrawerOpen = ref(false)
@@ -1538,7 +1539,7 @@ function createWorkspace(): WorkspaceStore {
   watch(
     breakpoint,
     (next) => {
-      sidebarExpanded.value = next === 'wide'
+      sidebarExpanded.value = next !== 'narrow'
       sideDrawerOpen.value = false
     },
     { flush: 'sync' },
@@ -1613,6 +1614,7 @@ function createWorkspace(): WorkspaceStore {
     announcement,
     breakpoint,
     isMobile,
+    isCompact,
     projectList,
     projectListLoading,
     projectListError,

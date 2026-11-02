@@ -404,7 +404,7 @@ onBeforeUnmount(() => {
     <div class="accounts-shell">
       <header class="accounts-topbar">
         <div class="accounts-heading">
-          <p class="accounts-brand"><BrandMark :size="18" /> 电商生图智能体 · ADMIN</p>
+          <p class="accounts-brand"><BrandMark :size="18" /> 电商生图工作台 · ADMIN</p>
           <h1>账号管理</h1>
           <p class="accounts-lede">创建账号、签发一次性链接、调整生成额度并审计管理操作。管理员不能读取他人的项目内容。</p>
         </div>

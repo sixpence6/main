@@ -15,7 +15,7 @@ async function signOut(): Promise<void> {
 
 <template>
   <header class="app-header">
-    <h1 class="app-title">电商生图智能体</h1>
+    <h1 class="app-title">电商生图工作台</h1>
     <div v-if="currentAccount" class="account-area">
       <RouterLink class="account-security" :to="{ name: 'account-security' }">账号安全</RouterLink>
       <RouterLink
