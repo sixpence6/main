@@ -249,12 +249,16 @@ def _snapshot_database(source_db: Path, destination: Path) -> DatabaseSnapshot:
                         "PRAGMA table_info(assets)"
                     ).fetchall()
                 }
+                # Pre-v2 databases (alembic 0001) do not have assets.sha256 yet. The
+                # backup still hashes every copied file from its bytes, so a missing
+                # database digest must not block the mandatory pre-migration backup.
+                hash_column = "sha256" if "sha256" in asset_columns else "NULL AS sha256"
                 review_column = (
                     "review_note" if "review_note" in asset_columns else "NULL AS review_note"
                 )
                 rows = tuple(
                     destination_connection.execute(
-                        f"SELECT id, kind, relative_path, sha256, byte_size, {review_column} "
+                        f"SELECT id, kind, relative_path, {hash_column}, byte_size, {review_column} "
                         "FROM assets ORDER BY relative_path, id"
                     ).fetchall()
                 )

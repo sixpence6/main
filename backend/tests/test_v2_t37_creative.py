@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from alembic import command
 from alembic.config import Config
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.adapters.base import ProviderError
@@ -113,7 +113,9 @@ def creative_needs_input(code: str = "MISSING_EVIDENCE") -> dict[str, Any]:
     }
 
 
-def review_payload(target_id: str, decision: str) -> dict[str, Any]:
+def review_payload(
+    target_id: str, decision: str, *, advisories: bool = False
+) -> dict[str, Any]:
     checks = []
     for rule_id in REQUIRED_RULES:
         outcome = "pass"
@@ -132,6 +134,47 @@ def review_payload(target_id: str, decision: str) -> dict[str, Any]:
                 "note": "内部审查记录",
             }
         )
+    if advisories:
+        checks.extend(
+            [
+                {
+                    "rule_id": "SCOPE_ROLE",
+                    "outcome": "pass",
+                    "evidence_ids": [],
+                    "note": "只审查角色边界，不需要产物证据。",
+                },
+                {
+                    "rule_id": "UNAUTHORIZED_ACTION",
+                    "outcome": "pass",
+                    "evidence_ids": [],
+                    "note": "没有调用工具、外部链接或越权动作。",
+                },
+                {
+                    "rule_id": "UNKNOWN_CERTAINTY",
+                    "outcome": "pass",
+                    "evidence_ids": [target_id],
+                    "note": "未把未知事实写成确定事实。",
+                },
+                {
+                    "rule_id": "SCOPE_AND_ROLE",
+                    "outcome": "pass",
+                    "evidence_ids": [target_id],
+                    "note": "共享 reviewer 的另一种角色边界检查命名。",
+                },
+                {
+                    "rule_id": "UNKNOWN_AS_CERTAIN",
+                    "outcome": "pass",
+                    "evidence_ids": [target_id],
+                    "note": "共享 reviewer 的另一种不确定性检查命名。",
+                },
+                {
+                    "rule_id": "CONFIRMATION_CONSISTENCY",
+                    "outcome": "pass",
+                    "evidence_ids": [target_id],
+                    "note": "共享 reviewer 的确认状态一致性检查。",
+                },
+            ]
+        )
     return {
         "role": "output_reviewer",
         "status": "ready",
@@ -146,9 +189,12 @@ class CreativeScript:
         self,
         creatives: list[Any],
         reviews: list[str] | None = None,
+        *,
+        advisories: bool = False,
     ) -> None:
         self.creatives = list(creatives)
         self.reviews = list(reviews or [])
+        self.advisories = advisories
         self.requests: list[Any] = []
 
     def __call__(self, request: Any) -> Any:
@@ -162,7 +208,7 @@ class CreativeScript:
         if role == "output_reviewer":
             decision = self.reviews.pop(0)
             target_id = str(request.payload["review_targets"][0]["target_id"])
-            return review_payload(target_id, decision)
+            return review_payload(target_id, decision, advisories=self.advisories)
         raise AssertionError(f"unexpected role {role}")
 
 
@@ -640,6 +686,58 @@ async def test_review_with_forged_evidence_never_approves(llm_settings):
         assert view["status"] == "blocked"
         assert view["issue"]["code"] == "REVIEW_UNAVAILABLE"
         assert view["artifacts"][-1]["payload"] is None
+
+
+async def test_review_accepts_advisory_governance_checks(llm_settings):
+    """共享 reviewer 的额外治理检查不应阻断 CREATIVE 阶段批准。"""
+    script = CreativeScript([creative_ready()], ["pass"], advisories=True)
+    stub = LLMStub(role_responder=script)
+    registry = build_test_registry(llm=stub)
+
+    async with _client_for(llm_settings, registry) as (application, client):
+        project_id = await _create_project(client)
+        await _prepare_brief(application, project_id)
+
+        response = await client.post(
+            f"/api/projects/{project_id}/workflow/actions/plan_creative",
+            json={"expected_revision": 0},
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["stage"] == "S05"
+        creative = [item for item in body["artifacts"] if item["kind"] == "creative_direction"]
+        assert len(creative) == 1 and creative[0]["status"] == "approved"
+        assert [
+            call.payload["task"]["role"] for call in stub.role_calls_received
+        ] == ["creative_planner", "output_reviewer"]
+
+
+async def test_required_review_check_still_requires_evidence(llm_settings):
+    """额外检查放宽后，四条程序所有的必需检查仍必须带证据。"""
+    creative = creative_ready()
+
+    def responder(request):
+        role = str(request.payload["task"]["role"])
+        if role == "creative_planner":
+            return creative
+        target_id = str(request.payload["review_targets"][0]["target_id"])
+        payload = review_payload(target_id, "pass", advisories=True)
+        payload["data"]["results"][0]["checks"][0]["evidence_ids"] = []
+        return payload
+
+    stub = LLMStub(role_responder=responder)
+    registry = build_test_registry(llm=stub)
+
+    async with _client_for(llm_settings, registry) as (application, client):
+        project_id = await _create_project(client)
+        await _prepare_brief(application, project_id)
+
+        response = await client.post(
+            f"/api/projects/{project_id}/workflow/actions/plan_creative",
+            json={"expected_revision": 0},
+        )
+        assert response.status_code == 503, response.text
+        assert response.json()["error"]["code"] == "REVIEW_UNAVAILABLE"
 
 
 async def test_plan_requires_approved_current_brief(llm_settings):

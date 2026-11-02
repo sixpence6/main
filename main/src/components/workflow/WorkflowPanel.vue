@@ -428,6 +428,10 @@ function actionHelp(action: WorkflowAction): string {
       return '只结束本地跟踪并释放已证实占用；不会声称远端已取消，已计入的受理次数不变。'
     case 'start_new_generation':
       return '这是新任务，会重新计数并占用槽位；旧任务仍可能在远端执行或计费。'
+    case 'retry_rejected_generation':
+      return '会按当前已批提示词重新生成一张图，新增一次受理计数并占用生成槽位。'
+    case 'revise_prompt_and_retry':
+      return '先修改并重新审查提示词，再生成一张新图；会新增一次受理计数并占用生成槽位。'
     default:
       return ''
   }
@@ -541,6 +545,12 @@ function confirmationText(action: WorkflowAction): string {
   if (action.id === 'start_new_generation') {
     return '我确认这是新任务，将重新计数并占用槽位；旧任务仍可能在远端执行或计费'
   }
+  if (
+    action.id === 'retry_rejected_generation' ||
+    action.id === 'revise_prompt_and_retry'
+  ) {
+    return '我确认重新生成会新增一次受理计数并占用生成槽位'
+  }
   return '我已核对当前内容并确认继续'
 }
 
@@ -618,6 +628,12 @@ function actionPayload(action: WorkflowAction): Record<string, unknown> {
   }
   if (action.id === 'start_new_generation') {
     return { acknowledge_risk: true }
+  }
+  if (
+    action.id === 'retry_rejected_generation' ||
+    action.id === 'revise_prompt_and_retry'
+  ) {
+    return { acknowledge_new_attempt: true }
   }
   if (action.id === 'confirm_requirements' && finalBrief.value && view.value) {
     const payload: Record<string, unknown> = {

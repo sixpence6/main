@@ -40,8 +40,11 @@ ACTIONS = [
     "revise_brief_draft",
 ]
 
-# The independent reviewer attests every applicable G03 rule. A pass with a
-# missing, duplicated, extra, failed or unknown check never releases a draft.
+# The independent reviewer attests every applicable G03 rule. The shared
+# reviewer prompt also asks for broader Gnn_ governance checks; those extra
+# findings are advisory and must not stop an otherwise valid requirements
+# review. A pass with a missing, failed or malformed required check never
+# releases a draft.
 REVIEW_RULE_IDS = (
     "G03_STRUCTURE",
     "G03_SUBJECT_PURPOSE",
@@ -51,6 +54,7 @@ REVIEW_RULE_IDS = (
     "G03_SIZE",
     "G03_UNRESOLVED",
 )
+_ADVISORY_RULE_RE = re.compile(r"^(?:G\d{2}_[A-Z0-9_]+|review:[a-z][a-z0-9_]{0,63})$")
 
 _MAX_QUESTIONS_CHARS = 800
 _MAX_CANDIDATES = 3
@@ -589,19 +593,37 @@ def _validate_review(
     checks = result.get("checks")
     if not isinstance(checks, list) or not checks:
         raise _review_unavailable()
-    seen: list[str] = []
+    required_seen: set[str] = set()
     repair_codes: list[str] = []
     for check in checks:
         if not isinstance(check, dict):
             raise _review_unavailable()
         rule_id = check.get("rule_id")
+        if not isinstance(rule_id, str) or not rule_id:
+            raise _review_unavailable()
+        if rule_id in REVIEW_RULE_IDS:
+            # Required checks may be split into several occurrences; each one
+            # must be a substantive pass or a real finding, never not_applicable.
+            if check.get("outcome") not in {"pass", "fail", "unknown"}:
+                raise _review_unavailable()
+            required_seen.add(rule_id)
+        elif _ADVISORY_RULE_RE.fullmatch(rule_id):
+            if check.get("outcome") not in {"pass", "fail", "unknown", "not_applicable"}:
+                raise _review_unavailable()
+        else:
+            raise _review_unavailable()
         outcome = check.get("outcome")
-        if rule_id not in REVIEW_RULE_IDS:
-            raise _review_unavailable()
-        if outcome not in {"pass", "fail", "unknown"}:
-            raise _review_unavailable()
         evidence = check.get("evidence_ids")
-        if (
+        if outcome == "not_applicable":
+            if evidence not in (None, []) and not (
+                isinstance(evidence, list)
+                and all(
+                    isinstance(item, str) and item in allowed_evidence
+                    for item in evidence
+                )
+            ):
+                raise _review_unavailable()
+        elif (
             not isinstance(evidence, list)
             or not evidence
             or not all(
@@ -612,18 +634,15 @@ def _validate_review(
         note = check.get("note")
         if isinstance(note, str) and "://" in note.lower():
             raise _review_unavailable()
-        seen.append(str(rule_id))
-        if outcome != "pass":
+        if outcome in {"fail", "unknown"}:
             repair_codes.append(str(rule_id))
-    if set(seen) != set(REVIEW_RULE_IDS) or len(seen) != len(set(seen)):
+    if required_seen != set(REVIEW_RULE_IDS):
         raise _review_unavailable()
     if decision == "pass" and repair_codes:
         raise _review_unavailable()
     if decision != "pass" and not repair_codes:
         raise _review_unavailable()
     return str(decision), checks, repair_codes
-
-
 async def _run_review(
     ctx: WorkflowContext,
     *,

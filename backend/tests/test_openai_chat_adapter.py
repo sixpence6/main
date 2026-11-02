@@ -14,6 +14,7 @@ from app.adapters.base import (
     OrganizeMessage,
     OrganizeRequest,
     ProviderError,
+    RoleRequest,
 )
 from app.adapters.openai_chat import OpenAIChatAdapter, _extract_json
 from app.adapters.registry import build_default_registry
@@ -384,6 +385,7 @@ async def test_reference_image_is_sent_as_a_multimodal_content_part():
 
     body = seen["body"]
     assert body["model"] == "vision-model"
+    assert "response_format" not in body
     content = body["messages"][-1]["content"]
     assert content[0] == {"type": "text", "text": "电商主图，白色背景"}
     assert content[1]["type"] == "image_url"
@@ -435,6 +437,60 @@ async def test_reference_image_without_vision_model_is_rejected_before_http():
     assert called is False
     assert raised.value.evidence == "rejected"
     assert raised.value.error_code == "LLM_VISION_NOT_CONFIGURED"
+
+
+async def test_role_vision_request_omits_json_response_format():
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json=_completion('{"role":"quality_compliance","status":"ready","data":{}}'),
+        )
+
+    image = b"\x89PNG\r\n\x1a\nreference"
+    adapter, client = _adapter(handler, vision_model="vision-model")
+    try:
+        result = await adapter.complete(
+            RoleRequest(
+                system_prompt="review the image",
+                payload={"asset_id": "a1"},
+                images=(OrganizeImage(data=image, mime_type="image/png"),),
+            )
+        )
+    finally:
+        await client.aclose()
+
+    body = seen["body"]
+    assert body["model"] == "vision-model"
+    assert "response_format" not in body
+    assert body["messages"][-1]["content"][0] == {
+        "type": "text",
+        "text": '{"asset_id":"a1"}',
+    }
+    assert body["messages"][-1]["content"][1]["type"] == "image_url"
+    assert result.payload["status"] == "ready"
+
+
+async def test_role_text_request_keeps_json_response_format():
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(
+            200, json=_completion('{"role":"intent_router","status":"ready","data":{}}')
+        )
+
+    adapter, client = _adapter(handler)
+    try:
+        await adapter.complete(
+            RoleRequest(system_prompt="route", payload={"message": "hello"})
+        )
+    finally:
+        await client.aclose()
+
+    assert seen["body"]["response_format"] == {"type": "json_object"}
 
 
 def test_builtin_registry_exposes_openai_chat_and_config_is_ready():

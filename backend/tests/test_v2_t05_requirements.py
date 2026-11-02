@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.adapters.base import ProviderError
@@ -95,8 +95,17 @@ def _review_checks(
     *,
     rules: tuple[str, ...] = REVIEW_RULE_IDS,
 ) -> list[dict[str, Any]]:
+    extras: tuple[str, ...] = ()
+    if mode == "extra":
+        extras = (
+            "G03_CONFIRMATION_STATE",
+            "G03_EVIDENCE_COVERAGE",
+            "G03_AUTH_BOUNDARY",
+        )
+    elif mode == "advisory_na":
+        extras = ("G03_CONFIRMATION_STATE",)
+    selected = (*rules, *extras) if mode != "missing" else rules[:1]
     checks: list[dict[str, Any]] = []
-    selected = rules[:1] if mode == "missing" else rules
     for index, rule_id in enumerate(selected):
         evidence = ["foreign-evidence"] if mode == "foreign_evidence" else [target_id]
         outcome = "pass"
@@ -106,6 +115,11 @@ def _review_checks(
             outcome = "unknown"
         if mode == "reject" and index == 0:
             outcome = "fail"
+        if mode == "empty_required_evidence" and index == 0:
+            evidence = []
+        if mode == "advisory_na" and rule_id not in rules:
+            outcome = "not_applicable"
+            evidence = []
         checks.append(
             {
                 "rule_id": rule_id,
@@ -655,6 +669,59 @@ async def test_needs_input_questions_are_not_shown_when_review_fails(full_settin
         assert secret not in str(view)
         assert view["issue"]["template_id"] == "REVIEW_UNAVAILABLE"
         assert view["artifacts"] == []
+
+
+async def test_review_accepts_extra_advisory_governance_checks(full_settings):
+    script = Script([_ready], review_modes=["extra"])
+    async with _environment(full_settings, script) as (_, client, _, _):
+        project = await _create_project(client)
+        started = await _start(client, project["id"], "做一张商品主图")
+        response = await _act(
+            client,
+            project["id"],
+            "compose_brief",
+            expected_revision=started["project_revision"],
+        )
+        assert response.status_code == 200, response.text
+        view = response.json()
+        assert view["stage"] == "S04"
+        assert view["status"] == "active"
+        assert script.review_calls == 1
+
+
+async def test_review_accepts_advisory_not_applicable_without_evidence(full_settings):
+    script = Script([_ready], review_modes=["advisory_na"])
+    async with _environment(full_settings, script) as (_, client, _, _):
+        project = await _create_project(client)
+        started = await _start(client, project["id"], "做一张商品主图")
+        response = await _act(
+            client,
+            project["id"],
+            "compose_brief",
+            expected_revision=started["project_revision"],
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["stage"] == "S04"
+        assert script.review_calls == 1
+
+
+async def test_required_review_check_still_requires_evidence(full_settings):
+    script = Script([_ready], review_modes=["empty_required_evidence"])
+    async with _environment(full_settings, script) as (_, client, _, _):
+        project = await _create_project(client)
+        started = await _start(client, project["id"], "做一张商品主图")
+        response = await _act(
+            client,
+            project["id"],
+            "compose_brief",
+            expected_revision=started["project_revision"],
+        )
+        assert response.status_code == 503, response.text
+        assert response.json()["error"]["code"] == "REVIEW_UNAVAILABLE"
+        view = await _view(client, project["id"])
+        assert view["stage"] == "S03"
+        assert view["status"] == "failed"
+        assert view["issue"]["code"] == "REVIEW_UNAVAILABLE"
 
 
 async def test_revised_candidates_are_each_reviewed_and_budget_is_three(full_settings):

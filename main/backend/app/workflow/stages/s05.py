@@ -56,6 +56,13 @@ REQUIRED_CARD_RULES = (
     "S06_BLOCKERS",
 )
 
+# Shared reviewer prompts also emit general governance checks. These are
+# advisory only; REQUIRED_*_RULES still decide whether an artifact can pass.
+_ADVISORY_RULE_RE = re.compile(
+    r"^(?:G\d{2}_[A-Z0-9_]+|review:[a-z][a-z0-9_]{0,63}|"
+    r"(?!S\d{2}_)[A-Z][A-Z0-9_]{1,63})$"
+)
+
 _VISUAL_KINDS = ("brief_draft", "creative_direction")
 _CARD_KINDS = ("brief_draft", "creative_direction", "visual_plan")
 _URL_MARKERS = ("://", "http:", "https:", "data:")
@@ -547,31 +554,50 @@ def _validate_review(
     if not isinstance(checks, list) or not checks:
         raise _review_unavailable()
 
-    seen: list[str] = []
+    required = set(required_rules)
+    seen_required: list[str] = []
     for check in checks:
         if not isinstance(check, dict):
             raise _review_unavailable()
         rule_id = check.get("rule_id")
-        if not isinstance(rule_id, str) or rule_id not in required_rules:
+        if not isinstance(rule_id, str):
             raise _review_unavailable()
         outcome = check.get("outcome")
-        if decision == "pass" and outcome != "pass":
-            raise _review_unavailable()
         evidence = check.get("evidence_ids")
-        if not isinstance(evidence, list) or not evidence:
-            raise _review_unavailable()
-        if any(not isinstance(item, str) or item not in allowed_evidence for item in evidence):
+        if not isinstance(evidence, list):
             raise _review_unavailable()
         note = check.get("note")
         if isinstance(note, str) and _contains_url(note):
             raise _review_unavailable()
-        seen.append(rule_id)
-    if decision == "pass":
-        if set(seen) != set(required_rules) or len(seen) != len(set(seen)):
+
+        if rule_id in required:
+            if outcome not in {"pass", "fail", "unknown"}:
+                raise _review_unavailable()
+            if not evidence:
+                raise _review_unavailable()
+            seen_required.append(rule_id)
+        else:
+            if not _ADVISORY_RULE_RE.fullmatch(rule_id):
+                raise _review_unavailable()
+            if outcome not in {"pass", "fail", "unknown", "not_applicable"}:
+                raise _review_unavailable()
+            if decision == "pass" and outcome in {"fail", "unknown"}:
+                raise _review_unavailable()
+        if evidence and any(
+            not isinstance(item, str) or item not in allowed_evidence for item in evidence
+        ):
             raise _review_unavailable()
-    elif len(seen) != len(set(seen)):
+
+    if decision == "pass":
+        if set(seen_required) != required or len(seen_required) != len(set(seen_required)):
+            raise _review_unavailable()
+        for check in checks:
+            if check["rule_id"] in required and check.get("outcome") != "pass":
+                raise _review_unavailable()
+    elif len(seen_required) != len(set(seen_required)):
         raise _review_unavailable()
     return str(decision), checks
+
 
 
 def _collect_evidence(

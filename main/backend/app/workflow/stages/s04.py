@@ -44,6 +44,14 @@ REQUIRED_RULES = (
     "G03_SINGLE_DIRECTION",
 )
 
+# Shared reviewer prompts also emit general governance checks. These are
+# advisory only: the program-owned REQUIRED_RULES above still decide whether a
+# candidate can be approved.
+_ADVISORY_RULE_RE = re.compile(
+    r"^(?:G\d{2}_[A-Z0-9_]+|review:[a-z][a-z0-9_]{0,63}|"
+    r"[A-Z][A-Z0-9_]{1,63})$"
+)
+
 _SAFE_HANDOFF_TEMPLATE = "ACTION_UNAVAILABLE"
 _SCOPE_CODES = {"OUT_OF_SCOPE", "MIXED_SCOPE", "UNSAFE_REQUEST"}
 
@@ -389,28 +397,44 @@ def _validate_review_shape(
     if not isinstance(checks, list) or not checks:
         raise _fixed_review()
 
-    seen: list[str] = []
+    required_seen: set[str] = set()
     for check in checks:
         if not isinstance(check, dict):
             raise _fixed_review()
         rule_id = check.get("rule_id")
-        if rule_id not in REQUIRED_RULES:
+        if not isinstance(rule_id, str):
             raise _fixed_review()
         evidence_ids = check.get("evidence_ids")
-        if not isinstance(evidence_ids, list) or not evidence_ids:
+        if not isinstance(evidence_ids, list):
             raise _fixed_review()
         if any(not isinstance(item, str) or item not in allowed_evidence for item in evidence_ids):
             raise _fixed_review()
         note = check.get("note")
         if isinstance(note, str) and "://" in note.casefold():
             raise _fixed_review()
-        seen.append(str(rule_id))
+        outcome = check.get("outcome")
+        if rule_id in REQUIRED_RULES:
+            if outcome not in {"pass", "fail", "unknown"}:
+                raise _fixed_review()
+            if not evidence_ids:
+                raise _fixed_review()
+            required_seen.add(rule_id)
+        else:
+            if not _ADVISORY_RULE_RE.fullmatch(rule_id):
+                raise _fixed_review()
+            if outcome not in {"pass", "fail", "unknown", "not_applicable"}:
+                raise _fixed_review()
 
     if decision == "pass":
-        if len(seen) != len(set(seen)) or set(seen) != set(REQUIRED_RULES):
+        if required_seen != set(REQUIRED_RULES):
             raise _fixed_review()
-        if any(check.get("outcome") != "pass" for check in checks):
-            raise _fixed_review()
+        for check in checks:
+            rule_id = str(check.get("rule_id"))
+            outcome = check.get("outcome")
+            if rule_id in REQUIRED_RULES and outcome != "pass":
+                raise _fixed_review()
+            if rule_id not in REQUIRED_RULES and outcome in {"fail", "unknown"}:
+                raise _fixed_review()
     return str(decision), checks
 
 

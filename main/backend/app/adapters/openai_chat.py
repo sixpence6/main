@@ -258,7 +258,7 @@ class OpenAIChatAdapter:
     def _fingerprint(self, model: str, base_url: str) -> str:
         """A stable, non-secret identifier for the model configuration in use."""
         digest = hashlib.sha256(
-            f"{self.adapter_id}|{model}|{base_url}".encode("utf-8")
+            f"{self.adapter_id}|{model}|{base_url}".encode()
         ).hexdigest()[:32]
         return f"{self.adapter_id}:{model}:{digest}"
 
@@ -294,17 +294,24 @@ class OpenAIChatAdapter:
         for image in request.images:
             self._attach_reference_image(messages, image)
 
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0.2,
+            "max_tokens": _MAX_OUTPUT_TOKENS,
+        }
+        # Some OpenAI-compatible vision backends reject structured output
+        # (for example, "does not implement structured text.format output").
+        # The role prompts still require one JSON object, and the parser
+        # accepts fenced or otherwise slightly wrapped JSON.
+        if not request.images:
+            body["response_format"] = {"type": "json_object"}
+
         try:
             response = await self._client.post(
                 f"{base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}"},
-                json={
-                    "model": model,
-                    "messages": messages,
-                    "temperature": 0.2,
-                    "max_tokens": _MAX_OUTPUT_TOKENS,
-                    "response_format": {"type": "json_object"},
-                },
+                json=body,
                 timeout=self._timeout_seconds,
                 follow_redirects=False,
             )
@@ -414,17 +421,22 @@ class OpenAIChatAdapter:
             model = self._vision_model
             base_url = self._vision_base_url
             api_key = self._vision_api_key
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": self._messages(request),
+            "temperature": 0.2,
+            "max_tokens": _MAX_OUTPUT_TOKENS,
+        }
+        # Vision backends may not implement structured output; keep the
+        # explicit JSON requirement in the organizer prompt instead.
+        if request.reference_image is None:
+            body["response_format"] = {"type": "json_object"}
+
         try:
             response = await self._client.post(
                 f"{base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}"},
-                json={
-                    "model": model,
-                    "messages": self._messages(request),
-                    "temperature": 0.2,
-                    "max_tokens": _MAX_OUTPUT_TOKENS,
-                    "response_format": {"type": "json_object"},
-                },
+                json=body,
                 timeout=self._timeout_seconds,
                 follow_redirects=False,
             )

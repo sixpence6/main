@@ -100,6 +100,22 @@ async def _require_intent(ctx: WorkflowContext, artifact: Any) -> Any:
         # A risk-confirmed new task is a fresh authorization; the previous
         # closed intent remains evidence for the original task only.
         return intent
+    if (
+        intent.status == "failed"
+        and ctx.run.status == "blocked"
+        and ctx.run.issue_code == "GENERATION_FAILED"
+    ):
+        # A proven terminal failure keeps its counted authorization as evidence;
+        # the explicit retry action creates a fresh intent before submitting.
+        return intent
+    if (
+        intent.status == "failed"
+        and ctx.run.status == "blocked"
+        and ctx.run.issue_code == "IMAGE_NOT_APPROVED"
+    ):
+        # A quality-rejected image is also a proven terminal attempt. The
+        # explicit retry action creates a fresh intent before submitting again.
+        return intent
     raise _confirmed_error()
 
 
@@ -190,19 +206,35 @@ def _coverage_text(text: str) -> str:
 
 
 def _covers_requirement(requirement: str, field_value: str) -> bool:
-    """True when one prompt clause keeps every requirement character in order."""
-    expected = _coverage_text(requirement)
-    if not expected:
+    """True when every requirement clause is kept in order in a prompt clause.
+
+    A requirement may contain multiple clauses joined by semicolons. Each
+    requirement clause must be covered by one prompt clause, so characters
+    cannot be assembled across unrelated prompt clauses.
+    """
+    expected_clauses = [
+        _coverage_text(clause)
+        for clause in re.split(r"[；;。\n]+", requirement)
+    ]
+    expected_clauses = [clause for clause in expected_clauses if clause]
+    if not expected_clauses:
         return False
-    for clause in re.split(r"[；;。\n]+", field_value):
-        actual = _coverage_text(clause)
-        position = 0
-        for character in actual:
-            if position < len(expected) and character == expected[position]:
-                position += 1
-        if position == len(expected):
-            return True
-    return False
+    actual_clauses = [
+        _coverage_text(clause)
+        for clause in re.split(r"[；;。\n]+", field_value)
+    ]
+    for expected in expected_clauses:
+        if not any(_keeps_characters_in_order(expected, actual) for actual in actual_clauses):
+            return False
+    return True
+
+
+def _keeps_characters_in_order(expected: str, actual: str) -> bool:
+    position = 0
+    for character in actual:
+        if position < len(expected) and character == expected[position]:
+            position += 1
+    return position == len(expected)
 
 
 def _candidate_errors(
@@ -349,7 +381,9 @@ async def _reconfirm_prompt(
     raise ApiError(409, "PROMPT_REQUIRES_RECONFIRMATION", _RECONFIRM_MESSAGE)
 
 
-async def _compile(ctx: WorkflowContext, revision_note: str | None) -> None:
+async def _compile(
+    ctx: WorkflowContext, revision_note: str | None, *, advance: bool = True
+) -> None:
     final_artifact, brief = await _require_confirmed(ctx)
     intent = None
     if ctx.project.owner_account_id is not None:
@@ -501,7 +535,8 @@ async def _compile(ctx: WorkflowContext, revision_note: str | None) -> None:
         checks={"checks": checks},
         model_fingerprint=review_output.model_fingerprint,
     )
-    await state.set_stage(ctx, "S08", "active")
+    if advance:
+        await state.set_stage(ctx, "S08", "active")
 
 
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:

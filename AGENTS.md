@@ -19,3 +19,5 @@ Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/ag
 ### v3 architecture
 
 For v3 implementation, cleanup, or release work, read `docs/architecture/hld_v3.md`: R1 → R2 → R3 is serial and each stage has an acceptance gate. Read `docs/architecture/v3-refactor-plan.md` for candidate rationale only; neither document is evidence that v3 has shipped.
+
+For gate adjudication, prompt repair, execution snapshots, or chat/result handoffs, read `docs/architecture/workflow-gates-v3.md`; UI behavior stays in `docs/architecture/frontend-design-v3.md`. Audit findings are historical evidence: verify the current baseline before marking a fix or acceptance complete.

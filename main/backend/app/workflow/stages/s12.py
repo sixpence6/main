@@ -93,6 +93,22 @@ def _json_dict(value: str | None) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def _is_recoverable_checkpoint(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> bool:
+    status = checkpoint.get("status")
+    if status in _RECOVERABLE_CALL_STATUSES or status == "capability":
+        return True
+    # A review that completed at the provider but failed the stage's semantic
+    # validation has no error checkpoint. Its completed request is still the
+    # exact, safe unit to replay when the run is parked on REVIEW_UNAVAILABLE.
+    return (
+        status == "completed"
+        and checkpoint.get("phase") == "review"
+        and ctx.run is not None
+        and ctx.run.status in {"failed", "blocked"}
+        and ctx.run.issue_code == "REVIEW_UNAVAILABLE"
+    )
+
+
 async def _latest_checkpoint(ctx: WorkflowContext) -> dict[str, Any] | None:
     async with read_session(ctx.session_factory) as session:
         events = list(
@@ -112,7 +128,7 @@ async def _latest_checkpoint(ctx: WorkflowContext) -> dict[str, Any] | None:
         detail = _json_dict(event.detail_json)
         if detail.get("run_id") != ctx.run_id:
             continue
-        if detail.get("status") not in _RECOVERABLE_CALL_STATUSES | {"capability"}:
+        if not _is_recoverable_checkpoint(ctx, detail):
             continue
         return detail
     return None
@@ -976,7 +992,7 @@ async def _continue(ctx: WorkflowContext) -> None:
         raise _stale()
     if ctx.run.status not in {"failed", "blocked"}:
         raise _unavailable()
-    if checkpoint.get("status") not in _RECOVERABLE_CALL_STATUSES | {"capability"}:
+    if not _is_recoverable_checkpoint(ctx, checkpoint):
         raise _unavailable()
     _verify_checkpoint(ctx, checkpoint)
     if str(checkpoint.get("stage")) == "S09":

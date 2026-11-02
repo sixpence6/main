@@ -96,6 +96,7 @@ class ImageCapabilities:
     reference_image: bool | None = None
     asynchronous: bool | None = None
     supported_image_sizes: tuple[str, ...] | None = None
+    normalize_result_size: bool = False
     reference_mime_types: tuple[str, ...] | None = None
     provider_max_reference_bytes: int | None = None
     poll_interval_seconds: float | None = None

@@ -231,32 +231,56 @@ def _create_source(
     files=None,
     payload_rows=(),
     keep_open=False,
+    legacy_schema=False,
 ):
     root.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(root / "app.db")
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("CREATE TABLE alembic_version(version_num TEXT PRIMARY KEY)")
-    connection.execute("INSERT INTO alembic_version VALUES ('0002')")
     connection.execute(
-        "CREATE TABLE assets ("
-        "id TEXT PRIMARY KEY, kind TEXT NOT NULL, relative_path TEXT NOT NULL, "
-        "mime_type TEXT NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL, "
-        "byte_size INTEGER NOT NULL, sha256 TEXT, review_status TEXT NOT NULL, "
-        "created_at TEXT NOT NULL)"
+        "INSERT INTO alembic_version VALUES (?)",
+        ("0001" if legacy_schema else "0002",),
     )
+    if legacy_schema:
+        connection.execute(
+            "CREATE TABLE assets ("
+            "id TEXT PRIMARY KEY, kind TEXT NOT NULL, relative_path TEXT NOT NULL, "
+            "mime_type TEXT NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL, "
+            "byte_size INTEGER NOT NULL, created_at TEXT NOT NULL)"
+        )
+    else:
+        connection.execute(
+            "CREATE TABLE assets ("
+            "id TEXT PRIMARY KEY, kind TEXT NOT NULL, relative_path TEXT NOT NULL, "
+            "mime_type TEXT NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL, "
+            "byte_size INTEGER NOT NULL, sha256 TEXT, review_status TEXT NOT NULL, "
+            "created_at TEXT NOT NULL)"
+        )
     connection.execute("CREATE TABLE payload (id TEXT PRIMARY KEY, value TEXT NOT NULL)")
     for asset in rows:
-        connection.execute(
-            "INSERT INTO assets VALUES "
-            "(?, ?, ?, 'application/octet-stream', 1, 1, ?, ?, 'approved', 'now')",
-            (
-                asset["id"],
-                asset["kind"],
-                asset["relative_path"],
-                asset["byte_size"],
-                asset["sha256"],
-            ),
-        )
+        if legacy_schema:
+            connection.execute(
+                "INSERT INTO assets VALUES "
+                "(?, ?, ?, 'application/octet-stream', 1, 1, ?, 'now')",
+                (
+                    asset["id"],
+                    asset["kind"],
+                    asset["relative_path"],
+                    asset["byte_size"],
+                ),
+            )
+        else:
+            connection.execute(
+                "INSERT INTO assets VALUES "
+                "(?, ?, ?, 'application/octet-stream', 1, 1, ?, ?, 'approved', 'now')",
+                (
+                    asset["id"],
+                    asset["kind"],
+                    asset["relative_path"],
+                    asset["byte_size"],
+                    asset["sha256"],
+                ),
+            )
     for payload in payload_rows:
         connection.execute("INSERT INTO payload VALUES (?, ?)", payload)
     connection.commit()
@@ -290,11 +314,45 @@ async def test_backup_leaves_clean_source_content_digest_unchanged(tmp_path):
         files={"references/ref.bin": data},
     )
     before = inspect_candidate(source).content_digest
-    await create_backup(source=source, output=tmp_path / "backups", timeout=2)
+    await create_backup(
+        source=source,
+        output=tmp_path / "backups",
+        candidate_roots=[source],
+        timeout=2,
+    )
     after = inspect_candidate(source)
     assert after.content_digest == before
     assert not (source / "app.db-wal").exists()
     assert not (source / "app.db-shm").exists()
+
+
+@pytest.mark.asyncio
+async def test_pre_v2_source_without_asset_sha256_is_backed_up(tmp_path):
+    source = tmp_path / "data"
+    data = b"legacy-reference"
+    _create_source(
+        source,
+        rows=[_asset_row("legacy", "references/legacy.bin", data)],
+        files={"references/legacy.bin": data},
+        legacy_schema=True,
+    )
+    result = await create_backup(
+        source=source,
+        output=tmp_path / "backups",
+        candidate_roots=[source],
+        timeout=2.0,
+    )
+    assert result.verified is True
+    assert result.file_count == 1
+    latest = read_latest(tmp_path / "backups")
+    assert latest is not None
+    backup_dir = tmp_path / "backups" / latest["backup_dir"]
+    manifest = json.loads((backup_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["database"]["alembic_version"] == "0001"
+    assert manifest["database"]["asset_count"] == 1
+    assert [item["relative_path"] for item in manifest["files"]] == [
+        "references/legacy.bin",
+    ]
 
 
 @pytest.mark.asyncio

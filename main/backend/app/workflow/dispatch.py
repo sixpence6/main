@@ -42,11 +42,15 @@ _ACTIONS: dict[str, dict[str, Any]] = {
     "compile_prompt": {"label": "编制生图提示词", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "revise_prompt": {"label": "修改提示词", "kind": "text", "requires_text": True, "text_label": "说明提示词调整", "requires_confirmation": False},
     "verify_generation": {"label": "核实原任务", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
+    "retry_generation": {"label": "重新生成", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
+    "retry_rejected_generation": {"label": "重新生成", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
+    "revise_prompt_and_retry": {"label": "调整提示词并重新生成", "kind": "confirm", "requires_text": True, "text_label": "说明本次画面修正（例如：所有匾额保持空白，不要任何题字；主体呈现为有底座的微缩建筑模型）", "requires_confirmation": True},
     "recover_generation": {"label": "找回原结果", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "submit_generation": {"label": "提交生成", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "close_generation_tracking": {"label": "结束本地跟踪", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
     "start_new_generation": {"label": "确认风险并生成新任务", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
     "review_candidate": {"label": "审查候选图", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
+    "recheck_candidate": {"label": "复核修正图", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "prepare_delivery": {"label": "准备交付", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "approve_delivery": {"label": "批准交付", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
     "publish_delivery": {"label": "发布交付", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
@@ -142,7 +146,14 @@ def available_actions(ctx: WorkflowContext) -> list[ActionView]:
     if ctx.run.status == "failed" or (
         ctx.run.status == "blocked" and ctx.run.issue_code == "REVIEW_UNAVAILABLE"
     ):
-        return _views_for(s12, ctx)
+        views = _views_for(s12, ctx)
+        stage_module = owner_for_stage(ctx.run.stage)
+        if stage_module is not None and stage_module is not s12:
+            # A failed role call can leave a durable candidate that a stage can
+            # recheck without another model generation (currently S09). Keep the
+            # explicit recovery action visible alongside continue_workflow.
+            views = _views_for(stage_module, ctx) + views
+        return views
     module = owner_for_stage(ctx.run.stage)
     if module is None:
         return []

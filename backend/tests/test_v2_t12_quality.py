@@ -15,7 +15,7 @@ from app.services.assets import inspect_image, write_asset_file
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import state
 from app.workflow.contracts import BriefData, ReferenceData
-from app.workflow.tables import Approval, GenerationJob
+from app.workflow.tables import Approval, GenerationJob, RevisionBudget, WorkflowRun
 
 
 @dataclass(frozen=True)
@@ -644,6 +644,11 @@ async def test_hard_failure_keeps_image_quarantined_but_report_may_pass(
     assert body["stage"] == "S09"
     assert body["status"] == "blocked"
     assert body["issue"]["code"] == "IMAGE_NOT_APPROVED"
+    assert {item["id"] for item in body["available_actions"]} == {
+        "recheck_candidate",
+        "revise_prompt_and_retry",
+        "retry_rejected_generation",
+    }
     report = _artifact_by_kind(body, "quality_report")
     assert report["status"] == "approved"
     assert not any(item["approval_type"] == "image" for item in body["approvals"])
@@ -655,6 +660,149 @@ async def test_hard_failure_keeps_image_quarantined_but_report_may_pass(
     assert retry.status_code == 409
     assert retry.json()["error"]["code"] == "ACTION_NOT_AVAILABLE"
     assert len(stub.role_calls_received) == 2
+
+
+async def test_recheck_approves_corrected_derivative_without_report_budget(
+    llm_app: Any, llm_client: Any, llm_settings: Any
+) -> None:
+    stub = llm_app.state.registry.stub_llm
+    stub.role_responder = _responder("fail")
+    seed = await _seed_project(llm_app, llm_settings, llm_client)
+    failed = await _post_review(llm_client, seed)
+    assert failed.status_code == 200, failed.text
+    assert failed.json()["issue"]["code"] == "IMAGE_NOT_APPROVED"
+
+    cleaned = _png(color=(245, 245, 245))
+    relative = f"generated/{uuid4()}.png"
+    write_asset_file(llm_settings, relative, cleaned)
+    info = inspect_image(cleaned)
+    cleaned_id = str(uuid4())
+    async with write_transaction(llm_app.state.session_factory) as session:
+        session.add(
+            Asset(
+                id=cleaned_id,
+                project_id=seed.project_id,
+                kind="generated",
+                relative_path=relative,
+                mime_type=info.mime_type,
+                width=info.width,
+                height=info.height,
+                byte_size=len(cleaned),
+                review_status="quarantined",
+                created_at=format_timestamp(utc_now()),
+            )
+        )
+        await session.flush()
+
+    stub.role_responder = _responder("pass")
+    response = await llm_client.post(
+        f"/api/projects/{seed.project_id}/workflow/actions/recheck_candidate",
+        json={
+            "expected_revision": seed.revision,
+            "payload": {"asset_id": cleaned_id},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["stage"] == "S10"
+    assert body["status"] == "active"
+    recheck = _artifact_by_kind(body, "quality_recheck")
+    assert recheck["status"] == "approved"
+    assert recheck["payload"]["asset_id"] == cleaned_id
+    assert (await _load_asset(llm_app, cleaned_id)).review_status == "approved"
+    job = await _load_job(llm_app, seed.job_id)
+    assert job.status == "approved"
+    assert job.result_asset_id == cleaned_id
+    approvals = await _approvals(llm_app, seed.project_id)
+    image_approval = next(item for item in approvals if item.approval_type == "image")
+    checks = json.loads(image_approval.checks_json)
+    assert checks["asset_id"] == cleaned_id
+    assert checks["quality_report_id"] == recheck["id"]
+    async with read_session(llm_app.state.session_factory) as session:
+        budget = await session.get(
+            RevisionBudget, (seed.run_id, "quality_report")
+        )
+        assert budget is not None
+        assert budget.used == 1
+        assert budget.max_allowed == 3
+
+
+async def test_recheck_can_run_while_candidate_review_is_active(
+    llm_app: Any, llm_client: Any, llm_settings: Any
+) -> None:
+    stub = llm_app.state.registry.stub_llm
+    stub.role_responder = _responder("pass")
+    seed = await _seed_project(llm_app, llm_settings, llm_client)
+
+    cleaned = _png(color=(245, 245, 245))
+    relative = f"generated/{uuid4()}.png"
+    write_asset_file(llm_settings, relative, cleaned)
+    info = inspect_image(cleaned)
+    cleaned_id = str(uuid4())
+    async with write_transaction(llm_app.state.session_factory) as session:
+        session.add(
+            Asset(
+                id=cleaned_id,
+                project_id=seed.project_id,
+                kind="generated",
+                relative_path=relative,
+                mime_type=info.mime_type,
+                width=info.width,
+                height=info.height,
+                byte_size=len(cleaned),
+                review_status="quarantined",
+                created_at=format_timestamp(utc_now()),
+            )
+        )
+        await session.flush()
+
+    response = await llm_client.post(
+        f"/api/projects/{seed.project_id}/workflow/actions/recheck_candidate",
+        json={
+            "expected_revision": seed.revision,
+            "payload": {"asset_id": cleaned_id},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["stage"] == "S10"
+    assert _artifact_by_kind(body, "quality_recheck")["status"] == "approved"
+    assert (await _load_job(llm_app, seed.job_id)).result_asset_id == cleaned_id
+
+
+async def test_recheck_can_recover_a_failed_role_contract(
+    llm_app: Any, llm_client: Any, llm_settings: Any
+) -> None:
+    stub = llm_app.state.registry.stub_llm
+    stub.role_responder = _responder("pass")
+    seed = await _seed_project(llm_app, llm_settings, llm_client)
+
+    # A provider returned a syntactically plausible but invalid quality report
+    # after the candidate bytes were durable. The run is failed, yet the same
+    # candidate can still be rechecked without spending another generation.
+    async with write_transaction(llm_app.state.session_factory) as session:
+        run = await session.get(WorkflowRun, seed.run_id)
+        assert run is not None
+        run.status = "failed"
+        run.issue_code = "CONTRACT_ERROR"
+        run.issue_message = "质量报告格式无效"
+        run.template_id = "SERVICE_UNAVAILABLE"
+        run.updated_at = format_timestamp(utc_now())
+
+    response = await llm_client.post(
+        f"/api/projects/{seed.project_id}/workflow/actions/recheck_candidate",
+        json={
+            "expected_revision": seed.revision,
+            "payload": {"asset_id": seed.asset_id},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["stage"] == "S10"
+    assert _artifact_by_kind(body, "quality_recheck")["status"] == "approved"
 
 
 async def test_unknown_hard_rule_does_not_default_to_pass(

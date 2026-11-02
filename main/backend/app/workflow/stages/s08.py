@@ -55,6 +55,7 @@ STAGE = "S08"
 ACTIONS = [
     "submit_generation",
     "verify_generation",
+    "retry_generation",
     "recover_generation",
     "close_generation_tracking",
     "start_new_generation",
@@ -102,7 +103,7 @@ def available(ctx: WorkflowContext) -> list[str]:
     if issue in _RECOVERABLE_BLOCK_CODES or issue == "RESULT_RETRIEVAL_PENDING":
         return ["verify_generation", "recover_generation"]
     if issue == "GENERATION_FAILED":
-        return ["verify_generation"]
+        return ["retry_generation"]
     if issue == _CLOSED_ISSUE:
         return ["start_new_generation"]
     return []
@@ -268,9 +269,10 @@ async def _create_job(
         "confirmed_snapshot_digest": snapshot_digest,
     }
     if previous is not None:
-        canonical_payload["acknowledge_unknown"] = True
         canonical_payload["previous_generation_id"] = previous.id
         canonical_payload["previous_request_id"] = previous.request_id
+        if previous.status == "unknown":
+            canonical_payload["acknowledge_unknown"] = True
     canonical = dumps_json(canonical_payload)
     digest = request_digest(canonical)
     owner_account_id = ctx.project.owner_account_id
@@ -354,11 +356,16 @@ async def _create_job(
                 DiagnosticEvent(
                     id=str(uuid4()),
                     project_id=ctx.project_id,
-                    event="generation_risk_acknowledged",
+                    event=(
+                        "generation_retry_confirmed"
+                        if previous.status == "failed"
+                        else "generation_risk_acknowledged"
+                    ),
                     detail_json=dumps_json(
                         {
                             "previous_generation_id": previous.id,
                             "previous_request_id": previous.request_id,
+                            "previous_status": previous.status,
                             "new_generation_id": generation.id,
                             "new_request_id": request_id,
                         }
@@ -705,38 +712,69 @@ async def _close_tracking(ctx: WorkflowContext, payload: dict[str, Any]) -> None
     )
 
 
-async def _start_new_generation(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
+async def _start_replacement(
+    ctx: WorkflowContext,
+    payload: dict[str, Any],
+    *,
+    issue_code: str,
+    previous_status: str,
+    previous_intent_status: str,
+    acknowledgement_key: str,
+    acknowledgement_error: str,
+    acknowledgement_message: str,
+    request_prefix: str,
+) -> None:
     if (
         ctx.run is None
         or ctx.run.status != "blocked"
-        or ctx.run.issue_code != _CLOSED_ISSUE
+        or ctx.run.issue_code != issue_code
     ):
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
-    if payload.get("acknowledge_risk") is not True:
-        raise conflict(
-            "RISK_ACK_REQUIRED",
-            "新任务会新计一次并重新占用全部槽位，且旧任务仍可能在远端执行或计费，请明确确认。",
-        )
+    if payload.get(acknowledgement_key) is not True:
+        raise conflict(acknowledgement_error, acknowledgement_message)
     if ctx.principal is None:
         raise ApiError(401, "AUTH_REQUIRED", "请先登录。")
     job = await _latest_job(ctx.app, ctx.run_id)
     if job is None or job.generation_id is None or job.intent_id is None:
-        raise conflict("RISK_ACK_REQUIRED", "请从当前任务发起新的风险确认。")
+        raise conflict(acknowledgement_error, "请从当前任务发起新的确认。")
     requested_previous = payload.get("previous_generation_id")
     if requested_previous not in (None, "") and requested_previous != job.generation_id:
-        raise conflict("RISK_ACK_REQUIRED", "请从当前任务发起新的风险确认。")
-    previous_id = job.generation_id
-    previous = await _generation_by_id(ctx, previous_id)
+        raise conflict(acknowledgement_error, "请从当前任务发起新的确认。")
+    previous = await _generation_by_id(ctx, job.generation_id)
+    allowed_previous_statuses = {previous_status}
+    if (
+        previous_status == "unknown"
+        and issue_code == _CLOSED_ISSUE
+        and previous_intent_status == "closed"
+    ):
+        # 旧版本 recover_generation 可能把已明确失败的生成任务保留为 failed，
+        # 但随后 close_generation_tracking 已关闭授权。此时仍应允许用户显式
+        # 确认风险后发起新任务，而不是卡在无法前进的 LOCAL_TRACKING_CLOSED。
+        allowed_previous_statuses.add("failed")
+    if previous_status == "rejected" and issue_code == "IMAGE_NOT_APPROVED":
+        # 质检拒绝时 Generation 本身已成功产出图片，但对应工作流任务为
+        # rejected；显式重新生成应允许替换这张未获批准的图片。
+        allowed_previous_statuses.add("succeeded")
     if (
         previous is None
         or previous.project_id != ctx.project_id
-        or previous.status != "unknown"
+        or previous.status not in allowed_previous_statuses
     ):
-        raise conflict("RISK_ACK_REQUIRED", "当前任务不是可风险确认的未知任务。")
+        message = (
+            "当前任务不是可重新生成的已失败任务。"
+            if "failed" in allowed_previous_statuses
+            else "当前任务不是可风险确认的未知任务。"
+        )
+        raise conflict(acknowledgement_error, message)
     async with read_session(ctx.session_factory) as session:
         previous_intent = await session.get(GenerationIntent, job.intent_id)
-    if previous_intent is None or previous_intent.status != "closed":
-        raise conflict("INTENT_STATE_INVALID", "请先结束本地跟踪，再发起新任务。")
+    if previous_intent is None or previous_intent.status != previous_intent_status:
+        message = (
+            "原生成授权尚未结束，不能重新生成。"
+            if previous_status == "failed"
+            else "请先结束本地跟踪，再发起新任务。"
+        )
+        raise conflict("INTENT_STATE_INVALID", message)
 
     final_artifact, brief = await _require_confirmed(ctx)
     prompt_artifact, prompt_payload = await _load_prompt(ctx, brief)
@@ -747,8 +785,7 @@ async def _start_new_generation(ctx: WorkflowContext, payload: dict[str, Any]) -
     request_id = str(
         uuid5(
             NAMESPACE_URL,
-            "v3-generation-risk:"
-            f"{previous.id}:{prompt_artifact.id}:{final_artifact.digest}",
+            f"{request_prefix}:{previous.id}:{prompt_artifact.id}:{final_artifact.digest}",
         )
     )
     expected_digest = intent_request_digest(
@@ -764,7 +801,6 @@ async def _start_new_generation(ctx: WorkflowContext, payload: dict[str, Any]) -
         reference_usage=reference_usage,
         image_size=image_size,
     )
-    existing_intent = None
     async with read_session(ctx.session_factory) as session:
         existing_intent = await intent_for_request(
             session, project_id=ctx.project_id, request_id=request_id
@@ -843,6 +879,33 @@ async def _start_new_generation(ctx: WorkflowContext, payload: dict[str, Any]) -
     )
 
 
+async def _retry_generation(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
+    await _start_replacement(
+        ctx,
+        payload,
+        issue_code="GENERATION_FAILED",
+        previous_status="failed",
+        previous_intent_status="failed",
+        acknowledgement_key="acknowledge_new_attempt",
+        acknowledgement_error="NEW_ATTEMPT_ACK_REQUIRED",
+        acknowledgement_message="重新生成会新增一次受理计数并重新占用生成槽位，请明确确认后再操作。",
+        request_prefix="v3-generation-retry",
+    )
+
+
+async def _start_new_generation(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
+    await _start_replacement(
+        ctx,
+        payload,
+        issue_code=_CLOSED_ISSUE,
+        previous_status="unknown",
+        previous_intent_status="closed",
+        acknowledgement_key="acknowledge_risk",
+        acknowledgement_error="RISK_ACK_REQUIRED",
+        acknowledgement_message="新任务会新计一次并重新占用全部槽位，且旧任务仍可能在远端执行或计费，请明确确认。",
+        request_prefix="v3-generation-risk",
+    )
+
 async def _verify(ctx: WorkflowContext) -> None:
     if (
         ctx.run is None
@@ -888,11 +951,12 @@ async def _recover(ctx: WorkflowContext) -> None:
             "结果文件暂时无法找回，原任务与一次计数已保留，可稍后再次核实。",
         )
     elif outcome == "unknown":
-        await _set_recovery_issue(
+        await _mark_unknown(
             ctx.app,
             job.id,
-            _UNKNOWN_ISSUE,
-            templates.render(_UNKNOWN_ISSUE),
+            error_code="VISUAL_OUTCOME_UNKNOWN",
+            error_message="生图结果未确认",
+            remote_task_id=job.remote_task_id,
         )
 
 
@@ -1256,6 +1320,9 @@ async def _submit(ctx: WorkflowContext, action_payload: dict[str, Any]) -> None:
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
     if action == "verify_generation":
         await _verify(ctx)
+        return
+    if action == "retry_generation":
+        await _retry_generation(ctx, payload or {})
         return
     if action == "recover_generation":
         await _recover(ctx)

@@ -4,6 +4,7 @@ import asyncio
 import base64
 import binascii
 import hashlib
+import io
 import json
 import logging
 import re
@@ -15,6 +16,7 @@ from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
 from fastapi import FastAPI
+from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -777,27 +779,64 @@ def _poll_interval_seconds(adapter: Any) -> float:
     return max(float(value), 0.01)
 
 
-def _validate_result_bytes(
-    settings: Settings,
-    data: bytes,
-    expected: tuple[int, int],
-) -> tuple[ImageInfo, str, str]:
-    if len(data) > LOCAL_RESULT_MAX_BYTES:
-        raise ResultValidationError("结果图片超过本机大小上限")
+def _normalize_result_bytes(
+    data: bytes, expected: tuple[int, int], *, allow_upscale: bool = False
+) -> tuple[bytes, ImageInfo]:
     try:
         info = inspect_image(data)
     except ImageValidationError:
         raise ResultValidationError("结果图片无法解析或格式不受支持") from None
-    if (info.width, info.height) != expected:
+    if (info.width, info.height) == expected:
+        return data, info
+    if not allow_upscale:
         raise ResultValidationError("结果图片尺寸与提交快照不一致")
+    # Some compatible providers only accept aspect-ratio tokens and return a
+    # smaller image. Preserve the exact requested delivery size by resampling
+    # only when that adapter explicitly allows result normalization and the
+    # provider result has the same aspect ratio.
+    if info.width * expected[1] != info.height * expected[0]:
+        raise ResultValidationError("结果图片尺寸与提交快照不一致")
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            image.load()
+            resized = image.resize(expected, Image.Resampling.LANCZOS)
+            output = io.BytesIO()
+            if info.mime_type == "image/jpeg":
+                resized.convert("RGB").save(output, format="JPEG", quality=95, optimize=True)
+            else:
+                resized.save(output, format="PNG", optimize=True)
+            normalized = output.getvalue()
+    except (OSError, ValueError):
+        raise ResultValidationError("结果图片无法按提交尺寸生成") from None
+    try:
+        normalized_info = inspect_image(normalized)
+    except ImageValidationError:
+        raise ResultValidationError("结果图片无法解析或格式不受支持") from None
+    if (normalized_info.width, normalized_info.height) != expected:
+        raise ResultValidationError("结果图片尺寸与提交快照不一致")
+    return normalized, normalized_info
+
+
+def _validate_result_bytes(
+    settings: Settings,
+    data: bytes,
+    expected: tuple[int, int],
+    *,
+    allow_upscale: bool = False,
+) -> tuple[bytes, ImageInfo, str, str]:
+    if len(data) > LOCAL_RESULT_MAX_BYTES:
+        raise ResultValidationError("结果图片超过本机大小上限")
+    normalized, info = _normalize_result_bytes(data, expected, allow_upscale=allow_upscale)
+    if len(normalized) > LOCAL_RESULT_MAX_BYTES:
+        raise ResultValidationError("结果图片超过本机大小上限")
     asset_id = str(uuid4())
     extension = "png" if info.mime_type == "image/png" else "jpg"
     relative_path = f"generated/{asset_id}.{extension}"
     try:
-        write_asset_file(settings, relative_path, data)
+        write_asset_file(settings, relative_path, normalized)
     except OSError:
         raise ResultValidationError("结果图片无法写入本机存储") from None
-    return info, relative_path, asset_id
+    return normalized, info, relative_path, asset_id
 
 
 async def _deliver_result(
@@ -881,8 +920,14 @@ async def _deliver_result(
         return
 
     try:
-        info, relative_path, asset_id = await asyncio.to_thread(
-            _validate_result_bytes, settings, data, expected
+        normalized, info, relative_path, asset_id = await asyncio.to_thread(
+            _validate_result_bytes,
+            settings,
+            data,
+            expected,
+            allow_upscale=bool(
+                getattr(adapter.capabilities, "normalize_result_size", False)
+            ),
         )
     except ResultValidationError as exc:
         await fail(str(exc))
@@ -903,8 +948,8 @@ async def _deliver_result(
                 mime_type=info.mime_type,
                 width=info.width,
                 height=info.height,
-                byte_size=len(data),
-                sha256=hashlib.sha256(data).hexdigest(),
+                byte_size=len(normalized),
+                sha256=hashlib.sha256(normalized).hexdigest(),
                 created_at=now,
             )
             session.add(asset)

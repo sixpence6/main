@@ -68,11 +68,19 @@ async def test_text_to_image_requests_and_returns_base64():
     body = json.loads(str(seen["body"]))
     assert body["response_format"] == "b64_json"
     assert body["n"] == 1
-    assert body["size"] == "3840x2160"
+    assert body["size"] == "16:9"
     assert outcome.state == "succeeded"
     assert outcome.image_bytes == b"image-bytes"
     assert outcome.image_count == 1
     assert outcome.evidence == "result_available"
+
+
+async def test_constructed_adapter_allows_result_normalization():
+    adapter, client = _adapter(lambda request: httpx.Response(200, json={}))
+    try:
+        assert adapter.capabilities.normalize_result_size is True
+    finally:
+        await client.aclose()
 
 
 async def test_reference_image_uses_edits_endpoint(tmp_path: Path):
@@ -97,7 +105,7 @@ async def test_reference_image_uses_edits_endpoint(tmp_path: Path):
     assert b'name="image"' in seen["body"]
     assert b'name="response_format"' in seen["body"]
     assert b'name="size"' in seen["body"]
-    assert b"3840x2160" in seen["body"]
+    assert b"16:9" in seen["body"]
     assert b"reference-bytes" in seen["body"]
     assert outcome.image_bytes == b"edited"
 
@@ -251,6 +259,7 @@ def test_builtin_registry_exposes_openai_images_and_config_is_ready():
     assert capabilities.reference_image is True
     assert capabilities.asynchronous is False
     assert capabilities.supported_image_sizes == ("3840x2160",)
+    assert capabilities.normalize_result_size is True
 
     settings = Settings(
         _env_file=None,

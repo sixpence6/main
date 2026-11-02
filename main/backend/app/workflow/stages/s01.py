@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 from uuid import uuid4
 
@@ -54,9 +55,14 @@ _PAIR_ACTIONS = {
     "unclear": {"none"},
 }
 
-# The reviewer must attest each of these program-owned routing rules. A pass
-# with a missing, duplicate, extra, failed or unknown check never opens S01.
+# The reviewer must attest each of these program-owned routing rules. The
+# shared reviewer prompt also asks for broader Gnn_ governance checks; those
+# extra findings are advisory and must not stop an otherwise valid routing
+# review. A reviewer may split one required rule into several checks, so every
+# occurrence must pass and each required rule must be covered at least once.
+# Missing, failed or malformed required checks still never open S01.
 _REQUIRED_RULES = ("G01_SCOPE", "G01_ACTION")
+_ADVISORY_RULE_RE = re.compile(r"^(?:G\d{2}_[A-Z0-9_]+|review:[a-z][a-z0-9_]{0,63})$")
 
 
 def available(ctx: WorkflowContext) -> list[dict[str, Any]]:
@@ -205,20 +211,34 @@ def _validate_review(output: RoleOutput, target_id: str) -> None:
     if not isinstance(checks, list) or not checks:
         raise _invalid_review()
     allowed = {target_id}
-    seen: list[str] = []
+    required_counts = dict.fromkeys(_REQUIRED_RULES, 0)
     for check in checks:
         if not isinstance(check, dict):
             raise _invalid_review()
         rule_id = check.get("rule_id")
-        if rule_id not in _REQUIRED_RULES or check.get("outcome") != "pass":
+        if not isinstance(rule_id, str) or not rule_id:
             raise _invalid_review()
-        if not _allowed_evidence(check.get("evidence_ids"), allowed):
+        if rule_id not in _REQUIRED_RULES and not _ADVISORY_RULE_RE.fullmatch(rule_id):
+            raise _invalid_review()
+        outcome = check.get("outcome")
+        if rule_id in _REQUIRED_RULES:
+            if outcome != "pass":
+                raise _invalid_review()
+            required_counts[rule_id] += 1
+        elif outcome not in {"pass", "not_applicable"}:
+            raise _invalid_review()
+        evidence = check.get("evidence_ids")
+        if outcome == "not_applicable":
+            if evidence not in (None, []) and not _allowed_evidence(evidence, allowed):
+                raise _invalid_review()
+        elif not _allowed_evidence(evidence, allowed):
             raise _invalid_review()
         note = check.get("note")
         if isinstance(note, str) and "://" in note.lower():
             raise _invalid_review()
-        seen.append(str(rule_id))
-    if set(seen) != set(_REQUIRED_RULES) or len(seen) != len(set(seen)):
+    # A reviewer may split one required rule into several checks; each occurrence
+    # must pass, and every required rule must be covered at least once.
+    if any(count == 0 for count in required_counts.values()):
         raise _invalid_review()
 
 

@@ -702,3 +702,82 @@ async def test_quality_rejection_keeps_count_and_releases_slots(full_settings):
         assert delivery is None
         assert run is not None and run.stage == "S09" and run.status == "blocked"
         assert run.issue_code == "IMAGE_NOT_APPROVED"
+
+@pytest.mark.asyncio
+async def test_quality_retry_can_revise_prompt_and_generate_again(full_settings):
+    llm = LLMStub()
+    gate = asyncio.Event()
+    llm.gate = gate
+    visual = VisualStub(
+        submit_outcome=ProviderOutcome(
+            state="succeeded", image_bytes=png_bytes(1024, 1024), image_count=1
+        )
+    )
+    quality_calls = {"count": 0}
+
+    def responder(request):
+        if request.payload["task"]["role"] == "quality_compliance":
+            quality_calls["count"] += 1
+            return _quality_response(
+                request, decision="fail" if quality_calls["count"] == 1 else "pass"
+            )
+        return _responder(request)
+
+    async with _environment(
+        full_settings, llm, visual, responder=responder
+    ) as (app, client):
+        setup = await _setup_s06(app, client)
+        response = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/confirm_requirements",
+            json={
+                "expected_revision": setup["revision"],
+                "payload": {
+                    "artifact_id": setup["final_artifact_id"],
+                    "artifact_digest": setup["final_digest"],
+                    "requirement_revision": setup["revision"],
+                    "request_id": str(uuid.uuid4()),
+                },
+            },
+        )
+        assert response.status_code == 200, response.text
+        gate.set()
+        await _drain(app)
+
+        view = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()
+        assert view["stage"] == "S09"
+        assert view["issue"]["code"] == "IMAGE_NOT_APPROVED"
+        assert {item["id"] for item in view["available_actions"]} == {
+            "recheck_candidate",
+            "revise_prompt_and_retry",
+            "retry_rejected_generation",
+        }
+
+        revised = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/revise_prompt_and_retry",
+            json={
+                "expected_revision": setup["revision"],
+                "text": "所有匾额保持空白，不要任何题字；主体呈现为有底座的微缩建筑模型。",
+                "payload": {"acknowledge_new_attempt": True},
+            },
+        )
+        assert revised.status_code == 200, revised.text
+        await _drain(app)
+
+        assert len(visual.submit_calls) == 2
+        intents, usages, slots = await _rows(app, setup["project_id"])
+        assert len(intents) == 2
+        assert intents[0].status == "failed"
+        assert intents[1].status in {"accepted", "executing"}
+        assert len(usages) == 2
+        assert len(slots) == 6
+        assert all(slot.released_at is not None for slot in slots[:3])
+        assert all(slot.released_at is None for slot in slots[3:])
+
+        final_view = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()
+        assert final_view["stage"] == "S10"
+        assert final_view["status"] == "needs_input"
+        assert final_view["issue"]["code"] == "DELIVERY_MANIFEST_READY"

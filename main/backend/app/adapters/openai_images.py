@@ -18,6 +18,7 @@ from app.adapters.base import (
 from app.config import RoleConfig
 
 _IMAGE_SIZES = ("3840x2160",)
+_PROVIDER_SIZE_OVERRIDES = {"3840x2160": "16:9", "2160x3840": "9:16"}
 _REFERENCE_MIME_TYPES = ("image/png", "image/jpeg")
 _MAX_ERROR_MESSAGE_LENGTH = 200
 _MAX_REDIRECTS = 5
@@ -43,6 +44,11 @@ def _safe_error_message(response: httpx.Response, secret: str) -> str:
     cleaned = cleaned.replace(secret, "[redacted]")
     cleaned = _URL_PATTERN.sub("[url]", cleaned)
     return cleaned[:_MAX_ERROR_MESSAGE_LENGTH]
+
+
+def _provider_size(image_size: str) -> str:
+    """Translate a local pixel target into the provider's accepted size token."""
+    return _PROVIDER_SIZE_OVERRIDES.get(image_size, image_size)
 
 
 def _status_error_code(status_code: int) -> str:
@@ -90,6 +96,7 @@ class OpenAIImagesAdapter:
             reference_mime_types=_REFERENCE_MIME_TYPES,
             provider_max_reference_bytes=None,
             poll_interval_seconds=None,
+            normalize_result_size=True,
         )
         self._base_url = role.base_url.rstrip("/")
         self._api_key = role.api_key.get_secret_value()
@@ -103,7 +110,7 @@ class OpenAIImagesAdapter:
         return frozenset({base_host}) if base_host else frozenset()
 
     async def submit(self, request: GenerationRequest) -> ProviderOutcome:
-        image_size = request.image_size or self._default_image_size
+        image_size = _provider_size(request.image_size or self._default_image_size)
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
         try:
@@ -352,6 +359,7 @@ OPENAI_IMAGES_CAPABILITIES = ImageCapabilities(
     reference_image=True,
     asynchronous=False,
     supported_image_sizes=_IMAGE_SIZES,
+    normalize_result_size=True,
     reference_mime_types=_REFERENCE_MIME_TYPES,
     provider_max_reference_bytes=None,
     poll_interval_seconds=None,

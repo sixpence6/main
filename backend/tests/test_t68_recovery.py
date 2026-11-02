@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from app.adapters.base import ProviderOutcome
+from app.db import write_transaction
 from app.errors import ApiError
 from app.services.recovery import repair_leftover_state
 from app.workflow.stages import s08 as s08_module
@@ -175,6 +176,89 @@ async def test_unknown_verify_is_read_only_and_recover_polls_original(full_setti
 
 
 @pytest.mark.asyncio
+async def test_recover_unknown_marks_job_unknown_and_closed_failed_task_can_start_new(
+    full_settings,
+):
+    llm = LLMStub()
+    visual = VisualStub(
+        submit_outcome=ProviderOutcome(
+            state="failed",
+            evidence="result_available",
+            error_code="RESULT_FETCH_FAILED",
+        )
+    )
+    async with _environment(full_settings, llm, visual, _normal_responder) as (app, client):
+        setup = await _setup_s06(app, client)
+        response = await _confirm(client, setup, str(uuid.uuid4()))
+        assert response.status_code == 200, response.text
+        await _drain(app)
+
+        view = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()
+        assert view["issue"]["code"] == "RESULT_RETRIEVAL_PENDING"
+        job = await _job(app, setup["project_id"])
+        assert job.status == "failed"
+
+        recovered = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/recover_generation",
+            json={"expected_revision": view["project_revision"]},
+        )
+        assert recovered.status_code == 200, recovered.text
+        job = await _job(app, setup["project_id"])
+        assert job.status == "unknown"
+        assert job.error_code == "VISUAL_OUTCOME_UNKNOWN"
+        view = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()
+        assert view["issue"]["code"] == "GENERATION_UNKNOWN"
+
+        closed = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/close_generation_tracking",
+            json={
+                "expected_revision": view["project_revision"],
+                "payload": {"acknowledge_local_close": True},
+            },
+        )
+        assert closed.status_code == 200, closed.text
+
+        # 模拟旧版本 recover_generation 留下的状态：授权已关闭但 job 仍是 failed。
+        # 显式确认风险后必须仍能发起新任务，不能永久卡在 LOCAL_TRACKING_CLOSED。
+        async with write_transaction(app.state.session_factory) as session:
+            stored = await session.get(GenerationJob, job.id)
+            assert stored is not None
+            stored.status = "failed"
+            await session.flush()
+
+        visual.submit_outcome = ProviderOutcome(
+            state="succeeded", image_bytes=png_bytes(1024, 1024), image_count=1
+        )
+        view = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()
+        assert view["issue"]["code"] == "LOCAL_TRACKING_CLOSED"
+        created = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/start_new_generation",
+            json={
+                "expected_revision": view["project_revision"],
+                "payload": {
+                    "acknowledge_risk": True,
+                    "previous_generation_id": job.generation_id,
+                },
+            },
+        )
+        assert created.status_code == 200, created.text
+        await _drain(app)
+        view = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()
+        assert view["stage"] == "S10"
+        intents, usages, _ = await _rows(app, setup["project_id"])
+        assert len(intents) == 2
+        assert len(usages) == 2
+
+
+@pytest.mark.asyncio
 async def test_result_fetch_failure_keeps_slot_and_recover_fetches_without_submit(full_settings):
     llm = LLMStub()
     visual = VisualStub(
@@ -300,6 +384,57 @@ async def test_terminal_provider_failure_counts_once_and_releases_slots(full_set
         assert intents[0].status == "failed"
         assert len(usages) == 1
         assert all(slot.released_at is not None for slot in slots)
+
+@pytest.mark.asyncio
+async def test_terminal_failure_can_retry_as_a_new_confirmed_attempt(full_settings):
+    llm = LLMStub()
+    visual = VisualStub(
+        submit_outcome=ProviderOutcome(
+            state="failed",
+            evidence="rejected",
+            error_code="VISUAL_TASK_FAILED",
+            error_message="供应商明确拒绝",
+        )
+    )
+    async with _environment(full_settings, llm, visual, _normal_responder) as (app, client):
+        setup = await _setup_s06(app, client)
+        response = await _confirm(client, setup, str(uuid.uuid4()))
+        assert response.status_code == 200, response.text
+        await _drain(app)
+
+        view = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()
+        assert view["issue"]["code"] == "GENERATION_FAILED"
+        assert {item["id"] for item in view["available_actions"]} == {"retry_generation"}
+
+        visual.submit_outcome = ProviderOutcome(
+            state="succeeded", image_bytes=png_bytes(1024, 1024), image_count=1
+        )
+        retried = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/retry_generation",
+            json={
+                "expected_revision": view["project_revision"],
+                "payload": {"acknowledge_new_attempt": True},
+            },
+        )
+        assert retried.status_code == 200, retried.text
+        await _drain(app)
+
+        view = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()
+        assert view["stage"] == "S10"
+        assert view["status"] == "needs_input"
+        intents, usages, slots = await _rows(app, setup["project_id"])
+        assert len(intents) == 2
+        assert intents[0].status == "failed"
+        assert intents[1].status == "executing"
+        assert len(usages) == 2
+        assert len(slots) == 6
+        assert len([slot for slot in slots if slot.released_at is not None]) == 3
+        assert len(visual.submit_calls) == 2
+
 
 @pytest.mark.asyncio
 async def test_independent_process_crash_preserves_count_and_restarts_without_call(

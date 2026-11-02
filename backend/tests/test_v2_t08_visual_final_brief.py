@@ -4,7 +4,7 @@ import copy
 from contextlib import asynccontextmanager
 from typing import Any
 
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.adapters.base import ProviderError
@@ -183,6 +183,27 @@ class Script:
                         "evidence_ids": evidence,
                         "note": "",
                     }
+                )
+            elif mode == "advisories":
+                checks.extend(
+                    [
+                        {
+                            "rule_id": rule_id,
+                            "outcome": outcome,
+                            "evidence_ids": check_evidence,
+                            "note": "",
+                        }
+                        for rule_id, check_evidence, outcome in (
+                            ("SCOPE_AND_RESPONSIBILITY", evidence, "pass"),
+                            ("FACT_SOURCE", evidence, "pass"),
+                            ("UNKNOWN_AS_CERTAIN", [], "pass"),
+                            ("CONFIRMED_REQUIREMENT_CONSISTENCY", evidence, "pass"),
+                            ("FORBIDDEN_CONTENT", evidence, "pass"),
+                            ("OUTPUT_STRUCTURE_SEMANTICS", evidence, "pass"),
+                            ("EVIDENCE_COVERAGE", evidence, "pass"),
+                            ("UNAUTHORIZED_ACTION", [], "pass"),
+                        )
+                    ]
                 )
             elif mode == "url":
                 checks[0]["note"] = "参见 https://evil.invalid/report"
@@ -590,6 +611,19 @@ async def test_review_missing_duplicate_foreign_checks_never_approve(full_settin
             view = await _view(client, project["id"])
             plan = _artifact(view, "visual_plan")
             assert plan is None or plan["status"] != "approved", mode
+
+
+async def test_review_accepts_advisory_governance_checks(full_settings):
+    """共享 reviewer 的额外治理检查不应阻断视觉方案批准。"""
+    script = Script(visual=[visual_data()], reviews=[{"decision": "pass", "mode": "advisories"}])
+    async with _environment(full_settings, script) as (application, client, _, _):
+        project = await _create_project(client)
+        await _seed_upstream(application, project["id"])
+        response = await _act(client, project["id"], "plan_visual")
+        assert response.status_code == 200, response.text
+        view = await _view(client, project["id"])
+        plan = _artifact(view, "visual_plan")
+        assert plan is not None and plan["status"] == "approved"
 
 
 async def test_visual_technical_failure_has_zero_automatic_retries(full_settings):

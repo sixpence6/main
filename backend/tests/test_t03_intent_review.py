@@ -5,13 +5,13 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.errors import ApiError
 from app.main import create_app
-from app.models import Project
 from app.workflow import state, templates
+from app.workflow.stages import s01
 from app.workflow.tables import Artifact, GenerationJob, RevisionBudget, RoleCall
 from tests.conftest import migrate
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
@@ -69,6 +69,45 @@ def _scripted_responder(
             decision = "revise" if review_mode == "revise" else "pass"
             if review_mode == "missing":
                 checks = _checks(target_id, rules=("G01_SCOPE",))
+            elif review_mode == "extra":
+                checks = _checks(
+                    target_id,
+                    rules=(
+                        "G01_SCOPE",
+                        "G01_ACTION",
+                        "G02_FACT_SOURCE",
+                        "G02_UNKNOWN",
+                        "G03_REQUIREMENT_CONSISTENCY",
+                        "G04_PROHIBITED",
+                        "G05_OUTPUT_STRUCTURE",
+                        "G06_EVIDENCE_COVERAGE",
+                        "G07_UNAUTHORIZED_ACTION",
+                        "G08_AUTH",
+                    ),
+                )
+                checks[4]["outcome"] = "not_applicable"
+                checks[4]["evidence_ids"] = []
+            elif review_mode == "duplicate_required":
+                checks = _checks(
+                    target_id,
+                    rules=(
+                        "G01_SCOPE",
+                        "G01_ACTION",
+                        "G01_SCOPE",
+                        "G01_ACTION",
+                        "G01_SCOPE",
+                    ),
+                )
+            elif review_mode == "unknown_rule":
+                checks = _checks(target_id)
+                checks.append(
+                    {
+                        "rule_id": "hard:made_up",
+                        "outcome": "pass",
+                        "evidence_ids": [target_id],
+                        "note": "",
+                    }
+                )
             elif review_mode == "foreign_evidence":
                 checks = _checks(target_id, evidence=["foreign-evidence"])
             elif review_mode == "external_url":
@@ -480,7 +519,7 @@ async def test_unfamiliar_intent_evidence_and_route_mismatch_are_rejected(llm_se
 
 
 @pytest.mark.parametrize(
-    "review_mode", ["revise", "missing", "foreign_evidence", "external_url"]
+    "review_mode", ["revise", "missing", "unknown_rule", "foreign_evidence", "external_url"]
 )
 async def test_review_failure_blocks_and_is_not_retried(llm_settings, review_mode):
     async with _environment(
@@ -508,6 +547,88 @@ async def test_review_failure_blocks_and_is_not_retried(llm_settings, review_mod
         artifacts, jobs, _ = await _counts(application, project["id"])
         assert artifacts == 0
         assert jobs == 0
+        assert visual.submit_calls == []
+
+
+async def test_review_accepts_repeated_required_checks(llm_settings):
+    async with _environment(
+        llm_settings, _responder(review_mode="duplicate_required")
+    ) as (application, client, stub, visual):
+        project = await _create_project(client)
+        response = await _act(
+            client,
+            project["id"],
+            "submit_request",
+            text="做一张商品图",
+            expected_revision=0,
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["stage"] == "S03"
+        assert len(stub.role_calls_received) == 2
+        artifacts, jobs, _ = await _counts(application, project["id"])
+        assert artifacts == 0
+        assert jobs == 0
+        assert visual.submit_calls == []
+
+
+async def test_review_accepts_advisory_governance_checks(llm_settings):
+    async with _environment(
+        llm_settings, _responder(review_mode="extra")
+    ) as (application, client, stub, visual):
+        project = await _create_project(client)
+        response = await _act(
+            client,
+            project["id"],
+            "submit_request",
+            text="做一张商品图",
+            expected_revision=0,
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["stage"] == "S03"
+        assert len(stub.role_calls_received) == 2
+        _, jobs, _ = await _counts(application, project["id"])
+        assert jobs == 0
+        assert visual.submit_calls == []
+
+
+async def test_failed_s01_review_can_be_continued_from_completed_checkpoint(
+    llm_settings, monkeypatch
+):
+    original = s01._validate_review
+    calls = {"count": 0}
+
+    def fail_once(output, target_id):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise s01._invalid_review()
+        return original(output, target_id)
+
+    monkeypatch.setattr(s01, "_validate_review", fail_once)
+    async with _environment(llm_settings, _responder()) as (application, client, stub, visual):
+        project = await _create_project(client)
+        failed = await _act(
+            client,
+            project["id"],
+            "submit_request",
+            text="做一张商品图",
+            expected_revision=0,
+        )
+        assert failed.status_code == 503, failed.text
+        assert failed.json()["error"]["code"] == "REVIEW_UNAVAILABLE"
+        view = (await client.get(f"/api/projects/{project['id']}/workflow")).json()
+        assert view["status"] == "failed"
+        assert [item["id"] for item in view["available_actions"]] == ["continue_workflow"]
+
+        continued = await _act(
+            client,
+            project["id"],
+            "continue_workflow",
+            expected_revision=view["project_revision"],
+        )
+        assert continued.status_code == 200, continued.text
+        assert continued.json()["stage"] == "S03"
+        assert continued.json()["status"] == "active"
+        assert len(stub.role_calls_received) == 3
         assert visual.submit_calls == []
 
 

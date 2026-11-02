@@ -10,7 +10,11 @@ from PIL import Image
 
 from app.adapters.base import BriefData, OrganizeRequest, OrganizeResult, ProviderOutcome
 from app.config import Settings
-from app.services.generations import parse_image_size
+from app.services.generations import (
+    ResultValidationError,
+    _normalize_result_bytes,
+    parse_image_size,
+)
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
 from tests.support.apps import run_client
 
@@ -26,6 +30,22 @@ def png_bytes(width: int = 1024, height: int = 1024, color=(240, 240, 240)) -> b
     output = io.BytesIO()
     Image.new("RGB", (width, height), color).save(output, format="PNG")
     return output.getvalue()
+
+
+def test_same_aspect_provider_result_is_scaled_to_confirmed_size():
+    normalized, info = _normalize_result_bytes(
+        png_bytes(1536, 864), (3840, 2160), allow_upscale=True
+    )
+    assert info.width == 3840
+    assert info.height == 2160
+    assert normalized
+
+
+def test_different_aspect_provider_result_is_rejected():
+    with pytest.raises(ResultValidationError):
+        _normalize_result_bytes(
+            png_bytes(1024, 1024), (3840, 2160), allow_upscale=True
+        )
 
 
 def review_brief(request: OrganizeRequest, **overrides) -> BriefData:

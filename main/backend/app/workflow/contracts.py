@@ -218,6 +218,7 @@ ARTIFACT_DATA: dict[str, type[BaseModel]] = {
     "final_brief": BriefData,
     "prompt_plan": GenerationData,
     "quality_report": QualityData,
+    "quality_recheck": QualityData,
     "delivery_manifest": DeliveryData,
 }
 

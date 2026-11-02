@@ -33,7 +33,12 @@ from app.workflow.state import (
 from app.workflow.tables import Artifact, ArtifactReview, GenerationJob
 
 STAGE = "S09"
-ACTIONS = ["review_candidate"]
+ACTIONS = [
+    "review_candidate",
+    "recheck_candidate",
+    "retry_rejected_generation",
+    "revise_prompt_and_retry",
+]
 
 # Every hard requirement is fixed here by the program, not by the model. A
 # rule can be conditional (product consistency only applies to product
@@ -87,6 +92,13 @@ _REVIEW_RULE_IDS = frozenset(
     )
 )
 
+# A quality or reviewer role can fail after the candidate bytes are already
+# durable. Those failures are safe to recheck without generating another image:
+# the fixed candidate is the input, and the original budget remains exhausted.
+_RECHECK_RECOVERABLE_ISSUES = frozenset(
+    {"CONTRACT_ERROR", "REVIEW_UNAVAILABLE", "SERVICE_UNAVAILABLE"}
+)
+
 
 @dataclass(frozen=True)
 class _RuleSpec:
@@ -107,11 +119,36 @@ class _Candidate:
     mime_type: str
 
 
+def _can_recheck(ctx: WorkflowContext) -> bool:
+    if ctx.run is None or ctx.run.stage != STAGE:
+        return False
+    if ctx.run.status == "active":
+        return True
+    if ctx.run.status == "blocked":
+        return ctx.run.issue_code == "IMAGE_NOT_APPROVED"
+    return ctx.run.status == "failed" and ctx.run.issue_code in _RECHECK_RECOVERABLE_ISSUES
+
+
 def available(ctx: WorkflowContext) -> list[dict[str, Any]]:
     if ctx.run is None or ctx.run.stage != STAGE:
         return []
+    if ctx.run.status == "failed":
+        return ["recheck_candidate"] if _can_recheck(ctx) else []
     if ctx.run.status not in {"active", "needs_input", "blocked"}:
         return []
+    if ctx.run.status == "blocked" and ctx.run.issue_code == "IMAGE_NOT_APPROVED":
+        # A rejected candidate cannot become approved by reviewing it again.
+        # Offer an explicit, separately counted replacement generation instead.
+        # A prompt revision is the only way to change concrete visual guidance
+        # before spending another counted attempt. Recheck is for a corrected
+        # derivative of the same attempt (for example, removing text artifacts
+        # from the generated pixels) and is recorded as its own artifact kind so
+        # it does not consume the three-candidate quality-report budget.
+        return [
+            "recheck_candidate",
+            "revise_prompt_and_retry",
+            "retry_rejected_generation",
+        ]
     # Availability is intentionally cheap and fail-closed. The real action
     # repeats every check under the project lock.
     return ["review_candidate"]
@@ -139,7 +176,12 @@ def _candidate_expired(generation: Generation, *, now: datetime | None = None) -
     return (now or datetime.now(UTC)) >= completed + timedelta(hours=24)
 
 
-async def _load_candidate(ctx: WorkflowContext) -> _Candidate:
+async def _load_candidate(
+    ctx: WorkflowContext,
+    *,
+    asset_id: str | None = None,
+    allow_rejected_job: bool = False,
+) -> _Candidate:
     async with read_session(ctx.session_factory) as session:
         job = await session.scalar(
             select(GenerationJob)
@@ -158,7 +200,7 @@ async def _load_candidate(ctx: WorkflowContext) -> _Candidate:
             raise ApiError(
                 409, "CANDIDATE_UNAVAILABLE", templates.render("CANDIDATE_UNAVAILABLE")
             )
-        asset = await session.get(Asset, job.result_asset_id)
+        asset = await session.get(Asset, asset_id or job.result_asset_id)
         generation = await session.get(Generation, job.generation_id)
         if generation is None:
             raise ApiError(
@@ -182,7 +224,7 @@ async def _load_candidate(ctx: WorkflowContext) -> _Candidate:
         raise ApiError(
             409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
         )
-    if job is not None and job.status == "rejected":
+    if job is not None and job.status == "rejected" and not allow_rejected_job:
         raise ApiError(
             409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
         )
@@ -436,6 +478,10 @@ def _check_evidence(
     # technical rules instead require their technical evidence. Every cited
     # ID still has to belong to the allowed set and the rule's declared types.
     primary = "technical" if "technical" in expected_types else "image"
+    if primary not in present_types and "image" in expected_types:
+        # 尺寸规则可由独立审查者直接引用实际成图；技术校验仍由程序在
+        # quality_data 中独立执行，不因引用类型不同而把合法审查判为坏契约。
+        primary = "image"
     return primary in present_types
 
 
@@ -717,6 +763,7 @@ async def _set_job(
     *,
     error_code: str | None = None,
     error_message: str | None = None,
+    result_asset_id: str | None = None,
 ) -> None:
     if job is None:
         return
@@ -727,6 +774,8 @@ async def _set_job(
         stored.status = status
         stored.error_code = error_code
         stored.error_message = error_message[:512] if error_message else None
+        if result_asset_id is not None:
+            stored.result_asset_id = result_asset_id
         stored.updated_at = format_timestamp(utc_now())
         if status in {"rejected", "failed"} and stored.intent_id:
             intent = await session.get(GenerationIntent, stored.intent_id)
@@ -876,10 +925,11 @@ async def _review_and_apply(
     size: str,
     rule_payload: list[dict[str, Any]],
     existing_artifact: Artifact | None = None,
+    artifact_kind: str = "quality_report",
 ) -> None:
     artifact = existing_artifact
     if artifact is None:
-        artifact = await start_artifact(ctx, "quality_report", quality_data)
+        artifact = await start_artifact(ctx, artifact_kind, quality_data)
     review_allowed = set(quality_allowed)
     review_allowed.add(f"report:{artifact.id}")
     review_targets = _review_targets(
@@ -992,7 +1042,7 @@ async def _apply_review(
     if report_decision != "pass":
         await _block_stage(ctx, "IMAGE_NOT_APPROVED", "IMAGE_NOT_APPROVED")
         return
-    approved_report = await latest_artifact(ctx, "quality_report", status="approved")
+    approved_report = await latest_artifact(ctx, artifact.kind, status="approved")
     if approved_report is None:
         await _block_stage(ctx, "IMAGE_NOT_APPROVED", "IMAGE_NOT_APPROVED")
         return
@@ -1053,7 +1103,12 @@ async def _apply_review(
                 ),
             },
         )
-        await _set_job(ctx, candidate.job, "approved")
+        await _set_job(
+            ctx,
+            candidate.job,
+            "approved",
+            result_asset_id=candidate.asset.id,
+        )
         await set_stage(ctx, "S10", "active")
         return
     decision = image_decision if image_decision in {
@@ -1085,6 +1140,65 @@ async def _apply_review(
     await _block_stage(ctx, "IMAGE_NOT_APPROVED", "IMAGE_NOT_APPROVED")
 
 
+async def _retry_rejected_generation(
+    ctx: WorkflowContext, payload: dict[str, Any]
+) -> None:
+    # s08 owns replacement job creation; import lazily because s08 imports s09.
+    from app.workflow.stages import s08
+
+    await s08._start_replacement(
+        ctx,
+        payload,
+        issue_code="IMAGE_NOT_APPROVED",
+        previous_status="rejected",
+        previous_intent_status="failed",
+        acknowledgement_key="acknowledge_new_attempt",
+        acknowledgement_error="NEW_ATTEMPT_ACK_REQUIRED",
+        acknowledgement_message="重新生成会新增一次受理计数并重新占用生成槽位，请明确确认后再操作。",
+        request_prefix="v3-generation-quality-retry",
+    )
+
+
+async def _revise_prompt_and_retry(
+    ctx: WorkflowContext, payload: dict[str, Any]
+) -> None:
+    note = payload.get("text")
+    if not isinstance(note, str) or not note.strip():
+        raise ApiError(422, "VALIDATION_ERROR", "请说明提示词调整内容")
+    # Reuse S07's compile path but keep S09 as the current stage until the
+    # replacement job has been accepted. Advancing to S08 before the intent
+    # exists would expose submit_generation against a failed intent.
+    from app.workflow.stages import s07, s08
+
+    try:
+        await s07._compile(ctx, note.strip()[:20000], advance=False)
+    except ApiError as exc:
+        if exc.code in {"PROMPT_REQUIRES_RECONFIRMATION", "REQUIREMENT_DRIFT"}:
+            raise
+        # Other compile failures may have marked S07 failed/blocked. Keep the
+        # current quality rejection actionable instead of stranding the run.
+        if ctx.run is not None and ctx.run.stage == s07.STAGE:
+            await set_stage(
+                ctx,
+                STAGE,
+                "blocked",
+                issue_code="IMAGE_NOT_APPROVED",
+                template_id="IMAGE_NOT_APPROVED",
+            )
+        raise
+    await s08._start_replacement(
+        ctx,
+        payload,
+        issue_code="IMAGE_NOT_APPROVED",
+        previous_status="rejected",
+        previous_intent_status="failed",
+        acknowledgement_key="acknowledge_new_attempt",
+        acknowledgement_error="NEW_ATTEMPT_ACK_REQUIRED",
+        acknowledgement_message="重新生成会新增一次受理计数并重新占用生成槽位，请明确确认后再操作。",
+        request_prefix="v3-generation-quality-retry",
+    )
+
+
 async def handle(
     ctx: WorkflowContext, action: str, payload: dict[str, Any]
 ) -> None:
@@ -1096,12 +1210,43 @@ async def handle(
         raise ApiError(
             409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
         )
-    if ctx.run.status not in {"active", "needs_input", "blocked"}:
+    allowed_statuses = {"active", "needs_input", "blocked"}
+    if action == "recheck_candidate":
+        # A durable candidate may still be rechecked after a role call failed
+        # with a recoverable technical error; no new generation is requested.
+        allowed_statuses.add("failed")
+    if ctx.run.status not in allowed_statuses:
         raise ApiError(
             409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
         )
+    if action == "retry_rejected_generation":
+        await _retry_rejected_generation(ctx, payload)
+        return
+    if action == "revise_prompt_and_retry":
+        await _revise_prompt_and_retry(ctx, payload)
+        return
+    artifact_kind = "quality_report"
+    recheck_asset_id: str | None = None
+    if action == "recheck_candidate":
+        # A recheck is a review action. It is valid while the normal candidate
+        # review is still active (for example after the quality-report budget
+        # was consumed) and after the run is blocked for a rejected image.
+        if not _can_recheck(ctx):
+            raise ApiError(
+                409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
+            )
+        raw_asset_id = payload.get("asset_id")
+        if raw_asset_id is not None:
+            if not isinstance(raw_asset_id, str) or not raw_asset_id.strip():
+                raise ApiError(422, "VALIDATION_ERROR", "修正图标识无效")
+            recheck_asset_id = raw_asset_id.strip()
+        artifact_kind = "quality_recheck"
     try:
-        candidate = await _load_candidate(ctx)
+        candidate = await _load_candidate(
+            ctx,
+            asset_id=recheck_asset_id,
+            allow_rejected_job=action == "recheck_candidate",
+        )
     except ApiError as exc:
         if exc.code == "SERVICE_UNAVAILABLE":
             await _fail_stage(ctx, "SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE")
@@ -1227,6 +1372,7 @@ async def handle(
         snapshot=snapshot,
         size=size,
         rule_payload=rule_payload,
+        artifact_kind=artifact_kind,
     )
 
 

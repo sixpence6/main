@@ -4,16 +4,15 @@ import io
 from contextlib import asynccontextmanager
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from PIL import Image
 
 from app.adapters.base import ProviderError
 from app.config import Settings
-from app.db import read_session, write_transaction
+from app.db import write_transaction
 from app.main import create_app
-from app.models import Asset, Project
+from app.models import Project
 from app.workflow import state
-from app.workflow.tables import RevisionBudget
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
 from tests.support.apps import migrate
 from tests.support.auth import authenticated_client
@@ -236,6 +235,7 @@ async def setup_confirmed_project(
     *,
     with_reference: bool = False,
     image_size: str = "1024x1024",
+    brief_override: dict | None = None,
 ) -> dict:
     created_response = await client.post("/api/projects", json={})
     assert created_response.status_code == 201, created_response.text
@@ -254,7 +254,7 @@ async def setup_confirmed_project(
         revision = uploaded["revision"]
         reference_id = uploaded["reference_asset"]["id"]
 
-    brief = base_brief(reference_id)
+    brief = dict(brief_override) if brief_override is not None else base_brief(reference_id)
     brief["size"] = image_size
     async with write_transaction(app.state.session_factory) as session:
         project = await session.get(Project, project_id)
@@ -388,6 +388,27 @@ async def test_natural_prompt_wording_keeps_confirmed_requirement_coverage(full_
         assert prompt["status"] == "approved"
         assert "主体居中，四周留白充足" in prompt["payload"]["positive_prompt"]
         assert visual.submit_calls == []
+
+
+@pytest.mark.asyncio
+async def test_multi_clause_requirement_coverage_is_accepted(full_settings):
+    brief = base_brief()
+    brief["purpose"] = "电商主图；用于大屏展示"
+    data = candidate_data(brief)
+    async with environment(
+        full_settings,
+        engineer=lambda _request: engineer_response(data),
+        reviewer=lambda request: review_response(request.payload["review_targets"][0]["target_id"]),
+    ) as (app, client, _llm, _visual, _registry):
+        setup = await setup_confirmed_project(app, client, brief_override=brief)
+        response = await workflow_action(client, setup, "compile_prompt")
+        assert response.status_code == 200, response.text
+        view = response.json()
+        prompt = next(
+            artifact for artifact in view["artifacts"] if artifact["kind"] == "prompt_plan"
+        )
+        assert prompt["status"] == "approved"
+        assert "电商主图；用于大屏展示" in prompt["payload"]["positive_prompt"]
 
 
 @pytest.mark.asyncio
@@ -672,7 +693,6 @@ async def test_old_requirements_confirmation_blocks_compile_before_model_call(fu
 
 @pytest.mark.asyncio
 async def test_technical_failure_makes_one_attempt_and_no_automatic_retry(full_settings):
-    brief = base_brief()
 
     def provider_failure(_request):
         return ProviderError("模拟提供方失败", evidence="not_submitted", error_code="LLM_UNAVAILABLE")

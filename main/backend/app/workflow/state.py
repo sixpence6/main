@@ -736,10 +736,10 @@ async def _build_versions(
             select(Artifact)
             .where(
                 Artifact.run_id == job.run_id,
-                Artifact.kind == "quality_report",
+                Artifact.kind.in_(("quality_report", "quality_recheck")),
                 Artifact.status == "approved",
             )
-            .order_by(Artifact.revision_no.desc())
+            .order_by(Artifact.created_at.desc())
             .limit(1)
         )
         can_download = bool(

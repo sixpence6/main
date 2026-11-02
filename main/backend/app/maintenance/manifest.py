@@ -227,8 +227,13 @@ def _check_database(path: Path, manifest: Manifest) -> None:
                     "DATABASE_ASSET_COUNT_MISMATCH",
                     "restored database asset count does not match the manifest",
                 )
+            asset_columns = {
+                str(column[1])
+                for column in connection.execute("PRAGMA table_info(assets)").fetchall()
+            }
+            hash_column = "sha256" if "sha256" in asset_columns else "NULL AS sha256"
             rows = connection.execute(
-                "SELECT id, kind, relative_path, sha256 FROM assets ORDER BY id"
+                f"SELECT id, kind, relative_path, {hash_column} FROM assets ORDER BY id"
             ).fetchall()
             expected_counts = manifest.database.get("table_counts")
             if isinstance(expected_counts, dict):
