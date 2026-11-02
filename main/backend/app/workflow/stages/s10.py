@@ -292,6 +292,54 @@ def _validate_review(
         raise ApiError(409, "REVIEW_REJECTED", templates.render("REVIEW_REJECTED"))
     return adjudication
 
+
+async def _accept_manifest_review(
+    ctx: WorkflowContext,
+    *,
+    artifact: Artifact,
+    asset: Asset,
+    job: GenerationJob,
+    target_id: str,
+    review: RoleOutput,
+    adjudication: Adjudication,
+) -> None:
+    """Persist one passing manifest review and its approval exactly once."""
+    await add_review(
+        ctx,
+        artifact,
+        reviewer_role="output_reviewer",
+        decision="pass",
+        checks=adjudication.review_checks(),
+        target_kind="artifact",
+        raw=review.data,
+    )
+    artifact.status = "approved"
+    await add_approval(
+        ctx,
+        approval_type="delivery_manifest",
+        artifact=artifact,
+        approved_by="output_reviewer",
+        checks={
+            "asset_id": asset.id,
+            "asset_digest": asset.sha256,
+            "target_id": target_id,
+            "requirement_revision": ctx.run.requirement_revision,
+            "ruleset_version": RULESET_VERSION,
+        },
+        requirement_digest=job.confirmed_snapshot_digest,
+        model_fingerprint=review.model_fingerprint,
+    )
+    await set_stage(
+        ctx,
+        STAGE,
+        "needs_input",
+        issue_code="DELIVERY_MANIFEST_READY",
+        message="交付清单已通过独立审查，请确认发布。",
+        template_id="WAIT_STAGE",
+        params={"stage_label": "准备交付"},
+    )
+
+
 async def _requirement_payload(ctx: WorkflowContext, job: GenerationJob) -> dict[str, Any]:
     """只使用生成确认时的不可变需求快照；找不到同摘要快照就拒绝。"""
     async with ctx.session_factory() as session:
@@ -446,40 +494,14 @@ async def _prepare(ctx: WorkflowContext) -> None:
         )
         raise
 
-    await add_review(
+    await _accept_manifest_review(
         ctx,
-        artifact,
-        reviewer_role="output_reviewer",
-        decision="pass",
-        checks=adjudication.review_checks(),
-        target_kind="artifact",
-        raw=review.data,
-    )
-    # add_review 在独立事务中写库，此处同步内存对象状态供 add_approval 校验。
-    artifact.status = "approved"
-    await add_approval(
-        ctx,
-        approval_type="delivery_manifest",
         artifact=artifact,
-        approved_by="output_reviewer",
-        checks={
-            "asset_id": asset.id,
-            "asset_digest": asset.sha256,
-            "target_id": target_id,
-            "requirement_revision": ctx.run.requirement_revision,
-            "ruleset_version": RULESET_VERSION,
-        },
-        requirement_digest=job.confirmed_snapshot_digest,
-        model_fingerprint=review.model_fingerprint,
-    )
-    await set_stage(
-        ctx,
-        STAGE,
-        "needs_input",
-        issue_code="DELIVERY_MANIFEST_READY",
-        message="交付清单已通过独立审查，请确认发布。",
-        template_id="WAIT_STAGE",
-        params={"stage_label": "准备交付"},
+        asset=asset,
+        job=job,
+        target_id=target_id,
+        review=review,
+        adjudication=adjudication,
     )
 
 

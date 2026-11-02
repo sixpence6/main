@@ -19,7 +19,7 @@ from app.workflow.roles import (
     run_role,
     run_role_request,
 )
-from app.workflow.stages import s01, s02, s03, s04, s05, s07, s09
+from app.workflow.stages import s01, s02, s03, s04, s05, s07, s09, s10
 from app.workflow.state import (
     WorkflowContext,
     add_approval,
@@ -1023,6 +1023,93 @@ async def _resume_s09_review(
     )
 
 
+async def _resume_s10_review(
+    ctx: WorkflowContext, checkpoint: dict[str, Any]
+) -> None:
+    """Replay the persisted manifest review without regenerating its artifact."""
+    request_raw, _, payload = _request_parts(checkpoint)
+    task = payload.get("task") if isinstance(payload.get("task"), dict) else {}
+    targets = payload.get("review_targets") or []
+    target = targets[0] if targets and isinstance(targets[0], dict) else {}
+    target_id = str(target.get("target_id") or "")
+    prefix = "delivery_manifest:"
+    if (
+        task.get("role") != "output_reviewer"
+        or not request_raw
+        or not target_id.startswith(prefix)
+    ):
+        raise _stale()
+    artifact = await _artifact_by_id(ctx, target_id[len(prefix) :])
+    latest = await latest_artifact(ctx, "delivery_manifest")
+    if (
+        artifact is None
+        or artifact.kind != "delivery_manifest"
+        or latest is None
+        or latest.id != artifact.id
+        or artifact.status != "candidate"
+    ):
+        if artifact is not None and artifact.status == "candidate":
+            await set_artifact_status(ctx, artifact.id, "superseded")
+        raise _stale()
+    try:
+        job, asset = await s10._load_job_and_asset(ctx)
+        if (
+            target.get("asset_id") != asset.id
+            or target.get("requirement_revision") != ctx.run.requirement_revision
+        ):
+            raise _stale()
+        await s10._require_image_approval(ctx, asset, job)
+        data, _info = await s10._verify_image_file(ctx, asset)
+    except ApiError as exc:
+        await set_stage(
+            ctx,
+            "S10",
+            "blocked" if exc.status_code == 409 else "failed",
+            issue_code=exc.code,
+            template_id=exc.code,
+        )
+        raise
+    allowed = set(task.get("allowed_evidence_ids") or []) | {target_id}
+    try:
+        review = await run_role_request(
+            ctx,
+            "output_reviewer",
+            "S10",
+            request_raw,
+            images=(OrganizeImage(data=data, mime_type=asset.mime_type),),
+            capability="TEXT",
+            attempt=int(checkpoint.get("attempt") or 1),
+        )
+    except ApiError:
+        await set_stage(
+            ctx,
+            "S10",
+            "failed",
+            issue_code="REVIEW_UNAVAILABLE",
+            template_id="REVIEW_UNAVAILABLE",
+        )
+        raise _fixed_review() from None
+    try:
+        adjudication = s10._validate_review(review, target_id, allowed)
+    except ApiError as exc:
+        await _review_error(ctx, "S10", exc)
+        raise
+    if ctx.project.revision != checkpoint.get(
+        "project_revision"
+    ) or ctx.run.requirement_revision != checkpoint.get("requirement_revision"):
+        await set_artifact_status(ctx, artifact.id, "superseded")
+        raise _stale()
+    await s10._accept_manifest_review(
+        ctx,
+        artifact=artifact,
+        asset=asset,
+        job=job,
+        target_id=target_id,
+        review=review,
+        adjudication=adjudication,
+    )
+
+
 async def _resume_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
     stage = str(checkpoint.get("stage"))
     if stage == "S01":
@@ -1039,6 +1126,8 @@ async def _resume_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> No
         await _resume_s07_review(ctx, checkpoint)
     elif stage == "S09":
         await _resume_s09_review(ctx, checkpoint)
+    elif stage == "S10":
+        await _resume_s10_review(ctx, checkpoint)
     else:
         raise _unavailable()
 

@@ -109,12 +109,13 @@ def test_all_not_applicable_blocking_rules_cannot_open_the_gate() -> None:
 
 
 def test_advisory_results_never_change_a_satisfied_blocking_gate() -> None:
-    for outcome in ("fail", "unknown", "not_applicable"):
+    for outcome in ("pass", "fail", "unknown", "not_applicable"):
+        evidence = (TARGET,) if outcome == "pass" else ()
         result = _adjudicate(
             [
                 _check("G03_CONFIRMATION"),
                 _check("G05_EXECUTION_BOUNDARY"),
-                _check("advisory:aesthetics", outcome=outcome, evidence=()),
+                _check("advisory:aesthetics", outcome=outcome, evidence=evidence),
             ]
         )
 
@@ -378,6 +379,8 @@ async def test_s07_advisory_failure_does_not_block_an_approved_prompt(full_setti
             ("G05_EXECUTION_BOUNDARY", "pass"),
             ("advisory:aesthetics", "fail"),
             ("advisory:lighting", "unknown"),
+            ("advisory:creative", "pass"),
+            ("advisory:composition", "not_applicable"),
         ),
     ) as (app, client, _llm, visual, registry):
         setup = await setup_confirmed_project(app, client)
@@ -467,6 +470,10 @@ async def test_s07_recovery_replays_same_candidate_with_same_catalogue(full_sett
             [
                 _payload(target_id, "G03_CONFIRMATION"),
                 _payload(target_id, "G05_EXECUTION_BOUNDARY"),
+                _payload(target_id, "advisory:aesthetics", outcome="fail"),
+                _payload(target_id, "advisory:lighting", outcome="unknown"),
+                _payload(target_id, "advisory:creative"),
+                _payload(target_id, "advisory:composition", outcome="not_applicable"),
             ],
         )
 
