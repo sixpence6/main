@@ -50,7 +50,7 @@
   "commands_output": [
     {
       "command": "T13 focused projection suite",
-      "result": "16 passed in 6.43s"
+      "result": "17 passed in 6.99s"
     },
     {
       "command": "full P1 regression (T02-T13)",
@@ -97,7 +97,7 @@
     "compatibility": "pass — additive response fields; vue-tsc passes; existing T03/T65/T68 action assertions and all P1 suites remain green."
   },
   "residual_unknowns": [
-    "The full backend suite was not rerun; T13 evidence is 16 focused, 133 full P1, 73 affected workflow/review/recovery, 9 isolation/ownership/session and the frontend typecheck.",
+    "The full backend suite was not rerun; T13 evidence is 17 focused, 133 full P1, 73 affected workflow/review/recovery, 9 isolation/ownership/session and the frontend typecheck.",
     "No real provider, image service, browser or production database was exercised. UI rendering and browser interaction are not claimed by this server-side ticket.",
     "main/backend/app/workflow/dispatch.py has 35 pre-existing E501 lines in the compact _ACTIONS table; T13 does not reformat that table and excludes the file from the ruff pass claim.",
     "T13 does not claim R3 or V3 release acceptance; T15-T22 remain the UI frontier."
