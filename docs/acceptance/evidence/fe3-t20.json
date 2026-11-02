@@ -1,0 +1,100 @@
+{
+  "ticket": "#106",
+  "batch": "P6 / T20 – full owner project search, automatic naming and rename",
+  "code": {
+    "baseline_head": "87b289a",
+    "app_code_head": "989e8e7",
+    "branch": "ticket/106",
+    "rule_version": "v3.rules.2",
+    "prompt_version": "2.0.0",
+    "rule_catalog_version": "v3.rules.2",
+    "migration_head": "0011",
+    "files": [
+      "main/src/composables/useWorkspace.ts",
+      "tests/t106-project-search.spec.ts"
+    ],
+    "commit": "989e8e7"
+  },
+  "environment": {
+    "type": "jsdom frontend integration harness with real Vue Router and full App; backend ASGI tests with temporary SQLite",
+    "node": "Node runtime bundled with DSH",
+    "test_runner": "vitest 5.0.5; pytest",
+    "typechecker": "vue-tsc 3.3.13",
+    "network": "stubbed; no provider or image service call",
+    "data_root": "in-memory frontend harness; backend temporary SQLite"
+  },
+  "scope": [
+    "the sidebar requests owner-wide title search from the server before pagination, so a matching project on an unloaded page is found without scanning only the local list",
+    "empty query, no-result, query switching, clearing and load-more states have explicit UI and request behavior",
+    "late list and rename responses are filtered by session/login lifecycle and current query; a load-more page cannot replace or mix another query, and a late account response cannot update the new workspace",
+    "the first explicit send already creates a deterministic local title on the server; empty-chat navigation creates no project and search, naming and rename perform zero model calls",
+    "explicit rename persists through the real PATCH endpoint and refresh read, shows a safe error on failure, and changes only project metadata, not requirement revision, approval digest, intent, budget or slot state",
+    "list status is derived from the current confirmed generation revision; old success is not shown as current completion and unknown remains pending",
+    "account security, logout, personal usage and authorization entry points remain present; no balance/recharge, full-text message search, project deletion or model selector is introduced"
+  ],
+  "inputs": [
+    "real App and Vue Router mounted in jsdom with the existing FetchController HTTP seam",
+    "GET /api/projects?q=<owner title>&limit=20 responses including a project that exists only on the server-side page after the local list",
+    "delayed old-query result, current-query result, current cursor page, 500 rename failure, 422/CSRF backend cases and an account lifecycle revision during a pending rename",
+    "backend temporary SQLite projects and the existing T14 search/rename HTTP suite"
+  ],
+  "commands": [
+    "cd .worktrees/t106 && npx vitest run tests/t106-project-search.spec.ts",
+    "cd .worktrees/t106 && npx vitest run",
+    "cd .worktrees/t106 && npm run typecheck",
+    "cd .worktrees/t106/backend && D:/Desktop/新建文件夹/backend/.venv/Scripts/python.exe -m pytest -q tests/test_v3_p4_t14_project_search.py tests/test_t03_organize.py"
+  ],
+  "commands_output": [
+    {
+      "command": "vitest run tests/t106-project-search.spec.ts",
+      "result": "1 file passed; 5 tests passed in 4.86s"
+    },
+    {
+      "command": "vitest run full frontend suite",
+      "result": "44 files passed; 208 tests passed in 26.70s"
+    },
+    {
+      "command": "npm run typecheck",
+      "result": "exit 0; no diagnostics"
+    },
+    {
+      "command": "pytest T14 project search/rename and T03 organize naming",
+      "result": "20 tests passed in 21.24s"
+    }
+  ],
+  "calls": {
+    "model_text": 0,
+    "model_vision": 0,
+    "image_generation": 0,
+    "provider_network": 0,
+    "note": "T20 frontend tests use HTTP doubles only; search and clear issue only GET requests and rename issues exactly one PATCH metadata request. Backend T14 uses temporary SQLite and asserts no model/role call and no revision, approval, intent, budget or slot mutation."
+  },
+  "acceptance": {
+    "FE3-AC-10": "pass — the server search finds a project that is absent from the loaded page; rename persists through PATCH and reopen; tests prove only metadata is sent, the old success state is not promoted to current, other-account and late responses are ignored, and no model call occurs."
+  },
+  "ticket_items": {
+    "1_server_search_unloaded_page": "pass — current query is sent as q before pagination; test (a) returns a project only for that query and observes limit=20 and q=后页项目.",
+    "2_empty_no_result_query_switch_cursor_error": "pass — test (a) covers empty query, exact no-result copy and clear; test (b) covers query switch while an old request is pending; existing t02-project-read covers cursor failure retention/retry.",
+    "3_late_search_account_lifecycle_sequence": "pass — loadProjects captures sessionRevision and query at start, aborts superseded controllers and ignores responses for a changed session/query; test (b) proves old results never replace the current page, test (e) proves a rename response after lifecycle change is ignored.",
+    "4_first_send_title_and_empty_navigation": "pass — existing backend T03 test asserts the deterministic first-send title 帮我 做一张耳机主图; empty navigation remains client-only and T20 records no create request on search/clear.",
+    "5_rename_persistence_and_metadata_only": "pass — test (c) PATCHes title and survives drawer reopen; test (d) shows the safe error and keeps the old title; backend T14 asserts no revision, digest, intent, budget, slot or model-call change.",
+    "6_current_status": "pass — backend T14 list-status test returns success only when the latest generation confirmed_revision equals the project revision, otherwise unknown.",
+    "7_preserved_entries": "pass — full frontend suite retains account-security, logout, usage and workflow entry tests; T20 adds no balance, recharge, message full-text search, delete or model selector.",
+    "8_ui_http_temp_persistence_and_FE3_AC_10": "pass — frontend real App/router plus HTTP recorder, backend ASGI plus temporary SQLite T14/T03; account switch, late responses, validation failure and CSRF refusal are covered across the two layers."
+  },
+  "probes": {
+    "file": "tests/t106-project-search.spec.ts",
+    "test_cases": 5,
+    "negative_cases": 3,
+    "backend_test_file": "backend/tests/test_v3_p4_t14_project_search.py",
+    "results": "T20 5 passed; full frontend 208 passed; backend T14/T03 20 passed; typecheck clean"
+  },
+  "residual_unknowns": [
+    "jsdom evidence, not a real browser: visual focus order, real viewport and cross-browser search/rename accessibility remain T22/T25 scope.",
+    "The test harness uses HTTP doubles; real network latency and proxy behavior are outside this evidence.",
+    "CSRF refusal and validation are exercised by the backend T14 HTTP suite, not by a real browser form submission.",
+    "The search is intentionally title-only and owner-scoped; message body and cross-owner search are excluded by the parent spec.",
+    "No full backend suite was rerun; affected T14/T03 suites and the full frontend suite were run."
+  ],
+  "acceptance_notes": "Completion is based on the focused T20 suite, full frontend suite, typecheck and affected backend T14/T03 suites. Source commit 989e8e7; evidence is committed separately."
+}
