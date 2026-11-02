@@ -171,6 +171,8 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
             state="succeeded", image_bytes=png_bytes(1024, 1024), image_count=1
         )
     )
+    # Hold S07 so the idempotent replay is compared before generation advances.
+    llm.gate = asyncio.Event()
     request_id = str(uuid.uuid4())
     async with _environment(full_settings, llm, visual, _responder) as (app, client):
         setup = await _setup_execution_snapshot(app, client)
@@ -210,6 +212,9 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         assert fields["must_include"]["strength"] == "hard"
         assert fields["must_include"]["original_value"] == ["杯身蓝色鲸鱼图案"]
         assert fields["must_include"]["constraint_id"].startswith("req:must_include:")
+        assert fields["background"]["constraint_id"] == "req:background"
+        assert fields["palette"]["constraint_ids"] == ["req:palette:0", "req:palette:1"]
+        assert fields["preservation_rules"]["constraint_ids"] == ["req:preservation_rules:0"]
         assert fields["assumptions"]["executable"] is False
         assert fields["assumptions"]["reason"]
 
@@ -229,6 +234,7 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         replay_snapshot = _confirmation(replay.json())
         assert replay_snapshot["snapshot_digest"] == digest
 
+        llm.gate.set()
         await _drain(app)
         engineer = (await _wait_for_role(llm, "generation_engineer"))[0]
         approved_inputs = engineer.payload["approved_inputs"]
@@ -238,8 +244,22 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
 
         quality = (await _wait_for_role(llm, "quality_compliance"))[0]
         quality_input = quality.payload["input_data"]
-        assert quality_input["approved_inputs"]["execution_snapshot"]["snapshot_digest"] == digest
+        quality_snapshot = quality_input["approved_inputs"]["execution_snapshot"]
+        assert quality_snapshot["snapshot_digest"] == digest
         assert quality_input["approved_inputs"]["final_brief"]["background"] == "浅灰无缝背景"
+        quality_fields = _fields(quality_snapshot)
+        for path in (
+            "background",
+            "palette",
+            "text_layout",
+            "reference_treatment",
+            "preservation_rules",
+            "facts",
+            "composition",
+            "lighting",
+        ):
+            assert quality_fields[path]["value"] == fields[path]["value"]
+            assert quality_fields[path]["source"] == fields[path]["source"]
         composition_rule = next(
             rule for rule in quality_input["rules"] if rule["rule_id"] == "hard:composition"
         )
@@ -276,7 +296,11 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         assert version["contract_version"] == "1.0.0"
         assert version["brief"]["background"] == "浅灰无缝背景"
         assert version["execution_snapshot"]["snapshot_digest"] == digest
+        assert version["execution_snapshot"]["artifact_digest"] == setup["final_digest"]
         assert version["execution_snapshot"]["fields"] == snapshot["fields"]
+        assert version["asset_id"]
+        assert version["filename"]
+        assert version["can_download"] is True
 
         async with write_transaction(app.state.session_factory) as session:
             project = await session.get(Project, setup["project_id"])
@@ -363,3 +387,18 @@ async def test_canonical_snapshot_digest_is_stable_for_same_inputs() -> None:
         brief=changed,
     )
     assert third["snapshot_digest"] != first["snapshot_digest"]
+
+def test_legacy_confirmation_is_explicit_and_malformed_snapshot_fails_closed() -> None:
+    from app.workflow.snapshot import (
+        SnapshotCompatibilityError,
+        execution_snapshot_from_checks,
+    )
+
+    legacy = {"confirmation": {"schema_version": "2.0.0", "confirmed": True}}
+    assert execution_snapshot_from_checks(legacy) is None
+
+    malformed = {"confirmation": {"snapshot_schema_version": "9.9.9"}}
+    with pytest.raises(SnapshotCompatibilityError) as raised:
+        execution_snapshot_from_checks(malformed)
+    assert raised.value.code == "SNAPSHOT_VERSION_UNSUPPORTED"
+
