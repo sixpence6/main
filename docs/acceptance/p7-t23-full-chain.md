@@ -149,13 +149,15 @@ backend/tests/test_v3_p7_t23_full_chain_acceptance.py 使用现有 T65 环境/�
 
 ## 8. 全量后端回归
 
-按非 v2 / v2 两组并行运行：
+在本轮最终集成 HEAD cd627ea（已含 T25 修复）上，从 .worktrees/t111/backend 以非 v2 / v2 两组执行：
 
-    cd D:/Desktop/新建文件夹/.worktrees/t109/backend
-    ... -m pytest -q <62 个非 v2 测试文件>
+    cd D:/Desktop/新建文件夹/.worktrees/t111/backend
+    ... -m pytest -q <63 个非 v2 测试文件>
     ... -m pytest -q <19 个 v2 测试文件>
 
-结果：见本次执行日志 D:/.dsh/tmp/spec86/t23-backend-nonv2.log 与 t23-backend-v2.log；完成后将在提交说明与最终答复中补充精确通过数。任何既有失败按文件与原因记录，不通过修改保护断言掩盖。
+结果：非 v2 573 passed, 1 xfailed, 2 warnings，702.51s；v2 257 passed, 1 warning，483.58s；合计 830 passed, 1 xfailed, 3 warnings。唯一 xfail 为既有预期 xfail；warning 为既有 cookie deprecation 与一次线程 UnicodeDecode 警告，不属于测试失败。另从同一工作树执行发布相关 9 个测试文件：55 passed in 48.13s。T23 专项 2 passed；T13+T75+T65 24 passed；T10/T11/T12/T23 16 passed；全前端 46 files / 217 tests passed；vue-tsc 0；Vite build 0。
+
+以上结果证明本轮最终集成没有新增失败；T23 不把全量通过解释为真实供应商、真实设备或正式发布通过。
 
 ## 9. 残余风险
 
