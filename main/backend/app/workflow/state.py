@@ -933,6 +933,8 @@ async def _build_versions(
                 generation_job_id=job.id,
                 asset_id=job.result_asset_id if can_download else None,
                 filename=delivery.filename if can_download else None,
+                width=asset.width if can_download and asset is not None else None,
+                height=asset.height if can_download and asset is not None else None,
                 caption=delivery.caption,
                 published_at=delivery.published_at,
                 brief=_json_dict(brief_artifact.payload_json) if brief_artifact else None,

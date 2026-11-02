@@ -72,6 +72,8 @@ async def test_current_delivery_content_gate_and_feedback_preserve_history(full_
         assert version["can_download"] is True
         assert version["asset_id"] == view["delivery"]["asset_id"]
         assert version["filename"] == view["delivery"]["filename"]
+        assert version["width"] == 1024
+        assert version["height"] == 1024
         assert version["brief"]["product_description"]
         asset_id = version["asset_id"]
         old_snapshot = json.dumps(version, ensure_ascii=False, sort_keys=True)
@@ -115,6 +117,8 @@ async def test_current_delivery_content_gate_and_feedback_preserve_history(full_
         assert blocked_version["can_download"] is False
         assert blocked_version["asset_id"] is None
         assert blocked_version["filename"] is None
+        assert blocked_version["width"] is None
+        assert blocked_version["height"] is None
         denied = await client.get(f"/api/assets/{asset_id}")
         assert denied.status_code == 409, denied.text
         assert denied.json()["error"]["code"] == "ASSET_REJECTED"
@@ -131,6 +135,8 @@ async def test_current_delivery_content_gate_and_feedback_preserve_history(full_
         )
         assert restored.status_code == 200, restored.text
         assert restored.json()["versions"][0]["can_download"] is True
+        assert restored.json()["versions"][0]["width"] == 1024
+        assert restored.json()["versions"][0]["height"] == 1024
 
         feedback = await client.post(
             f"/api/projects/{setup['project_id']}/workflow/actions/request_new_version",

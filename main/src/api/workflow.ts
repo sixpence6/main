@@ -122,6 +122,8 @@ export interface WorkflowVersion {
   generation_job_id: string | null
   asset_id: string | null
   filename: string | null
+  width?: number | null
+  height?: number | null
   caption: string | null
   published_at: string | null
   brief: Record<string, unknown> | null
