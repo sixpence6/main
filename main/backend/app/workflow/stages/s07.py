@@ -453,6 +453,41 @@ def _covers_requirement(requirement: str, field_value: str) -> bool:
     return bool(_assess_requirement(requirement, field_value)["covered"])
 
 
+_LEGACY_COVERAGE_STRIP = re.compile(r"[\s，,。；;：:、\-—()（）\[\]【】“”\"'!?！？/]+")
+_LEGACY_CLAUSE_SPLIT = re.compile(r"[；;。\n]+")
+
+
+def _legacy_coverage_text(text: str) -> str:
+    return _LEGACY_COVERAGE_STRIP.sub("", text)
+
+
+def _legacy_keeps_characters_in_order(expected: str, actual: str) -> bool:
+    position = 0
+    for character in actual:
+        if position < len(expected) and character == expected[position]:
+            position += 1
+    return position == len(expected)
+
+
+def _legacy_covers_requirement(requirement: str, field_value: str) -> bool:
+    expected_clauses = [
+        _legacy_coverage_text(clause)
+        for clause in _LEGACY_CLAUSE_SPLIT.split(requirement)
+        if _legacy_coverage_text(clause)
+    ]
+    actual_clauses = [
+        _legacy_coverage_text(clause)
+        for clause in _LEGACY_CLAUSE_SPLIT.split(field_value)
+        if _legacy_coverage_text(clause)
+    ]
+    if not expected_clauses:
+        return False
+    return all(
+        any(_legacy_keeps_characters_in_order(expected, actual) for actual in actual_clauses)
+        for expected in expected_clauses
+    )
+
+
 def _coverage_explanations(
     requirements: list[dict[str, Any]], payload: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -517,6 +552,8 @@ def _candidate_defects(
     requirements: list[dict[str, Any]],
     brief: dict[str, Any],
     configured_size: str,
+    *,
+    legacy: bool = False,
 ) -> list[CandidateDefect]:
     defects: list[CandidateDefect] = []
     expected = {item["rule_id"]: item for item in requirements}
@@ -559,20 +596,22 @@ def _candidate_defects(
         value = item.get("value")
         if binding in {"positive_prompt", "negative_prompt"}:
             field_value = payload.get(binding) or ""
-            assessment = _assess_requirement(
-                requirement["requirement"], field_value, binding=binding
-            )
-            if (
-                not value
-                or value != requirement["requirement"]
-                or not _covers_requirement(value, field_value)
-            ):
+            if legacy:
+                covered = _legacy_covers_requirement(value or "", field_value)
+                content_intact = bool(value) and covered
+            else:
+                assessment = _assess_requirement(
+                    requirement["requirement"], field_value, binding=binding
+                )
+                covered = assessment["covered"]
+                content_intact = bool(value) and assessment["content_intact"]
+            if not value or value != requirement["requirement"] or not covered:
                 defects.append(
                     CandidateDefect(
                         CandidateDefectCode.COVERAGE_MISMATCH,
                         f"提示词覆盖值与已确认要求不一致：{rule_id}",
                         rule_id=rule_id,
-                        content_intact=bool(value) and assessment["content_intact"],
+                        content_intact=content_intact,
                     )
                 )
         elif binding == "size":
@@ -610,11 +649,16 @@ def _candidate_defects(
         if rule_id not in seen:
             binding = requirement["allowed_bindings"][0]
             if binding in {"positive_prompt", "negative_prompt"}:
-                intact = _assess_requirement(
-                    requirement["requirement"],
-                    payload.get(binding) or "",
-                    binding=binding,
-                )["content_intact"]
+                if legacy:
+                    intact = _legacy_covers_requirement(
+                        requirement["requirement"], payload.get(binding) or ""
+                    )
+                else:
+                    intact = _assess_requirement(
+                        requirement["requirement"],
+                        payload.get(binding) or "",
+                        binding=binding,
+                    )["content_intact"]
             elif binding == "size":
                 intact = payload.get("size") == configured_size
             elif binding == "count":
@@ -661,10 +705,14 @@ def _candidate_errors(
     requirements: list[dict[str, Any]],
     brief: dict[str, Any],
     configured_size: str,
+    *,
+    legacy: bool = False,
 ) -> list[str]:
     return [
         defect.message
-        for defect in _candidate_defects(payload, requirements, brief, configured_size)
+        for defect in _candidate_defects(
+            payload, requirements, brief, configured_size, legacy=legacy
+        )
     ]
 
 
@@ -673,6 +721,8 @@ def _validated_payload(
     requirements: list[dict[str, Any]],
     brief: dict[str, Any],
     configured_size: str,
+    *,
+    legacy: bool = False,
 ) -> tuple[dict[str, Any], list[CandidateDefect]]:
     try:
         payload = validate_data("prompt_plan", data).model_dump(mode="json")
@@ -681,7 +731,7 @@ def _validated_payload(
             CandidateDefectCode.CONTRACT_INVALID, _INVALID_MESSAGE, content_intact=False
         )
         return {}, [defect]
-    defects = _candidate_defects(payload, requirements, brief, configured_size)
+    defects = _candidate_defects(payload, requirements, brief, configured_size, legacy=legacy)
     return payload, defects
 
 

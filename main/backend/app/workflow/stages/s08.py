@@ -138,7 +138,9 @@ def _reference_unavailable() -> ApiError:
     return ApiError(409, "REFERENCE_UNAVAILABLE", "参考图文件不可用，已阻止提交生成。")
 
 
-async def _load_prompt(ctx: WorkflowContext, brief: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
+async def _load_prompt(
+    ctx: WorkflowContext, brief: dict[str, Any], *, legacy: bool = False
+) -> tuple[Any, dict[str, Any]]:
     prompt_artifact = await state.approved_artifact(ctx, "prompt_plan")
     approval = await state.latest_approval(ctx, "generation_prompt")
     if prompt_artifact is None or approval is None:
@@ -154,7 +156,13 @@ async def _load_prompt(ctx: WorkflowContext, brief: dict[str, Any]) -> tuple[Any
     except (ContractError, json.JSONDecodeError):
         raise _prompt_stale() from None
     configured_size = ctx.project.image_size or ctx.settings.visual().image_size or ""
-    errors = _candidate_errors(payload, _hard_requirements(brief), brief, configured_size)
+    errors = _candidate_errors(
+        payload,
+        _hard_requirements(brief),
+        brief,
+        configured_size,
+        legacy=legacy,
+    )
     if errors:
         raise _prompt_stale()
     if payload.get("size") != configured_size:
@@ -777,7 +785,9 @@ async def _start_replacement(
         raise conflict("INTENT_STATE_INVALID", message)
 
     final_artifact, brief, _execution_snapshot = await _require_confirmed(ctx)
-    prompt_artifact, prompt_payload = await _load_prompt(ctx, brief)
+    prompt_artifact, prompt_payload = await _load_prompt(
+        ctx, brief, legacy=_execution_snapshot is None
+    )
     if prompt_payload["size"] != brief["size"]:
         raise conflict("PROMPT_STALE", "执行提示词与当前确认尺寸不一致。")
     reference_usage = brief.get("reference_usage") or "none"
@@ -1187,7 +1197,9 @@ async def _submit(ctx: WorkflowContext, action_payload: dict[str, Any]) -> None:
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
 
     final_artifact, brief, _execution_snapshot = await _require_confirmed(ctx)
-    prompt_artifact, prompt_payload = await _load_prompt(ctx, brief)
+    prompt_artifact, prompt_payload = await _load_prompt(
+        ctx, brief, legacy=_execution_snapshot is None
+    )
 
     status = build_config_status(ctx.settings, ctx.registry)
     if not status.generation.allowed:

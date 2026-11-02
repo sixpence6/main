@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from app.startup import head_revision
+
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools" / "release_package.py"
 MAIN_DIST = ROOT / "main" / "dist"
@@ -33,6 +35,7 @@ def test_release_manifest_is_the_only_package_contract_and_rejects_forbidden_fil
     manifest = tool.load_manifest()
     assert manifest.package == "ecommerce-image-workspace"
     assert manifest.version == "0.1.0"
+    assert tool.migration_head(manifest.source_root) == head_revision() == "0011"
     assert manifest.source_root == ROOT / "main"
     assert "backend/app/production.py" in manifest.required
     assert "tests/test_t79_release_package.py" not in manifest.include
@@ -112,7 +115,7 @@ def test_release_artifact_excludes_secrets_tests_data_and_has_verifiable_hashes(
 
     manifest = json.loads((package_dir / "RELEASE-MANIFEST.json").read_text(encoding="utf-8"))
     assert manifest["package"] == "ecommerce-image-workspace"
-    assert manifest["migration_head"] == "0010"
+    assert manifest["migration_head"] == head_revision() == "0011"
     assert manifest["source_commit"] == subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
         capture_output=True,

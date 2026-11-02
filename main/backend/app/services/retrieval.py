@@ -319,7 +319,7 @@ async def retrieve_result(
         if expected is None:
             raise ApiError(502, "RESULT_FETCH_FAILED", "重取结果与提交快照不一致")
         try:
-            info_image, relative_path, asset_id = await asyncio.to_thread(
+            _normalized, info_image, relative_path, asset_id = await asyncio.to_thread(
                 _validate_result_bytes, settings, data, expected
             )
         except Exception:

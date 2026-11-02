@@ -209,6 +209,18 @@ def copy_file(source: Path, destination: Path) -> None:
     shutil.copy2(source, destination)
 
 
+def migration_head(source_root: Path) -> str:
+    versions = source_root / "backend" / "migrations" / "versions"
+    heads = sorted(
+        path.name[:4]
+        for path in versions.glob("[0-9][0-9][0-9][0-9]_*.py")
+        if path.name[:4].isdigit()
+    )
+    if not heads:
+        raise SystemExit(f"no migration versions found under {versions}")
+    return heads[-1]
+
+
 def write_checksums(package_dir: Path) -> None:
     lines: list[str] = []
     for path in sorted(package_dir.rglob("*")):
@@ -233,7 +245,7 @@ def write_release_manifest(package_dir: Path, manifest: Manifest, files: list[st
         "source_root": "main",
         "source_commit": git_head(),
         "created_at": datetime.now(UTC).isoformat(),
-        "migration_head": "0010",
+        "migration_head": migration_head(manifest.source_root),
         "files": entries,
     }
     (package_dir / "RELEASE-MANIFEST.json").write_text(

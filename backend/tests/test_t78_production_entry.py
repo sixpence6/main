@@ -17,6 +17,7 @@ from tests.conftest import migrate
 
 ROOT = Path(REPO_ROOT)
 MAIN_BACKEND = Path(MAIN_DIR) / "backend"
+EXPECTED_MIGRATION_HEAD = "0011"
 
 
 def _read(path: Path) -> str:
@@ -59,7 +60,7 @@ def test_production_entry_layout_uses_one_source_and_aligned_artifacts():
         assert (root_migration_dir / name).read_bytes() == (
             migration_dir / name
         ).read_bytes()
-    assert head_revision() == "0010"
+    assert head_revision() == EXPECTED_MIGRATION_HEAD
 
     assert not (ROOT / "docker").exists()
     root_compose = _read(ROOT / "docker-compose.yml")
@@ -97,7 +98,7 @@ def test_runtime_info_reports_effective_paths_and_migration_head(tmp_path: Path)
     assert info.data_dir == str((tmp_path / "data").resolve())
     assert info.database_path == str((tmp_path / "data" / "app.db").resolve())
     assert info.web_dist_dir == str((tmp_path / "web").resolve())
-    assert info.migration_head == "0010"
+    assert info.migration_head == EXPECTED_MIGRATION_HEAD
 
 
 def test_production_check_command_is_side_effect_free(tmp_path: Path):
@@ -123,7 +124,7 @@ def test_production_check_command_is_side_effect_free(tmp_path: Path):
     assert completed.returncode == 0, completed.stderr
     payload = json.loads(completed.stdout.strip().splitlines()[-1])
     assert payload["entrypoint"] == "app.main:app"
-    assert payload["migration_head"] == "0010"
+    assert payload["migration_head"] == EXPECTED_MIGRATION_HEAD
     assert payload["data_dir"] == str((tmp_path / "data").resolve())
     assert not (tmp_path / "data").exists()
     assert not (tmp_path / "web").exists()

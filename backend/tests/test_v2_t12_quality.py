@@ -513,8 +513,8 @@ async def test_quality_pass_records_separate_report_and_image_approvals(
         rule for rule in quality_input["rules"] if rule["rule_id"] == "hard:composition"
     )
     assert "商品居中，留白充足" in composition_rule["requirement"]
-    assert "简洁棚拍" in composition_rule["requirement"]
-    assert "柔和棚拍光" in composition_rule["requirement"]
+    assert "简洁棚拍" not in composition_rule["requirement"]
+    assert "柔和棚拍光" not in composition_rule["requirement"]
     text_rule = next(
         rule for rule in quality_input["rules"] if rule["rule_id"] == "hard:text_logo"
     )

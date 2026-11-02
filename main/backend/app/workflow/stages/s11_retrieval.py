@@ -245,7 +245,7 @@ async def retrieve(ctx, payload: dict[str, Any]) -> None:
     if data is None:
         raise ApiError(502, "RESULT_FETCH_FAILED", "重取结果失败，请稍后重试")
     try:
-        image_info, relative_path, asset_id = await asyncio.to_thread(
+        _normalized, image_info, relative_path, asset_id = await asyncio.to_thread(
             _validate_result_bytes, ctx.settings, data, expected
         )
     except Exception:
