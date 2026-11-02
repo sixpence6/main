@@ -4,7 +4,7 @@ export type Breakpoint = 'narrow' | 'medium' | 'wide'
 
 export function breakpointFor(width: number): Breakpoint {
   if (width < 768) return 'narrow'
-  if (width < 1280) return 'medium'
+  if (width < 1024) return 'medium'
   return 'wide'
 }
 
@@ -13,6 +13,7 @@ export function useViewport() {
   const width = ref(typeof window === 'undefined' ? 1280 : window.innerWidth)
   const breakpoint = computed<Breakpoint>(() => breakpointFor(width.value))
   const isMobile = computed(() => breakpoint.value === 'narrow')
+  const isCompact = computed(() => breakpoint.value !== 'wide')
 
   const onResize = (): void => {
     width.value = window.innerWidth
@@ -21,5 +22,5 @@ export function useViewport() {
   onMounted(() => window.addEventListener('resize', onResize, { passive: true }))
   onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
-  return { width, breakpoint, isMobile }
+  return { width, breakpoint, isMobile, isCompact }
 }

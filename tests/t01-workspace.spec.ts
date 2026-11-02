@@ -15,7 +15,7 @@ describe('T01 空配置工作台', () => {
     harness = await mountWorkspace({ config: emptyConfig() })
 
     const header = screen.getByRole('banner')
-    expect(header).toHaveTextContent('电商生图智能体')
+    expect(header).toHaveTextContent('电商生图工作台')
     expect(within(header).queryAllByRole('button')).toHaveLength(0)
 
     expect(screen.getByText('从一个商品想法开始')).toBeVisible()
@@ -49,7 +49,7 @@ describe('T01 空配置工作台', () => {
     harness = await mountWorkspace({ config: emptyConfig() })
 
     const header = screen.getByRole('banner')
-    expect(header.textContent?.trim()).toBe('电商生图智能体')
+    expect(header.textContent?.trim()).toBe('电商生图工作台')
     expect(within(header).queryByRole('navigation')).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: '工作阶段' })).toBeNull()
 
@@ -241,6 +241,8 @@ describe('T01 无障碍与断点', () => {
     expect(screen.getByRole('button', { name: '收起侧栏' })).toBeVisible()
 
     await harness.setViewportWidth(1024)
+    expect(screen.getByRole('button', { name: '收起侧栏' })).toBeVisible()
+    await harness.user.click(screen.getByRole('button', { name: '收起侧栏' }))
     expect(screen.getByRole('button', { name: '展开侧栏' })).toBeVisible()
     await harness.user.click(screen.getByRole('button', { name: '展开侧栏' }))
     expect(screen.getByRole('button', { name: '收起侧栏' })).toBeVisible()
@@ -250,8 +252,9 @@ describe('T01 无障碍与断点', () => {
 
     await harness.setViewportWidth(1440)
     expect(screen.getByRole('button', { name: '收起侧栏' })).toBeVisible()
-    await harness.setViewportWidth(1024)
-    expect(screen.getByRole('button', { name: '展开侧栏' })).toBeVisible()
+    await harness.setViewportWidth(1023)
+    expect(screen.queryByRole('button', { name: '收起侧栏' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '打开侧栏' })).toBeVisible()
 
     await harness.setViewportWidth(500)
     expect(screen.queryByRole('button', { name: '新建项目' })).not.toBeInTheDocument()

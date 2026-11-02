@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, provide, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import ComposerPanel from '@/components/ComposerPanel.vue'
 import ConversationPanel from '@/components/ConversationPanel.vue'
 import HistoryPreview from '@/components/HistoryPreview.vue'
 import WorkflowPanel from '@/components/workflow/WorkflowPanel.vue'
@@ -99,50 +100,55 @@ watch(currentProject, focusComposer, { flush: 'post' })
 
 <template>
   <section class="chat-page" aria-label="需求工作台">
-    <div class="workspace-page-topbar">
-      <div class="workspace-page-heading">
-        <p class="eyebrow">需求对话</p>
-        <p id="chat-page-title" class="workspace-page-title">{{ heading }}</p>
+    <div class="chat-scroll">
+      <div class="workspace-page-topbar">
+        <div class="workspace-page-heading">
+          <p class="eyebrow">需求对话</p>
+          <p id="chat-page-title" class="workspace-page-title">{{ heading }}</p>
+        </div>
+        <div class="workspace-page-status">
+          <span v-if="progressLabel" class="status-badge">{{ progressLabel }}</span>
+          <button
+            v-if="publishedVersion"
+            type="button"
+            class="secondary-button"
+            @click="openResults"
+          >
+            查看当前结果
+          </button>
+        </div>
       </div>
-      <div class="workspace-page-status">
-        <span v-if="progressLabel" class="status-badge">{{ progressLabel }}</span>
-        <button
-          v-if="publishedVersion"
-          type="button"
-          class="secondary-button"
-          @click="openResults"
-        >
-          查看当前结果
-        </button>
+
+      <section class="model-data-notice" aria-labelledby="model-data-notice-title">
+        <h2 id="model-data-notice-title">外部模型数据说明</h2>
+        <p>
+          你在工作台提交的文字描述、需求卡信息和参考图会发送给已配置的外部模型服务，用于需求整理、图片生成和结果核验。请勿在描述或图片中填写密码、会话凭证、恢复链接或其他秘密信息。模型服务可能按其自身政策处理数据，本应用不承诺供应商零保留。
+        </p>
+      </section>
+
+      <div class="chat-stream">
+        <ConversationPanel />
+        <WorkflowPanel />
+        <HistoryPreview />
       </div>
     </div>
 
-    <section class="model-data-notice" aria-labelledby="model-data-notice-title">
-      <h2 id="model-data-notice-title">外部模型数据说明</h2>
-      <p>
-        你在工作台提交的文字描述、需求卡信息和参考图会发送给已配置的外部模型服务，用于需求整理、图片生成和结果核验。请勿在描述或图片中填写密码、会话凭证、恢复链接或其他秘密信息。模型服务可能按其自身政策处理数据，本应用不承诺供应商零保留。
-      </p>
-    </section>
-
-    <div class="chat-stream">
-      <ConversationPanel />
-      <WorkflowPanel />
-      <HistoryPreview />
-    </div>
+    <ComposerPanel />
   </section>
 </template>
 
 <style scoped>
-.chat-page { display: flex; flex-direction: column; gap: var(--space-4); }
+.chat-page { display: flex; flex-direction: column; gap: var(--space-3); height: 100%; min-height: 0; }
+.chat-scroll { display: flex; flex: 1; flex-direction: column; gap: var(--space-4); width: 100%; max-width: 880px; min-height: 0; margin: 0 auto; overflow-x: hidden; overflow-y: auto; scroll-behavior: smooth; }
 .workspace-page-topbar { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
 .workspace-page-heading { display: grid; gap: 2px; }
 .workspace-page-title { margin: 0; font-size: clamp(20px, 2.2vw, 26px); line-height: 1.25; font-weight: 700; }
 .workspace-page-heading .eyebrow { margin: 0; color: var(--color-text-muted); font-size: var(--text-small); letter-spacing: 0.08em; text-transform: uppercase; }
 .workspace-page-status { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-.chat-stream { display: flex; flex-direction: column; gap: var(--space-4); width: 100%; max-width: 880px; margin: 0 auto; min-width: 0; }
+.chat-stream { display: flex; flex-direction: column; gap: var(--space-4); width: 100%; min-width: 0; }
 .chat-stream :deep(.conversation-panel), .chat-stream :deep(.workflow-panel), .chat-stream :deep(.history-preview) { max-width: none; margin: 0; width: 100%; }
 .model-data-notice { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-left: 3px solid var(--color-warning); border-radius: var(--radius-control); background: var(--color-panel); }
 .model-data-notice h2 { margin: 0; font-size: var(--text-body); line-height: var(--text-body-line); }
 .model-data-notice p { margin: 0; color: var(--color-text-muted); font-size: var(--text-body); line-height: var(--text-body-line); }
-@media (max-width: 767px) { .chat-stream { gap: var(--space-3); } }
+@media (max-width: 767px) { .chat-scroll, .chat-stream { gap: var(--space-3); } }
 </style>

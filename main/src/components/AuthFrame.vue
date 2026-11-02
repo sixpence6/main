@@ -18,7 +18,7 @@ const titleId = useId()
         <p class="auth-lockup">
           <BrandMark :size="38" />
           <span>
-            <strong>电商生图智能体</strong>
+            <strong>电商生图工作台</strong>
             <small>LOCAL IMAGE WORKBENCH</small>
           </span>
         </p>
