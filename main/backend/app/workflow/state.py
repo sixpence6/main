@@ -20,10 +20,6 @@ from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
 from app.workflow.access import can_access_asset, load_project_access_policy
 from app.workflow.contracts import digest_payload, validate_data
-from app.workflow.snapshot import (
-    SnapshotCompatibilityError,
-    execution_snapshot_from_checks,
-)
 from app.workflow.schemas_workflow import (
     ApprovalView,
     ArtifactView,
@@ -35,6 +31,10 @@ from app.workflow.schemas_workflow import (
     LegacyItemView,
     WorkflowVersionView,
     WorkflowView,
+)
+from app.workflow.snapshot import (
+    SnapshotCompatibilityError,
+    execution_snapshot_from_checks,
 )
 from app.workflow.tables import (
     Approval,

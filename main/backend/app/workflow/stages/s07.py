@@ -20,11 +20,6 @@ from app.workflow.adjudication import (
     s07_rules,
 )
 from app.workflow.contracts import ContractError, validate_data
-from app.workflow.snapshot import (
-    SnapshotCompatibilityError,
-    execution_snapshot_from_checks,
-    requirements_from_snapshot,
-)
 from app.workflow.reasons import (
     CandidateDefect,
     CandidateDefectCode,
@@ -37,6 +32,11 @@ from app.workflow.reasons import (
     repair_codes_from_defects,
 )
 from app.workflow.roles import RoleOutput, run_role
+from app.workflow.snapshot import (
+    SnapshotCompatibilityError,
+    execution_snapshot_from_checks,
+    requirements_from_snapshot,
+)
 from app.workflow.state import WorkflowContext
 from app.workflow.tables import ArtifactReview, GenerationJob, RevisionBudget
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import types
 import uuid
@@ -15,7 +14,7 @@ from app.db import read_session, write_transaction
 from app.models import Project
 from app.workflow import state
 from app.workflow.stages import s05
-from app.workflow.tables import Approval, Artifact, RoleCall
+from app.workflow.tables import Approval, Artifact
 from tests.support.adapters import LLMStub, VisualStub
 from tests.test_t65_generation_cycle import _drain, _environment, _responder
 from tests.test_v2_t40_prompt_review import base_brief, png_bytes
