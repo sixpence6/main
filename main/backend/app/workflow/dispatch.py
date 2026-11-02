@@ -64,11 +64,86 @@ _ACTIONS: dict[str, dict[str, Any]] = {
 }
 
 
+# T13 exposes the effect of an action from the server, not from UI copy.
+_READ_ONLY_ACTIONS = frozenset(
+    {
+        "verify_generation",
+        "recover_generation",
+        "recover_submission",
+        "retrieve_original_result",
+    }
+)
+_MODEL_CALL_ACTIONS = frozenset(
+    {
+        "submit_request",
+        "answer_intent_clarification",
+        "analyze_reference",
+        "compose_brief",
+        "answer_requirements_clarification",
+        "revise_brief_draft",
+        "plan_creative",
+        "revise_creative",
+        "plan_visual",
+        "revise_visual",
+        "finalize_requirements",
+        "revise_requirements",
+        "compile_prompt",
+        "revise_prompt",
+        "retry_generation",
+        "retry_rejected_generation",
+        "revise_prompt_and_retry",
+        "submit_generation",
+        "start_new_generation",
+        "review_candidate",
+        "recheck_candidate",
+        "request_new_version",
+        "review_legacy_item",
+        "continue_workflow",
+        "resume_after_restart",
+    }
+)
+_MANUAL_RECOVERY_ACTIONS = frozenset(
+    {
+        "retry_generation",
+        "retry_rejected_generation",
+        "revise_prompt_and_retry",
+        "recover_generation",
+        "recover_submission",
+        "resume_after_restart",
+        "continue_workflow",
+        "retrieve_original_result",
+    }
+)
+
+
+def action_effect(action_id: str) -> tuple[str, bool, bool, str, bool]:
+    if action_id in _READ_ONLY_ACTIONS:
+        return "read_only", True, False, (
+            "manual_only" if action_id in _MANUAL_RECOVERY_ACTIONS else "none"
+        ), False
+    if action_id in _MODEL_CALL_ACTIONS:
+        return "model_call", False, True, (
+            "manual_only" if action_id in _MANUAL_RECOVERY_ACTIONS else "none"
+        ), False
+    return "write", False, False, "none", False
+
+
 def action_view(action_id: str) -> ActionView:
     spec = _ACTIONS.get(action_id)
     if spec is None:
         raise ValueError(f"unknown action {action_id}")
-    return ActionView(id=action_id, **spec)
+    effect, read_only, requires_model_call, retry_mode, automatic_retry = action_effect(
+        action_id
+    )
+    return ActionView(
+        id=action_id,
+        **spec,
+        effect=effect,
+        read_only=read_only,
+        requires_model_call=requires_model_call,
+        retry_mode=retry_mode,
+        automatic_retry=automatic_retry,
+    )
 
 
 def known_actions() -> tuple[str, ...]:
@@ -100,7 +175,20 @@ def _views_for(module: Any, ctx: WorkflowContext) -> list[ActionView]:
     views: list[ActionView] = []
     for item in module.available(ctx):
         if isinstance(item, ActionView):
-            views.append(item)
+            effect, read_only, requires_model_call, retry_mode, automatic_retry = (
+                action_effect(item.id)
+            )
+            views.append(
+                item.model_copy(
+                    update={
+                        "effect": effect,
+                        "read_only": read_only,
+                        "requires_model_call": requires_model_call,
+                        "retry_mode": retry_mode,
+                        "automatic_retry": automatic_retry,
+                    }
+                )
+            )
             continue
         if isinstance(item, str):
             views.append(action_view(item))

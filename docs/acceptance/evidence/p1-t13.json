@@ -1,0 +1,106 @@
+{
+  "ticket": "#99 / T13 — safe server reason, action and task projection",
+  "batch": "P4 / T13 — HTTP task_state, safe reasons, binding, constraints and resource state",
+  "code": {
+    "baseline_head": "aae4d6c (integration/v3)",
+    "app_code_head": "9597541",
+    "branch": "ticket/99",
+    "rule_version": "v3.rules.2",
+    "prompt_version": "unchanged prompt role contracts; execution snapshot schema 1.1.0 (reads stored 1.0.0)",
+    "rule_catalog_version": "v3.rules.2",
+    "snapshot_schema_version": "1.1.0 (supported: 1.1.0 and 1.0.0)",
+    "contract_version": "1.0.0",
+    "migration_head": "0011_recovery_claims (no T13 migration)",
+    "files": [
+      "main/backend/app/workflow/projection.py",
+      "main/backend/app/workflow/schemas_workflow.py",
+      "main/backend/app/workflow/state.py",
+      "main/backend/app/workflow/reasons.py",
+      "main/backend/app/workflow/dispatch.py",
+      "main/src/api/workflow.ts",
+      "backend/tests/test_v3_p1_t13_safe_projection.py"
+    ],
+    "commit": "9597541"
+  },
+  "environment": {
+    "os": "Windows 10.0.19045",
+    "python": "backend/.venv Python 3.12.12",
+    "database": "temporary SQLite per test",
+    "adapters": "LLMStub and VisualStub with counting; no real provider or network call",
+    "frontend": "vue-tsc --noEmit -p tsconfig.json using repository node_modules"
+  },
+  "scope": {
+    "task_state": "GET /api/projects/{project_id}/workflow now always returns task_state with progress (phase/stage/stage_label/status/awaiting_user/terminal, no percentage), safe reason, task binding, constraint strengths and current-vs-history resource state.",
+    "safe_reason": "Only needs_input/blocked/failed runs with an issue code or known template expose a reason. The projection never reads run.issue_message or reviewer prose; unknown templates fall back to generic safe copy. Categories cover missing_information, repairable_composition, true_drift, content_rejection, missing_evidence, protocol_error, technical_failure, remote_unknown and authorization_invalid.",
+    "actions": "ActionView now carries server-derived effect, read_only, requires_model_call, retry_mode and automatic_retry. Read-only verification is separate from manual recovery; automatic_retry is always false; no cancel action or fake percentage is added.",
+    "approvals": "ApprovalView.checks is reduced to the confirmation envelope only. Reviewer notes, candidate bodies and private locators stored in checks_json are not projected. A candidate artifact keeps payload=None until approved.",
+    "binding": "task_state.binding carries project/run/revision/intent/job/delivery and both confirmed and active snapshot digests. current is false when project revision or the job's confirmed snapshot digest no longer matches the active authorization.",
+    "resource_state": "current_version is only populated when binding.current and the delivery asset matches the current job. Older published versions stay in history and cannot make a current pending task look complete; unknown stays unknown.",
+    "normal_recovery": "Normal S08 and S12 recovery states produce the same safe reason fields for the same persisted issue; no restart-only branch changes the projection semantics.",
+    "compatibility": "The new WorkflowView.task_state and action fields are additive; existing issue/artifact/approval/version fields remain. main/src/api/workflow.ts mirrors the response types with optional action metadata for old fixtures."
+  },
+  "commands": [
+    "cd .worktrees/t99/backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m pytest -q tests/test_v3_p1_t13_safe_projection.py",
+    "cd .worktrees/t99/backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m pytest -q tests/test_v3_p1_t02_adjudication.py tests/test_v3_p1_t03_review_catalogue.py tests/test_v3_p1_t04_production_reviews.py tests/test_v3_p1_t05_image_delivery.py tests/test_v3_p1_t06_gate.py tests/test_v3_p1_t07_text_repair.py tests/test_v3_p1_t08_recovery.py tests/test_v3_p1_t09_text_coverage.py tests/test_v3_p1_t10_execution_snapshot.py tests/test_v3_p1_t11_constraint_layers.py tests/test_v3_p1_t12_legacy_compat.py tests/test_v3_p1_t13_safe_projection.py",
+    "cd .worktrees/t99/backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m pytest -q tests/test_v3_p1_t13_safe_projection.py tests/test_v3_p1_t10_execution_snapshot.py tests/test_v3_p1_t11_constraint_layers.py tests/test_v3_p1_t12_legacy_compat.py tests/test_t03_intent_review.py tests/test_t65_generation_cycle.py tests/test_t68_recovery.py tests/test_v3_p1_t06_gate.py",
+    "cd .worktrees/t99/backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m pytest -q tests/test_t59_isolation.py tests/test_t60_ownership_closure.py tests/test_t71_session_binding.py",
+    "cd .worktrees/t99/backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m ruff check tests/test_v3_p1_t13_safe_projection.py ../main/backend/app/workflow/projection.py ../main/backend/app/workflow/state.py ../main/backend/app/workflow/schemas_workflow.py ../main/backend/app/workflow/reasons.py",
+    "cd .worktrees/t99/main && D:\\Desktop\\新建文件夹\\node_modules\\.bin\\vue-tsc.cmd --noEmit -p tsconfig.json"
+  ],
+  "commands_output": [
+    {
+      "command": "T13 focused projection suite",
+      "result": "16 passed in 6.43s"
+    },
+    {
+      "command": "full P1 regression (T02-T13)",
+      "result": "133 passed in 81.72s (0:01:21)"
+    },
+    {
+      "command": "T13 plus affected workflow, recovery and review suites",
+      "result": "73 passed in 61.65s (0:01:01)"
+    },
+    {
+      "command": "isolation, ownership and session binding regression",
+      "result": "9 passed in 10.75s"
+    },
+    {
+      "command": "ruff check changed source and T13 tests (dispatch excluded as pre-existing E501 data table)",
+      "result": "All checks passed!"
+    },
+    {
+      "command": "vue-tsc typecheck",
+      "result": "exit 0, no diagnostics"
+    }
+  ],
+  "candidate_budget": {
+    "focused_t13": "0 candidates — HTTP projection, DB mutation and classification tests make no model or image call",
+    "p1_regression": "P1 suites use counting LLMStub/VisualStub but counts are not aggregated here; no real-provider calls",
+    "reset_scope": "T13 adds no RevisionBudget code and resets or refunds no candidate"
+  },
+  "calls": {
+    "focused_t13": {
+      "model_text": 0,
+      "model_vision": 0,
+      "image_generation": 0
+    },
+    "p1_regression": "not centrally aggregated; stub-only, no network",
+    "note": "counts are observations, not real-provider billing evidence"
+  },
+  "acceptance": {
+    "WG3-AC-10": "pass — task_state exposes typed safe reasons and only server-persisted available actions. Read-only verify/recover actions are marked read_only, model-call recovery is marked requires_model_call with retry_mode=manual_only, automatic_retry=false, and no cancel/auto-retry action or percentage is emitted.",
+    "FE3-AC-13_server": "pass — distinct missing_information, repairable_composition, true_drift, content_rejection, missing_evidence, protocol_error, technical_failure, remote_unknown and authorization_invalid categories; only actual available_actions are exposed; unknown remains unknown and old published versions cannot fill current pending state.",
+    "FE3-AC-15_server": "pass — constraints carry hard/soft strength, source and user_lock_basis, task binding carries revision/intent/job/delivery, and the projection distinguishes current vs history. UI rendering, button placement and single-confirmation interactions remain for T15-T22.",
+    "A_B_authorization": "pass — user B cannot read A's workflow (404), admin cannot read B's project (404), anonymous gets 401 and a disabled account gets 401/403.",
+    "unapproved_resource": "pass — candidate prompt_plan artifact is listed with status candidate and payload=None; its raw body never appears in the HTTP response.",
+    "normal_recovery_consistency": "pass — S08 failed and S12 recovery over the same persisted issue return byte-equivalent safe reason objects.",
+    "compatibility": "pass — additive response fields; vue-tsc passes; existing T03/T65/T68 action assertions and all P1 suites remain green."
+  },
+  "residual_unknowns": [
+    "The full backend suite was not rerun; T13 evidence is 16 focused, 133 full P1, 73 affected workflow/review/recovery, 9 isolation/ownership/session and the frontend typecheck.",
+    "No real provider, image service, browser or production database was exercised. UI rendering and browser interaction are not claimed by this server-side ticket.",
+    "main/backend/app/workflow/dispatch.py has 35 pre-existing E501 lines in the compact _ACTIONS table; T13 does not reformat that table and excludes the file from the ruff pass claim.",
+    "T13 does not claim R3 or V3 release acceptance; T15-T22 remain the UI frontier."
+  ],
+  "p4_entry": "T13 closes the server-safe projection contract for P4. T14 is already merged; UI tickets T15-T22 may consume task_state and action effect metadata without adding client-only reason or action logic."
+}

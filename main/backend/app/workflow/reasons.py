@@ -124,27 +124,78 @@ def classify_review_decision(decision: str) -> ReasonCode | None:
 
 
 def classify_issue_code(code: str | None) -> ReasonCode:
-    if code in {"MISSING_INPUT", "CONFLICTING_INPUT", "MISSING_INFORMATION"}:
+    if not code:
         return ReasonCode.MISSING_INFORMATION
-    if code in {"MISSING_EVIDENCE", "UNREADABLE_IMAGE", "HARD_REQUIREMENT_UNKNOWN"}:
+    if code.startswith("G02_") and "REJECT" in code:
+        return ReasonCode.CONTENT_REJECTION
+    if code in {
+        "REVIEW_REJECTED",
+        "IMAGE_NOT_APPROVED",
+        "SAFETY_REFUSAL",
+        "SCOPE_REFUSAL",
+        "UNSAFE_REQUEST",
+        "OUT_OF_SCOPE",
+        "MIXED_SCOPE",
+    }:
+        return ReasonCode.CONTENT_REJECTION
+    if code == "REVIEW_REVISE":
+        return ReasonCode.REPAIRABLE_COMPOSITION
+    if code in {
+        "MISSING_INPUT",
+        "CONFLICTING_INPUT",
+        "MISSING_INFORMATION",
+    }:
+        return ReasonCode.MISSING_INFORMATION
+    if code in {
+        "MISSING_EVIDENCE",
+        "UNREADABLE_IMAGE",
+        "HARD_REQUIREMENT_UNKNOWN",
+        "CANDIDATE_EXPIRED",
+        "CANDIDATE_UNAVAILABLE",
+        "LEGACY_UNREVIEWED",
+        "REVIEW_UNKNOWN",
+    }:
         return ReasonCode.MISSING_EVIDENCE
     if code in {
         "REQUIREMENT_DRIFT",
         "HARD_REQUIREMENT_FAILED",
         "PROMPT_REQUIRES_RECONFIRMATION",
         "CONFIRM_REQUIRED",
+        "RUN_SUPERSEDED",
     }:
         return ReasonCode.TRUE_DRIFT
-    if code in {"UNSAFE_REQUEST", "OUT_OF_SCOPE", "MIXED_SCOPE"}:
-        return ReasonCode.CONTENT_REJECTION
-    if code in {"CONTRACT_ERROR", "PROMPT_REVIEW_INVALID"}:
+    if code in {
+        "CONTRACT_ERROR",
+        "PROMPT_REVIEW_INVALID",
+        "REVIEW_INVALID",
+        "REVIEW_CONFIRM_INVALID",
+        "ACTION_NOT_AVAILABLE",
+    }:
         return ReasonCode.PROTOCOL_ERROR
-    if code in {"GENERATION_UNKNOWN", "REMOTE_UNKNOWN", "RESULT_UNKNOWN"}:
+    if code in {
+        "GENERATION_UNKNOWN",
+        "REMOTE_UNKNOWN",
+        "RESULT_UNKNOWN",
+        "RESULT_RETRIEVAL_PENDING",
+        "LOCAL_TRACKING_CLOSED",
+    }:
         return ReasonCode.REMOTE_UNKNOWN
-    if code in {"SERVICE_UNAVAILABLE", "CAPABILITY_NOT_READY", "TECHNICAL_UNAVAILABLE"}:
+    if code in {
+        "SERVICE_UNAVAILABLE",
+        "CAPABILITY_NOT_READY",
+        "TECHNICAL_UNAVAILABLE",
+        "REVIEW_UNAVAILABLE",
+        "PROCESS_INTERRUPTED",
+    }:
         return ReasonCode.TECHNICAL_FAILURE
+    if code in {
+        "ASSET_UNAVAILABLE",
+        "ACCOUNT_DISABLED",
+        "ACCOUNT_INACTIVE",
+        "UNAUTHORIZED_ACTION",
+    }:
+        return ReasonCode.AUTHORIZATION_INVALID
     return ReasonCode.MISSING_INFORMATION
-
 
 def classify_api_error(code: str | None) -> ReasonCode:
     if code in {
