@@ -1,0 +1,153 @@
+{
+  "ticket": "#94",
+  "batch": "P2 / T08 — persistent recovery budget, zero automatic technical retries, and read-only unknown-submission verification",
+  "code": {
+    "baseline_head": "cb478a7",
+    "app_code_head": "f43779a",
+    "branch": "ticket/94",
+    "rule_version": "v3.rules.1",
+    "prompt_version": "2.0.0",
+    "rule_catalog_version": "v3.rules.1",
+    "migration_head": "0011",
+    "files": [
+      "main/backend/app/services/recovery.py",
+      "main/backend/app/workflow/state.py",
+      "main/backend/app/workflow/tables.py",
+      "main/backend/app/workflow/stages/s07.py",
+      "main/backend/app/workflow/stages/s12.py",
+      "backend/migrations/versions/0011_recovery_claims.py",
+      "main/backend/migrations/versions/0011_recovery_claims.py",
+      "backend/tests/test_v3_p1_t08_recovery.py"
+    ],
+    "commit": "f43779a"
+  },
+  "environment": {
+    "type": "isolated-temp-sqlite",
+    "backend_python": "D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe",
+    "data_root": "temporary per test",
+    "network": "stubbed"
+  },
+  "scope": [
+    "normal",
+    "S12",
+    "restart",
+    "concurrent manual recovery",
+    "unknown submission",
+    "disabled account",
+    "changed dependency",
+    "budget exhaustion",
+    "slot settlement"
+  ],
+  "inputs": [
+    "S06 confirmation -> accepted GenerationIntent -> S07 compile_prompt -> output_reviewer -> S08, with a first generation_engineer ProviderError and manual S12 continue",
+    "Same failed S07 checkpoint after rebuilding the application object with the same temporary SQLite database",
+    "Persisted RevisionBudget forced to max_allowed before manual continue; no model call may occur",
+    "Project revision changed between the failed attempt and manual continue",
+    "GenerationJob status=unknown with submit_attempted=1; manual continue must stop at GENERATION_UNKNOWN without image resubmission",
+    "Two independent state.load_context sessions racing claim_recovery, followed by startup repair_leftover_state clearing a crash-left claim",
+    "First output_reviewer ProviderError after a candidate prompt artifact; manual S12 continue must replay the same reviewer request without a new candidate",
+    "Two HTTP manual continue requests overlapping while the first replay is gated; second must return PROJECT_BUSY without a model call",
+    "Owner account disabled after the failed producer; manual continue must be rejected before any model call"
+  ],
+  "commands": [
+    "cd backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m ruff check --ignore E501 ../main/backend/app/services/recovery.py ../main/backend/app/workflow/state.py ../main/backend/app/workflow/tables.py ../main/backend/app/workflow/stages/s07.py ../main/backend/app/workflow/stages/s12.py tests/test_v3_p1_t08_recovery.py migrations/versions/0011_recovery_claims.py ../main/backend/migrations/versions/0011_recovery_claims.py",
+    "cd backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m pytest -q tests/test_v3_p1_t08_recovery.py -x",
+    "cd backend && D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m pytest -q -rxX tests/test_v3_p1_t08_recovery.py tests/test_t68_recovery.py tests/test_v2_t16_unknown_recovery.py tests/test_v2_t17_restart_recovery.py tests/test_t62_background_ownership.py tests/test_v3_p1_t07_text_repair.py tests/test_t69_local_closure.py"
+  ],
+  "commands_output": [
+    {
+      "command": "ruff check --ignore E501 changed source, both 0011 migrations, focused tests",
+      "result": "All checks passed!"
+    },
+    {
+      "command": "pytest -q tests/test_v3_p1_t08_recovery.py -x",
+      "result": "9 passed in 15.83s"
+    },
+    {
+      "command": "pytest -q -rxX focused + t68 + v2 t16 + v2 t17 + t62 + t07 + t69",
+      "result": "55 passed in 143.97s (0:02:23)"
+    }
+  ],
+  "candidate_budget": {
+    "artifact": "prompt_plan",
+    "limit": 3,
+    "used": 1,
+    "used_scope": "all nine focused cases remain at used=1 across producer failure, S12 review resume, restart, concurrent recovery, dependency change and disabled-account rejection; the exhaustion probe sets used=max_allowed=3 only to prove the pre-model stop",
+    "reset_scope": "never reset by failure, restart or S12; replay validates the persisted RevisionBudget.used equals the checkpoint attempt and reuses that reservation instead of reserving another candidate",
+    "note": "RevisionBudget is persisted before generation_engineer; exact replay calls run_role_request with the persisted request and attempt, creates no new intent/usage/slot, and leaves the acceptance ledger unchanged"
+  },
+  "calls": {
+    "model_text": 16,
+    "model_vision": 0,
+    "image_generation": 0,
+    "note": "Counting-stub total across the nine focused cases: 3 producer-failure, 3 restart, 1 exhaustion, 1 dependency, 1 unknown, 0 atomic-claim, 3 S12 review, 3 concurrent, 1 disabled. Failed provider calls are included; no visual submit calls occurred and no real provider network was used."
+  },
+  "acceptance": {
+    "WG3-AC-07": "pass",
+    "WG3-AC-08": "pass",
+    "WG3-AC-10": "not-covered — owned by P4"
+  },
+  "ticket_items": {
+    "1_shared_persisted_candidate_budget": "pass — normal producer failure, S12 review resume, full app restart and concurrent HTTP recovery all reuse one persisted prompt_plan RevisionBudget; failure and replay leave used=1, one intent, one GenerationUsage and three unreleased slots",
+    "2_zero_automatic_technical_retries": "pass — status/refresh and repeated continue after S08 do not call a model; restart is read-only until explicit continue; post-failure model calls occur only through continue_workflow and are rejected before model when budget is exhausted, dependency is stale or the owner is disabled",
+    "3_unknown_submission_verification_no_resend": "pass — a persisted unknown GenerationJob blocks manual recovery with 409 GENERATION_UNKNOWN, leaves budget at 1 and creates no artifact or visual submit; supporting test_t68_recovery.py::test_unknown_verify_is_read_only_and_recover_polls_original verifies the original task read-only and test_v2_t16_unknown_recovery.py::test_original_submission_replay_returns_same_task_without_provider_call proves replay does not create a new submission",
+    "4_independent_connections_and_intent_mutex": "pass — two independent state.load_context sessions race claim_recovery; exactly one succeeds and the other gets 409 PROJECT_BUSY; HTTP overlap likewise returns PROJECT_BUSY before a second model call, while the successful replay produces one approved artifact",
+    "5_disabled_stale_auth_snapshot_dependency_block": "pass — disabled owner is rejected with 401 AUTH_REQUIRED before any model call; changed project revision is rejected with 409 STALE_RECOVERY; supporting test_t62_background_ownership.py::test_publish_rechecks_persisted_owner_before_writing_public_bytes and ::test_disabled_owner_cannot_make_another_model_call cover publish and post-restart model-call boundaries",
+    "6_no_double_acceptance_and_terminal_slots": "pass — read-only verification, exact recovery and text replay keep one intent/one usage/three active slots; failure does not roll back acceptance; supporting test_t68_recovery.py::test_terminal_provider_failure_counts_once_and_releases_slots and ::test_result_fetch_failure_keeps_slot_and_recover_fetches_without_submit cover persisted terminal slot settlement",
+    "7_http_counting_adapters_temp_sqlite_rebuildable_app": "pass — each focused case drives the real HTTP application factory over real temporary SQLite with counting LLMStub and VisualStub; restart cases rebuild the app object while retaining the database; WG3-AC-07/08 are covered by the focused tests",
+    "8_test_seams_and_evidence_boundary": "pass — tests use existing _environment/_setup_s06/_confirm/_normal_responder seams; tests are under backend/tests and evidence is under docs/acceptance; no test scaffolding or temporary evidence is written under main/"
+  },
+  "probes": {
+    "file": "backend/tests/test_v3_p1_t08_recovery.py",
+    "test_cases": 9,
+    "http_cases": 8,
+    "direct_state_cases": 1,
+    "results": "9 passed in 15.83s"
+  },
+  "routing": {
+    "public_errors": [
+      "409 REVISION_BUDGET_EXHAUSTED",
+      "409 STALE_RECOVERY",
+      "409 GENERATION_UNKNOWN",
+      "409 PROJECT_BUSY",
+      "401 AUTH_REQUIRED"
+    ],
+    "retry_policy": "zero automatic technical retries; only explicit continue_workflow manual recovery can replay a persisted model request; unknown submission stops auto-advance and never resends an image; exact request replay reuses the original candidate budget"
+  },
+  "unmigrated": {
+    "full typed reason/action response contract": "P4",
+    "real provider, TLS, device and release-environment evidence": "outside this ticket",
+    "full browser cross-tab and UI duplicate-receipt behavior": "frontend/gate scope; backend HTTP overlap is covered here"
+  },
+  "known_red_baseline": [
+    "tests/test_t11_retrieve.py::test_failed_download_can_retrieve_same_version_and_downloads_real_file",
+    "tests/test_t11_retrieve.py::test_retrieval_stays_failed_while_waiting_and_blocks_other_write",
+    "tests/test_v2_t48_retrieval.py::test_retrieve_failed_result_updates_same_generation_after_gates",
+    "tests/test_v2_t48_retrieval.py::test_g06_unknown_keeps_retrieved_asset_quarantined",
+    "tests/test_t83_retention_secrets.py::test_secret_markers_stay_out_of_api_database_filenames_and_backup"
+  ],
+  "known_red_note": "These are the pre-existing red baselines recorded by T07 and are not used as T08 proof. This T08 focused/regression batch did not re-run them; they remain residual baseline risks, not failures introduced by T08.",
+  "approval_results": {
+    "producer_failure_recovery": "one prompt_plan artifact revision 1, approved after exact replay and independent review",
+    "s12_review_resume": "same persisted candidate request replayed to output_reviewer; one artifact revision 1 becomes approved; no new reserve",
+    "restart": "one approved artifact after restart; budget remains 1; ledger unchanged",
+    "concurrent": "one approved artifact; second HTTP request returns PROJECT_BUSY before model; claim released after first completes",
+    "unknown_dependency_disabled": "no prompt artifact and no visual submit; budget remains 1"
+  },
+  "results": {
+    "ui": "not touched; no browser/device acceptance",
+    "resources": "temporary SQLite per case; counting LLMStub and VisualStub; no real network; no image generation",
+    "artifacts": "at most one approved prompt_plan in replay scenarios; zero prompt artifacts in unknown/dependency/disabled/exhaustion scenarios",
+    "slots": "three GenerationSlot rows remain unreleased in accepted recovery scenarios; terminal-slot settlement is covered by the supporting t68 assertions"
+  },
+  "residual_unknowns": [
+    "No single aggregate full-suite pytest run was executed in this batch; verification is the focused 9-case suite plus a 55-test affected-group regression run. The full-suite timeout recorded by T07 remains unresolved.",
+    "model_text=16 is a counting-stub measurement, not production provider token/latency/cost data; no real provider network or image generation was used.",
+    "Unknown-submission verification is exercised against persisted GenerationJob/SQLite state and the read-only supporting t68 path; no real remote provider was available to verify a remote task.",
+    "Startup repair clears persisted recovery claims unconditionally on application startup; a multi-process race where another live process is still recovering was not exercised. The current deployment is a single-process SQLite app.",
+    "Cross-tab and lost-receipt behavior is covered at the HTTP idempotency/concurrency boundary; full browser cross-tab UI acceptance belongs to the frontend gate.",
+    "Publish isolation, disabled-owner publish rejection and false-cancellation copy are supported by existing t62/t68 tests in the regression group, not by a new T08-specific publish test."
+  ],
+  "p2_entry": "T08 source and focused evidence are complete; next is #95/T09 multi-sentence coverage and semantic accuracy. P3 #96-#98 and P4 remain open.",
+  "acceptance_notes": "Docs and historical pass records are not used as completion. Completion rests on the actual T08 focused and affected-group commands above; the exact source commit is f43779a and this evidence is committed separately."
+}
