@@ -776,7 +776,7 @@ async def _start_replacement(
         )
         raise conflict("INTENT_STATE_INVALID", message)
 
-    final_artifact, brief = await _require_confirmed(ctx)
+    final_artifact, brief, _execution_snapshot = await _require_confirmed(ctx)
     prompt_artifact, prompt_payload = await _load_prompt(ctx, brief)
     if prompt_payload["size"] != brief["size"]:
         raise conflict("PROMPT_STALE", "执行提示词与当前确认尺寸不一致。")
@@ -1186,7 +1186,7 @@ async def _submit(ctx: WorkflowContext, action_payload: dict[str, Any]) -> None:
     ):
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
 
-    final_artifact, brief = await _require_confirmed(ctx)
+    final_artifact, brief, _execution_snapshot = await _require_confirmed(ctx)
     prompt_artifact, prompt_payload = await _load_prompt(ctx, brief)
 
     status = build_config_status(ctx.settings, ctx.registry)

@@ -32,6 +32,11 @@ from app.workflow.reasons import (
     repair_codes_from_defects,
 )
 from app.workflow.roles import RoleOutput, run_role, run_role_request
+from app.workflow.snapshot import (
+    SnapshotCompatibilityError,
+    execution_snapshot_from_checks,
+    requirements_from_snapshot,
+)
 from app.workflow.state import WorkflowContext
 from app.workflow.tables import Artifact, ArtifactReview, GenerationJob, RevisionBudget
 
@@ -165,7 +170,9 @@ async def _require_intent(ctx: WorkflowContext, artifact: Any) -> Any:
     raise _confirmed_error()
 
 
-async def _require_confirmed(ctx: WorkflowContext) -> tuple[Any, dict[str, Any]]:
+async def _require_confirmed(
+    ctx: WorkflowContext,
+) -> tuple[Any, dict[str, Any], dict[str, Any] | None]:
     final_artifact = await state.approved_artifact(ctx, "final_brief")
     approval = await state.latest_approval(ctx, "requirements_card")
     if final_artifact is None or approval is None:
@@ -202,8 +209,31 @@ async def _require_confirmed(ctx: WorkflowContext) -> tuple[Any, dict[str, Any]]
             asset = await session.get(Asset, reference_id)
         if asset is None or asset.project_id != ctx.project_id or asset.kind != "reference":
             raise _drift_error()
+    try:
+        checks = json.loads(approval.checks_json)
+    except (TypeError, json.JSONDecodeError):
+        checks = {}
+    try:
+        execution_snapshot = execution_snapshot_from_checks(checks)
+    except SnapshotCompatibilityError as exc:
+        raise ApiError(409, "SNAPSHOT_INCOMPATIBLE", _CONFIRM_MESSAGE) from exc
+    if execution_snapshot is not None:
+        if execution_snapshot.get("artifact_id") != final_artifact.id:
+            raise _drift_error()
+        if execution_snapshot.get("artifact_digest") != final_artifact.digest:
+            raise _drift_error()
+        if execution_snapshot.get("project_revision") != ctx.project.revision:
+            raise _drift_error()
+        if execution_snapshot.get("requirement_revision") != ctx.run.requirement_revision:
+            raise _drift_error()
+        if execution_snapshot.get("brief") != brief:
+            raise _drift_error()
+        if execution_snapshot.get("reference_asset_id") != brief.get("reference_asset_id"):
+            raise _drift_error()
+        if execution_snapshot.get("reference_usage") != brief.get("reference_usage"):
+            raise _drift_error()
     await _require_intent(ctx, final_artifact)
-    return final_artifact, brief
+    return final_artifact, brief, execution_snapshot
 
 
 def _hard_requirements(brief: dict[str, Any]) -> list[dict[str, Any]]:
@@ -815,7 +845,7 @@ async def _compile(
         # every text attempt. A change here is drift, never an auto repair.
         ctx = await state.reload_context(ctx)
         try:
-            final_artifact, brief = await _require_confirmed(ctx)
+            final_artifact, brief, execution_snapshot = await _require_confirmed(ctx)
         except ApiError as exc:
             await _record_transition(
                 ctx,
@@ -833,7 +863,11 @@ async def _compile(
             await _ensure_image_unsubmitted(
                 ctx, intent, allow_known_rejection=allow_known_rejection
             )
-        requirements = _hard_requirements(brief)
+        requirements = (
+            requirements_from_snapshot(execution_snapshot)
+            if execution_snapshot is not None
+            else _hard_requirements(brief)
+        )
         configured_size = (
             ctx.project.image_size or ctx.settings.visual().image_size or ""
         )
@@ -868,6 +902,7 @@ async def _compile(
                         "final_brief": brief,
                         "final_brief_artifact_id": final_artifact.id,
                         "reference_asset_id": brief.get("reference_asset_id"),
+                        "execution_snapshot": execution_snapshot,
                     },
                     repair_codes=list(repair_codes),
                     attempt=reservation.revision_no,

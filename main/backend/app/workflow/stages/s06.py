@@ -17,6 +17,7 @@ from app.errors import ApiError, conflict, validation_error
 from app.models import Asset, Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
+from app.workflow.snapshot import build_execution_snapshot
 from app.workflow.stages import s03
 from app.workflow.state import (
     WorkflowContext,
@@ -139,6 +140,28 @@ async def _require_approved_card(
         raise _unresolved_error()
     return artifact, data
 
+
+
+
+def _execution_snapshot(
+    artifact: Artifact,
+    data: dict[str, Any],
+    ctx: WorkflowContext,
+    material: str,
+    reference_usage: str | None,
+) -> dict[str, Any]:
+    return build_execution_snapshot(
+        artifact_id=artifact.id,
+        artifact_digest=artifact.digest,
+        artifact_revision_no=artifact.revision_no,
+        project_revision=ctx.project.revision,
+        requirement_revision=ctx.run.requirement_revision,
+        reference_asset_id=ctx.project.reference_asset_id,
+        reference_usage=reference_usage or "none",
+        referenced_material_digest=material,
+        brief=data,
+        hard_requirements=_hard_requirements(artifact, data),
+    )
 
 def _client_binding(
     payload: dict[str, Any], artifact: Artifact, data: dict[str, Any], ctx: WorkflowContext
@@ -435,6 +458,9 @@ async def _confirm_atomic(
         "confirmed_by": "user",
         "confirmed_at": now,
     }
+    snapshot.update(
+        _execution_snapshot(artifact, data, ctx, material, reference_usage)
+    )
     async with write_transaction(ctx.session_factory) as session:
         project = await session.get(Project, ctx.project_id)
         run = await session.get(WorkflowRun, ctx.run_id)
@@ -539,20 +565,26 @@ async def _confirm_atomic(
         project.brief_status = "confirmed"
         project.confirmed_revision = project.revision
         project.updated_at = now
-        run.stage = "S07"
-        run.status = "active"
-        run.issue_code = None
-        run.issue_message = None
-        run.template_id = None
-        run.template_params_json = None
-        run.updated_at = now
+        # Idempotent replays may arrive after the confirmed cycle has already
+        # advanced. They must return the original snapshot without rewinding
+        # the run to S07 (which would strand an in-flight S08/S09 review).
+        advance_confirmation = run.stage in {"S06", "S07"}
+        if advance_confirmation:
+            run.stage = "S07"
+            run.status = "active"
+            run.issue_code = None
+            run.issue_message = None
+            run.template_id = None
+            run.template_params_json = None
+            run.updated_at = now
         await session.flush()
     ctx.project.brief_status = "confirmed"
     ctx.project.confirmed_revision = ctx.project.revision
     ctx.project.updated_at = now
-    ctx.run.stage = "S07"
-    ctx.run.status = "active"
-    ctx.run.updated_at = now
+    if advance_confirmation:
+        ctx.run.stage = "S07"
+        ctx.run.status = "active"
+        ctx.run.updated_at = now
     return intent
 
 
@@ -649,6 +681,9 @@ async def _confirm(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
         "confirmed_by": "user",
         "confirmed_at": now,
     }
+    snapshot.update(
+        _execution_snapshot(artifact, data, ctx, material, data.get("reference_usage"))
+    )
     approval = await add_approval(
         ctx,
         approval_type=_APPROVAL_TYPE,

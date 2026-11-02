@@ -808,7 +808,7 @@ async def _resume_s05_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
 
 async def _s09_recovery_inputs(ctx: WorkflowContext) -> dict[str, Any]:
     candidate = await s09._load_candidate(ctx)
-    snapshot, snapshot_digest = await s09._confirmed_snapshot(ctx)
+    snapshot, snapshot_digest, _execution_snapshot = await s09._confirmed_snapshot(ctx)
     (
         reference,
         reference_usage,

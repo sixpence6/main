@@ -122,6 +122,27 @@ class BriefData(StrictModel):
     unresolved: Annotated[list[str], Field(max_length=64)]
 
 
+class FinalBriefData(BriefData):
+    """Approved execution brief.
+
+    The base brief fields are the historical v2 contract. T10 adds the
+    dedicated visual and creative fields that previously existed only in the
+    approved visual_plan/creative_direction artifacts, plus source and lock
+    metadata needed to build an immutable execution snapshot without
+    consulting current project rows.
+    """
+
+    background: str | None = Field(default=None, max_length=2000)
+    palette: Annotated[list[str], Field(max_length=32)] = Field(default_factory=list)
+    text_layout: str | None = Field(default=None, max_length=2000)
+    reference_treatment: str | None = Field(default=None, max_length=2000)
+    preservation_rules: Annotated[list[str], Field(max_length=128)] = Field(default_factory=list)
+    selling_points: Annotated[list[Claim], Field(max_length=64)] = Field(default_factory=list)
+    copy_lines: Annotated[list[str], Field(max_length=64)] = Field(default_factory=list)
+    field_sources: dict[str, str] = Field(default_factory=dict)
+    user_locks: dict[str, str] = Field(default_factory=dict)
+
+
 class CreativeData(StrictModel):
     direction: str = Field(min_length=1, max_length=3000)
     selling_points: Annotated[list[Claim], Field(max_length=64)]
@@ -193,10 +214,18 @@ def _envelope(role: str, statuses: tuple[str, ...], data_type: type[BaseModel]):
 
 IntentEnvelope = _envelope("intent_router", ("ready", "blocked"), IntentData)
 ReferenceEnvelope = _envelope("reference_analyst", ("ready", "blocked"), ReferenceData)
-RequirementsEnvelope = _envelope("requirements_consultant", ("ready", "blocked", "needs_input"), BriefData)
-CreativeEnvelope = _envelope("creative_planner", ("ready", "blocked", "needs_input"), CreativeData)
-VisualEnvelope = _envelope("visual_director", ("ready", "blocked", "needs_input"), VisualData)
-GenerationEnvelope = _envelope("generation_engineer", ("ready", "blocked", "needs_input"), GenerationData)
+RequirementsEnvelope = _envelope(
+    "requirements_consultant", ("ready", "blocked", "needs_input"), BriefData
+)
+CreativeEnvelope = _envelope(
+    "creative_planner", ("ready", "blocked", "needs_input"), CreativeData
+)
+VisualEnvelope = _envelope(
+    "visual_director", ("ready", "blocked", "needs_input"), VisualData
+)
+GenerationEnvelope = _envelope(
+    "generation_engineer", ("ready", "blocked", "needs_input"), GenerationData
+)
 QualityEnvelope = _envelope("quality_compliance", ("ready", "blocked"), QualityData)
 DeliveryEnvelope = _envelope("delivery_manager", ("ready", "blocked"), DeliveryData)
 ReviewEnvelope = _envelope("output_reviewer", ("ready", "blocked"), ReviewData)
@@ -218,14 +247,19 @@ ARTIFACT_DATA: dict[str, type[BaseModel]] = {
     "brief_draft": BriefData,
     "creative_direction": CreativeData,
     "visual_plan": VisualData,
-    "final_brief": BriefData,
+    "final_brief": FinalBriefData,
     "prompt_plan": GenerationData,
     "quality_report": QualityData,
     "quality_recheck": QualityData,
     "delivery_manifest": DeliveryData,
 }
 
-NEEDS_INPUT_ROLES = {"requirements_consultant", "creative_planner", "visual_director", "generation_engineer"}
+NEEDS_INPUT_ROLES = {
+    "requirements_consultant",
+    "creative_planner",
+    "visual_director",
+    "generation_engineer",
+}
 
 
 def _validate_envelope(role: str, obj: object) -> BaseModel:

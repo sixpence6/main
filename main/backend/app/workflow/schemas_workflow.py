@@ -93,6 +93,10 @@ class WorkflowVersionView(BaseModel):
     brief: dict[str, Any] | None = None
     prompt: dict[str, Any] | None = None
     quality: dict[str, Any] | None = None
+    execution_snapshot: dict[str, Any] | None = None
+    execution_snapshot_digest: str | None = None
+    snapshot_schema_version: str | None = None
+    contract_version: str | None = None
     can_download: bool = False
     created_at: str
 
@@ -137,6 +141,8 @@ class WorkflowView(BaseModel):
     generation_job: GenerationJobView | None = None
     delivery: DeliveryView | None = None
     versions: list[WorkflowVersionView] = Field(default_factory=list)
+    execution_snapshot: dict[str, Any] | None = None
+    execution_snapshot_digest: str | None = None
     usage: GenerationUsageView | None = None
     intent: GenerationIntentView | None = None
     updated_at: str | None = None
