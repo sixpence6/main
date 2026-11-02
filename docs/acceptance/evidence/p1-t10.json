@@ -3,7 +3,7 @@
   "batch": "P3 / T10 — canonical immutable execution snapshot",
   "code": {
     "baseline_head": "cb478a7",
-    "app_code_head": "634b357",
+    "app_code_head": "8fb8df0",
     "branch": "ticket/96",
     "rule_version": "v3.rules.1",
     "prompt_version": "2.0.0",
@@ -25,7 +25,7 @@
       "main/backend/app/workflow/stages/s12.py",
       "backend/tests/test_v3_p1_t10_execution_snapshot.py"
     ],
-    "commit": "634b357"
+    "commit": "8fb8df0"
   },
   "environment": {
     "type": "isolated-temp-sqlite",
@@ -50,7 +50,8 @@
     "Same request_id replay while S07 is gated, proving the original confirmation snapshot is returned without a new model call",
     "Generation_engineer, output_reviewer, quality_compliance and delivery_manager role calls through the normal S07 -> S08 -> S09 -> S10 path",
     "Approve_delivery and publish_delivery HTTP actions, followed by project-field mutation after publication",
-    "Legacy approval checks={'schema_version':'2.0.0','confirmed':True} and malformed snapshot schema version 9.9.9 compatibility probes"
+    "Legacy approval checks={'schema_version':'2.0.0','confirmed':True} and malformed snapshot schema version 9.9.9 compatibility probes",
+    "Published-history regression inserts later approved final_brief revision 2 and prompt_plan revision 2 for the same run, then proves history still returns the job's original brief background, prompt and execution snapshot digest."
   ],
   "commands": [
     "D:\\Desktop\\新建文件夹\\backend\\.venv\\Scripts\\python.exe -m ruff check main/backend/app/workflow/snapshot.py main/backend/app/workflow/contracts.py main/backend/app/workflow/schemas_workflow.py main/backend/app/workflow/state.py main/backend/app/workflow/stages/s05.py main/backend/app/workflow/stages/s06.py main/backend/app/workflow/stages/s07.py main/backend/app/workflow/stages/s08.py main/backend/app/workflow/stages/s09.py main/backend/app/workflow/stages/s12.py backend/tests/test_v3_p1_t10_execution_snapshot.py",
@@ -66,7 +67,7 @@
     },
     {
       "command": "pytest tests/test_v3_p1_t10_execution_snapshot.py -q",
-      "result": "4 passed in 2.24s"
+      "result": "4 passed in 2.12s"
     },
     {
       "command": "V3 regression chunk t03/t04/t05/t07/t09/t10 -q",
@@ -79,6 +80,10 @@
     {
       "command": "full pytest -q",
       "result": "timed out at 600000ms while stuck in tests.support.restart_app / port 6968; no aggregate result claimed"
+    },
+    {
+      "command": "history exact-binding regression (inside T10 focused suite)",
+      "result": "4 passed in 2.12s; primary T10 file covers later revision 2 isolation"
     }
   ],
   "candidate_budget": {
