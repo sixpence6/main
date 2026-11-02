@@ -12,14 +12,17 @@ from app.schemas import (
     ProjectDetailResponse,
     ProjectListResponse,
     ProjectView,
+    UpdateProjectRequest,
 )
 from app.services.projects import (
     DEFAULT_LIST_LIMIT,
     MAX_LIST_LIMIT,
+    MAX_QUERY_LENGTH,
     create_project,
     decode_cursor,
     get_project_detail,
     list_projects,
+    rename_project,
 )
 from app.services.retention import generation_retention
 from app.services.retrieval import evaluate_generations_retrieval
@@ -51,6 +54,7 @@ async def list_projects_endpoint(
     request: Request,
     limit: Annotated[int, Query(ge=1, le=MAX_LIST_LIMIT)] = DEFAULT_LIST_LIMIT,
     cursor: Annotated[str | None, Query()] = None,
+    q: Annotated[str | None, Query(max_length=MAX_QUERY_LENGTH)] = None,
 ) -> ProjectListResponse:
     state = request.app.state
     principal = require_principal(request)
@@ -59,8 +63,36 @@ async def list_projects_endpoint(
         limit=limit,
         cursor=decode_cursor(cursor),
         principal=principal,
+        query=q or "",
     )
     return ProjectListResponse(items=items, next_cursor=next_cursor)
+
+
+@router.patch(
+    "/{project_id}",
+    response_model=ProjectView,
+    responses={401: ERROR_RESPONSE, 403: ERROR_RESPONSE, 404: ERROR_RESPONSE, 422: ERROR_RESPONSE},
+)
+async def rename_project_endpoint(
+    request: Request, project_id: str, payload: UpdateProjectRequest
+) -> ProjectView:
+    state = request.app.state
+    principal = require_principal(request)
+    await rename_project(
+        state.session_factory,
+        project_id,
+        principal=principal,
+        title=payload.title,
+    )
+    detail = await get_project_detail(
+        state.session_factory, project_id, principal=principal
+    )
+    return project_view(
+        detail.project,
+        detail.reference_asset,
+        state.settings.resolved_data_dir(),
+        policy=detail.policy,
+    )
 
 
 @router.get(

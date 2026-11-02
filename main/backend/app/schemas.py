@@ -47,6 +47,12 @@ class ErrorResponse(BaseModel):
 ERROR_RESPONSE = {"model": ErrorResponse, "description": "公开错误"}
 
 
+class UpdateProjectRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=120)
+
+
 class ProjectView(BaseModel):
     id: str
     title: str

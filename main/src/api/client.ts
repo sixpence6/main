@@ -166,6 +166,7 @@ export async function requestJson<T>(path: string, init: RequestJsonInit = {}): 
 export interface ListProjectsParams {
   limit?: number
   cursor?: string | null
+  q?: string
 }
 
 export function assetUrl(id: string): string {
@@ -301,6 +302,7 @@ export const api = {
     const query = new URLSearchParams()
     query.set('limit', String(params.limit ?? 20))
     if (params.cursor) query.set('cursor', params.cursor)
+    if (params.q) query.set('q', params.q)
     return requestJson<ProjectListResponse>(`/api/projects?${query.toString()}`, { signal })
   },
   getProject(
@@ -315,6 +317,12 @@ export const api = {
   },
   createProject(): Promise<ProjectView> {
     return requestJson<ProjectView>('/api/projects', { method: 'POST', body: '{}' })
+  },
+  renameProject(projectId: string, title: string): Promise<ProjectView> {
+    return requestJson<ProjectView>(
+      `/api/projects/${encodeURIComponent(projectId)}`,
+      { method: 'PATCH', body: JSON.stringify({ title }) },
+    )
   },
   sendMessage(
     projectId: string,
