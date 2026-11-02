@@ -6,6 +6,7 @@ import HistoryPreview from '@/components/HistoryPreview.vue'
 import WorkflowPanel from '@/components/workflow/WorkflowPanel.vue'
 import { useWorkflow, WORKFLOW_KEY } from '@/composables/useWorkflow'
 import { useWorkspace } from '@/composables/useWorkspace'
+import { sessionRevision } from '@/auth/session'
 import { displayProjectTitle } from '@/utils/format'
 import { currentPublishedVersion } from '@/workflow/projection'
 
@@ -30,6 +31,7 @@ const heading = computed(() =>
 let baselineReady = false
 let baselineProject: string | null = null
 let previousPublishedDeliveryId: string | null = null
+let lastJumpedDeliveryId: string | null = null
 
 watch(
   projectParam,
@@ -37,6 +39,18 @@ watch(
     baselineReady = false
     baselineProject = null
     previousPublishedDeliveryId = null
+    lastJumpedDeliveryId = null
+  },
+  { flush: 'sync' },
+)
+
+watch(
+  sessionRevision,
+  () => {
+    baselineReady = false
+    baselineProject = null
+    previousPublishedDeliveryId = null
+    lastJumpedDeliveryId = null
   },
   { flush: 'sync' },
 )
@@ -45,7 +59,7 @@ watch(
   () => workflow.view.value,
   (view) => {
     const projectId = projectParam.value
-    if (!projectId || !view) return
+    if (!projectId || !view || view.project_id !== projectId) return
     if (!baselineReady || baselineProject !== projectId) {
       baselineReady = true
       baselineProject = projectId
@@ -61,6 +75,8 @@ watch(
     if (route.name !== 'project-chat') return
     if (!version || !version.asset_id || !version.can_download) return
     if (!publishedDeliveryId || previous !== null) return
+    if (lastJumpedDeliveryId === publishedDeliveryId) return
+    lastJumpedDeliveryId = publishedDeliveryId
     void router.push({ name: 'project-results', params: { projectId } })
   },
   { flush: 'post' },
