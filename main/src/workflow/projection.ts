@@ -52,20 +52,45 @@ function confirmationSnapshotOf(approval: WorkflowApproval | null): Record<strin
   return snapshot && typeof snapshot === 'object' ? (snapshot as Record<string, unknown>) : null
 }
 
-export function confirmationStateOf(view: WorkflowView | null | undefined): ConfirmationState {
+function referenceBindingIsStale(
+  view: WorkflowView | null | undefined,
+  brief: WorkflowArtifact,
+  project: ProjectView | null | undefined,
+): boolean {
+  if (!project) return false
+  if (view && view.project_revision !== project.revision) return true
+  const expected = brief.payload?.reference_asset_id
+  const expectedId = typeof expected === 'string' && expected ? expected : null
+  const currentId = project.reference_asset?.id ?? null
+  if (expectedId !== currentId) return true
+  if (project.reference_asset?.availability === 'missing') return true
+  const snapshot = confirmationSnapshotOf(activeConfirmationOf(view, brief))
+  if (snapshot && 'reference_asset_id' in snapshot && snapshot.reference_asset_id !== currentId) {
+    return true
+  }
+  return false
+}
+
+export function confirmationStateOf(
+  view: WorkflowView | null | undefined,
+  project?: ProjectView | null,
+): ConfirmationState {
   const brief = latestFinalBrief(view)
   if (!brief) return 'none'
   if (brief.status !== 'approved' || !brief.payload) return 'reviewing'
-  const snapshot = confirmationSnapshotOf(activeConfirmationOf(view, brief))
+  const approval = activeConfirmationOf(view, brief)
+  const snapshot = confirmationSnapshotOf(approval)
+  const referenceStale = referenceBindingIsStale(view, brief, project)
   if (
-    activeConfirmationOf(view, brief) &&
+    approval &&
+    !referenceStale &&
     snapshot?.artifact_digest === brief.digest &&
     snapshot?.project_revision === view?.project_revision &&
     snapshot?.requirement_revision === view?.requirement_revision
   ) {
     return 'confirmed'
   }
-  if (confirmationApprovalsOf(view).length > 0) return 'stale'
+  if (confirmationApprovalsOf(view).length > 0 || referenceStale) return 'stale'
   return 'pending'
 }
 
@@ -107,7 +132,7 @@ export function userStateOf(
   if (currentPublishedVersion(project, view)) return 'u3'
   if (currentDeliveryBlocked(project, view)) return 'u1'
   if (view?.intent && ['accepted', 'executing'].includes(view.intent.status)) return 'u2'
-  const confirmation = confirmationStateOf(view)
+  const confirmation = confirmationStateOf(view, project)
   if (confirmation === 'pending' || confirmation === 'confirmed') return 'u2'
   return 'u1'
 }
@@ -163,7 +188,7 @@ export function nextStepForWorkflow(
       actionId: null,
     }
   }
-  const confirmation = confirmationStateOf(view)
+  const confirmation = confirmationStateOf(view, project)
   if (confirmation === 'pending') {
     return {
       title: '核对并确认当前需求卡',

@@ -278,7 +278,7 @@ const imageStatus = computed(() => {
 })
 
 const finalBrief = computed(() => latestFinalBrief(view.value))
-const confirmationState = computed(() => confirmationStateOf(view.value))
+const confirmationState = computed(() => confirmationStateOf(view.value, currentProject.value))
 const nextStep = computed(() => nextStepForWorkflow(currentProject.value, view.value))
 const nextStepActionLabel = computed(() => {
   const actionId = nextStep.value.actionId

@@ -410,6 +410,20 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         )
         assert history_after_revision["execution_snapshot_digest"] == digest
 
+        # If the job's own prompt pointer is lost, never fall back to a newer
+        # approved prompt: that would mislabel an older image.
+        async with write_transaction(app.state.session_factory) as session:
+            job = await session.get(GenerationJob, version["generation_job_id"])
+            assert job is not None
+            job.prompt_artifact_id = None
+            job.confirmed_snapshot_digest = "0" * 64
+            await session.flush()
+        missing_prompt = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()["versions"][0]
+        assert missing_prompt["prompt"] is None
+        assert missing_prompt["brief"] is None
+
 
 @pytest.mark.asyncio
 async def test_canonical_snapshot_digest_is_stable_for_same_inputs() -> None:

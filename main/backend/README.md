@@ -60,6 +60,6 @@ data/ 保存 SQLite 库（app.db，可能带 -wal/-shm）以及 generated/、ref
 
 - pyproject.toml / uv.lock：依赖与锁
 - .env.example：空配置样例（无密钥）
-- alembic.ini / migrations：数据库迁移（head = 0010）
+- alembic.ini / migrations：数据库迁移（head = 0011）
 - app/：FastAPI 应用（config.py 同时兼容本目录为项目根和旧仓库布局）
 - data/：运行数据，启动时自动创建缺失目录

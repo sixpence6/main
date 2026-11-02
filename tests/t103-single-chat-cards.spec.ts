@@ -260,6 +260,16 @@ describe('T17 单一消息流中的需求卡和任务卡', () => {
     expect(within(panel).queryByRole('button', { name: '确认以上需求并生成图片' })).not.toBeInTheDocument()
   })
 
+  it('参考图绑定不一致或文件缺失时禁用确认入口', async () => {
+    const brief = finalBrief()
+    brief.payload = { ...(brief.payload ?? {}), reference_asset_id: 'asset-reference-other' }
+    harness = await mountChat(workflowView({ artifacts: [brief], available_actions: [confirmAction] }))
+    const panel = await screen.findByRole('region', { name: '审查需求卡' })
+
+    expect(within(panel).queryByRole('button', { name: '确认以上需求并生成图片' })).not.toBeInTheDocument()
+    expect(within(panel).getByText(/参考图或需求版本已经变化/)).toBeVisible()
+  })
+
   it('任务卡展示服务端安全的进度与原因，不再重复当前问题标题', async () => {
     harness = await mountChat(workflowView({
       task_state: taskState('请补充品牌授权信息后再生成。'),

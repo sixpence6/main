@@ -186,6 +186,7 @@ export type WorkflowReasonCategory =
   | 'missing_information'
   | 'repairable_composition'
   | 'true_drift'
+  | 'hard_failure'
   | 'content_rejection'
   | 'missing_evidence'
   | 'protocol_error'

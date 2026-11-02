@@ -14,6 +14,7 @@ class ReasonCode(StrEnum):
     MISSING_INFORMATION = "missing_information"
     REPAIRABLE_COMPOSITION = "repairable_composition"
     TRUE_DRIFT = "true_drift"
+    HARD_FAILURE = "hard_failure"
     CONTENT_REJECTION = "content_rejection"
     MISSING_EVIDENCE = "missing_evidence"
     PROTOCOL_ERROR = "protocol_error"
@@ -158,12 +159,13 @@ def classify_issue_code(code: str | None) -> ReasonCode:
         return ReasonCode.MISSING_EVIDENCE
     if code in {
         "REQUIREMENT_DRIFT",
-        "HARD_REQUIREMENT_FAILED",
         "PROMPT_REQUIRES_RECONFIRMATION",
         "CONFIRM_REQUIRED",
         "RUN_SUPERSEDED",
     }:
         return ReasonCode.TRUE_DRIFT
+    if code == "HARD_REQUIREMENT_FAILED":
+        return ReasonCode.HARD_FAILURE
     if code in {
         "CONTRACT_ERROR",
         "PROMPT_REVIEW_INVALID",
@@ -217,11 +219,12 @@ def classify_api_error(code: str | None) -> ReasonCode:
         return ReasonCode.REMOTE_UNKNOWN
     if code in {
         "REQUIREMENT_DRIFT",
-        "HARD_REQUIREMENT_FAILED",
         "PROMPT_REQUIRES_RECONFIRMATION",
         "CONFIRM_REQUIRED",
     }:
         return ReasonCode.TRUE_DRIFT
+    if code == "HARD_REQUIREMENT_FAILED":
+        return ReasonCode.HARD_FAILURE
     if code in {"ACCOUNT_DISABLED", "ACCOUNT_INACTIVE", "UNAUTHORIZED_ACTION"}:
         return ReasonCode.AUTHORIZATION_INVALID
     if code in {"IMAGE_NOT_APPROVED", "DIGEST_MISMATCH", "ASSET_UNAVAILABLE"}:

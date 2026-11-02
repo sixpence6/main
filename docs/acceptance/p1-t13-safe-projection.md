@@ -13,7 +13,7 @@ T13 把“任务现在是什么状态、为什么停、下一步真实能做什�
 
 - **GET /api/projects/{project_id}/workflow** 在原有字段上兼容新增 **task_state**，包含 progress、reason、binding、constraints、resource_state。
 - progress 只表达阶段、阶段标签、状态、是否等待用户、是否终态；没有假百分比、没有本地估算进度。
-- reason 只从持久化的 issue_code / template_id / template_params 生成安全类别与安全文案；**不读取 run.issue_message**，审核员原文、未审说明、候选正文、私有 locator 不进入投影。
+- reason 只从持久化的 issue_code / template_id / template_params 生成安全类别与安全文案；模板化错误使用审核后的固定文案，**不读取 run.issue_message**（仅无模板的旧问答流保留既有 question 文本），审核员原文、未审说明、候选正文、私有 locator 不进入投影。
 - action 的 effect、read_only、requires_model_call、retry_mode、automatic_retry 由服务端动作目录推导；只读核实与可能继续模型调用的手动恢复分开，所有动作 **automatic_retry=false**，不存在无依据的 cancel 动作。
 - ApprovalView.checks 只保留 **confirmation** 信封；历史 reviewer_note/candidate_body/private_locator 即使仍在数据库里，也不会通过 HTTP 返回。
 - binding 带项目、run、revision、intent、job、delivery 与 confirmed/active snapshot digest；revision 或 digest 不匹配时 **current=false**。resource_state 只有当前绑定且 job+delivery 匹配时才给 current_version，旧发布版本只能进 history，不能把当前待处理任务标成完成。
@@ -26,7 +26,8 @@ T13 把“任务现在是什么状态、为什么停、下一步真实能做什�
 | --- | --- | --- |
 | missing_information | MISSING_INPUT / CONFLICTING_INPUT | 需要用户补信息 |
 | repairable_composition | REVIEW_REVISE / 覆盖缺陷 | 可修编后重新审查 |
-| true_drift | REQUIREMENT_DRIFT / HARD_REQUIREMENT_FAILED / PROMPT_REQUIRES_RECONFIRMATION | 与已确认需求不一致，需要新版本或重新确认 |
+| true_drift | REQUIREMENT_DRIFT / PROMPT_REQUIRES_RECONFIRMATION | 与已确认需求不一致，需要新版本或重新确认 |
+| hard_failure | HARD_REQUIREMENT_FAILED | 必须满足项检查未通过，不放行且不自动重试 |
 | content_rejection | REVIEW_REJECTED / UNSAFE_REQUEST / OUT_OF_SCOPE / SCOPE_REFUSAL | 内容或范围硬失败，不放行 |
 | missing_evidence | MISSING_EVIDENCE / UNREADABLE_IMAGE / CANDIDATE_EXPIRED | 缺证据，不能猜测通过 |
 | protocol_error | CONTRACT_ERROR / PROMPT_REVIEW_INVALID / REVIEW_INVALID | 协议或契约异常，停止并保留状态 |

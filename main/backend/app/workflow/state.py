@@ -870,17 +870,6 @@ async def _build_versions(
             .order_by(Artifact.revision_no.desc())
             .limit(1)
         )
-        if brief_artifact is None:
-            brief_artifact = await session.scalar(
-                select(Artifact)
-                .where(
-                    Artifact.run_id == job.run_id,
-                    Artifact.kind == "final_brief",
-                    Artifact.status == "approved",
-                )
-                .order_by(Artifact.revision_no.desc())
-                .limit(1)
-            )
         prompt_artifact = (
             await session.get(Artifact, job.prompt_artifact_id)
             if job.prompt_artifact_id
@@ -895,17 +884,6 @@ async def _build_versions(
             )
         ):
             prompt_artifact = None
-        if prompt_artifact is None:
-            prompt_artifact = await session.scalar(
-                select(Artifact)
-                .where(
-                    Artifact.run_id == job.run_id,
-                    Artifact.kind == "prompt_plan",
-                    Artifact.status == "approved",
-                )
-                .order_by(Artifact.revision_no.desc())
-                .limit(1)
-            )
         quality_artifact = await session.scalar(
             select(Artifact)
             .where(
@@ -1075,12 +1053,16 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
         params = (
             _json_dict(ctx.run.template_params_json) if ctx.run.template_id else {}
         )
-        message = ctx.run.issue_message or templates.render(
-            ctx.run.template_id or "SERVICE_UNAVAILABLE", **params
+        # Templated issues always use the reviewed copy. The legacy issue_message
+        # field may contain reviewer prose and must stay out of the safe view.
+        message = (
+            templates.render(ctx.run.template_id, **params)
+            if ctx.run.template_id
+            else ctx.run.issue_message
         )
         issue = IssueView(
             code=ctx.run.issue_code or ctx.run.template_id or "ISSUE",
-            message=message,
+            message=message or "",
             template_id=ctx.run.template_id,
             params={key: str(value) for key, value in params.items()},
         )

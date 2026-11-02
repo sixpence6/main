@@ -27,7 +27,7 @@
     backend/
       app/                       # 后端源码（唯一源码）
       pyproject.toml / uv.lock   # 后端依赖与锁
-      alembic.ini / migrations/  # 数据库迁移（0001 -> 0010 head）
+      alembic.ini / migrations/  # 数据库迁移（0001 -> 0011 head）
       .env.example               # 空配置模板（无密钥）
       data/                      # 空目录（.gitkeep 占位），运行时写入库与图片
       backups/                   # 可选：周期备份输出目录（不在 data 内）
@@ -61,7 +61,7 @@
     docker compose ps
     docker compose logs -f backend
 
-后端启动时先执行 `alembic upgrade head`（空 data 会自动建库并升到 0010），再通过
+后端启动时先执行 `alembic upgrade head`（空 data 会自动建库并升到 0011），再通过
 `python -m app.production` 拉起单 worker uvicorn；前端容器等后端健康检查通过后启动
 nginx。
 

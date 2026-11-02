@@ -214,7 +214,7 @@ async def test_safe_reason_is_typed_and_does_not_read_raw_issue_text(
         assert reason["remote_unknown"] is True
         assert reason["auto_retry"] is False
         assert reason["requires_user_input"] is False
-        assert _SENTINEL not in json.dumps(reason, ensure_ascii=False)
+        assert _SENTINEL not in json.dumps(view, ensure_ascii=False)
         assert view["task_state"]["progress"]["phase"] == "recovery"
         action = next(
             item
@@ -375,6 +375,7 @@ async def test_normal_and_recovery_share_the_same_safe_reason(full_settings) -> 
         ("MISSING_INPUT", ReasonCode.MISSING_INFORMATION),
         ("REVIEW_REVISE", ReasonCode.REPAIRABLE_COMPOSITION),
         ("REQUIREMENT_DRIFT", ReasonCode.TRUE_DRIFT),
+        ("HARD_REQUIREMENT_FAILED", ReasonCode.HARD_FAILURE),
         ("REVIEW_REJECTED", ReasonCode.CONTENT_REJECTION),
     ("UNSAFE_REQUEST", ReasonCode.CONTENT_REJECTION),
         ("CANDIDATE_EXPIRED", ReasonCode.MISSING_EVIDENCE),
