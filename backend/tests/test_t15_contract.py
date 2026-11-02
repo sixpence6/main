@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-EXPECTED_OPERATIONS = 37
+EXPECTED_OPERATIONS = 38
 EXPECTED_AUTH_OPERATIONS = {
     ("GET", "/api/auth/csrf"),
     ("GET", "/api/auth/session"),
