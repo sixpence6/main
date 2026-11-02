@@ -123,6 +123,105 @@ export interface WorkflowVersion {
   created_at: string
 }
 
+export type WorkflowPhase =
+  | 'empty'
+  | 'intake'
+  | 'requirements'
+  | 'prompt'
+  | 'generation'
+  | 'review'
+  | 'delivery'
+  | 'recovery'
+
+export interface WorkflowProgress {
+  phase: WorkflowPhase
+  stage: string | null
+  stage_label: string | null
+  status: WorkflowStatus
+  awaiting_user: boolean
+  terminal: boolean
+}
+
+export type ConstraintStrength = 'hard' | 'soft' | 'not_applicable'
+
+export interface WorkflowConstraint {
+  constraint_id: string
+  path: string
+  label: string
+  strength: ConstraintStrength
+  source: string | null
+  user_lock_basis: string | null
+  rule_id: string | null
+  value: unknown
+}
+
+export interface WorkflowTaskBinding {
+  project_id: string
+  run_id: string | null
+  project_revision: number
+  requirement_revision: number
+  intent_id: string | null
+  intent_status: string | null
+  intent_requirement_revision: number | null
+  generation_job_id: string | null
+  generation_job_status: string | null
+  confirmed_snapshot_digest: string | null
+  execution_snapshot_digest: string | null
+  delivery_id: string | null
+  delivery_status: string | null
+  current: boolean
+}
+
+export type WorkflowReasonCategory =
+  | 'missing_information'
+  | 'repairable_composition'
+  | 'true_drift'
+  | 'content_rejection'
+  | 'missing_evidence'
+  | 'protocol_error'
+  | 'technical_failure'
+  | 'remote_unknown'
+  | 'authorization_invalid'
+
+export interface WorkflowSafeReason {
+  category: WorkflowReasonCategory
+  code: string
+  message: string
+  template_id: string | null
+  params: Record<string, string>
+  severity: 'needs_input' | 'blocked' | 'failed' | 'unknown'
+  requires_user_input: boolean
+  requires_new_version: boolean
+  requires_evidence: boolean
+  remote_unknown: boolean
+  auto_retry: boolean
+}
+
+export type WorkflowResourceState =
+  | 'none'
+  | 'history_only'
+  | 'pending'
+  | 'published'
+  | 'failed'
+  | 'blocked'
+  | 'unknown'
+  | 'unavailable'
+
+export interface WorkflowResourceView {
+  current_run_id: string | null
+  current_state: WorkflowResourceState
+  current_version: WorkflowVersion | null
+  history: WorkflowVersion[]
+}
+
+export interface WorkflowTaskState {
+  progress: WorkflowProgress
+  reason: WorkflowSafeReason | null
+  binding: WorkflowTaskBinding
+  constraints: WorkflowConstraint[]
+  resource_state: WorkflowResourceView
+}
+
 export interface WorkflowView {
   project_id: string
   run_id: string | null

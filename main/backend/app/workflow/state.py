@@ -20,6 +20,7 @@ from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
 from app.workflow.access import can_access_asset, load_project_access_policy
 from app.workflow.contracts import digest_payload, validate_data
+from app.workflow.projection import build_task_state
 from app.workflow.schemas_workflow import (
     ApprovalView,
     ArtifactView,
@@ -773,6 +774,11 @@ def _legacy_views(items: list[LegacyItem]) -> list[LegacyItemView]:
     ]
 
 
+def _safe_approval_checks(raw: str | None) -> dict[str, Any]:
+    confirmation = _json_dict(raw).get("confirmation")
+    return {"confirmation": confirmation} if isinstance(confirmation, dict) else {}
+
+
 def _json_dict(value: str | None) -> dict[str, Any]:
     if not value:
         return {}
@@ -976,13 +982,24 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
         initial_action = (
             "analyze_reference" if ctx.project.reference_asset_id else "submit_request"
         )
+        actions = [dispatch.action_view(initial_action)]
         return WorkflowView(
             project_id=ctx.project_id,
             status="none",
             project_revision=ctx.project.revision,
             requirement_revision=ctx.project.revision,
-            available_actions=[dispatch.action_view(initial_action)],
+            available_actions=actions,
             legacy=_legacy_views(legacy),
+            task_state=build_task_state(
+                project=ctx.project,
+                run=None,
+                job=None,
+                delivery=None,
+                versions=[],
+                intent=None,
+                active_snapshot=None,
+                artifacts=[],
+            ),
             updated_at=ctx.project.updated_at,
         )
 
@@ -1097,7 +1114,7 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
             prompt_version=approval.prompt_version,
             rules_version=approval.rules_version,
             model_fingerprint=approval.model_fingerprint,
-            checks=_json_dict(approval.checks_json),
+            checks=_safe_approval_checks(approval.checks_json),
             created_at=approval.created_at,
             revoked_at=approval.revoked_at,
             revocation_reason=approval.revocation_reason,
@@ -1123,6 +1140,18 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
         if candidate_snapshot is not None:
             active_execution_snapshot = candidate_snapshot
 
+    actions = dispatch.available_actions(ctx)
+    task_state = build_task_state(
+        project=ctx.project,
+        run=ctx.run,
+        job=job,
+        delivery=delivery,
+        versions=versions,
+        intent=intent_view,
+        active_snapshot=active_execution_snapshot,
+        artifacts=artifact_views,
+    )
+
     return WorkflowView(
         project_id=ctx.project_id,
         run_id=ctx.run.id,
@@ -1135,7 +1164,7 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
         issue=issue,
         artifacts=artifact_views,
         approvals=approval_views,
-        available_actions=dispatch.available_actions(ctx),
+        available_actions=actions,
         legacy=_legacy_views(list(legacy)),
         generation_job=(
             GenerationJobView(
@@ -1163,6 +1192,7 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
         ),
         usage=usage,
         intent=intent_view,
+        task_state=task_state,
         delivery=(
             DeliveryView(
                 id=delivery.id,

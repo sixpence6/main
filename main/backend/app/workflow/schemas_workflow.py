@@ -46,6 +46,11 @@ class ActionView(BaseModel):
     requires_text: bool = False
     text_label: str | None = None
     requires_confirmation: bool = False
+    effect: Literal["read_only", "write", "model_call"] = "write"
+    read_only: bool = False
+    requires_model_call: bool = False
+    retry_mode: Literal["none", "manual_only"] = "none"
+    automatic_retry: bool = False
 
 
 class LegacyItemView(BaseModel):
@@ -124,6 +129,100 @@ class GenerationIntentView(BaseModel):
     created_at: str
 
 
+class WorkflowProgressView(BaseModel):
+    phase: Literal[
+        "empty",
+        "intake",
+        "requirements",
+        "prompt",
+        "generation",
+        "review",
+        "delivery",
+        "recovery",
+    ] = "empty"
+    stage: str | None = None
+    stage_label: str | None = None
+    status: Literal["none", "active", "needs_input", "blocked", "completed", "failed"] = "none"
+    awaiting_user: bool = False
+    terminal: bool = False
+
+
+class ConstraintProjectionView(BaseModel):
+    constraint_id: str
+    path: str
+    label: str
+    strength: Literal["hard", "soft", "not_applicable"]
+    source: str | None = None
+    user_lock_basis: str | None = None
+    rule_id: str | None = None
+    value: Any = None
+
+
+class TaskBindingView(BaseModel):
+    project_id: str
+    run_id: str | None = None
+    project_revision: int
+    requirement_revision: int
+    intent_id: str | None = None
+    intent_status: str | None = None
+    intent_requirement_revision: int | None = None
+    generation_job_id: str | None = None
+    generation_job_status: str | None = None
+    confirmed_snapshot_digest: str | None = None
+    execution_snapshot_digest: str | None = None
+    delivery_id: str | None = None
+    delivery_status: str | None = None
+    current: bool = True
+
+
+class SafeReasonView(BaseModel):
+    category: Literal[
+        "missing_information",
+        "repairable_composition",
+        "true_drift",
+        "content_rejection",
+        "missing_evidence",
+        "protocol_error",
+        "technical_failure",
+        "remote_unknown",
+        "authorization_invalid",
+    ]
+    code: str
+    message: str
+    template_id: str | None = None
+    params: dict[str, str] = Field(default_factory=dict)
+    severity: Literal["needs_input", "blocked", "failed", "unknown"] = "blocked"
+    requires_user_input: bool = False
+    requires_new_version: bool = False
+    requires_evidence: bool = False
+    remote_unknown: bool = False
+    auto_retry: bool = False
+
+
+class ResourceStateView(BaseModel):
+    current_run_id: str | None = None
+    current_state: Literal[
+        "none",
+        "history_only",
+        "pending",
+        "published",
+        "failed",
+        "blocked",
+        "unknown",
+        "unavailable",
+    ] = "none"
+    current_version: WorkflowVersionView | None = None
+    history: list[WorkflowVersionView] = Field(default_factory=list)
+
+
+class TaskStateView(BaseModel):
+    progress: WorkflowProgressView
+    reason: SafeReasonView | None = None
+    binding: TaskBindingView
+    constraints: list[ConstraintProjectionView] = Field(default_factory=list)
+    resource_state: ResourceStateView
+
+
 class WorkflowView(BaseModel):
     project_id: str
     run_id: str | None = None
@@ -145,6 +244,7 @@ class WorkflowView(BaseModel):
     execution_snapshot_digest: str | None = None
     usage: GenerationUsageView | None = None
     intent: GenerationIntentView | None = None
+    task_state: TaskStateView | None = None
     updated_at: str | None = None
 
 
