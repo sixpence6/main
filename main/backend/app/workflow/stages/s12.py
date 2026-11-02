@@ -609,7 +609,10 @@ async def _resume_s04_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
             attempt=int(checkpoint.get("attempt") or 1),
         )
         decision, checks = s04._validate_review_shape(output, target_id, allowed)
-    except ApiError:
+    except ApiError as exc:
+        if exc.code in _REVIEW_PROTOCOL_CODES:
+            await set_stage(ctx, "S04", "blocked", issue_code=exc.code, template_id=exc.code)
+            raise
         await set_stage(
             ctx,
             "S04",
@@ -626,7 +629,11 @@ async def _resume_s04_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
         artifact,
         reviewer_role="output_reviewer",
         decision=decision,
-        checks={"checks": checks, "rule_ids": list(s04.REQUIRED_RULES)},
+        checks={
+            "ruleset_version": RULESET_VERSION,
+            "checks": checks,
+            "rule_ids": list(s04.REQUIRED_RULES),
+        },
     )
     if decision == "pass":
         await set_stage(ctx, "S05", "active")
@@ -759,7 +766,10 @@ async def _resume_s05_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
             await s05._verify_dependencies(
                 ctx, dependencies, int(checkpoint.get("project_revision") or ctx.project.revision)
             )
-    except ApiError:
+    except ApiError as exc:
+        if exc.code in _REVIEW_PROTOCOL_CODES:
+            await set_stage(ctx, "S05", "blocked", issue_code=exc.code, template_id=exc.code)
+            raise
         await set_stage(
             ctx,
             "S05",
@@ -776,7 +786,7 @@ async def _resume_s05_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
         artifact,
         reviewer_role="output_reviewer",
         decision=decision,
-        checks={"checks": checks},
+        checks={"ruleset_version": RULESET_VERSION, "checks": checks},
         raw={"results": output.data.get("results") if output.data else []},
     )
     if decision == "pass":

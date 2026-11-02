@@ -138,37 +138,37 @@ def review_payload(
         checks.extend(
             [
                 {
-                    "rule_id": "SCOPE_ROLE",
+                    "rule_id": "G07_SCOPE_ROLE",
                     "outcome": "pass",
                     "evidence_ids": [],
                     "note": "只审查角色边界，不需要产物证据。",
                 },
                 {
-                    "rule_id": "UNAUTHORIZED_ACTION",
+                    "rule_id": "G07_UNAUTHORIZED_ACTION",
                     "outcome": "pass",
                     "evidence_ids": [],
                     "note": "没有调用工具、外部链接或越权动作。",
                 },
                 {
-                    "rule_id": "UNKNOWN_CERTAINTY",
+                    "rule_id": "G07_UNKNOWN_AS_FACT",
                     "outcome": "pass",
                     "evidence_ids": [target_id],
                     "note": "未把未知事实写成确定事实。",
                 },
                 {
-                    "rule_id": "SCOPE_AND_ROLE",
+                    "rule_id": "G03_AUTH_BOUNDARY",
                     "outcome": "pass",
                     "evidence_ids": [target_id],
                     "note": "共享 reviewer 的另一种角色边界检查命名。",
                 },
                 {
-                    "rule_id": "UNKNOWN_AS_CERTAIN",
+                    "rule_id": "G02_NO_UNSUPPORTED_INFERENCE",
                     "outcome": "pass",
                     "evidence_ids": [target_id],
                     "note": "共享 reviewer 的另一种不确定性检查命名。",
                 },
                 {
-                    "rule_id": "CONFIRMATION_CONSISTENCY",
+                    "rule_id": "G03_CONFIRMATION_STATE",
                     "outcome": "pass",
                     "evidence_ids": [target_id],
                     "note": "共享 reviewer 的确认状态一致性检查。",
@@ -678,13 +678,13 @@ async def test_review_with_forged_evidence_never_approves(llm_settings):
             f"/api/projects/{project_id}/workflow/actions/plan_creative",
             json={"expected_revision": 0},
         )
-        assert response.status_code == 503, response.text
-        assert response.json()["error"]["code"] == "REVIEW_UNAVAILABLE"
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "REVIEW_INVALID"
         artifacts = await _artifacts(application, run_id, "creative_direction")
         assert len(artifacts) == 1 and artifacts[0].status == "candidate"
         view = await _workflow(client, project_id)
         assert view["status"] == "blocked"
-        assert view["issue"]["code"] == "REVIEW_UNAVAILABLE"
+        assert view["issue"]["code"] == "REVIEW_INVALID"
         assert view["artifacts"][-1]["payload"] is None
 
 
@@ -736,8 +736,8 @@ async def test_required_review_check_still_requires_evidence(llm_settings):
             f"/api/projects/{project_id}/workflow/actions/plan_creative",
             json={"expected_revision": 0},
         )
-        assert response.status_code == 503, response.text
-        assert response.json()["error"]["code"] == "REVIEW_UNAVAILABLE"
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "REVIEW_INVALID"
 
 
 async def test_plan_requires_approved_current_brief(llm_settings):

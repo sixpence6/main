@@ -12,6 +12,12 @@ from app.errors import ApiError, conflict, validation_error
 from app.models import Message, Project
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
+from app.workflow.adjudication import (
+    RULESET_VERSION,
+    ProtocolIssue,
+    governance_ruleset,
+    review_output,
+)
 from app.workflow.contracts import ContractError, digest_payload, validate_data
 from app.workflow.roles import RoleOutput, run_role
 from app.workflow.state import (
@@ -44,12 +50,12 @@ REQUIRED_RULES = (
     "G03_SINGLE_DIRECTION",
 )
 
-# Shared reviewer prompts also emit general governance checks. These are
-# advisory only: the program-owned REQUIRED_RULES above still decide whether a
-# candidate can be approved.
-_ADVISORY_RULE_RE = re.compile(
-    r"^(?:G\d{2}_[A-Z0-9_]+|review:[a-z][a-z0-9_]{0,63}|"
-    r"[A-Z][A-Z0-9_]{1,63})$"
+# Shared reviewer prompts also emit general governance checks. They are
+# advisory in the server catalogue: the program-owned REQUIRED_RULES above
+# still decide whether a candidate can be approved.
+RULESET = governance_ruleset(
+    "creative_direction",
+    tuple((rule_id, "创意方向核验") for rule_id in REQUIRED_RULES),
 )
 
 _SAFE_HANDOFF_TEMPLATE = "ACTION_UNAVAILABLE"
@@ -109,6 +115,10 @@ def _fixed_service(error: ApiError | None = None) -> ApiError:
 
 def _fixed_review() -> ApiError:
     return ApiError(503, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
+
+
+def _review_invalid(message: str) -> ApiError:
+    return ApiError(409, "REVIEW_INVALID", message)
 
 
 def _business_reject() -> ApiError:
@@ -358,7 +368,12 @@ def _creative_input(brief: dict[str, Any]) -> dict[str, Any]:
 
 
 def _review_input_data() -> dict[str, Any]:
-    return {"reviewed_role": "creative_planner", "target_kind": "creative_direction"}
+    return {
+        "reviewed_role": "creative_planner",
+        "target_kind": "creative_direction",
+        "ruleset_version": RULESET.version,
+        "rules": RULESET.describe(),
+    }
 
 
 def _review_targets(
@@ -383,59 +398,20 @@ def _validate_review_shape(
     output: RoleOutput, target_id: str, allowed_evidence: set[str]
 ) -> tuple[str, list[dict[str, Any]]]:
     if output.status != "ready" or output.data is None:
-        raise _fixed_review()
-    results = output.data.get("results")
-    if not isinstance(results, list) or len(results) != 1:
-        raise _fixed_review()
-    result = results[0]
-    if not isinstance(result, dict) or result.get("target_id") != target_id:
-        raise _fixed_review()
-    decision = result.get("decision")
-    if decision not in {"pass", "revise", "reject", "unknown"}:
-        raise _fixed_review()
-    checks = result.get("checks")
-    if not isinstance(checks, list) or not checks:
-        raise _fixed_review()
-
-    required_seen: set[str] = set()
-    for check in checks:
-        if not isinstance(check, dict):
-            raise _fixed_review()
-        rule_id = check.get("rule_id")
-        if not isinstance(rule_id, str):
-            raise _fixed_review()
-        evidence_ids = check.get("evidence_ids")
-        if not isinstance(evidence_ids, list):
-            raise _fixed_review()
-        if any(not isinstance(item, str) or item not in allowed_evidence for item in evidence_ids):
-            raise _fixed_review()
-        note = check.get("note")
-        if isinstance(note, str) and "://" in note.casefold():
-            raise _fixed_review()
-        outcome = check.get("outcome")
-        if rule_id in REQUIRED_RULES:
-            if outcome not in {"pass", "fail", "unknown"}:
-                raise _fixed_review()
-            if not evidence_ids:
-                raise _fixed_review()
-            required_seen.add(rule_id)
-        else:
-            if not _ADVISORY_RULE_RE.fullmatch(rule_id):
-                raise _fixed_review()
-            if outcome not in {"pass", "fail", "unknown", "not_applicable"}:
-                raise _fixed_review()
-
-    if decision == "pass":
-        if required_seen != set(REQUIRED_RULES):
-            raise _fixed_review()
-        for check in checks:
-            rule_id = str(check.get("rule_id"))
-            outcome = check.get("outcome")
-            if rule_id in REQUIRED_RULES and outcome != "pass":
-                raise _fixed_review()
-            if rule_id not in REQUIRED_RULES and outcome in {"fail", "unknown"}:
-                raise _fixed_review()
-    return str(decision), checks
+        raise _review_invalid(templates.render("REVIEW_INVALID"))
+    try:
+        adjudication = review_output(
+            output.data,
+            target_id=target_id,
+            ruleset=RULESET,
+            allowed_evidence=allowed_evidence,
+        )
+    except ProtocolIssue as exc:
+        raise _review_invalid(exc.message) from None
+    for check in adjudication.checks:
+        if "://" in check.note.casefold():
+            raise _review_invalid("审查说明不得包含外部链接，未放行")
+    return adjudication.decision, adjudication.check_payloads()
 
 
 async def _review_creative(
@@ -456,7 +432,6 @@ async def _review_creative(
             required_rule_ids=REQUIRED_RULES,
             allowed_evidence_ids=tuple(sorted(allowed_evidence)),
         )
-        decision, checks = _validate_review_shape(review, artifact.id, allowed_evidence)
     except ApiError:
         await set_stage(
             ctx,
@@ -466,6 +441,18 @@ async def _review_creative(
             template_id="REVIEW_UNAVAILABLE",
         )
         raise _fixed_review() from None
+    try:
+        decision, checks = _validate_review_shape(review, artifact.id, allowed_evidence)
+    except ApiError as exc:
+        if exc.code in {"REVIEW_INVALID", "REVIEW_REJECTED"}:
+            await set_stage(
+                ctx,
+                STAGE,
+                "blocked",
+                issue_code=exc.code,
+                template_id=exc.code,
+            )
+        raise
 
     # An older candidate must never overwrite a newer creative revision that
     # arrived while this review was running.
@@ -480,7 +467,11 @@ async def _review_creative(
             artifact,
             reviewer_role="output_reviewer",
             decision="pass",
-            checks={"checks": checks, "rule_ids": list(REQUIRED_RULES)},
+            checks={
+                "ruleset_version": RULESET_VERSION,
+                "checks": checks,
+                "rule_ids": list(REQUIRED_RULES),
+            },
         )
         await set_stage(ctx, NEXT_STAGE, "active")
         return
@@ -490,7 +481,7 @@ async def _review_creative(
         artifact,
         reviewer_role="output_reviewer",
         decision=decision,
-        checks={"checks": checks},
+        checks={"ruleset_version": RULESET_VERSION, "checks": checks},
     )
     if decision == "revise":
         await set_stage(

@@ -11,6 +11,12 @@ from app.db import read_session
 from app.errors import ApiError, conflict, validation_error
 from app.models import Project
 from app.workflow import templates
+from app.workflow.adjudication import (
+    RULESET_VERSION,
+    ProtocolIssue,
+    governance_ruleset,
+    review_output,
+)
 from app.workflow.contracts import ContractError, digest_payload, validate_data
 from app.workflow.roles import RoleOutput, run_role
 from app.workflow.state import (
@@ -56,12 +62,25 @@ REQUIRED_CARD_RULES = (
     "S06_BLOCKERS",
 )
 
-# Shared reviewer prompts also emit general governance checks. These are
-# advisory only; REQUIRED_*_RULES still decide whether an artifact can pass.
-_ADVISORY_RULE_RE = re.compile(
-    r"^(?:G\d{2}_[A-Z0-9_]+|review:[a-z][a-z0-9_]{0,63}|"
-    r"(?!S\d{2}_)[A-Z][A-Z0-9_]{1,63})$"
+# Shared reviewer prompts also emit general governance checks. They are
+# advisory in the server catalogue; REQUIRED_*_RULES still decide whether an
+# artifact can pass.
+RULESET_VISUAL = governance_ruleset(
+    "visual_plan",
+    tuple((rule_id, "视觉方案核验") for rule_id in REQUIRED_VISUAL_RULES),
+    evidence_types=("artifact", "reference"),
 )
+RULESET_CARD = governance_ruleset(
+    "final_card",
+    tuple((rule_id, "最终需求卡核验") for rule_id in REQUIRED_CARD_RULES),
+    evidence_types=("artifact", "reference"),
+)
+
+
+def _ruleset_for(required_rules: tuple[str, ...]) -> Any:
+    if tuple(required_rules) == REQUIRED_CARD_RULES:
+        return RULESET_CARD
+    return RULESET_VISUAL
 
 _VISUAL_KINDS = ("brief_draft", "creative_direction")
 _CARD_KINDS = ("brief_draft", "creative_direction", "visual_plan")
@@ -533,6 +552,10 @@ def _review_unavailable() -> ApiError:
     return ApiError(503, "REVIEW_UNAVAILABLE", templates.render("REVIEW_UNAVAILABLE"))
 
 
+def _review_invalid(message: str) -> ApiError:
+    return ApiError(409, "REVIEW_INVALID", message)
+
+
 def _validate_review(
     output: RoleOutput,
     target_id: str,
@@ -540,64 +563,20 @@ def _validate_review(
     allowed_evidence: set[str],
 ) -> tuple[str, list[dict[str, Any]]]:
     if output.status != "ready" or output.data is None:
-        raise _review_unavailable()
-    results = output.data.get("results")
-    if not isinstance(results, list) or len(results) != 1:
-        raise _review_unavailable()
-    result = results[0]
-    if not isinstance(result, dict) or result.get("target_id") != target_id:
-        raise _review_unavailable()
-    decision = result.get("decision")
-    if decision not in {"pass", "revise", "reject", "unknown"}:
-        raise _review_unavailable()
-    checks = result.get("checks")
-    if not isinstance(checks, list) or not checks:
-        raise _review_unavailable()
-
-    required = set(required_rules)
-    seen_required: list[str] = []
-    for check in checks:
-        if not isinstance(check, dict):
-            raise _review_unavailable()
-        rule_id = check.get("rule_id")
-        if not isinstance(rule_id, str):
-            raise _review_unavailable()
-        outcome = check.get("outcome")
-        evidence = check.get("evidence_ids")
-        if not isinstance(evidence, list):
-            raise _review_unavailable()
-        note = check.get("note")
-        if isinstance(note, str) and _contains_url(note):
-            raise _review_unavailable()
-
-        if rule_id in required:
-            if outcome not in {"pass", "fail", "unknown"}:
-                raise _review_unavailable()
-            if not evidence:
-                raise _review_unavailable()
-            seen_required.append(rule_id)
-        else:
-            if not _ADVISORY_RULE_RE.fullmatch(rule_id):
-                raise _review_unavailable()
-            if outcome not in {"pass", "fail", "unknown", "not_applicable"}:
-                raise _review_unavailable()
-            if decision == "pass" and outcome in {"fail", "unknown"}:
-                raise _review_unavailable()
-        if evidence and any(
-            not isinstance(item, str) or item not in allowed_evidence for item in evidence
-        ):
-            raise _review_unavailable()
-
-    if decision == "pass":
-        if set(seen_required) != required or len(seen_required) != len(set(seen_required)):
-            raise _review_unavailable()
-        for check in checks:
-            if check["rule_id"] in required and check.get("outcome") != "pass":
-                raise _review_unavailable()
-    elif len(seen_required) != len(set(seen_required)):
-        raise _review_unavailable()
-    return str(decision), checks
-
+        raise _review_invalid(templates.render("REVIEW_INVALID"))
+    try:
+        adjudication = review_output(
+            output.data,
+            target_id=target_id,
+            ruleset=_ruleset_for(required_rules),
+            allowed_evidence=allowed_evidence,
+        )
+    except ProtocolIssue as exc:
+        raise _review_invalid(exc.message) from None
+    for check in adjudication.checks:
+        if _contains_url(check.note):
+            raise _review_invalid("审查说明不得包含外部链接，未放行")
+    return adjudication.decision, adjudication.check_payloads()
 
 
 def _collect_evidence(
@@ -634,6 +613,7 @@ async def _review_artifact(
     allowed = {artifact.id}
     allowed.update(str(item["artifact_id"]) for item in dependencies)
     allowed.update(extra_evidence or set())
+    ruleset = _ruleset_for(required_rules)
     try:
         output = await run_role(
             ctx,
@@ -642,6 +622,8 @@ async def _review_artifact(
             {
                 "reviewed_role": ("visual_director" if target_kind == "visual_plan" else "backend"),
                 "target_kind": target_kind,
+                "ruleset_version": ruleset.version,
+                "rules": ruleset.describe(),
             },
             approved_inputs=approved_inputs,
             review_targets=[
@@ -680,6 +662,14 @@ async def _review_artifact(
                 issue_code="REVIEW_UNAVAILABLE",
                 template_id="REVIEW_UNAVAILABLE",
             )
+        elif exc.code in {"REVIEW_INVALID", "REVIEW_REJECTED"}:
+            await set_stage(
+                ctx,
+                STAGE,
+                "blocked",
+                issue_code=exc.code,
+                template_id=exc.code,
+            )
         raise
     return decision, checks
 
@@ -699,7 +689,11 @@ async def _settle_review(
             artifact,
             reviewer_role="output_reviewer",
             decision="pass",
-            checks={"dependencies": dependencies, "checks": checks},
+            checks={
+                "ruleset_version": RULESET_VERSION,
+                "dependencies": dependencies,
+                "checks": checks,
+            },
             raw={
                 "reviewed_role": ("visual_director" if target_kind == "visual_plan" else "backend"),
                 "target_kind": target_kind,
@@ -714,7 +708,11 @@ async def _settle_review(
         artifact,
         reviewer_role="output_reviewer",
         decision=decision,
-        checks={"dependencies": dependencies, "checks": checks},
+        checks={
+            "ruleset_version": RULESET_VERSION,
+            "dependencies": dependencies,
+            "checks": checks,
+        },
         raw={
             "reviewed_role": ("visual_director" if target_kind == "visual_plan" else "backend"),
             "target_kind": target_kind,

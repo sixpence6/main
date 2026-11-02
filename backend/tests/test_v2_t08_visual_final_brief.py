@@ -194,14 +194,14 @@ class Script:
                             "note": "",
                         }
                         for rule_id, check_evidence, outcome in (
-                            ("SCOPE_AND_RESPONSIBILITY", evidence, "pass"),
-                            ("FACT_SOURCE", evidence, "pass"),
-                            ("UNKNOWN_AS_CERTAIN", [], "pass"),
-                            ("CONFIRMED_REQUIREMENT_CONSISTENCY", evidence, "pass"),
-                            ("FORBIDDEN_CONTENT", evidence, "pass"),
-                            ("OUTPUT_STRUCTURE_SEMANTICS", evidence, "pass"),
-                            ("EVIDENCE_COVERAGE", evidence, "pass"),
-                            ("UNAUTHORIZED_ACTION", [], "pass"),
+                            ("G07_SCOPE_ROLE", evidence, "pass"),
+                            ("G07_FACT_SOURCE", evidence, "pass"),
+                            ("G07_UNKNOWN_AS_FACT", [], "pass"),
+                            ("G03_REQUIREMENT_CONSISTENCY", evidence, "pass"),
+                            ("G04_PROHIBITED", evidence, "pass"),
+                            ("G07_OUTPUT_STRUCTURE", evidence, "pass"),
+                            ("G06_EVIDENCE_COVERAGE", evidence, "pass"),
+                            ("G07_UNAUTHORIZED_ACTION", [], "pass"),
                         )
                     ]
                 )
@@ -606,9 +606,10 @@ async def test_review_missing_duplicate_foreign_checks_never_approve(full_settin
             project = await _create_project(client)
             await _seed_upstream(application, project["id"])
             response = await _act(client, project["id"], "plan_visual")
-            assert response.status_code == 503, (mode, response.text)
-            assert response.json()["error"]["code"] == "REVIEW_UNAVAILABLE"
+            assert response.status_code == 409, (mode, response.text)
+            assert response.json()["error"]["code"] == "REVIEW_INVALID"
             view = await _view(client, project["id"])
+            assert view["issue"]["code"] == "REVIEW_INVALID", mode
             plan = _artifact(view, "visual_plan")
             assert plan is None or plan["status"] != "approved", mode
 
