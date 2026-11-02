@@ -1,5 +1,6 @@
 import {
   computed,
+  reactive,
   inject,
   nextTick,
   onBeforeUnmount,
@@ -79,6 +80,13 @@ export interface WorkspaceStore {
   projectListMoreError: Ref<string>
   nextCursor: Ref<string | null>
   projectListLoadingMore: Ref<boolean>
+  projectQuery: Ref<string>
+  projectSearchBusy: Ref<boolean>
+  projectSearchError: Ref<string>
+  projectRenameBusy: Ref<boolean>
+  projectRenameError: Ref<string>
+  setProjectQuery: (query: string) => void
+  renameProject: (id: string, title: string) => Promise<boolean>
   currentProject: Ref<ProjectView | null>
   projectMessages: Ref<MessageView[]>
   projectGenerations: Ref<GenerationView[]>
@@ -142,6 +150,22 @@ function currentProjectParam(): string | null {
   return (params.get('project') ?? '').trim()
 }
 
+function routeProjectId(routeParams: unknown, query: unknown): string | null {
+  const params = routeParams && typeof routeParams === 'object' ? routeParams as Record<string, unknown> : null
+  const queryObject = query && typeof query === 'object' ? query as Record<string, unknown> : null
+  let present = false
+  let raw: unknown = undefined
+  if (params && Object.prototype.hasOwnProperty.call(params, 'projectId')) {
+    present = true
+    raw = params.projectId
+  } else if (queryObject && Object.prototype.hasOwnProperty.call(queryObject, 'project')) {
+    present = true
+    raw = queryObject.project
+  }
+  if (!present) return null
+  return typeof raw === 'string' ? raw.trim() : ''
+}
+
 function dedupeProjects(items: ProjectSummary[]): ProjectSummary[] {
   const seen = new Set<string>()
   return items.filter((item) => {
@@ -157,8 +181,21 @@ function createWorkspace(): WorkspaceStore {
   const route = useRoute()
   let workspaceSessionRevision = sessionRevision.value
 
-  const draft = ref('')
-  const projectParam = ref<string | null>(currentProjectParam())
+  const drafts = reactive(new Map<string, string>())
+  const projectParam = ref<string | null>(routeProjectId(route.params, route.query))
+  const draftKey = computed(() => projectParam.value ?? '__new__')
+  const draft = computed<string>({
+    get: () => drafts.get(draftKey.value) ?? '',
+    set: (value: string) => {
+      if (value) drafts.set(draftKey.value, value)
+      else drafts.delete(draftKey.value)
+    },
+  })
+  const projectQuery = ref('')
+  const projectSearchBusy = ref(false)
+  const projectSearchError = ref('')
+  const projectRenameBusy = ref(false)
+  const projectRenameError = ref('')
   const sidebarExpanded = ref(breakpoint.value === 'wide')
   const sideDrawerOpen = ref(false)
   const modelDrawerOpen = ref(false)
@@ -324,19 +361,32 @@ function createWorkspace(): WorkspaceStore {
     })
   }
 
-  function routeQueryWithProject(): Record<string, string | string[]> {
+  function routeQueryWithoutProject(): Record<string, string | string[]> {
     const query: Record<string, string | string[]> = {}
     for (const [key, value] of Object.entries(route.query)) {
       if (key === 'project' || value === undefined || value === null) continue
       query[key] = Array.isArray(value) ? value.map((item) => String(item)) : String(value)
     }
-    if (projectParam.value) query.project = projectParam.value
     return query
   }
 
   function updateProjectUrl(id: string | null, mode: 'push' | 'replace'): Promise<unknown> {
     if (id) projectParam.value = id
-    return router[mode]({ name: 'describe', query: routeQueryWithProject(), hash: route.hash }).catch(() => undefined)
+    if (id) {
+      return router[mode]({
+        name: 'project-chat',
+        params: { projectId: id },
+        query: routeQueryWithoutProject(),
+        hash: route.hash,
+      }).catch(() => undefined)
+    }
+    return router[mode]({ name: 'describe', query: routeQueryWithoutProject(), hash: route.hash }).catch(() => undefined)
+  }
+
+  function adoptDraftForProject(projectId: string): void {
+    const pending = drafts.get('__new__')
+    if (pending !== undefined) drafts.set(projectId, pending)
+    drafts.delete('__new__')
   }
 
   function openNavigationConfirm(intent: NavigationIntent): void {
@@ -404,8 +454,16 @@ function createWorkspace(): WorkspaceStore {
     projectListMoreError.value = ''
     nextCursor.value = null
     projectListLoadingMore.value = false
-    draft.value = ''
-    const hadProject = projectParam.value !== null || typeof route.query.project === 'string'
+    drafts.clear()
+    projectQuery.value = ''
+    projectSearchBusy.value = false
+    projectSearchError.value = ''
+    projectRenameBusy.value = false
+    projectRenameError.value = ''
+    const hadProject =
+      projectParam.value !== null ||
+      typeof route.query.project === 'string' ||
+      typeof route.params.projectId === 'string'
     projectParam.value = null
     clearPrivateBrowserState()
     if (route.name !== 'describe' || hadProject) {
@@ -436,7 +494,7 @@ function createWorkspace(): WorkspaceStore {
     sendError.value = ''
     clearProjectDetail()
     projectParam.value = null
-    draft.value = ''
+    drafts.delete('__new__')
     sideDrawerOpen.value = false
     projectDrawerOpen.value = false
     updateProjectUrl(null, 'replace')
@@ -484,27 +542,39 @@ function createWorkspace(): WorkspaceStore {
   async function loadProjects(): Promise<void> {
     if (projectListLoading.value) return
     const sessionAtStart = sessionRevision.value
+    const queryAtStart = projectQuery.value.trim()
     listController?.abort()
     moreController?.abort()
     const controller = new AbortController()
     listController = controller
     projectListLoading.value = true
+    projectSearchBusy.value = Boolean(queryAtStart)
     projectListLoadingMore.value = false
     projectListError.value = ''
     projectListMoreError.value = ''
     try {
-      const response = await api.listProjects({ limit: 20 }, controller.signal)
-      if (sessionAtStart !== sessionRevision.value || controller.signal.aborted) return
+      const response = await api.listProjects(
+        { limit: 20, q: queryAtStart || undefined },
+        controller.signal,
+      )
+      if (
+        sessionAtStart !== sessionRevision.value ||
+        queryAtStart !== projectQuery.value.trim() ||
+        controller.signal.aborted
+      ) return
       projectList.value = dedupeProjects(response.items)
       nextCursor.value = response.next_cursor
+      projectSearchError.value = ''
     } catch (error) {
       if (sessionAtStart !== sessionRevision.value || isAbortError(error) || controller.signal.aborted) return
+      if (queryAtStart !== projectQuery.value.trim()) return
       projectListError.value =
         error instanceof ApiError ? error.message : '项目列表读取失败，请稍后重试。'
     } finally {
       if (listController === controller) {
         listController = null
         projectListLoading.value = false
+        projectSearchBusy.value = false
       }
     }
   }
@@ -512,18 +582,27 @@ function createWorkspace(): WorkspaceStore {
   async function appendPage(cursor: string): Promise<void> {
     if (projectListLoadingMore.value || !cursor) return
     const sessionAtStart = sessionRevision.value
+    const queryAtStart = projectQuery.value.trim()
     moreController?.abort()
     const controller = new AbortController()
     moreController = controller
     projectListLoadingMore.value = true
     projectListMoreError.value = ''
     try {
-      const response = await api.listProjects({ limit: 20, cursor }, controller.signal)
-      if (sessionAtStart !== sessionRevision.value || controller.signal.aborted) return
+      const response = await api.listProjects(
+        { limit: 20, cursor, q: queryAtStart || undefined },
+        controller.signal,
+      )
+      if (
+        sessionAtStart !== sessionRevision.value ||
+        queryAtStart !== projectQuery.value.trim() ||
+        controller.signal.aborted
+      ) return
       projectList.value = dedupeProjects([...projectList.value, ...response.items])
       nextCursor.value = response.next_cursor
     } catch (error) {
       if (sessionAtStart !== sessionRevision.value || isAbortError(error) || controller.signal.aborted) return
+      if (queryAtStart !== projectQuery.value.trim()) return
       projectListMoreError.value =
         error instanceof ApiError ? error.message : '加载更多项目失败，请稍后重试。'
     } finally {
@@ -545,6 +624,49 @@ function createWorkspace(): WorkspaceStore {
     if (!cursor) return
     projectListMoreError.value = ''
     await appendPage(cursor)
+  }
+
+  function setProjectQuery(query: string): void {
+    const normalized = query
+    if (normalized.trim() === projectQuery.value.trim()) return
+    projectQuery.value = normalized
+    projectList.value = []
+    nextCursor.value = null
+    projectListError.value = ''
+    projectListMoreError.value = ''
+    projectSearchError.value = ''
+    void loadProjects()
+  }
+
+  async function renameProject(id: string, title: string): Promise<boolean> {
+    const normalized = title.trim()
+    if (!normalized || normalized.length > 120) {
+      projectRenameError.value = '项目标题长度须为 1-120 个字符。'
+      return false
+    }
+    if (projectRenameBusy.value) return false
+    projectRenameBusy.value = true
+    projectRenameError.value = ''
+    try {
+      const updated = await api.renameProject(id, normalized)
+      if (currentProject.value?.id === id) currentProject.value = updated
+      const index = projectList.value.findIndex((item) => item.id === id)
+      if (index >= 0) {
+        projectList.value[index] = {
+          ...projectList.value[index],
+          title: updated.title,
+          updated_at: updated.updated_at,
+        }
+      }
+      announce('项目标题已更新。')
+      return true
+    } catch (error) {
+      projectRenameError.value =
+        error instanceof ApiError ? error.message : '项目标题保存失败，请稍后重试。'
+      return false
+    } finally {
+      projectRenameBusy.value = false
+    }
   }
 
   async function loadProject(id: string): Promise<void> {
@@ -959,6 +1081,7 @@ function createWorkspace(): WorkspaceStore {
       }
       currentProject.value = project
       projectParam.value = project.id
+      adoptDraftForProject(project.id)
       updateProjectUrl(project.id, 'push')
     }
     if (!project) return
@@ -1175,6 +1298,7 @@ function createWorkspace(): WorkspaceStore {
         if (projectContextToken !== contextToken) return
         currentProject.value = project
         projectParam.value = project.id
+        adoptDraftForProject(project.id)
         updateProjectUrl(project.id, 'push')
       }
       if (!project) return
@@ -1276,7 +1400,6 @@ function createWorkspace(): WorkspaceStore {
   function performSelectProject(id: string): void {
     creationUnknown.value = false
     sendError.value = ''
-    draft.value = ''
     closeProjectDrawer()
     closeSideDrawer()
     projectParam.value = id
@@ -1290,12 +1413,12 @@ function createWorkspace(): WorkspaceStore {
   }
 
   function syncProjectFromUrl(): void {
-    const id = currentProjectParam()
+    const id = routeProjectId(route.params, route.query)
     if (id === projectParam.value) return
     if (hasUnsavedChanges.value) {
       const target = router.resolve({
         name: 'describe',
-        query: routeQueryWithProject(),
+        query: routeQueryWithoutProject(),
         hash: route.hash,
       }).fullPath
       window.history.replaceState(window.history.state, '', target)
@@ -1314,7 +1437,6 @@ function createWorkspace(): WorkspaceStore {
   function performHistoryNavigation(id: string | null): void {
     creationUnknown.value = false
     sendError.value = ''
-    draft.value = ''
     if (id === null) {
       clearProjectDetail()
       projectParam.value = null
@@ -1330,9 +1452,9 @@ function createWorkspace(): WorkspaceStore {
   }
 
   watch(
-    () => route.query.project,
+    () => [route.params.projectId, route.query.project],
     () => {
-      const nextProject = typeof route.query.project === 'string' ? route.query.project : null
+      const nextProject = routeProjectId(route.params, route.query)
       if (nextProject !== projectParam.value) syncProjectFromUrl()
     },
     { flush: 'sync' },
@@ -1456,6 +1578,13 @@ function createWorkspace(): WorkspaceStore {
     projectListMoreError,
     nextCursor,
     projectListLoadingMore,
+    projectQuery,
+    projectSearchBusy,
+    projectSearchError,
+    projectRenameBusy,
+    projectRenameError,
+    setProjectQuery,
+    renameProject,
     currentProject,
     projectMessages,
     projectGenerations,

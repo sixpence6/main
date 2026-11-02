@@ -147,7 +147,7 @@ async function findU1() {
 }
 
 describe('T21 U1 沟通、参考输入与当前需求卡', () => {
-  it('桌面把对话与需求放在同一双列工作台，候选报告和候选最终卡不提前显示', async () => {
+  it('桌面把对话与需求放在同一单列工作台，候选报告和候选最终卡不提前显示', async () => {
     harness = await mountU1({
       view: workflowView({
         artifacts: [candidateReport(), candidateFinalBrief()],
@@ -156,8 +156,9 @@ describe('T21 U1 沟通、参考输入与当前需求卡', () => {
     })
 
     const workbench = await findU1()
-    expect(workbench.querySelector('.u1-conversation .conversation-panel')).not.toBeNull()
-    expect(workbench.querySelector('.u1-requirement .workflow-panel')).not.toBeNull()
+    expect(workbench.querySelector('.chat-stream .conversation-panel')).not.toBeNull()
+    expect(workbench.querySelector('.chat-stream .workflow-panel')).not.toBeNull()
+    expect(workbench.querySelectorAll('.u1-column')).toHaveLength(0)
     expect(within(workbench).getByRole('heading', { name: '春季托特包主图' })).toBeVisible()
     expect(within(workbench).getByText('等待独立审查')).toBeVisible()
     expect(
@@ -306,7 +307,8 @@ describe('T21 U1 沟通、参考输入与当前需求卡', () => {
 
     const workbench = await findU1()
     expect(window.innerWidth).toBe(320)
-    expect(workbench.querySelectorAll('.u1-column')).toHaveLength(2)
+    expect(workbench.querySelector('.chat-stream .conversation-panel')).not.toBeNull()
+    expect(workbench.querySelectorAll('.u1-column')).toHaveLength(0)
     expect(screen.getByLabelText('描述商品与图片需求')).toBeVisible()
     expect(harness.fetch.count('POST')).toBe(0)
   })

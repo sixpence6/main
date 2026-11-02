@@ -171,7 +171,8 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     expect(within(dialog).getByText(/将前往「切换项目」/)).toBeVisible()
     await harness.user.click(within(dialog).getByRole('button', { name: '继续编辑' }))
 
-    expect(window.location.search).toBe(`?project=${PROJECT_A}`)
+    expect(harness.router.currentRoute.value.name).toBe('describe')
+    expect(harness.router.currentRoute.value.query.project).toBe(PROJECT_A)
     expect(screen.getByRole('heading', { name: '春季托特包主图' })).toBeVisible()
     expect(screen.getByLabelText('描述商品与图片需求')).toHaveValue('本地尚未发送的草稿')
     expect(harness.fetch.count('GET', detailPathB)).toBe(0)
@@ -182,7 +183,8 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     await harness.user.click(screen.getByRole('button', { name: '放弃修改' }))
 
     expect(await screen.findByRole('heading', { name: '陶瓷马克杯' })).toBeVisible()
-    expect(window.location.search).toBe(`?project=${PROJECT_B}`)
+    expect(harness.router.currentRoute.value.name).toBe('project-chat')
+    expect(harness.router.currentRoute.value.params.projectId).toBe(PROJECT_B)
     expect(screen.getByLabelText('描述商品与图片需求')).toHaveValue('')
     expect(harness.fetch.writes).toHaveLength(0)
   })
@@ -197,11 +199,18 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     window.history.pushState({}, '', `/?project=${PROJECT_B}`)
     window.dispatchEvent(new PopStateEvent('popstate'))
     const dialog = await screen.findByRole('alertdialog', { name: '放弃未保存的修改？' })
-    expect(window.location.search).toBe(`?project=${PROJECT_A}`)
+    await harness.waitFor(() => {
+      expect(harness.router.currentRoute.value.name).toBe('project-chat')
+      expect(harness.router.currentRoute.value.params.projectId).toBe(PROJECT_A)
+    })
+    expect(screen.getByRole('heading', { name: '春季托特包主图' })).toBeVisible()
     expect(within(dialog).getByText(/将前往「离开当前项目」/)).toBeVisible()
 
     await harness.user.click(within(dialog).getByRole('button', { name: '继续编辑' }))
-    expect(window.location.search).toBe(`?project=${PROJECT_A}`)
+    await harness.waitFor(() => {
+      expect(harness.router.currentRoute.value.name).toBe('project-chat')
+      expect(harness.router.currentRoute.value.params.projectId).toBe(PROJECT_A)
+    })
     expect(screen.getByRole('heading', { name: '春季托特包主图' })).toBeVisible()
     expect(composer).toHaveValue('后退前的草稿')
     expect(harness.fetch.count('GET', detailPathB)).toBe(0)
@@ -212,7 +221,8 @@ describe('T07 导航确认、草稿保留与版本冲突', () => {
     await harness.user.click(screen.getByRole('button', { name: '放弃修改' }))
 
     expect(await screen.findByRole('heading', { name: '陶瓷马克杯' })).toBeVisible()
-    expect(window.location.search).toBe(`?project=${PROJECT_B}`)
+    expect(harness.router.currentRoute.value.name).toBe('project-chat')
+    expect(harness.router.currentRoute.value.params.projectId).toBe(PROJECT_B)
   })
 
   it('beforeunload 只在存在未发送文字时注册，清空后移除', async () => {

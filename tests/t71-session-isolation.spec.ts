@@ -85,21 +85,31 @@ describe('T71 登录生命周期与页面隔离', () => {
     await ensureSession(true)
     window.history.pushState({}, '', '/')
     window.dispatchEvent(new PopStateEvent('popstate'))
-    expect(await screen.findByText('从一个商品想法开始')).toBeVisible()
+    await harness.waitFor(() => {
+      expect(screen.getByRole('heading', { name: '从一个商品想法开始' })).toBeVisible()
+    })
     expect(screen.queryByRole('heading', { name: '项目甲' })).not.toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: '描述商品与图片需求' })).toHaveValue('')
+    await harness.waitFor(() => {
+      expect(screen.getByRole('textbox', { name: '描述商品与图片需求' })).toHaveValue('')
+    })
     expect(harness.storage.local.getItem(requestKey)).toBeNull()
     expect(harness.storage.session.getItem(credentialKey)).toBeNull()
 
     await ensureSession(true)
     expect(screen.queryByRole('heading', { name: '项目甲' })).not.toBeInTheDocument()
-    expect(screen.getByText('从一个商品想法开始')).toBeVisible()
-    expect(screen.getByRole('textbox', { name: '描述商品与图片需求' })).toHaveValue('')
+    await harness.waitFor(() => {
+      expect(screen.getByRole('heading', { name: '从一个商品想法开始' })).toBeVisible()
+    })
+    await harness.waitFor(() => {
+      expect(screen.getByRole('textbox', { name: '描述商品与图片需求' })).toHaveValue('')
+    })
 
     // 同一账号重新登录也是新的登录生命周期，不能恢复上一个生命周期的工作台。
     await ensureSession(true)
     expect(screen.queryByRole('heading', { name: '项目甲' })).not.toBeInTheDocument()
-    expect(screen.getByText('从一个商品想法开始')).toBeVisible()
+    await harness.waitFor(() => {
+      expect(screen.getByRole('heading', { name: '从一个商品想法开始' })).toBeVisible()
+    })
     expect(harness.fetch.count('POST', /\/generations(?:\/|$)/)).toBe(0)
     expect(harness.fetch.count('POST', /\/workflow\/actions/)).toBe(0)
   })
