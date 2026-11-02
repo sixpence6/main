@@ -56,7 +56,7 @@ T13 把“任务现在是什么状态、为什么停、下一步真实能做什�
 
 ## 4. HTTP 权限与正向/反向测试
 
-测试文件 **backend/tests/test_v3_p1_t13_safe_projection.py** 共 16 项（6 个场景 + 9 类原因参数化 + 1 个补充动作映射）：
+测试文件 **backend/tests/test_v3_p1_t13_safe_projection.py** 共 17 项（6 个场景 + 10 类原因参数化 + 1 个补充动作映射）：
 
 - 正常确认后读取 task_state：phase=prompt、stage=S07、binding.current=true、must_include=hard、background=soft、无百分比、compile_prompt 为 model_call 且无 cancel_generation。
 - approval checks 注入 reviewer_note/candidate_body/private_locator 三个 sentinel 后，GET 响应中不出现 sentinel，checks 只含 confirmation。
@@ -65,7 +65,7 @@ T13 把“任务现在是什么状态、为什么停、下一步真实能做什�
 - 旧成功版本 + 新 revision/digest：binding.current=false，resource_state=history_only，current_version=null；只有 revision 与 digest 恢复匹配时才重新成为 current。
 - 普通用户 B 读 A 项目 404；管理员读 B 项目 404；匿名 401；禁用账号 401/403。
 - S08 failed 与 S12 recovery 对同一持久化 issue 生成完全相同的 reason 对象。
-- 参数化覆盖 9 类 reason 分类，并恢复 UNSAFE_REQUEST 等内容拒绝映射，保持 T07 既有契约。
+- 参数化覆盖 10 类 reason 分类，并恢复 UNSAFE_REQUEST 等内容拒绝映射，保持 T07 既有契约。
 
 ## 5. 验收映射
 
@@ -83,7 +83,7 @@ T13 把“任务现在是什么状态、为什么停、下一步真实能做什�
 
 | 命令 | 结果 |
 | --- | --- |
-| pytest tests/test_v3_p1_t13_safe_projection.py -q | **16 passed in 6.43s** |
+| pytest tests/test_v3_p1_t13_safe_projection.py -q | **17 passed in 6.99s** |
 | pytest 全 P1 T02–T13 -q | **133 passed in 81.72s** |
 | pytest T13 + T10/T11/T12 + t03/t65/t68/t06 -q | **73 passed in 61.65s** |
 | pytest t59/t60/t71 -q | **9 passed in 10.75s** |
@@ -94,7 +94,7 @@ T13 定向测试不调用模型或图片服务；P1 回归使用计数 stub，�
 
 ## 7. 剩余未知
 
-- 未重跑完整 backend 全量套件；证据边界是 T13 16 项、P1 133 项、受影响工作流组 73 项、隔离/所有权/会话 9 项及前端类型检查。
+- 未重跑完整 backend 全量套件；证据边界是 T13 17 项、P1 133 项、受影响工作流组 73 项、隔离/所有权/会话 9 项及前端类型检查。
 - 未调用真实模型、图片服务或浏览器，也未在生产数据库上执行迁移。
 - **main/backend/app/workflow/dispatch.py** 的紧凑 _ACTIONS 表存在 35 处既有 E501；T13 未重排该表，因此 ruff 结论不包含该文件。
 - 本票只关闭服务端投影契约；单聊天卡片、结果页、响应式/无障碍等 UI 验收仍属 T15-T22。
