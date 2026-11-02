@@ -5,6 +5,7 @@ const props = defineProps<{
   open: boolean
   destination: string
   draftDirty: boolean
+  attachmentPending: boolean
 }>()
 
 const emit = defineEmits<{ cancel: []; confirm: [] }>()
@@ -100,8 +101,9 @@ onBeforeUnmount(() => {
         <p id="unsaved-description">
           将前往「{{ destination }}」，当前页面中未保存的内容会被放弃。
         </p>
-        <ul v-if="draftDirty" class="unsaved-list">
+        <ul v-if="draftDirty || attachmentPending" class="unsaved-list">
           <li v-if="draftDirty">输入框中尚未发送的文字</li>
+          <li v-if="attachmentPending">尚未上传完成的参考图</li>
         </ul>
         <p class="unsaved-hint">这些内容只保留在当前页面内存中，离开后无法恢复。</p>
         <div class="unsaved-actions">

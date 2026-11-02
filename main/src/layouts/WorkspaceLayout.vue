@@ -26,6 +26,7 @@ const {
   navigationConfirmOpen,
   navigationIntentLabel,
   draftDirty,
+  attachmentPending,
   confirmNavigation,
   cancelNavigation,
   currentProject,
@@ -74,6 +75,7 @@ const {
       :open="navigationConfirmOpen"
       :destination="navigationIntentLabel"
       :draft-dirty="draftDirty"
+      :attachment-pending="attachmentPending"
       @cancel="cancelNavigation"
       @confirm="confirmNavigation"
     />
