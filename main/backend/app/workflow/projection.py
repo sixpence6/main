@@ -172,11 +172,23 @@ def _binding(
     delivery: Delivery | None,
     intent: GenerationIntentView | None,
     active_snapshot: dict[str, Any] | None,
+    artifacts: list[ArtifactView],
 ) -> TaskBindingView:
     active_digest = (
         active_snapshot.get("snapshot_digest")
         if isinstance(active_snapshot, dict)
         else None
+    )
+    # Jobs persist the digest of the approved final brief. The execution
+    # snapshot digest is a different value (T10), so compare the job binding
+    # with the artifact digest rather than with the snapshot digest.
+    brief_digest = next(
+        (
+            artifact.digest
+            for artifact in reversed(artifacts)
+            if artifact.kind == "final_brief" and artifact.status == "approved"
+        ),
+        None,
     )
     if job is None:
         current = True
@@ -184,7 +196,9 @@ def _binding(
         current = False
     else:
         current = project.revision == run.requirement_revision and (
-            active_digest is None or job.confirmed_snapshot_digest == active_digest
+            job.confirmed_snapshot_digest == brief_digest
+            if brief_digest is not None
+            else active_digest is None or job.confirmed_snapshot_digest == active_digest
         )
     return TaskBindingView(
         project_id=project.id,
@@ -373,6 +387,7 @@ def build_task_state(
         delivery=delivery,
         intent=intent,
         active_snapshot=active_snapshot,
+        artifacts=artifacts,
     )
     return TaskStateView(
         progress=_progress(run),
