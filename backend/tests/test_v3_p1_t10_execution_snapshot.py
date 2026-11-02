@@ -14,8 +14,9 @@ from app.adapters.base import ProviderOutcome
 from app.db import read_session, write_transaction
 from app.models import Project
 from app.workflow import state
+from app.workflow.contracts import digest_payload
 from app.workflow.stages import s05
-from app.workflow.tables import Approval, Artifact
+from app.workflow.tables import Approval, Artifact, GenerationJob
 from tests.support.adapters import LLMStub, VisualStub
 from tests.test_t65_generation_cycle import _drain, _environment, _responder
 from tests.test_v2_t40_prompt_review import base_brief, png_bytes
@@ -343,6 +344,56 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         assert stored["snapshot_digest"] == digest
         assert stored["artifact_digest"] == artifacts[0].digest
         assert stored["snapshot_digest"] != stored["artifact_digest"]
+
+        # A later approved revision must not rewrite what this job consumed.
+        # Regression guard for history selecting latest-per-run instead of the
+        # exact brief digest and prompt artifact bound to the generation job.
+        async with write_transaction(app.state.session_factory) as session:
+            job = await session.get(GenerationJob, version["generation_job_id"])
+            assert job is not None
+            old_prompt = await session.get(Artifact, job.prompt_artifact_id)
+            assert old_prompt is not None
+            old_prompt_payload = json.loads(old_prompt.payload_json)
+            new_brief_payload = json.loads(artifacts[0].payload_json)
+            new_brief_payload["background"] = "后来覆盖的背景"
+            session.add(
+                Artifact(
+                    id=str(uuid.uuid4()),
+                    run_id=artifacts[0].run_id,
+                    project_id=setup["project_id"],
+                    kind="final_brief",
+                    revision_no=2,
+                    status="approved",
+                    payload_json=json.dumps(new_brief_payload, ensure_ascii=False, sort_keys=True),
+                    digest=digest_payload(new_brief_payload),
+                    created_at=artifacts[0].created_at,
+                )
+            )
+            new_prompt_payload = dict(old_prompt_payload)
+            new_prompt_payload["positive_prompt"] = "后来覆盖的提示词"
+            session.add(
+                Artifact(
+                    id=str(uuid.uuid4()),
+                    run_id=old_prompt.run_id,
+                    project_id=setup["project_id"],
+                    kind="prompt_plan",
+                    revision_no=2,
+                    status="approved",
+                    payload_json=json.dumps(new_prompt_payload, ensure_ascii=False, sort_keys=True),
+                    digest=digest_payload(new_prompt_payload),
+                    created_at=old_prompt.created_at,
+                )
+            )
+            await session.flush()
+
+        history_after_revision = (await client.get(
+            f"/api/projects/{setup['project_id']}/workflow"
+        )).json()["versions"][0]
+        assert history_after_revision["brief"]["background"] == "浅灰无缝背景"
+        assert history_after_revision["prompt"]["positive_prompt"] == (
+            old_prompt_payload["positive_prompt"]
+        )
+        assert history_after_revision["execution_snapshot_digest"] == digest
 
 
 @pytest.mark.asyncio

@@ -850,26 +850,56 @@ async def _build_versions(
         if run is None:
             continue
         asset = await session.get(Asset, job.result_asset_id) if job.result_asset_id else None
+        # Resolve the exact inputs this generation job used. A run can gain
+        # later approved revisions (text repair, review renewal); history must
+        # keep showing the job's own brief and prompt, not the newest ones.
         brief_artifact = await session.scalar(
             select(Artifact)
             .where(
                 Artifact.run_id == job.run_id,
                 Artifact.kind == "final_brief",
                 Artifact.status == "approved",
+                Artifact.digest == job.confirmed_snapshot_digest,
             )
             .order_by(Artifact.revision_no.desc())
             .limit(1)
         )
-        prompt_artifact = await session.scalar(
-            select(Artifact)
-            .where(
-                Artifact.run_id == job.run_id,
-                Artifact.kind == "prompt_plan",
-                Artifact.status == "approved",
+        if brief_artifact is None:
+            brief_artifact = await session.scalar(
+                select(Artifact)
+                .where(
+                    Artifact.run_id == job.run_id,
+                    Artifact.kind == "final_brief",
+                    Artifact.status == "approved",
+                )
+                .order_by(Artifact.revision_no.desc())
+                .limit(1)
             )
-            .order_by(Artifact.revision_no.desc())
-            .limit(1)
+        prompt_artifact = (
+            await session.get(Artifact, job.prompt_artifact_id)
+            if job.prompt_artifact_id
+            else None
         )
+        if (
+            prompt_artifact is not None
+            and (
+                prompt_artifact.run_id != job.run_id
+                or prompt_artifact.kind != "prompt_plan"
+                or prompt_artifact.status != "approved"
+            )
+        ):
+            prompt_artifact = None
+        if prompt_artifact is None:
+            prompt_artifact = await session.scalar(
+                select(Artifact)
+                .where(
+                    Artifact.run_id == job.run_id,
+                    Artifact.kind == "prompt_plan",
+                    Artifact.status == "approved",
+                )
+                .order_by(Artifact.revision_no.desc())
+                .limit(1)
+            )
         quality_artifact = await session.scalar(
             select(Artifact)
             .where(
