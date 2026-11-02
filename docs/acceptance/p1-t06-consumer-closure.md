@@ -1,7 +1,7 @@
 # P1 / T06 — 审查消费者收口与受影响出口回归（#92）
 
 - 票：#92（T06，P1）；父问题 #86；批次 P1（接 #88 规则目录、#89 输入/需求审查、#90 创意/视觉/需求卡、#91 图像/交付/历史）
-- 集成分支：integration/v3；运行基线 **e160f2e**（#91 合并后）；本票在提交前以工作树运行，代码变更仅见第 1 节
+- 集成分支：integration/v3；运行基线 **e160f2e**（#91 合并后）；本票提交 **9c9eb42**（提交前以工作树运行），代码变更仅见第 1 节
 - 规则目录版本：**RULESET_VERSION = "v3.rules.1"**；提示词版本 **2.0.0**（未变更）
 - 环境：隔离临时 SQLite、计数型 **LLMStub**、数据根为临时目录、网络全部 stub；无真实 provider、无真实图片生成
 - 证据：**docs/acceptance/evidence/p1-t06.json**；新增测试：**backend/tests/test_v3_p1_t06_gate.py**（5 项）；关联测试：**test_v3_p1_t02_adjudication.py**、**test_v3_p1_t03_review_catalogue.py**、**test_v3_p1_t04_production_reviews.py**、**test_v3_p1_t05_image_delivery.py**、**test_v2_t13_delivery.py**、**test_v2_t44_versions.py**、**test_v2_t49_legacy_review.py**、**test_t59_isolation.py**、**test_t61_history_recovery_gate.py**、**test_t75_delivery_history.py**

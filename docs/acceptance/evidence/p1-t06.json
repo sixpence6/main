@@ -3,7 +3,7 @@
   "batch": "P1 / T06 — consumer closure and affected outlet regression",
   "code": {
     "baseline_head": "e160f2e",
-    "app_code_head": "e160f2e + #92 working tree (s10.py, s12.py)",
+    "app_code_head": "9c9eb42",
     "branch": "integration/v3",
     "rule_version": "v3.rules.1",
     "prompt_version": "2.0.0",
@@ -14,7 +14,8 @@
       "main/backend/app/workflow/stages/s12.py",
       "backend/tests/test_v3_p1_t02_adjudication.py",
       "backend/tests/test_v3_p1_t06_gate.py"
-    ]
+    ],
+    "commit": "9c9eb42"
   },
   "environment": {
     "type": "isolated-temp-sqlite",
