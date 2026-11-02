@@ -4,6 +4,7 @@ import { assetUrl } from '@/api/client'
 import type {
   WorkflowAction,
   WorkflowArtifact,
+  WorkflowConstraint,
   WorkflowLegacyItem,
   WorkflowVersion,
 } from '@/api/workflow'
@@ -138,6 +139,14 @@ const stageLabel = computed(() =>
 )
 const statusLabel = computed(() =>
   view.value ? STATUS_LABELS[view.value.status] ?? view.value.status : '',
+)
+
+const taskState = computed(() => view.value?.task_state ?? null)
+const hardConstraints = computed(() =>
+  (taskState.value?.constraints ?? []).filter((item) => item.strength === 'hard'),
+)
+const softConstraints = computed(() =>
+  (taskState.value?.constraints ?? []).filter((item) => item.strength === 'soft'),
 )
 
 const DELIVERY_STATUS_LABELS: Record<string, string> = {
@@ -485,6 +494,10 @@ function selectHistory(version: WorkflowVersion): void {
   selectedHistoryRunId.value = version.run_id
 }
 
+function constraintValue(constraint: WorkflowConstraint): string {
+  return formatBriefValue(constraint.path, constraint.value)
+}
+
 function formatBriefValue(key: string, value: unknown): string {
   if (key === 'reference_usage') {
     const labels: Record<string, string> = {
@@ -714,7 +727,7 @@ watch(
 <template>
   <section
     v-if="visible"
-    class="workflow-panel"
+    class="workflow-panel workflow-card-stream"
     aria-labelledby="workflow-panel-title"
     :aria-busy="loading || actionBusy"
   >
@@ -737,7 +750,32 @@ watch(
       </div>
     </header>
 
-    <section class="workflow-next-step" aria-labelledby="workflow-next-step-title" role="status">
+    <section
+      v-if="taskState"
+      class="workflow-task-card"
+      aria-labelledby="workflow-task-card-title"
+      role="status"
+    >
+      <p class="eyebrow">任务卡</p>
+      <h4 id="workflow-task-card-title">
+        {{ taskState.progress.stage_label || nextStep.title }}
+      </h4>
+      <p class="muted">
+        阶段：{{ taskState.progress.phase }} · 状态：{{ statusLabel }}
+        <template v-if="taskState.progress.awaiting_user"> · 等待你的操作</template>
+      </p>
+      <p v-if="taskState.reason" class="workflow-safe-reason">
+        {{ taskState.reason.message }}
+      </p>
+      <p v-else class="muted">{{ nextStep.detail }}</p>
+    </section>
+
+    <section
+      v-if="!taskState"
+      class="workflow-next-step"
+      aria-labelledby="workflow-next-step-title"
+      role="status"
+    >
       <p class="eyebrow">当前问题与下一步</p>
       <h4 id="workflow-next-step-title">{{ nextStep.title }}</h4>
       <p>{{ nextStep.detail }}</p>
@@ -772,7 +810,13 @@ watch(
       先描述商品与用途，提交后会开始范围判断。
     </div>
 
-    <div v-if="hasRun && finalBrief" class="workflow-confirmation" role="status">
+    <div
+      v-if="hasRun && finalBrief"
+      class="workflow-confirmation"
+      role="status"
+      :data-artifact-id="finalBrief.id"
+      :data-revision="finalBrief.revision_no"
+    >
       <p>
         需求状态：<strong>{{ confirmationLabel }}</strong>
         <span class="status-badge">{{ finalBrief.status === 'approved' ? '已通过独立审查' : '独立审查未完成' }}</span>
@@ -781,6 +825,33 @@ watch(
         第 {{ finalBrief.revision_no }} 次修订 · 摘要 {{ shortDigest || '—' }} ·
         项目版本 {{ view?.project_revision }} · 需求版本 {{ view?.requirement_revision }}
       </p>
+      <div
+        v-if="hardConstraints.length || softConstraints.length"
+        class="workflow-constraint-layers"
+        aria-label="需求约束分层"
+      >
+        <section aria-labelledby="workflow-hard-constraints-title">
+          <h4 id="workflow-hard-constraints-title">必须满足（硬约束）</h4>
+          <ul v-if="hardConstraints.length">
+            <li v-for="constraint in hardConstraints" :key="constraint.constraint_id">
+              <strong>{{ constraint.label }}</strong>：{{ constraintValue(constraint) }}
+              <span v-if="constraint.user_lock_basis" class="muted">
+                （用户锁定：{{ constraint.user_lock_basis }}）
+              </span>
+            </li>
+          </ul>
+          <p v-else class="muted">没有已确认的硬约束。</p>
+        </section>
+        <section aria-labelledby="workflow-soft-constraints-title">
+          <h4 id="workflow-soft-constraints-title">偏好（软约束，可调整）</h4>
+          <ul v-if="softConstraints.length">
+            <li v-for="constraint in softConstraints" :key="constraint.constraint_id">
+              <strong>{{ constraint.label }}</strong>：{{ constraintValue(constraint) }}
+            </li>
+          </ul>
+          <p v-else class="muted">没有额外的软偏好。</p>
+        </section>
+      </div>
       <p v-if="confirmationState === 'reviewing'" class="muted">
         最新需求卡正在独立审查，审查通过后才能确认，暂不提供确认入口。
       </p>
@@ -954,6 +1025,7 @@ watch(
     <div
       v-if="view?.delivery && deliveryAtCurrentRevision"
       class="workflow-delivery"
+      :data-delivery-id="view.delivery.id"
       :class="{ 'workflow-delivery-blocked': view.delivery.status === 'published' && !currentVersion }"
     >
       <div class="workflow-delivery-heading">
