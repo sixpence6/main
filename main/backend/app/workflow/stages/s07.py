@@ -4,6 +4,8 @@ import json
 import re
 from typing import Any
 
+from sqlalchemy import select
+
 from app.acceptance import abandon_intent, latest_intent
 from app.db import read_session
 from app.errors import ApiError, conflict
@@ -18,9 +20,20 @@ from app.workflow.adjudication import (
     s07_rules,
 )
 from app.workflow.contracts import ContractError, validate_data
+from app.workflow.reasons import (
+    CandidateDefect,
+    CandidateDefectCode,
+    ReasonCode,
+    classify_api_error,
+    classify_candidate_defects,
+    classify_issue_code,
+    classify_review_decision,
+    is_auto_repairable,
+    repair_codes_from_defects,
+)
 from app.workflow.roles import RoleOutput, run_role
 from app.workflow.state import WorkflowContext
-from app.workflow.tables import RevisionBudget
+from app.workflow.tables import ArtifactReview, GenerationJob, RevisionBudget
 
 STAGE = "S07"
 ACTIONS = ["compile_prompt", "revise_prompt"]
@@ -133,9 +146,9 @@ async def _require_confirmed(ctx: WorkflowContext) -> tuple[Any, dict[str, Any]]
     if ctx.project.brief_status != "confirmed":
         raise _confirmed_error()
     if ctx.project.confirmed_revision != ctx.project.revision:
-        raise _confirmed_error()
+        raise _drift_error()
     if ctx.run is None or ctx.run.requirement_revision != ctx.project.revision:
-        raise _confirmed_error()
+        raise _drift_error()
     if approval.artifact_digest != final_artifact.digest:
         raise _confirmed_error()
     if approval.requirement_snapshot_digest != final_artifact.digest:
@@ -243,29 +256,47 @@ def _keeps_characters_in_order(expected: str, actual: str) -> bool:
     return position == len(expected)
 
 
-def _candidate_errors(
+def _candidate_defects(
     payload: dict[str, Any],
     requirements: list[dict[str, Any]],
     brief: dict[str, Any],
     configured_size: str,
-) -> list[str]:
-    errors: list[str] = []
+) -> list[CandidateDefect]:
+    defects: list[CandidateDefect] = []
     expected = {item["rule_id"]: item for item in requirements}
     coverage = payload.get("requirement_coverage") or []
     seen: set[str] = set()
     for item in coverage:
         rule_id = item.get("rule_id")
         if rule_id in seen:
-            errors.append(f"重复覆盖：{rule_id}")
+            defects.append(
+                CandidateDefect(
+                    CandidateDefectCode.DUPLICATE_COVERAGE,
+                    f"重复覆盖：{rule_id}",
+                    rule_id=str(rule_id) if rule_id is not None else None,
+                )
+            )
             continue
-        seen.add(rule_id)
+        seen.add(str(rule_id))
         requirement = expected.get(rule_id)
         if requirement is None:
-            errors.append(f"未知覆盖项：{rule_id}")
+            defects.append(
+                CandidateDefect(
+                    CandidateDefectCode.UNKNOWN_COVERAGE,
+                    f"未知覆盖项：{rule_id}",
+                    rule_id=str(rule_id) if rule_id is not None else None,
+                )
+            )
             continue
         binding = item.get("binding")
         if binding not in requirement["allowed_bindings"]:
-            errors.append(f"覆盖绑定不匹配：{rule_id}")
+            defects.append(
+                CandidateDefect(
+                    CandidateDefectCode.BINDING_MISMATCH,
+                    f"覆盖绑定不匹配：{rule_id}",
+                    rule_id=rule_id,
+                )
+            )
             continue
         value = item.get("value")
         if binding in {"positive_prompt", "negative_prompt"}:
@@ -275,27 +306,120 @@ def _candidate_errors(
                 or value != requirement["requirement"]
                 or not _covers_requirement(value, field_value)
             ):
-                errors.append(f"提示词覆盖值与已确认要求不一致：{rule_id}")
+                defects.append(
+                    CandidateDefect(
+                        CandidateDefectCode.COVERAGE_MISMATCH,
+                        f"提示词覆盖值与已确认要求不一致：{rule_id}",
+                        rule_id=rule_id,
+                        content_intact=bool(value)
+                        and _covers_requirement(requirement["requirement"], field_value),
+                    )
+                )
         elif binding == "size":
             if value != configured_size:
-                errors.append("尺寸覆盖值不一致")
+                defects.append(
+                    CandidateDefect(
+                        CandidateDefectCode.SIZE_MISMATCH,
+                        "尺寸覆盖值不一致",
+                        rule_id=rule_id,
+                        content_intact=False,
+                    )
+                )
         elif binding == "count":
             if value != "1":
-                errors.append("数量覆盖值不一致")
+                defects.append(
+                    CandidateDefect(
+                        CandidateDefectCode.COUNT_MISMATCH,
+                        "数量覆盖值不一致",
+                        rule_id=rule_id,
+                        content_intact=False,
+                    )
+                )
         elif binding == "reference_asset_id":
             expected_reference = brief.get("reference_asset_id") or "null"
             if value != expected_reference:
-                errors.append("参考图覆盖值不一致")
-    for rule_id in expected:
+                defects.append(
+                    CandidateDefect(
+                        CandidateDefectCode.REFERENCE_MISMATCH,
+                        "参考图覆盖值不一致",
+                        rule_id=rule_id,
+                        content_intact=False,
+                    )
+                )
+    for rule_id, requirement in expected.items():
         if rule_id not in seen:
-            errors.append(f"缺少覆盖：{rule_id}")
+            binding = requirement["allowed_bindings"][0]
+            if binding in {"positive_prompt", "negative_prompt"}:
+                intact = _covers_requirement(
+                    requirement["requirement"], payload.get(binding) or ""
+                )
+            elif binding == "size":
+                intact = payload.get("size") == configured_size
+            elif binding == "count":
+                intact = payload.get("count") == 1
+            else:
+                intact = payload.get("reference_asset_id") == brief.get("reference_asset_id")
+            defects.append(
+                CandidateDefect(
+                    CandidateDefectCode.MISSING_COVERAGE,
+                    f"缺少覆盖：{rule_id}",
+                    rule_id=rule_id,
+                    content_intact=intact,
+                )
+            )
     if payload.get("size") != configured_size:
-        errors.append("提交尺寸与已配置尺寸不一致")
+        defects.append(
+            CandidateDefect(
+                CandidateDefectCode.SIZE_MISMATCH,
+                "提交尺寸与已配置尺寸不一致",
+                content_intact=False,
+            )
+        )
     if payload.get("count") != 1:
-        errors.append("数量必须为 1")
+        defects.append(
+            CandidateDefect(
+                CandidateDefectCode.COUNT_MISMATCH,
+                "数量必须为 1",
+                content_intact=False,
+            )
+        )
     if payload.get("reference_asset_id") != brief.get("reference_asset_id"):
-        errors.append("参考图 ID 与确认快照不一致")
-    return errors
+        defects.append(
+            CandidateDefect(
+                CandidateDefectCode.REFERENCE_MISMATCH,
+                "参考图 ID 与确认快照不一致",
+                content_intact=False,
+            )
+        )
+    return defects
+
+
+def _candidate_errors(
+    payload: dict[str, Any],
+    requirements: list[dict[str, Any]],
+    brief: dict[str, Any],
+    configured_size: str,
+) -> list[str]:
+    return [
+        defect.message
+        for defect in _candidate_defects(payload, requirements, brief, configured_size)
+    ]
+
+
+def _validated_payload(
+    data: dict[str, Any],
+    requirements: list[dict[str, Any]],
+    brief: dict[str, Any],
+    configured_size: str,
+) -> tuple[dict[str, Any], list[CandidateDefect]]:
+    try:
+        payload = validate_data("prompt_plan", data).model_dump(mode="json")
+    except ContractError:
+        defect = CandidateDefect(
+            CandidateDefectCode.CONTRACT_INVALID, _INVALID_MESSAGE, content_intact=False
+        )
+        return {}, [defect]
+    return payload, _candidate_defects(payload, requirements, brief, configured_size)
 
 
 def _validate_candidate(
@@ -304,12 +428,8 @@ def _validate_candidate(
     brief: dict[str, Any],
     configured_size: str,
 ) -> dict[str, Any]:
-    try:
-        payload = validate_data("prompt_plan", data).model_dump(mode="json")
-    except ContractError:
-        raise _invalid_prompt() from None
-    errors = _candidate_errors(payload, requirements, brief, configured_size)
-    if errors:
+    payload, defects = _validated_payload(data, requirements, brief, configured_size)
+    if defects:
         raise _invalid_prompt()
     return payload
 
@@ -352,9 +472,120 @@ def _validate_review(
     return target_id, adjudication.decision, adjudication.check_payloads()
 
 
-async def _reconfirm_prompt(
-    ctx: WorkflowContext, intent: Any, reasons: list[str]
+async def _record_transition(
+    ctx: WorkflowContext,
+    reason: ReasonCode,
+    action: str,
+    *,
+    attempt: int | None = None,
+    intent_id: str | None = None,
+    rule_ids: tuple[str, ...] = (),
+    detail: dict[str, Any] | None = None,
 ) -> None:
+    payload: dict[str, Any] = {
+        "reason": str(reason),
+        "action": action,
+        "ruleset_version": RULESET_VERSION,
+    }
+    if attempt is not None:
+        payload["attempt"] = attempt
+    if intent_id is not None:
+        payload["intent_id"] = intent_id
+    if rule_ids:
+        payload["rule_ids"] = list(rule_ids)
+    if detail:
+        payload.update(detail)
+    await state.record_diagnostic(ctx, "prompt_transition", payload)
+
+
+async def _ensure_image_unsubmitted(
+    ctx: WorkflowContext, intent: Any, *, allow_known_rejection: bool = False
+) -> None:
+    """Refuse automatic text repair unless the image is provably not submitted."""
+    async with read_session(ctx.session_factory) as session:
+        jobs = (
+            await session.scalars(
+                select(GenerationJob)
+                .where(GenerationJob.run_id == ctx.run_id)
+                .order_by(GenerationJob.created_at.desc())
+            )
+        ).all()
+    if not jobs:
+        return
+    job = jobs[0]
+    proven_unsubmitted = (
+        job.submit_attempted == 0
+        and job.status in {"created", "submit_pending"}
+        and not job.remote_task_id
+    )
+    if allow_known_rejection and job.status in {"rejected", "failed"}:
+        return
+    if proven_unsubmitted:
+        return
+    await _record_transition(
+        ctx,
+        ReasonCode.REMOTE_UNKNOWN,
+        "stop_auto_advance",
+        intent_id=intent.id,
+        detail={
+            "job_id": job.id,
+            "job_status": job.status,
+            "submit_attempted": job.submit_attempted,
+        },
+    )
+    await state.set_stage(
+        ctx,
+        STAGE,
+        "blocked",
+        issue_code="GENERATION_UNKNOWN",
+        template_id="GENERATION_UNKNOWN",
+    )
+    raise ApiError(409, "GENERATION_UNKNOWN", templates.render("GENERATION_UNKNOWN"))
+
+
+async def _previous_repair_codes(ctx: WorkflowContext) -> tuple[str, ...]:
+    artifact = await state.latest_artifact(ctx, "prompt_plan")
+    if artifact is None:
+        return ()
+    async with read_session(ctx.session_factory) as session:
+        review = await session.scalar(
+            select(ArtifactReview)
+            .where(ArtifactReview.artifact_id == artifact.id)
+            .order_by(ArtifactReview.created_at.desc())
+        )
+    if review is None:
+        return ()
+    try:
+        stored = json.loads(review.checks_json or "{}")
+    except json.JSONDecodeError:
+        return ()
+    checks = stored.get("checks") if isinstance(stored, dict) else None
+    if not isinstance(checks, list):
+        return ()
+    codes: list[str] = []
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        rule_id = check.get("rule_id")
+        if isinstance(rule_id, str) and check.get("outcome") != "pass" and rule_id not in codes:
+            codes.append(rule_id)
+    return tuple(codes)
+
+
+async def _reconfirm_prompt(
+    ctx: WorkflowContext,
+    intent: Any,
+    reasons: list[str],
+    *,
+    reason: ReasonCode = ReasonCode.TRUE_DRIFT,
+) -> None:
+    await _record_transition(
+        ctx,
+        reason,
+        "reconfirm_requirements",
+        intent_id=intent.id,
+        detail={"reasons": reasons[:10]},
+    )
     abandoned = await abandon_intent(
         ctx.session_factory,
         intent_id=intent.id,
@@ -370,170 +601,350 @@ async def _reconfirm_prompt(
     await state.record_diagnostic(
         ctx,
         "prompt_requires_reconfirmation",
-        {"intent_id": intent.id, "abandoned": abandoned, "reasons": reasons[:10]},
+        {
+            "intent_id": intent.id,
+            "abandoned": abandoned,
+            "reason_code": str(reason),
+            "reasons": reasons[:10],
+        },
     )
     raise ApiError(409, "PROMPT_REQUIRES_RECONFIRMATION", _RECONFIRM_MESSAGE)
 
 
 async def _compile(
-    ctx: WorkflowContext, revision_note: str | None, *, advance: bool = True
+    ctx: WorkflowContext,
+    revision_note: str | None,
+    *,
+    advance: bool = True,
+    allow_known_rejection: bool = False,
 ) -> None:
-    final_artifact, brief = await _require_confirmed(ctx)
     intent = None
     if ctx.project.owner_account_id is not None:
         intent = await latest_intent(
             ctx.session_factory, project_id=ctx.project_id, run_id=ctx.run_id
         )
     await _ensure_budget(ctx)
-    requirements = _hard_requirements(brief)
-    configured_size = ctx.project.image_size or ctx.settings.visual().image_size or ""
-    input_data = {
-        "final_brief_artifact_id": final_artifact.id,
-        "confirmed_revision": ctx.project.revision,
-        "hard_requirements": requirements,
-        "revision_note": revision_note or "",
-    }
-    try:
-        output = await run_role(
-            ctx,
-            "generation_engineer",
-            STAGE,
-            input_data,
-            approved_inputs={
-                "final_brief": brief,
-                "final_brief_artifact_id": final_artifact.id,
-                "reference_asset_id": brief.get("reference_asset_id"),
-            },
-            required_rule_ids=tuple(item["rule_id"] for item in requirements),
-            allowed_evidence_ids=(final_artifact.id,),
-        )
-    except ApiError as exc:
-        if exc.code in {"SERVICE_UNAVAILABLE", "CAPABILITY_NOT_READY"}:
-            await _mark_failed(
+    repair_codes = await _previous_repair_codes(ctx) if revision_note else ()
+    while True:
+        # Re-read the original snapshot, confirmation and dependencies before
+        # every text attempt. A change here is drift, never an auto repair.
+        ctx = await state.reload_context(ctx)
+        try:
+            final_artifact, brief = await _require_confirmed(ctx)
+        except ApiError as exc:
+            await _record_transition(
                 ctx,
-                "SERVICE_UNAVAILABLE"
-                if exc.code == "SERVICE_UNAVAILABLE"
-                else "CAPABILITY_NOT_READY",
+                classify_api_error(exc.code),
+                "precondition_failed",
+                intent_id=intent.id if intent is not None else None,
+                detail={"error_code": exc.code},
             )
-        raise
-
-    if output.status == "blocked":
-        issue_code = "PROMPT_BLOCKED"
-        for issue in output.issues:
-            if isinstance(issue, dict) and issue.get("code"):
-                issue_code = str(issue["code"])
-                break
-        await state.set_stage(
-            ctx, STAGE, "blocked", issue_code=issue_code, template_id="CONFIRM_REQUIRED"
+            raise
+        if ctx.project.owner_account_id is not None:
+            intent = await latest_intent(
+                ctx.session_factory, project_id=ctx.project_id, run_id=ctx.run_id
+            )
+        if intent is not None:
+            await _ensure_image_unsubmitted(
+                ctx, intent, allow_known_rejection=allow_known_rejection
+            )
+        requirements = _hard_requirements(brief)
+        configured_size = (
+            ctx.project.image_size or ctx.settings.visual().image_size or ""
         )
-        raise ApiError(409, "PROMPT_BLOCKED", _CONFIRM_MESSAGE)
-    if output.status == "needs_input":
-        issue_codes = {
-            str(issue.get("code"))
-            for issue in output.issues
-            if isinstance(issue, dict)
+        reservation = await state.reserve_artifact_revision(ctx, "prompt_plan")
+        await state.record_diagnostic(
+            ctx,
+            "prompt_candidate_reserved",
+            {
+                "attempt": reservation.revision_no,
+                "budget_used": reservation.used,
+                "budget_max": reservation.max_allowed,
+                "ruleset_version": RULESET_VERSION,
+                "intent_id": intent.id if intent is not None else None,
+                "repair_codes": list(repair_codes),
+            },
+        )
+        input_data = {
+            "final_brief_artifact_id": final_artifact.id,
+            "confirmed_revision": ctx.project.revision,
+            "hard_requirements": requirements,
+            "revision_note": revision_note or "",
         }
-        if "REQUIREMENT_DRIFT" in issue_codes:
-            await state.invalidate_requirements(ctx, "提示词编制发现需求变化")
+        try:
+            output = await run_role(
+                ctx,
+                "generation_engineer",
+                STAGE,
+                input_data,
+                approved_inputs={
+                    "final_brief": brief,
+                    "final_brief_artifact_id": final_artifact.id,
+                    "reference_asset_id": brief.get("reference_asset_id"),
+                },
+                repair_codes=list(repair_codes),
+                attempt=reservation.revision_no,
+                required_rule_ids=tuple(item["rule_id"] for item in requirements),
+                allowed_evidence_ids=(final_artifact.id,),
+            )
+        except ApiError as exc:
+            reason = classify_api_error(exc.code)
+            await _record_transition(
+                ctx,
+                reason,
+                "producer_failed",
+                attempt=reservation.revision_no,
+                intent_id=intent.id if intent is not None else None,
+                detail={"error_code": exc.code},
+            )
+            if exc.code in {"SERVICE_UNAVAILABLE", "CAPABILITY_NOT_READY"}:
+                await _mark_failed(
+                    ctx,
+                    "SERVICE_UNAVAILABLE"
+                    if exc.code == "SERVICE_UNAVAILABLE"
+                    else "CAPABILITY_NOT_READY",
+                )
+            raise
+
+        if output.status == "blocked":
+            issue_code = "PROMPT_BLOCKED"
+            for issue in output.issues:
+                if isinstance(issue, dict) and issue.get("code"):
+                    issue_code = str(issue["code"])
+                    break
+            reason = classify_issue_code(issue_code)
+            await _record_transition(
+                ctx,
+                reason,
+                "producer_blocked",
+                attempt=reservation.revision_no,
+                intent_id=intent.id if intent is not None else None,
+                detail={"issue_code": issue_code},
+            )
             await state.set_stage(
                 ctx,
                 STAGE,
-                "needs_input",
-                issue_code="REQUIREMENT_DRIFT",
-                template_id="RUN_SUPERSEDED",
+                "blocked",
+                issue_code=issue_code,
+                template_id="CONFIRM_REQUIRED",
             )
-        raise _drift_error()
-    if output.status != "ready" or output.data is None:
-        raise _invalid_prompt()
-
-    try:
-        payload = _validate_candidate(output.data, requirements, brief, configured_size)
-    except ApiError as exc:
-        if intent is None or exc.code != "PROMPT_INVALID" or not isinstance(output.data, dict):
-            raise
-        try:
-            candidate_errors = _candidate_errors(
-                output.data, requirements, brief, configured_size
+            raise ApiError(409, "PROMPT_BLOCKED", _CONFIRM_MESSAGE)
+        if output.status == "needs_input":
+            issue_codes = {
+                str(issue.get("code"))
+                for issue in output.issues
+                if isinstance(issue, dict)
+            }
+            reason = classify_issue_code(
+                "REQUIREMENT_DRIFT" if "REQUIREMENT_DRIFT" in issue_codes else None
             )
-        except Exception:
-            raise exc from None
-        if not any(
-            "覆盖值" in reason or "缺少字面片段" in reason
-            for reason in candidate_errors
-        ):
-            raise
-        await _reconfirm_prompt(ctx, intent, candidate_errors)
-    if intent is not None:
-        drift = prompt_drift_errors(brief, payload)
-        if drift:
-            await _reconfirm_prompt(ctx, intent, drift)
-    previous = await state.latest_artifact(ctx, "prompt_plan")
-    if previous is not None and previous.status == "candidate":
-        await state.set_artifact_status(ctx, previous.id, "superseded")
-    artifact = await state.start_artifact(ctx, "prompt_plan", payload)
+            await _record_transition(
+                ctx,
+                reason,
+                "producer_needs_input",
+                attempt=reservation.revision_no,
+                intent_id=intent.id if intent is not None else None,
+                detail={"issue_codes": sorted(issue_codes)},
+            )
+            if "REQUIREMENT_DRIFT" in issue_codes:
+                await state.invalidate_requirements(ctx, "提示词编制发现需求变化")
+                await state.set_stage(
+                    ctx,
+                    STAGE,
+                    "needs_input",
+                    issue_code="REQUIREMENT_DRIFT",
+                    template_id="RUN_SUPERSEDED",
+                )
+            raise _drift_error()
+        if output.status != "ready" or output.data is None:
+            await _record_transition(
+                ctx,
+                ReasonCode.PROTOCOL_ERROR,
+                "producer_invalid_status",
+                attempt=reservation.revision_no,
+                intent_id=intent.id if intent is not None else None,
+                detail={"status": output.status},
+            )
+            raise _invalid_prompt()
 
-    ruleset = s07_rules(echo_rules=tuple(item["rule_id"] for item in requirements))
-    try:
-        review_output = await run_role(
-            ctx,
-            "output_reviewer",
-            STAGE,
-            {
-                "reviewed_role": "generation_engineer",
-                "target_kind": "prompt_plan",
-                "hard_requirements": requirements,
-                "ruleset_version": ruleset.version,
-                "rules": ruleset.describe(),
-            },
-            approved_inputs={"final_brief": brief},
-            review_targets=[
-                {
-                    "target_id": artifact.id,
-                    "target_kind": "prompt_plan",
-                    "payload": payload,
-                }
-            ],
-            required_rule_ids=tuple(rule.rule_id for rule in ruleset.blocking()),
-            allowed_evidence_ids=(artifact.id, final_artifact.id),
+        data = output.data if isinstance(output.data, dict) else {}
+        payload, defects = _validated_payload(
+            data, requirements, brief, configured_size
         )
-    except ApiError:
-        await _mark_failed(ctx, "REVIEW_UNAVAILABLE")
-        raise
+        if defects:
+            reason = classify_candidate_defects(defects)
+            rule_ids = repair_codes_from_defects(defects)
+            await _record_transition(
+                ctx,
+                reason,
+                "candidate_invalid",
+                attempt=reservation.revision_no,
+                intent_id=intent.id if intent is not None else None,
+                rule_ids=rule_ids,
+                detail={
+                    "defects": [
+                        {
+                            "code": str(defect.code),
+                            "rule_id": defect.rule_id,
+                            "content_intact": defect.content_intact,
+                        }
+                        for defect in defects
+                    ]
+                },
+            )
+            if (
+                reason == ReasonCode.REPAIRABLE_COMPOSITION
+                and is_auto_repairable(defects)
+                and reservation.revision_no < reservation.max_allowed
+            ):
+                repair_codes = rule_ids
+                await _record_transition(
+                    ctx,
+                    ReasonCode.REPAIRABLE_COMPOSITION,
+                    "auto_repair",
+                    attempt=reservation.revision_no,
+                    intent_id=intent.id if intent is not None else None,
+                    rule_ids=rule_ids,
+                )
+                continue
+            if reason == ReasonCode.TRUE_DRIFT and intent is not None:
+                await _reconfirm_prompt(
+                    ctx,
+                    intent,
+                    [defect.message for defect in defects],
+                    reason=reason,
+                )
+            raise _invalid_prompt()
 
-    # A reviewer contract defect is a typed protocol rejection: the run is not
-    # marked failed, the candidate stays invisible and the gate stays closed.
-    _target_id, decision, checks = _validate_review(
-        review_output,
-        target_id=artifact.id,
-        allowed_evidence=(artifact.id, final_artifact.id),
-        ruleset=ruleset,
-    )
+        if intent is not None:
+            drift = prompt_drift_errors(brief, payload)
+            if drift:
+                await _reconfirm_prompt(ctx, intent, drift, reason=ReasonCode.TRUE_DRIFT)
 
-    review_checks = {"ruleset_version": RULESET_VERSION, "checks": checks}
-    await state.add_review(
-        ctx,
-        artifact,
-        reviewer_role="output_reviewer",
-        decision=decision,
-        checks=review_checks,
-        raw=review_output.data,
-    )
-    if decision != "pass":
-        raise ApiError(409, "PROMPT_REVIEW_REJECTED", _REVIEW_REJECTED_MESSAGE)
+        previous = await state.latest_artifact(ctx, "prompt_plan")
+        if previous is not None and previous.status == "candidate":
+            await state.set_artifact_status(ctx, previous.id, "superseded")
+        artifact = await state.start_artifact(
+            ctx, "prompt_plan", payload, revision_no=reservation.revision_no
+        )
+        await state.record_diagnostic(
+            ctx,
+            "prompt_candidate_persisted",
+            {
+                "artifact_id": artifact.id,
+                "attempt": artifact.revision_no,
+                "budget_used": reservation.used,
+                "budget_max": reservation.max_allowed,
+                "ruleset_version": RULESET_VERSION,
+                "intent_id": intent.id if intent is not None else None,
+            },
+        )
 
-    approved = await state.latest_artifact(ctx, "prompt_plan", status="approved")
-    if approved is None:
-        raise _invalid_review()
-    await state.add_approval(
-        ctx,
-        approval_type="generation_prompt",
-        artifact=approved,
-        approved_by="output_reviewer",
-        checks=review_checks,
-        model_fingerprint=review_output.model_fingerprint,
-    )
-    if advance:
-        await state.set_stage(ctx, "S08", "active")
+        ruleset = s07_rules(
+            echo_rules=tuple(item["rule_id"] for item in requirements)
+        )
+        try:
+            review_output = await run_role(
+                ctx,
+                "output_reviewer",
+                STAGE,
+                {
+                    "reviewed_role": "generation_engineer",
+                    "target_kind": "prompt_plan",
+                    "hard_requirements": requirements,
+                    "ruleset_version": ruleset.version,
+                    "rules": ruleset.describe(),
+                },
+                approved_inputs={"final_brief": brief},
+                review_targets=[
+                    {
+                        "target_id": artifact.id,
+                        "target_kind": "prompt_plan",
+                        "payload": payload,
+                    }
+                ],
+                required_rule_ids=tuple(rule.rule_id for rule in ruleset.blocking()),
+                allowed_evidence_ids=(artifact.id, final_artifact.id),
+            )
+        except ApiError as exc:
+            await _record_transition(
+                ctx,
+                ReasonCode.TECHNICAL_FAILURE,
+                "reviewer_failed",
+                attempt=artifact.revision_no,
+                intent_id=intent.id if intent is not None else None,
+                detail={"error_code": exc.code},
+            )
+            await _mark_failed(ctx, "REVIEW_UNAVAILABLE")
+            raise
+
+        # A reviewer contract defect is a typed protocol rejection: the run is
+        # not marked failed, the candidate stays invisible and the gate stays closed.
+        try:
+            _target_id, decision, checks = _validate_review(
+                review_output,
+                target_id=artifact.id,
+                allowed_evidence=(artifact.id, final_artifact.id),
+                ruleset=ruleset,
+            )
+        except ApiError as exc:
+            await _record_transition(
+                ctx,
+                ReasonCode.PROTOCOL_ERROR,
+                "review_invalid",
+                attempt=artifact.revision_no,
+                intent_id=intent.id if intent is not None else None,
+                detail={"error_code": exc.code},
+            )
+            raise
+
+        review_checks = {"ruleset_version": RULESET_VERSION, "checks": checks}
+        await state.add_review(
+            ctx,
+            artifact,
+            reviewer_role="output_reviewer",
+            decision=decision,
+            checks=review_checks,
+            raw=review_output.data,
+        )
+        if decision != "pass":
+            reason = classify_review_decision(decision) or ReasonCode.PROTOCOL_ERROR
+            await _record_transition(
+                ctx,
+                reason,
+                "review_not_passed",
+                attempt=artifact.revision_no,
+                intent_id=intent.id if intent is not None else None,
+            )
+            raise ApiError(409, "PROMPT_REVIEW_REJECTED", _REVIEW_REJECTED_MESSAGE)
+
+        approved = await state.latest_artifact(
+            ctx, "prompt_plan", status="approved"
+        )
+        if approved is None:
+            raise _invalid_review()
+        await state.add_approval(
+            ctx,
+            approval_type="generation_prompt",
+            artifact=approved,
+            approved_by="output_reviewer",
+            checks=review_checks,
+            model_fingerprint=review_output.model_fingerprint,
+        )
+        await state.record_diagnostic(
+            ctx,
+            "prompt_candidate_approved",
+            {
+                "artifact_id": artifact.id,
+                "attempt": artifact.revision_no,
+                "repair_codes": list(repair_codes),
+                "ruleset_version": RULESET_VERSION,
+                "intent_id": intent.id if intent is not None else None,
+            },
+        )
+        if advance:
+            await state.set_stage(ctx, "S08", "active")
+        return
 
 
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:

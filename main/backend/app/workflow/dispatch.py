@@ -146,14 +146,11 @@ def available_actions(ctx: WorkflowContext) -> list[ActionView]:
     if ctx.run.status == "failed" or (
         ctx.run.status == "blocked" and ctx.run.issue_code == "REVIEW_UNAVAILABLE"
     ):
-        views = _views_for(s12, ctx)
-        stage_module = owner_for_stage(ctx.run.stage)
-        if stage_module is not None and stage_module is not s12:
-            # A failed role call can leave a durable candidate that a stage can
-            # recheck without another model generation (currently S09). Keep the
-            # explicit recovery action visible alongside continue_workflow.
-            views = _views_for(stage_module, ctx) + views
-        return views
+        # WG3-AC-10: a technical failure exposes exactly one forward action,
+        # the explicit recovery command. Stage actions are not offered from a
+        # failed state, because they would bypass the persisted checkpoint or
+        # imply a stage can repair the reviewer's own technical failure.
+        return _views_for(s12, ctx)
     if ctx.run.status == "blocked" and ctx.run.issue_code in s12.RETRYABLE_REVIEW_ISSUES:
         # A typed reviewer contract defect exposes exactly one safe action: replay
         # the persisted review request. Stage actions would suggest the user can

@@ -557,7 +557,9 @@ async def test_fake_prompt_binding_blocks_before_any_submission(full_settings):
         response = await workflow_action(client, setup, "compile_prompt")
         assert response.status_code == 409, response.text
         assert response.json()["error"]["code"] == "PROMPT_INVALID"
-        assert len(llm.role_calls_received) == 1
+        # The first two mapping defects are repaired against the original
+        # snapshot; the third stays invalid and exhausts the hard text budget.
+        assert len(llm.role_calls_received) == 3
         assert visual.submit_calls == []
 
 

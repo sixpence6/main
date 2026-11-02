@@ -263,13 +263,24 @@ async def set_intent(ctx: WorkflowContext, route: str, action: str | None) -> No
     ctx.run = run
 
 
-async def start_artifact(
-    ctx: WorkflowContext, kind: str, payload: Any, status: str = "candidate"
-) -> Artifact:
-    """Persist one artifact revision, consuming one slot of its hard budget."""
-    raw = payload.model_dump(mode="json") if hasattr(payload, "model_dump") else payload
-    model = validate_data(kind, raw)
-    data = model.model_dump(mode="json")
+@dataclass(frozen=True)
+class RevisionReservation:
+    """A persisted claim on one artifact revision, taken before any model call."""
+
+    revision_no: int
+    used: int
+    max_allowed: int
+
+
+async def reserve_artifact_revision(
+    ctx: WorkflowContext, kind: str
+) -> RevisionReservation:
+    """Persist one candidate-budget deduction before the candidate exists.
+
+    The deduction survives refresh, process restart and technical failure. It
+    is deliberately not tied to a successful model response, so a caller can
+    never exceed the hard three-candidate budget by retrying after failures.
+    """
     now = format_timestamp(utc_now())
     async with write_transaction(ctx.session_factory) as session:
         run = await _run_for_update(ctx, session)
@@ -286,12 +297,59 @@ async def start_artifact(
                 "该产物已达到最多三次候选的上限，请保留当前结果或重新开始流程",
             )
         budget.used += 1
+        run.updated_at = now
+        await session.flush()
+        return RevisionReservation(
+            revision_no=budget.used,
+            used=budget.used,
+            max_allowed=budget.max_allowed,
+        )
+
+
+async def start_artifact(
+    ctx: WorkflowContext,
+    kind: str,
+    payload: Any,
+    status: str = "candidate",
+    *,
+    revision_no: int | None = None,
+) -> Artifact:
+    """Persist one artifact revision, consuming or reusing one hard-budget slot.
+
+    Callers that reserve with reserve_artifact_revision pass the returned
+    revision number here so the same attempt is not counted twice.
+    """
+    raw = payload.model_dump(mode="json") if hasattr(payload, "model_dump") else payload
+    model = validate_data(kind, raw)
+    data = model.model_dump(mode="json")
+    now = format_timestamp(utc_now())
+    async with write_transaction(ctx.session_factory) as session:
+        run = await _run_for_update(ctx, session)
+        budget = await session.get(RevisionBudget, (run.id, kind))
+        if budget is None:
+            budget = RevisionBudget(
+                run_id=run.id, artifact_kind=kind, used=0, max_allowed=3
+            )
+            session.add(budget)
+            await session.flush()
+        if revision_no is None:
+            if budget.used >= budget.max_allowed:
+                raise conflict(
+                    "REVISION_BUDGET_EXHAUSTED",
+                    "该产物已达到最多三次候选的上限，请保留当前结果或重新开始流程",
+                )
+            budget.used += 1
+            assigned = budget.used
+        else:
+            if revision_no < 1 or revision_no > budget.used:
+                raise conflict("REVISION_BUDGET_EXHAUSTED", "候选预算扣占已失效，请重新开始流程")
+            assigned = revision_no
         artifact = Artifact(
             id=str(uuid4()),
             run_id=run.id,
             project_id=ctx.project_id,
             kind=kind,
-            revision_no=budget.used,
+            revision_no=assigned,
             status=status,
             payload_json=json.dumps(data, ensure_ascii=False, sort_keys=True),
             digest=digest_payload(data),
@@ -977,6 +1035,8 @@ __all__ = [
     "set_stage",
     "set_run_status",
     "set_intent",
+    "reserve_artifact_revision",
+    "RevisionReservation",
     "start_artifact",
     "add_artifact",
     "latest_artifact",

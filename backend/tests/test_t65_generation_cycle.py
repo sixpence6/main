@@ -580,6 +580,10 @@ async def test_quota_and_slot_rejections_leave_no_intent_or_confirmation(full_se
             },
         )
         assert first_response.status_code == 200, first_response.text
+        for _ in range(500):
+            if llm.role_calls_received:
+                break
+            await asyncio.sleep(0.01)
         calls_after_first = len(llm.role_calls_received)
 
         second = await _setup_s06(app, client)

@@ -1109,7 +1109,9 @@ async def _revise_prompt_and_retry(
     from app.workflow.stages import s07, s08
 
     try:
-        await s07._compile(ctx, note.strip()[:20000], advance=False)
+        await s07._compile(
+            ctx, note.strip()[:20000], advance=False, allow_known_rejection=True
+        )
     except ApiError as exc:
         if exc.code in {"PROMPT_REQUIRES_RECONFIRMATION", "REQUIREMENT_DRIFT"}:
             raise

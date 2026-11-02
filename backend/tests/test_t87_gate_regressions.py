@@ -118,10 +118,6 @@ async def test_visual_gate_ignores_advisory_failure_when_blocking_checks_pass(fu
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    strict=True,
-    reason="WG3-AC-08: fixed by #93",
-)
 async def test_prompt_coverage_format_error_keeps_original_intent(full_settings):
     """WG3-AC-08：覆盖映射格式错误不得放弃原意图或要求修改需求。"""
     llm = LLMStub()

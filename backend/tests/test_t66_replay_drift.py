@@ -309,7 +309,7 @@ async def test_prompt_drift_abandons_intent_and_guides_reconfirmation(full_setti
 
 
 @pytest.mark.asyncio
-async def test_weakened_prompt_coverage_requires_reconfirmation(full_settings):
+async def test_coverage_mapping_defect_keeps_original_intent(full_settings):
     llm = LLMStub()
     visual = VisualStub()
     async with _environment(
@@ -328,9 +328,11 @@ async def test_weakened_prompt_coverage_requires_reconfirmation(full_settings):
 
         intents, usages, slots = await _rows(app, setup["project_id"])
         assert len(intents) == 1
-        assert intents[0].status == "abandoned"
+        # A coverage mapping defect is repairable composition, not drift: the
+        # accepted intent and its usage/slots survive the bounded repair loop.
+        assert intents[0].status == "accepted"
         assert len(usages) == 1
-        assert all(slot.released_at is not None for slot in slots)
+        assert all(slot.released_at is None for slot in slots)
         async with app.state.session_factory() as session:
             prompt_artifacts = (
                 await session.scalars(
@@ -344,6 +346,8 @@ async def test_weakened_prompt_coverage_requires_reconfirmation(full_settings):
                 select(WorkflowRun).where(WorkflowRun.project_id == setup["project_id"])
             )
         assert prompt_artifacts == []
-        assert run is not None and run.stage == "S07" and run.status == "blocked"
-        assert run.issue_code == "PROMPT_REQUIRES_RECONFIRMATION"
+        assert run is not None and run.stage == "S07" and run.status == "active"
+        assert run.issue_code != "PROMPT_REQUIRES_RECONFIRMATION"
         assert visual.submit_calls == []
+        # initial attempt + two bounded revisions, all persisted before calls
+        assert len(llm.role_calls_received) == 3

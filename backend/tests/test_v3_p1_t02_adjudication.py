@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from sqlalchemy import select
 
 from app.adapters.base import ProviderError
 from app.workflow.adjudication import (
@@ -26,6 +27,7 @@ from app.workflow.adjudication import (
     adjudicate,
     s07_rules,
 )
+from app.workflow.tables import RevisionBudget, WorkflowRun
 from tests.test_v2_t40_prompt_review import (
     base_brief,
     candidate_data,
@@ -495,6 +497,13 @@ async def test_s07_recovery_replays_same_candidate_with_same_catalogue(full_sett
         assert prompt["status"] == "candidate"
         assert engineer_calls == [1]
         assert review_calls == [1]
+        async with app.state.session_factory() as session:
+            run = await session.scalar(
+                select(WorkflowRun).where(WorkflowRun.project_id == setup["project_id"])
+            )
+            assert run is not None
+            budget = await session.get(RevisionBudget, (run.id, "prompt_plan"))
+            assert budget is not None and budget.used == 1
 
         continued = await client.post(
             f"/api/projects/{setup['project_id']}/workflow/actions/continue_workflow",
@@ -509,4 +518,11 @@ async def test_s07_recovery_replays_same_candidate_with_same_catalogue(full_sett
         assert approved["status"] == "approved"
         assert engineer_calls == [1]
         assert review_calls == [1, 1]
+        async with app.state.session_factory() as session:
+            run = await session.scalar(
+                select(WorkflowRun).where(WorkflowRun.project_id == setup["project_id"])
+            )
+            assert run is not None
+            budget = await session.get(RevisionBudget, (run.id, "prompt_plan"))
+            assert budget is not None and budget.used == 1
         assert visual.submit_calls == []
