@@ -209,13 +209,18 @@ async def load_project_access_policy(session: AsyncSession, project_id: str) -> 
     return policies[project_id]
 
 
+def legacy_flow_disabled() -> ApiError:
+    """Stable tombstone for write entrances that no longer have a flow."""
+    return ApiError(409, "LEGACY_FLOW_DISABLED", templates.render("LEGACY_FLOW_DISABLED"))
+
+
 async def ensure_legacy_entry_available(
     session: AsyncSession, project_id: str
 ) -> ProjectAccessPolicy:
     """旧 v1 写入口统一守卫；前端禁用不能替代后端授权。"""
     policy = await load_project_access_policy(session, project_id)
     if policy.old_entries_paused:
-        raise ApiError(409, "LEGACY_FLOW_DISABLED", templates.render("LEGACY_FLOW_DISABLED"))
+        raise legacy_flow_disabled()
     return policy
 
 

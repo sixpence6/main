@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-EXPECTED_OPERATIONS = 38
+EXPECTED_OPERATIONS = 40
 EXPECTED_AUTH_OPERATIONS = {
     ("GET", "/api/auth/csrf"),
     ("GET", "/api/auth/session"),
@@ -75,13 +75,19 @@ async def test_error_responses_use_the_public_envelope(client):
     assert checked >= 25
 
 
-async def test_generation_contract_documents_create_and_replay(client):
+async def test_generation_contract_documents_retired_entrance(client):
     spec = (await client.get("/api/openapi.json")).json()
     operation = spec["paths"]["/api/projects/{project_id}/generations"]["post"]
-    assert operation["responses"]["202"]["description"] == "Successful Response"
-    assert operation["responses"]["200"]["description"].startswith("幂等重放")
-    for status in ("200", "202"):
-        assert _ref_name(_json_schema(spec, operation["responses"][status])) == "GenerationResponse"
+    assert "202" not in operation["responses"]
+    success_schema = (
+        operation["responses"]["200"]
+        .get("content", {})
+        .get("application/json", {})
+        .get("schema")
+    )
+    assert success_schema != {"$ref": "#/components/schemas/GenerationResponse"}
+    for status in ("409", "422"):
+        assert _ref_name(_json_schema(spec, operation["responses"][status])) == "ErrorResponse"
 
 
 async def test_asset_contract_documents_image_media_types(client):
@@ -100,7 +106,6 @@ async def test_openapi_exposes_public_dtos_without_internal_fields(client):
         "ProjectListResponse",
         "MessageView",
         "GenerationView",
-        "GenerationResponse",
         "ConfigStatus",
         "ErrorResponse",
     ):

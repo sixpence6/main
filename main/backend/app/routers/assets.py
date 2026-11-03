@@ -315,7 +315,12 @@ async def stage_message_attachment_endpoint(
 
 @router.delete(
     "/api/projects/{project_id}/message-attachments/{asset_id}",
-    responses={401: ERROR_RESPONSE, 404: ERROR_RESPONSE, 409: ERROR_RESPONSE},
+    responses={
+        401: ERROR_RESPONSE,
+        404: ERROR_RESPONSE,
+        409: ERROR_RESPONSE,
+        422: ERROR_RESPONSE,
+    },
 )
 async def discard_message_attachment_endpoint(
     project_id: str, asset_id: str, request: Request

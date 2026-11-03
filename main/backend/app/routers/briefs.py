@@ -3,16 +3,13 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from app.auth.principal import require_principal
+from app.ownership import require_project_owner
 from app.presenters import project_view
-from app.schemas import ERROR_RESPONSE, ConfirmRequest, ProjectView, UpdateBriefRequest
-from app.services.briefs import confirm_brief, update_brief
-from app.workflow.access import load_project_access_policy
+from app.schemas import ERROR_RESPONSE, ProjectView, UpdateBriefRequest
+from app.services.briefs import update_brief
+from app.workflow.access import legacy_flow_disabled, load_project_access_policy
 
 router = APIRouter(prefix="/api/projects", tags=["briefs"])
-
-
-def _settings_and_registry(request: Request):
-    return request.app.state.settings, request.app.state.registry
 
 
 @router.patch(
@@ -56,24 +53,18 @@ async def patch_brief(
 
 @router.post(
     "/{project_id}/confirm",
-    response_model=ProjectView,
-    responses={404: ERROR_RESPONSE, 409: ERROR_RESPONSE, 422: ERROR_RESPONSE},
+    response_model=None,
+    deprecated=True,
+    responses={
+        401: ERROR_RESPONSE,
+        404: ERROR_RESPONSE,
+        409: ERROR_RESPONSE,
+        422: ERROR_RESPONSE,
+    },
 )
-async def post_confirm(project_id: str, payload: ConfirmRequest, request: Request) -> ProjectView:
+async def post_confirm(project_id: str, request: Request) -> None:
+    """Retired v1 confirmation entrance: authorize nothing, mutate nothing."""
     state = request.app.state
     principal = require_principal(request)
-    settings, registry = _settings_and_registry(request)
-    result = await confirm_brief(
-        state.session_factory,
-        state.locks,
-        settings,
-        registry,
-        project_id=project_id,
-        revision=payload.revision,
-        principal=principal,
-    )
-    async with state.session_factory() as session:
-        policy = await load_project_access_policy(session, project_id)
-    return project_view(
-        result.project, result.reference_asset, settings.resolved_data_dir(), policy=policy
-    )
+    await require_project_owner(state.session_factory, project_id, principal)
+    raise legacy_flow_disabled()

@@ -1,69 +1,36 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Request
 
 from app.auth.principal import require_principal
+from app.ownership import require_project_owner
 from app.presenters import generation_view
-from app.schemas import (
-    ERROR_RESPONSE,
-    CreateGenerationRequest,
-    EmptyBody,
-    GenerationResponse,
-    GenerationView,
-)
-from app.services.generations import (
-    load_generation,
-    submit_generation_and_schedule,
-)
+from app.schemas import ERROR_RESPONSE, EmptyBody, GenerationView
+from app.services.generations import load_generation
 from app.services.retention import generation_retention
 from app.services.retrieval import load_retrieval_info, retrieve_result
-from app.workflow.access import load_project_access_policy
+from app.workflow.access import legacy_flow_disabled, load_project_access_policy
 
 router = APIRouter(tags=["generations"])
 
 
 @router.post(
     "/api/projects/{project_id}/generations",
-    response_model=GenerationResponse,
-    status_code=202,
+    response_model=None,
+    deprecated=True,
     responses={
-        200: {"model": GenerationResponse, "description": "幂等重放，返回原生成记录"},
         401: ERROR_RESPONSE,
         404: ERROR_RESPONSE,
         409: ERROR_RESPONSE,
         422: ERROR_RESPONSE,
-        503: ERROR_RESPONSE,
     },
 )
-async def submit_generation_endpoint(
-    request: Request,
-    project_id: str,
-    payload: CreateGenerationRequest,
-    response: Response,
-) -> GenerationResponse:
+async def submit_generation_endpoint(request: Request, project_id: str) -> None:
+    """Retired v1 generation entrance: authorize nothing, call no model."""
     state = request.app.state
     principal = require_principal(request)
-    result = await submit_generation_and_schedule(
-        request.app,
-        project_id=project_id,
-        request_id=str(payload.request_id),
-        confirmed_revision=payload.confirmed_revision,
-        acknowledge_present="acknowledge_unknown" in payload.model_fields_set,
-        acknowledge_unknown=payload.acknowledge_unknown,
-        principal=principal,
-    )
-    if not result.created:
-        response.status_code = 200
-    async with state.session_factory() as session:
-        policy = await load_project_access_policy(session, project_id)
-    return GenerationResponse(
-        generation=generation_view(
-            result.generation,
-            result.result_asset,
-            state.settings.resolved_data_dir(),
-            policy=policy,
-        )
-    )
+    await require_project_owner(state.session_factory, project_id, principal)
+    raise legacy_flow_disabled()
 
 
 @router.get(
