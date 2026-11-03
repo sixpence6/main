@@ -65,3 +65,16 @@
 - 崩溃时序为真实进程终止，个别重启断言依赖端口与进程退出时机，首次全量运行出现过一次抖动（见上）；后续合并验收需再跑一次全量确认。
 - 提交审计依靠 `AuditEvent` 行；若未来有人清理审计表，分类会退回基于 job/generation 字段的判定。
 - 本票未覆盖真实供应商网络故障与前端呈现；供应商边界用受控 adapter 模拟。
+
+## 6. 合并复核（集成分支，2026-11-03 12:27）
+
+- 合并提交：`1355caa`（`merge: T05 four-state recovery and legacy guards (#117)`），被合并分支 tip `820c009`（功能提交 `2554c12`）。
+- 合并后在集成 worktree 复跑同一主验收集（隔离 basetemp `D:\Desktop\issue-112-context\merge-t05-main`，日志 `backend/.scratch/merge-t05/main.log`）：
+
+```powershell
+& $py -m pytest tests/test_issue_117_t05.py tests/test_issue_115_t03.py tests/test_issue_116_t04.py tests/test_issue_114_t02.py tests/test_issue_114_migration.py tests/test_issue_113_t01.py tests/test_issue_113_migration.py -q -p no:cacheprovider --basetemp D:\Desktop\issue-112-context\merge-t05-main
+```
+
+实际结果：`119 passed in 350.89s`（T05 14 + T03 28 + T04 22 + T02 24 + T01 25 + 迁移 6）。T05 在合入集成前的同集运行亦为 `119 passed in 395.59s`（`backend/.scratch/t05/full.log`）。
+
+- Ruff：`All checks passed!`；`git diff --check`：无输出，退出码 0。
