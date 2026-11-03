@@ -35,10 +35,9 @@ $env:TEMP='<backend>\.scratch\t03\temp'; $env:TMP=$env:TEMP
 & $py -m pytest tests\test_issue_115_t03.py -q -p no:cacheprovider --basetemp 'D:\Desktop\issue-112-context\t03-pytest'
 ```
 
-- 首次基线（规格文件尚为 502 行版本）：`8 failed, 20 passed`。失败集中在：需求 revision 的错误码、`output_format/output_count` 与 `service_*` 的失效标签，以及 `wrong_intent` 的快照绑定。
-- 规格文件在实施期间被外部更新为最终 497 行版本（sha256 `21dacb182d9a1928` 前缀，最终内容以提交中的测试文件为准）；实现按最终版本收敛。
-- 最终完整运行：`28 passed in 111.19s`。
-- 回归：`tests\test_issue_114_t02.py` 与 `tests\test_issue_113_t01.py` 合计 `49 passed in 196.31s`。
+- RED（基线 `da459a4` 工作树 + 最终 497 行测试文件）：`5 failed, 23 passed in 97.51s`。失败正是本票新增的两处门禁：`service_model/base_url/timeout/credential` 未给出“服务配置”失效原因，以及 `wrong_intent` 未校验快照的意图绑定。日志：`backend/.scratch/t03/red.log`。
+- GREEN（合并后 HEAD，同一测试文件）：`28 passed in 96.36s`。日志：`backend/.scratch/t03/green.log`。
+- 回归：T03 + T01 + T02 + 两份迁移用例合计 `83 passed in 324.64s`。日志：`backend/.scratch/t03/t03-final.log`。
 - 静态检查：`python -m ruff check main/backend/app/confirmation_invalidation.py main/backend/app/prompt_preparation.py backend/tests/test_issue_115_t03.py --no-cache` 全部通过；`git diff --check` 无输出。
 
 ## 4. 关键实现位置
