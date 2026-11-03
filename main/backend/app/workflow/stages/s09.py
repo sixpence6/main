@@ -1259,29 +1259,10 @@ async def _revise_prompt_and_retry(
     note = payload.get("text")
     if not isinstance(note, str) or not note.strip():
         raise ApiError(422, "VALIDATION_ERROR", "请说明提示词调整内容")
-    # Reuse S07's compile path but keep S09 as the current stage until the
-    # replacement job has been accepted. Advancing to S08 before the intent
-    # exists would expose submit_generation against a failed intent.
-    from app.workflow.stages import s07, s08
+    # A revised prompt is still only preparation. Create a new intent first,
+    # then let S08 compile and freeze a fresh preview for explicit confirmation.
+    from app.workflow.stages import s08
 
-    try:
-        await s07._compile(
-            ctx, note.strip()[:20000], advance=False, allow_known_rejection=True
-        )
-    except ApiError as exc:
-        if exc.code in {"PROMPT_REQUIRES_RECONFIRMATION", "REQUIREMENT_DRIFT"}:
-            raise
-        # Other compile failures may have marked S07 failed/blocked. Keep the
-        # current quality rejection actionable instead of stranding the run.
-        if ctx.run is not None and ctx.run.stage == s07.STAGE:
-            await set_stage(
-                ctx,
-                STAGE,
-                "blocked",
-                issue_code="IMAGE_NOT_APPROVED",
-                template_id="IMAGE_NOT_APPROVED",
-            )
-        raise
     await s08._start_replacement(
         ctx,
         payload,
@@ -1292,6 +1273,7 @@ async def _revise_prompt_and_retry(
         acknowledgement_error="NEW_ATTEMPT_ACK_REQUIRED",
         acknowledgement_message="重新生成会新增一次受理计数并重新占用生成槽位，请明确确认后再操作。",
         request_prefix="v3-generation-quality-retry",
+        revision_note=note.strip()[:20000],
     )
 
 
@@ -1315,9 +1297,6 @@ async def handle(
         raise ApiError(
             409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
         )
-    if action in {"retry_rejected_generation", "revise_prompt_and_retry"}:
-        from app.prompt_preparation import require_image_execution
-        require_image_execution()
     if action == "retry_rejected_generation":
         await _retry_rejected_generation(ctx, payload)
         return

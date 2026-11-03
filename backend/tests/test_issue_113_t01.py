@@ -541,19 +541,35 @@ async def test_preview_http_boundary_keeps_identity_owner_origin_and_csrf_guards
 
 @pytest.mark.asyncio
 async def test_legacy_http_submit_has_no_authority_to_create_an_image_attempt(full_settings):
-    from tests.test_t06_generation import create_confirmed_project, environment, generation_payload
+    llm, visual = LLMStub(), VisualStub()
+    async with _environment(full_settings, llm, visual, responder) as (app, client):
+        project_id = await prepared(client)
+        await _drain(app)
+        before = (await client.get(f"/api/projects/{project_id}/workflow")).json()
+        assert before["prompt_preview"]["status"] == "awaiting_confirmation"
 
-    async with environment(full_settings) as (client, _registry, _llm, visual):
-        project = await create_confirmed_project(client)
+        confirm = await client.post(
+            f"/api/projects/{project_id}/confirm",
+            json={"revision": before["project_revision"]},
+        )
+        assert confirm.status_code == 409, confirm.text
+        assert confirm.json()["error"]["code"] == "LEGACY_FLOW_DISABLED"
+
         result = await client.post(
-            f"/api/projects/{project['id']}/generations", json=generation_payload(project)
+            f"/api/projects/{project_id}/generations",
+            json={
+                "request_id": "22222222-2222-4222-8222-222222222222",
+                "confirmed_revision": before["project_revision"],
+            },
         )
         assert result.status_code == 409, result.text
-        assert result.json()["error"]["code"] == "FINAL_CONFIRMATION_REQUIRED"
-        detail = (await client.get(f"/api/projects/{project['id']}")).json()
+        assert result.json()["error"]["code"] == "LEGACY_FLOW_DISABLED"
+
+        detail = (await client.get(f"/api/projects/{project_id}")).json()
         assert detail["generations"] == []
-        view = (await client.get(f"/api/projects/{project['id']}/workflow")).json()
-        assert view["generation_job"] is None and view["prompt_preview"] is None
+        after = (await client.get(f"/api/projects/{project_id}/workflow")).json()
+        assert after["generation_job"] is None
+        assert after["prompt_preview"] == before["prompt_preview"]
         assert visual.submit_calls == []
 
 

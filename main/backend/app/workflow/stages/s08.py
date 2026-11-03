@@ -768,6 +768,7 @@ async def _start_replacement(
     acknowledgement_error: str,
     acknowledgement_message: str,
     request_prefix: str,
+    revision_note: str | None = None,
 ) -> None:
     if (
         ctx.run is None
@@ -822,17 +823,12 @@ async def _start_replacement(
         raise conflict("INTENT_STATE_INVALID", message)
 
     final_artifact, brief, _execution_snapshot = await _require_confirmed(ctx)
-    prompt_artifact, prompt_payload = await _load_prompt(
-        ctx, brief, legacy=_execution_snapshot is None
-    )
-    if prompt_payload["size"] != brief["size"]:
-        raise conflict("PROMPT_STALE", "执行提示词与当前确认尺寸不一致。")
     reference_usage = brief.get("reference_usage") or "none"
     image_size = brief["size"]
     request_id = str(
         uuid5(
             NAMESPACE_URL,
-            f"{request_prefix}:{previous.id}:{prompt_artifact.id}:{final_artifact.digest}",
+            f"{request_prefix}:{previous.id}:{final_artifact.digest}",
         )
     )
     expected_digest = intent_request_digest(
@@ -860,7 +856,6 @@ async def _start_replacement(
             )
         if existing_intent.status not in {"accepted", "executing"}:
             raise conflict("INTENT_STATE_INVALID", "新任务授权已结束。")
-        intent = existing_intent
     else:
         async with write_transaction(ctx.session_factory) as session:
             project = await session.get(Project, ctx.project_id)
@@ -877,7 +872,7 @@ async def _start_replacement(
                 or project.owner_account_id != ctx.principal.account_id
             ):
                 raise conflict("REQUIREMENTS_CHANGED", "当前需求已变化，请刷新后重新确认。")
-            result = await accept_in_session(
+            await accept_in_session(
                 session,
                 settings=ctx.settings,
                 project=project,
@@ -891,39 +886,17 @@ async def _start_replacement(
                 approval_id=previous_intent.approval_id,
                 now=ctx.app.state.clock.now(),
             )
-            intent = result.intent
 
     existing_job = await _job_by_request_id(ctx, request_id)
     if existing_job is not None:
         return
-    input_digest = _input_digest(brief, prompt_payload)
-    try:
-        new_job, generation = await _create_job(
-            ctx,
-            prompt_artifact=prompt_artifact,
-            payload=prompt_payload,
-            brief=brief,
-            request_id=request_id,
-            input_digest=input_digest,
-            snapshot_digest=final_artifact.digest,
-            attempt=2,
-            previous=previous,
-            intent=intent,
-        )
-    except IntegrityError:
-        existing_job = await _job_by_request_id(ctx, request_id)
-        if existing_job is not None:
-            return
-        raise
-    await state.set_stage(ctx, STAGE, "active")
-    _schedule(
-        ctx.app,
-        new_job.id,
-        generation.id,
-        prompt_artifact.id,
-        prompt_artifact.digest,
-        final_artifact.digest,
-    )
+    # A replacement is a new preparation intent, never an execution shortcut.
+    # Compile a fresh prompt for this intent and stop at final confirmation;
+    # only the user's explicit final command may create a job or call the model.
+    await state.set_stage(ctx, "S07", "active")
+    from app.workflow.stages import s07
+
+    await s07._compile(ctx, revision_note, allow_known_rejection=True)
 
 
 async def _retry_generation(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
@@ -1387,7 +1360,7 @@ async def _submit(ctx: WorkflowContext, action_payload: dict[str, Any]) -> None:
 
 
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
-    if action in {"submit_generation", "retry_generation", "start_new_generation"}:
+    if action == "submit_generation":
         from app.prompt_preparation import require_image_execution
         require_image_execution()
     if action == "verify_generation":

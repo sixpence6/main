@@ -839,7 +839,10 @@ async def _ensure_image_unsubmitted(
         jobs = (
             await session.scalars(
                 select(GenerationJob)
-                .where(GenerationJob.run_id == ctx.run_id)
+                .where(
+                    GenerationJob.run_id == ctx.run_id,
+                    GenerationJob.intent_id == intent.id,
+                )
                 .order_by(GenerationJob.created_at.desc())
             )
         ).all()

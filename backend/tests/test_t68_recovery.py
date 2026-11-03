@@ -193,6 +193,19 @@ async def test_recover_unknown_marks_job_unknown_and_closed_failed_task_can_star
         assert response.status_code == 200, response.text
         await _drain(app)
 
+        awaiting = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()
+        assert awaiting["stage"] == "S07"
+        assert awaiting["prompt_preview"] is not None
+        from tests.support.t02_prompt import final_click
+
+        first_final = await final_click(
+            client, {"project_id": setup["project_id"], "workflow": awaiting}
+        )
+        assert first_final.status_code == 200, first_final.text
+        await _drain(app)
+
         view = (
             await client.get(f"/api/projects/{setup['project_id']}/workflow")
         ).json()
@@ -248,6 +261,23 @@ async def test_recover_unknown_marks_job_unknown_and_closed_failed_task_can_star
             },
         )
         assert created.status_code == 200, created.text
+        awaiting = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()
+        assert awaiting["stage"] == "S07"
+        assert awaiting["status"] == "needs_input"
+        assert awaiting["prompt_preview"] is not None
+        # A new generation after a closed unknown task is still a new
+        # preparation intent; it waits for an explicit final confirmation.
+        assert len(visual.submit_calls) == 1
+        from tests.support.t02_prompt import final_click
+
+        final = await final_click(
+            client,
+            {"project_id": setup["project_id"], "workflow": awaiting},
+            command_id=str(uuid.uuid4()),
+        )
+        assert final.status_code == 200, final.text
         await _drain(app)
         view = (
             await client.get(f"/api/projects/{setup['project_id']}/workflow")

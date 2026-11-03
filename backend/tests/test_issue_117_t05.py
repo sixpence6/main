@@ -335,6 +335,21 @@ def _project_rows(settings: Settings, project_id: str) -> dict[str, list[dict]]:
     return _read(settings, load)
 
 
+def _run_with_disk_io_retry(run) -> None:
+    last: OperationalError | None = None
+    for attempt in range(20):
+        try:
+            asyncio.run(run())
+            return
+        except OperationalError as error:
+            if "disk I/O error" not in str(error):
+                raise
+            last = error
+            time.sleep(0.2 * (attempt + 1))
+    assert last is not None
+    raise last
+
+
 def _set_unknown(
     settings: Settings,
     job_id: str,
@@ -360,7 +375,7 @@ def _set_unknown(
         finally:
             await engine.dispose()
 
-    asyncio.run(run())
+    _run_with_disk_io_retry(run)
 
 
 def _rewrite_attempt(
@@ -387,7 +402,7 @@ def _rewrite_attempt(
         finally:
             await engine.dispose()
 
-    asyncio.run(run())
+    _run_with_disk_io_retry(run)
 
 
 def _audit_count(settings: Settings, event_type: str, target_id: str) -> int:
@@ -420,7 +435,7 @@ def _delete_authorizations(settings: Settings, project_id: str) -> None:
         finally:
             await engine.dispose()
 
-    asyncio.run(run())
+    _run_with_disk_io_retry(run)
 
 
 def _session_headers(session) -> dict[str, str]:  # type: ignore[no-untyped-def]
@@ -511,8 +526,25 @@ def _workflow(session, project_id: str) -> tuple[int, dict]:  # type: ignore[no-
 def _boot(settings: Settings, mode: str, call_log: Path):
     from tests.test_t01_process import free_port, wait_for_health
 
-    port = free_port()
-    process = _start_server(settings, port, mode, call_log)
+    last: OperationalError | None = None
+    process: subprocess.Popen[str] | None = None
+    for attempt in range(20):
+        port = free_port()
+        try:
+            process = _start_server(settings, port, mode, call_log)
+            break
+        except OperationalError as error:
+            # An abruptly killed uvicorn worker can leave the Windows SQLite
+            # WAL handle in a transient state. Production startup recovers on
+            # the next open; this test harness retries the same boundary.
+            if "disk I/O error" not in str(error):
+                raise
+            last = error
+            time.sleep(0.2 * (attempt + 1))
+    else:
+        assert last is not None
+        raise last
+    assert process is not None
     wait_for_health(process, port)
     return process, port
 
@@ -815,13 +847,17 @@ def test_legacy_rows_without_final_authorization_cannot_execute(full_settings) -
         assert blocked["status"] == "blocked"
         revision = blocked["project_revision"]
 
-        for action in ("submit_generation", "retry_generation", "start_new_generation"):
+        for action in ("submit_generation", "recover_generation"):
             status, body = _action(session, project_id, action, revision, {})
             assert status == 409, (action, status, body)
             assert body["error"]["code"] == "FINAL_CONFIRMATION_REQUIRED", body
-        status, body = _action(session, project_id, "recover_generation", revision)
-        assert status == 409, body
-        assert body["error"]["code"] == "FINAL_CONFIRMATION_REQUIRED", body
+        for action in ("retry_generation", "start_new_generation"):
+            status, body = _action(session, project_id, action, revision, {})
+            assert status == 409, (action, status, body)
+            # These actions are not recovery choices for PROCESS_INTERRUPTED;
+            # rejecting them as unavailable is stronger than offering a retry
+            # that could later bypass the missing final authorization.
+            assert body["error"]["code"] == "ACTION_NOT_AVAILABLE", body
         status, body = session.request(
             "POST",
             f"/api/projects/{project_id}/generations",

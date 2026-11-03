@@ -753,6 +753,19 @@ async def test_quality_retry_can_revise_prompt_and_generate_again(full_settings)
         gate.set()
         await _drain(app)
 
+        awaiting = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()
+        assert awaiting["stage"] == "S07"
+        assert awaiting["prompt_preview"] is not None
+        from tests.support.t02_prompt import final_click
+
+        first_final = await final_click(
+            client, {"project_id": setup["project_id"], "workflow": awaiting}
+        )
+        assert first_final.status_code == 200, first_final.text
+        await _drain(app)
+
         view = (
             await client.get(f"/api/projects/{setup['project_id']}/workflow")
         ).json()
@@ -773,6 +786,22 @@ async def test_quality_retry_can_revise_prompt_and_generate_again(full_settings)
             },
         )
         assert revised.status_code == 200, revised.text
+        awaiting = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()
+        assert awaiting["stage"] == "S07"
+        assert awaiting["status"] == "needs_input"
+        assert awaiting["prompt_preview"] is not None
+        # The retry is a new preparation intent: it shows a fresh prompt and
+        # must not reach the provider until the user confirms that prompt.
+        assert len(visual.submit_calls) == 1
+
+        final = await final_click(
+            client,
+            {"project_id": setup["project_id"], "workflow": awaiting},
+            command_id=str(uuid.uuid4()),
+        )
+        assert final.status_code == 200, final.text
         await _drain(app)
 
         assert len(visual.submit_calls) == 2
