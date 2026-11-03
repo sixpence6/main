@@ -16,6 +16,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.acceptance import GenerationIntent
 from app.auth.audit import write_audit
 from app.auth.models import Account
+from app.confirmation_invalidation import (
+    invalidation_reasons,
+    raise_for_reasons,
+    require_snapshot_binding,
+)
 from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict
 from app.models import Asset, Base, Project
@@ -399,11 +404,13 @@ async def validated_request(ctx, session, snapshot, *, authorized=False) -> dict
         final = await session.get(Artifact, request["requirements_artifact_id"])
         if final is None or final.status != "approved":
             raise conflict("PROMPT_STALE", "提示词批准或冻结请求已失效。")
+        require_snapshot_binding(snapshot, request)
         actual = await build_request(
             ctx, json.loads(artifact.payload_json), final, session=session, authorized=authorized
         )
-        if any(request.get(key) != value for key, value in actual.items()):
-            raise conflict("PROMPT_STALE", "提示词批准或冻结请求已失效。")
+        reasons = invalidation_reasons(request, actual)
+        if reasons:
+            raise_for_reasons(reasons)
     except (ValueError, KeyError, OSError) as exc:
         raise conflict("PROMPT_STALE", "提示词批准或冻结请求已失效。") from exc
     return request
