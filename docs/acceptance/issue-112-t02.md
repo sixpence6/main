@@ -40,7 +40,7 @@
 |---|---|
 | 当前身份／登录上下文／revision／快照／稳定命令 ID | `FinalCommand` 严格校验；缺 `command_context`、过期或跨登录载荷、错账号、错项目、错 run 在创建尝试前拒绝；重放分支同样先做身份与会话校验 |
 | 授权 + 唯一尝试 + 审计同事务，数据库约束保护唯一执行 | 单事务写 Generation/Job/绑定/授权/审计；四个唯一约束 + 命令域唯一；`test_final_transaction_fault_has_no_authorization_or_attempt_and_can_retry` 证明写点故障后无残留且可重试；`test_same_final_command_on_independent_http_apps_returns_one_attempt` 用独立 HTTP 应用竞争得到同一任务 |
-| 生成记录与 adapter 请求只读冻结请求 | `test_reference_bytes_negative_prompt_and_output_match_reviewed_preview` 以请求捕获逐字段比对冻结 prompt、负向合并文本、参考字节与输出；`test_final_click_executes_only_the_frozen_request_and_publishes_same_task` 证明改动项目可变字段不影响实际请求 |
+| 生成记录与 adapter 请求只读冻结请求 | `test_reference_bytes_negative_prompt_and_output_match_reviewed_preview` 以请求捕获逐字段比对冻结 prompt、负向合并文本、参考字节与输出；`test_final_click_executes_only_the_frozen_request_and_publishes_same_task` 证明 adapter 实际提交的 prompt、尺寸与 brief 逐字段等同最终确认前的预览，且发布版本指向同一任务（可变字段扰动由代码路径与 `execution_request` 全等比较保证，本测试未直接注入扰动） |
 | 准备与最终确认不同幂等域，同快照换命令 ID 不可重复执行 | `test_final_replays_same_command_but_new_command_cannot_repeat_or_recount`：同命令返回原任务、换命令 ID 同快照返回 `FINAL_ALREADY_AUTHORIZED`，用量仍为 1 |
 | 既有质检、审查、原子发布；调用前与发布前复验 | 正向完整链路通过，结果可从原项目接口读取；`_publish` 重新执行 `ensure_job_active_in_session` 与 `execution_request` 后才写发布事实。账号禁用后的完整阻断矩阵属于 #115 |
 | 失效矩阵与旧确认拒绝 | `test_final_basic_bindings_reject_stale_command_without_image_attempt` 覆盖需求、提示词批准、规则、参考与配置变化，均零图片尝试；F1/F2 另证历史提示词读取与配置 query 变化 |
