@@ -115,4 +115,9 @@ git diff --check
 
 ## 8. 合并复核（Lead）
 
-- 待功能分支合并后填写：功能提交、`--no-ff` 合并提交、合并后主验收命令/结果、测试文件一致性核对、静态检查与关闭结论。
+- 功能提交：`ab1f38e test(workflow): prove V3 backend stop-point gate (#121)`（2 个文件，+1117；仅新增 gate 测试与验收文档，无生产代码/迁移变更）。
+- 集成合并：`783f427 merge: T09 backend R2->R3 gate verification (#121)`，以 `--no-ff` 合入 `codex/issue-112-integration`（父提交 `387f302`）。
+- 合并后主验收（11 个文件，含本票 gate 文件）：`158 passed in 567.72s`（basetemp `D:/Desktop/issue-112-context/t121-main1`）。
+- 测试文件一致性：`git diff ab1f38e..783f427 -- backend/tests/test_issue_121_t09.py` 无输出；提交内文件 SHA-256 为 `6a5a79e1fe695e698edd24c0e13f7288fe3cab88343c9825018fa50c88fd379d`，与合并前测试文件一致。
+- 合并前静态检查：`ruff check --no-cache` 通过、`compileall` 通过、`git diff --check` 无输出；所有测试使用隔离临时库，未触碰原用户树。
+- 结论：T09 后端停点验收与 R2→R3 进入门槛复验通过；R3 界面、真实浏览器/手机与供应商证据仍不在本票结论内，留待后续票（真实设备证据按 #129）。
