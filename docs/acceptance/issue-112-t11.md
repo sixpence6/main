@@ -85,9 +85,10 @@ C:/Users/28425/.codex/worktrees/issue-112-integration/新建文件夹/backend/.v
 
 ## 8. 合并复核（Lead）
 
-- 状态：待功能提交与合并后填写（本文件先记录实现和验证；不得把未执行的合并验收写成通过）。
-- 功能提交：待填。
-- 集成合并：待填（预期 `--no-ff` 合入 `codex/issue-112-integration`）。
-- 合并后前端验收：待填。
-- 合并后后端主验收：待填。
-- 测试一致性、工作树状态与结论：待填。
+- 功能提交：`67d9b162acb796586b03fae199a8f3d88062ebd7 feat(chat): add real conversation list search and rename (#123)`（4 个文件，+636/−6；侧栏列表/搜索/重命名、测试和验收文档，无后端生产代码或迁移变更）。
+- 集成合并：`845dc08c1a85af35aa87a51ebe6c2acee19d062d merge: T11 sidebar conversation list search and rename (#123)`，以 `--no-ff` 合入 `codex/issue-112-integration`（第一父提交 `baf26e3`）。
+- 合并后前端验收：12 个 spec 文件，`41 passed / 41`（JSON `D:/Desktop/issue-112-context/t123-postmerge.json`）；`vue-tsc --noEmit -p tsconfig.json` 通过；`vite build --config main/vite.config.ts` 通过（1654 modules，既有大 chunk 警告）。
+- 合并后后端回归：`test_v3_p4_t14_project_search.py` + `test_issue_121_t09.py` 共 `22 passed in 73.23s`（basetemp `D:/Desktop/issue-112-context/t123-postmerge-backend`）；本票未改后端生产代码。
+- 测试文件一致性：`git diff 67d9b16..845dc08 -- tests/t123-sidebar-conversations.spec.ts docs/acceptance/issue-112-t11.md` 无输出；合并后测试文件 SHA-256 为 `a9d812202b642a33acf551e9c82add1af379d27131938db6919f0b1e8e451a78`，与功能提交一致。
+- 合并后工作树：`git status --short` 为空；`git diff --check` 无输出。
+- 结论：#123 的侧栏真实会话列表、搜索、分页、切换、草稿提醒和元数据重命名通过合并后前端验收、类型检查、生产构建及既有后端搜索/重命名回归；真实浏览器视觉与手机抽屉留 #129/#128。
