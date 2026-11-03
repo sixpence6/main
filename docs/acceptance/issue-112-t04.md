@@ -68,3 +68,17 @@ Ruff：
 - SQLite `BEGIN IMMEDIATE` 使真实「两事务同时插入」窗口极窄；HTTP 并发用例实际走的是串行化后的重放/409 分支。`IntegrityError` 映射通过直接调用映射器与代码路径验证，未在真实并发插入中稳定复现。
 - 本票仅 R2 后端行为；未做真实浏览器、真实设备、进程重启或真实供应商调用。
 - 未证明准备阶段「等待超过任意时间仍不自动释放」的时钟推进场景；当前无自动释放参数，重复读取未改变计数/槽位。
+
+## 合并复核（集成分支，2026-11-03 11:59）
+
+- 合并提交：`8d9d55f`（`merge: T04 single attempt under concurrent prepare/final (#116)`），被合并分支 tip `802805a`。
+- 合并后主验收（cwd 集成 worktree `backend`，隔离 basetemp `D:\Desktop\issue-112-context\merge-t04-main`）：
+
+```powershell
+& $py -m pytest tests/test_issue_116_t04.py tests/test_issue_114_t02.py tests/test_issue_114_migration.py tests/test_issue_113_t01.py tests/test_issue_113_migration.py -q -p no:cacheprovider --basetemp D:\Desktop\issue-112-context\merge-t04-main
+```
+
+实际结果：`77 passed in 277.93s`（T04 22 + T02/T01 及其迁移回归 55）。
+
+- Ruff：`All checks passed!`（confirmation_conflicts.py、final_confirmation.py、test_issue_116_t04.py）。
+- `git diff --check`：无输出，退出码 0。
