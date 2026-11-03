@@ -85,8 +85,10 @@ D:/nodejs/node.exe node_modules/vite/bin/vite.js build --config main/vite.config
 
 ## 8. 合并复核（Lead）
 
-- 功能提交：待合并后填写。
-- 集成合并：待合并后填写。
-- 合并后主验收：待合并后填写。
-- 测试文件一致性：待合并后填写。
-- 结论：本票待 Lead 合并复核。
+- 功能提交：`5f04a36270aae729cd8b218e1a374c54e9229f5b feat(chat): add pure-chat shell and first text-to-image closure (#122)`（49 个文件，+1477/−9265；前端外壳/流程/API 类型/token/测试与验收文档，退役 36 个旧展示 spec，无后端生产代码或迁移变更）。
+- 集成合并：`887f55d22017ca05ffc96d2b13830811c98ad585 merge: T10 pure-chat shell and first text-to-image closure (#122)`，以 `--no-ff` 合入 `codex/issue-112-integration`（第一父提交 `a231fb0`）。
+- 合并后前端验收：11 个 spec 文件，`35 passed / 35`（约 14.3s；JSON `D:/Desktop/issue-112-context/t122-postmerge.json`）；`vue-tsc --noEmit -p tsconfig.json` 通过；`vite build --config main/vite.config.ts` 通过（1654 modules，既有大 chunk 警告）。
+- 合并后后端主验收：同一 11 个后端验收文件按相邻两组执行，`105 passed in 375.11s`（batch A：T01/T02 迁移与 T03—T04）+ `53 passed in 218.28s`（batch B：T05—T09），合计 `158 passed`，无失败；单次 11 文件运行超过 runner 600s 上限，因此拆分为同一文件集合的无重叠批次（basetemp `t122-mainA` / `t122-mainB`）。
+- 测试文件一致性：`git diff 5f04a36..887f55d -- tests/t122-pure-chat.spec.ts docs/acceptance/issue-112-t10.md` 无输出；合并后测试文件 SHA-256 为 `13ba7dee5b99ba728f56347436454b2edbc838d7233b7141ec19685a260d37eb`，与功能提交一致。
+- 合并后工作树：`git status --short` 为空；`git diff --check` 无输出。
+- 结论：#122 的纯对话外壳与首次文生图闭环通过合并后前端验收、类型检查、生产构建及既有后端主验收；真实浏览器视觉、真实供应商、真实手机和完整账号组合仍留 #129/#127，旧 162 个展示断言按第 4 节退役、不以本结论冒充通过。
