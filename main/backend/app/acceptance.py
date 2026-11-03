@@ -31,7 +31,7 @@ from app.generation_quota import default_limits, effective_limits
 from app.maintenance.restore_state import gate_is_open, slot_floor_count, usage_floor_count
 from app.models import Base, Project
 from app.timeutil import format_timestamp, utc_now
-from app.workflow.tables import Artifact, WorkflowRun
+from app.workflow.tables import Artifact, GenerationJob, WorkflowRun
 
 #: A accepted generation remains counted for this rolling window.
 GENERATION_WINDOW_MS = 24 * 60 * 60 * 1000
@@ -647,6 +647,89 @@ async def abandon_intent(
     return changed
 
 
+async def settle_unsubmitted_intent(
+    factory: async_sessionmaker[AsyncSession],
+    *,
+    intent_id: str,
+    reason: str,
+    operator_account_id: str | None = None,
+    command_id: str | None = None,
+    audit_event_type: str = "generation_intent_settled_unsubmitted",
+    detail: dict[str, Any] | None = None,
+    now: datetime | None = None,
+) -> bool:
+    """Settle an accepted intent only when no image execution was attempted.
+
+    A persisted GenerationJob is the proof that an authorization or remote
+    attempt may exist. In that case this function refuses to settle the intent
+    and leaves both counted usage and live occupancy intact. A successfully
+    settled intent keeps its usage ledger entry exactly once and never claims a
+    remote cancellation.
+    """
+
+    from app.db import write_transaction
+
+    changed = False
+    async with write_transaction(factory) as session:
+        intent = await session.get(GenerationIntent, intent_id)
+        if intent is None or intent.status != "accepted":
+            return False
+        if operator_account_id and intent.operator_account_id not in {
+            None,
+            operator_account_id,
+        }:
+            raise conflict("OWNERSHIP_MISMATCH", "生成授权与当前账号不一致。")
+        attempt_id = await session.scalar(
+            select(GenerationJob.id)
+            .where(GenerationJob.intent_id == intent.id)
+            .limit(1)
+        )
+        if attempt_id is not None:
+            return False
+        timestamp = format_timestamp(now or utc_now())
+        active_slots = await session.scalar(
+            select(func.count())
+            .select_from(GenerationSlot)
+            .where(
+                GenerationSlot.intent_id == intent.id,
+                GenerationSlot.released_at.is_(None),
+            )
+        )
+        before = {"status": intent.status, "active_slots": int(active_slots or 0)}
+        intent.status = "abandoned"
+        intent.updated_at = timestamp
+        await release_slots_in_session(
+            session, intent_id=intent.id, reason=reason, now=now
+        )
+        audit_detail: dict[str, Any] = {
+            "intent_id": intent.id,
+            "reason": reason[:120],
+            "image_attempt_exists": False,
+            "remote_cancelled": False,
+        }
+        if detail:
+            audit_detail.update(detail)
+        write_audit(
+            session,
+            event_type=audit_event_type,
+            result="success",
+            now=now or utc_now(),
+            actor_kind="account" if operator_account_id else "system",
+            actor_account_id=operator_account_id,
+            target_account_id=intent.owner_account_id,
+            target_kind="generation_intent",
+            target_id=intent.id,
+            reason_code=reason[:64],
+            correlation_id=command_id,
+            before=before,
+            after={"status": "abandoned", "active_slots": 0},
+            detail=audit_detail,
+        )
+        await session.flush()
+        changed = True
+    return changed
+
+
 async def terminate_intent(
     factory: async_sessionmaker[AsyncSession],
     *,
@@ -789,6 +872,7 @@ __all__ = [
     "release_slots_in_session",
     "set_executing_in_session",
     "set_intent_status",
+    "settle_unsubmitted_intent",
     "terminate_intent",
     "usage_snapshot",
 ]

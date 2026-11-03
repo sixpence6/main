@@ -45,6 +45,10 @@ _ACTIONS: dict[str, dict[str, Any]] = {
     "revise_requirements": {"label": "修改需求", "kind": "text", "requires_text": True, "text_label": "说明需要修改的需求内容", "requires_confirmation": False},
     "compile_prompt": {"label": "编制生图提示词", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "revise_prompt": {"label": "修改提示词", "kind": "text", "requires_text": True, "text_label": "说明提示词调整", "requires_confirmation": False},
+    "abandon_generation": {
+        "label": "放弃本次生成", "kind": "confirm", "requires_text": False,
+        "text_label": None, "requires_confirmation": True,
+    },
     "verify_generation": {"label": "核实原任务", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "retry_generation": {"label": "重新生成", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
     "retry_rejected_generation": {"label": "重新生成", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
@@ -211,9 +215,16 @@ def _views_for(module: Any, ctx: WorkflowContext) -> list[ActionView]:
     reconfirmation_pending = ctx.run.status == "blocked" and (
         ctx.run.issue_code == "PROMPT_REQUIRES_RECONFIRMATION"
     )
+    abandonment_pending = ctx.run.status == "blocked" and (
+        ctx.run.issue_code == "PROMPT_ABANDONED"
+    )
     if (
         ctx.run.stage == "S07"
-        and (ctx.run.status == "active" or reconfirmation_pending)
+        and (
+            ctx.run.status in {"active", "needs_input"}
+            or reconfirmation_pending
+            or abandonment_pending
+        )
         and not any(view.id == "revise_requirements" for view in views)
     ):
         views.append(action_view("revise_requirements"))

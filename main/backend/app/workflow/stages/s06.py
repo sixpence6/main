@@ -10,7 +10,9 @@ from app.acceptance import (
     accept_in_session,
     intent_for_request,
     intent_request_digest,
+    latest_intent,
     normalize_request_id,
+    settle_unsubmitted_intent,
 )
 from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict, validation_error
@@ -393,6 +395,26 @@ async def _revise_requirements(ctx: WorkflowContext, payload: dict[str, Any]) ->
         await _reject_stale_existing(ctx, confirmation, artifact, data)
         raise _changed_error()
 
+    if ctx.project.owner_account_id is not None:
+        pending = await latest_intent(
+            ctx.session_factory, project_id=ctx.project_id, run_id=ctx.run_id
+        )
+        if pending is not None and pending.status == "accepted":
+            settled = await settle_unsubmitted_intent(
+                ctx.session_factory,
+                intent_id=pending.id,
+                reason="requirements_revision",
+                operator_account_id=(
+                    ctx.principal.account_id if ctx.principal is not None else None
+                ),
+                detail={"project_revision": ctx.project.revision},
+            )
+            if not settled:
+                raise conflict(
+                    "INTENT_ATTEMPT_EXISTS",
+                    "原任务已有图片尝试或结果未知，不能按未提交任务结算；"
+                    "本次受理计数与占用仍保留，请先处理原任务。",
+                )
     previous_revision = ctx.project.revision
     current_requirement = {
         "artifact_id": artifact.id,
