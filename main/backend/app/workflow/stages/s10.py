@@ -595,13 +595,11 @@ async def _publish(ctx: WorkflowContext) -> None:
         await ensure_job_active(ctx.session_factory, job.id)
     except GenerationGuardError as exc:
         raise ApiError(409, exc.code, exc.message) from exc
-    from app.final_confirmation import FinalAuthorization, execution_request
-    async with ctx.session_factory() as session:
-        has_final = await session.scalar(
-            select(FinalAuthorization.id).where(FinalAuthorization.job_id == job.id)
-        )
-    if has_final:
-        await execution_request(ctx.app, job.generation_id)
+    from app.final_confirmation import execution_request
+
+    # Publishing and execution both require the one durable final
+    # authorization; legacy rows without it are never published.
+    await execution_request(ctx.app, job.generation_id)
     artifact, _approval, payload = await _require_manifest_evidence(ctx, asset, job)
     data, _info = await _verify_image_file(ctx, asset)
     async with ctx.session_factory() as session:

@@ -14,6 +14,14 @@ from app.generation_guard import (
     ensure_generation_active_in_session,
 )
 from app.models import Asset, Generation, Project
+from app.recovery_states import (
+    AUTHORIZED_NOT_CALLED,
+    SUBMITTED,
+    UNKNOWN,
+    RecoveryRecord,
+    load_recovery_record,
+    require_action,
+)
 from app.services.assets import resolve_asset_file
 from app.services.generations import (
     ClaimedGeneration,
@@ -26,15 +34,9 @@ from app.workflow.tables import GenerationJob
 _TERMINAL_EVIDENCE = {"rejected", "not_submitted"}
 
 
-async def _load(app: FastAPI, job_id: str) -> tuple[GenerationJob, Generation]:
+async def _load_record(app: FastAPI, job_id: str) -> RecoveryRecord:
     async with read_session(app.state.session_factory) as session:
-        job = await session.get(GenerationJob, job_id)
-        if job is None or job.generation_id is None:
-            raise ApiError(409, "RECOVERY_NOT_AVAILABLE", "没有可恢复的原生成任务。")
-        generation = await session.get(Generation, job.generation_id)
-        if generation is None:
-            raise ApiError(409, "RECOVERY_NOT_AVAILABLE", "原生成任务记录不可用。")
-        return job, generation
+        return await load_recovery_record(session, job_id)
 
 
 async def _prepare(app: FastAPI, job_id: str, generation_id: str, stage: str) -> ClaimedGeneration:
@@ -83,15 +85,15 @@ async def resume_interrupted(app: FastAPI, job_id: str) -> dict[str, Any] | None
     slots, and never creates a new provider submission outside the normal
     single-submit claim path.
     """
-    job, generation = await _load(app, job_id)
+    record = await _load_record(app, job_id)
+    job, generation = record.job, record.generation
     if job.status != "failed" or job.error_code != "PROCESS_INTERRUPTED":
         return None
-    if (
-        generation.submit_attempted
-        or generation.remote_task_id
-        or generation.result_locator_json
-    ):
+    # Consuming the final authorization is legal only while every persisted
+    # fact still proves that nothing reached the provider boundary.
+    if record.state != AUTHORIZED_NOT_CALLED:
         return None
+    require_action(record.state, "consume_authorization")
     from app.final_confirmation import require_authorized_job
     await require_authorized_job(app.state.session_factory, job_id)
     async with read_session(app.state.session_factory) as session:
@@ -248,7 +250,17 @@ def _terminal_error(outcome: ProviderOutcome) -> tuple[str, str]:
 
 
 async def recover_remote(app: FastAPI, job_id: str) -> str:
-    job, generation = await _load(app, job_id)
+    record = await _load_record(app, job_id)
+    # Verification/retrieval is the only allowed provider access in these
+    # states. This function never calls adapter.submit.
+    if record.state not in (SUBMITTED, UNKNOWN):
+        raise ApiError(
+            409,
+            "RECOVERY_ACTION_NOT_ALLOWED",
+            "当前任务不能核实远端结果，只能按原授权恢复或继续准备。",
+        )
+    require_action(record.state, "verify_submission")
+    job, generation = record.job, record.generation
     role = app.state.settings.visual()
     adapter = app.state.registry.build_visual(role, app.state.http)
     if adapter is None:
