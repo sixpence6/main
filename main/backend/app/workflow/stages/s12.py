@@ -133,6 +133,19 @@ def _json_dict(value: str | None) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def _with_task_evidence(request_raw: str, allowed: list[str]) -> str:
+    """Replay a stored request with server-owned evidence permissions."""
+    request = _json_dict(request_raw)
+    payload = request.get("payload")
+    if not isinstance(payload, dict):
+        return request_raw
+    task = payload.get("task")
+    if not isinstance(task, dict):
+        return request_raw
+    task["allowed_evidence_ids"] = list(allowed)
+    return json.dumps(request, ensure_ascii=False, sort_keys=True)
+
+
 def _is_recoverable_checkpoint(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> bool:
     status = checkpoint.get("status")
     if status in _RECOVERABLE_CALL_STATUSES or status == "capability":
@@ -549,7 +562,10 @@ async def _resume_s03_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
             if artifact.status == "candidate":
                 await set_artifact_status(ctx, artifact.id, "superseded")
             raise _stale()
-        allowed = set(payload.get("task", {}).get("allowed_evidence_ids") or []) | {target_id}
+        allowed = await s03.server_evidence_ids(
+            ctx, target_id=target_id, artifact_id=artifact.id
+        )
+        request_raw = _with_task_evidence(request_raw, allowed)
         try:
             output = await run_role_request(
                 ctx,
@@ -560,7 +576,7 @@ async def _resume_s03_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
                 attempt=int(checkpoint.get("attempt") or 1),
             )
             decision, checks, _repair = s03._validate_review(
-                output, target_id=target_id, allowed_evidence=allowed
+                output, target_id=target_id, allowed_evidence=set(allowed)
             )
         except ApiError as exc:
             await _review_error(ctx, "S03", exc)
@@ -605,6 +621,8 @@ async def _resume_s03_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
     if producer_call is None or not producer_call.response_json:
         raise _unavailable()
     response = _json_dict(producer_call.response_json)
+    allowed = await s03.server_evidence_ids(ctx, target_id=target_id)
+    request_raw = _with_task_evidence(request_raw, allowed)
     try:
         output = await run_role_request(
             ctx,
@@ -615,10 +633,7 @@ async def _resume_s03_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
             attempt=int(checkpoint.get("attempt") or 1),
         )
         decision, _checks, _repair = s03._validate_review(
-            output,
-            target_id=target_id,
-            allowed_evidence=set(payload.get("task", {}).get("allowed_evidence_ids") or [])
-            | {target_id},
+            output, target_id=target_id, allowed_evidence=set(allowed)
         )
     except ApiError as exc:
         await _review_error(ctx, "S03", exc)
@@ -640,12 +655,17 @@ async def _resume_s03_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
     )
     if role_output.status != "needs_input":
         raise _stale()
+    try:
+        question_text = s03._joined_questions(role_output)
+    except ApiError as exc:
+        await _review_error(ctx, "S03", exc)
+        raise
     await set_stage(
         ctx,
         "S03",
         "needs_input",
         issue_code="MISSING_INPUT",
-        message=s03._joined_questions(role_output),
+        message=question_text,
     )
 
 

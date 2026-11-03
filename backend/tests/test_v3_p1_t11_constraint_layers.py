@@ -168,3 +168,29 @@ async def test_http_confirmation_records_locks_and_rejects_changed_strength(full
         ]
         assert len(active) == 1
         assert active[0]["checks"]["confirmation"]["user_locks"] == {}
+
+        changed = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/confirm_requirements",
+            json={
+                "expected_revision": after["project_revision"],
+                "payload": {
+                    **base_payload,
+                    "request_id": str(uuid.uuid4()),
+                    "user_locks": {
+                        "style_keywords": "user explicitly locked minimal style"
+                    },
+                },
+            },
+        )
+        assert changed.status_code == 409, changed.text
+        assert changed.json()["error"]["code"] == "REQUIREMENTS_CHANGED"
+        revoked = (await client.get(
+            f"/api/projects/{setup['project_id']}/workflow"
+        )).json()
+        assert [
+            item
+            for item in revoked["approvals"]
+            if item["approval_type"] == "requirements_card" and item["revoked_at"] is None
+        ] == []
+        assert revoked["prompt_preview"] is None
+        assert visual.submit_calls == []

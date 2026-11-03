@@ -567,6 +567,46 @@ def _is_soft_extra_coverage(rule_id: str, brief: dict[str, Any]) -> bool:
     return value not in (None, "", [])
 
 
+def _soft_coverage_value(brief: dict[str, Any], path: str) -> str:
+    value = brief.get(path)
+    if isinstance(value, list):
+        return "、".join(str(item) for item in value if str(item).strip())
+    return str(value) if value is not None else ""
+
+
+def _soft_coverage_defect(
+    rule_id: str, item: dict[str, Any], brief: dict[str, Any], payload: dict[str, Any]
+) -> CandidateDefect | None:
+    """Validate a claimed soft-preference coverage without making it a gate.
+
+    Soft preferences may be omitted; if the engineer claims coverage, the
+    claim must point at the exact confirmed value and that value must appear in
+    the actual prompt. This keeps soft coverage explainable without turning it
+    into an image-release rule.
+    """
+    path = _SOFT_COVERAGE_ALIASES[rule_id]
+    expected = _soft_coverage_value(brief, path)
+    value = item.get("value")
+    if item.get("binding") != "positive_prompt" or not isinstance(value, str):
+        return CandidateDefect(
+            CandidateDefectCode.BINDING_MISMATCH,
+            f"软偏好覆盖必须绑定实际提示词：{rule_id}",
+            rule_id=rule_id,
+        )
+    if (
+        not expected
+        or value != expected
+        or not _covers_requirement(expected, str(payload.get("positive_prompt") or ""))
+    ):
+        return CandidateDefect(
+            CandidateDefectCode.COVERAGE_MISMATCH,
+            f"软偏好覆盖值与已确认偏好不一致：{rule_id}",
+            rule_id=rule_id,
+            content_intact=False,
+        )
+    return None
+
+
 def _candidate_defects(
     payload: dict[str, Any],
     requirements: list[dict[str, Any]],
@@ -594,6 +634,9 @@ def _candidate_defects(
         requirement = expected.get(rule_id)
         if requirement is None:
             if _is_soft_extra_coverage(str(rule_id), brief):
+                defect = _soft_coverage_defect(str(rule_id), item, brief, payload)
+                if defect is not None:
+                    defects.append(defect)
                 continue
             defects.append(
                 CandidateDefect(

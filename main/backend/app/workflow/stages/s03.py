@@ -587,14 +587,74 @@ def _validate_ready_draft(
     )
 
 
-def _joined_questions(output: RoleOutput) -> str:
+_MAX_QUESTION_CHARS = 300
+_QUESTION_MARKERS = (
+    "?",
+    "？",
+    "请说明",
+    "请提供",
+    "请确认",
+    "请补充",
+    "请选择",
+    "是否",
+    "能否",
+)
+_QUESTION_SUGGESTION_MARKERS = (
+    "建议使用",
+    "建议采用",
+    "推荐使用",
+    "可以采用",
+    "可以改为",
+    "方案：",
+    "文案：",
+    "标题：",
+)
+_QUESTION_CONTACT = re.compile(
+    r"https?://|www\.|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|(?<!\d)1[3-9]\d{9}(?!\d)",
+    re.IGNORECASE,
+)
+
+
+def _validated_questions(output: RoleOutput) -> list[str]:
+    """Only expose short, scoped questions that ask for missing blocking facts.
+
+    The producer never gets to smuggle an unapproved suggestion body, link,
+    contact address or multi-line instruction through the clarification channel.
+    The same function is used when a persisted clarification is replayed.
+    """
     questions = [question.strip() for question in output.questions if question.strip()]
-    if not questions:
-        raise _invalid_service()
+    if not questions or len(questions) > 8:
+        raise _review_invalid("澄清问题数量不合法，未展示")
+    for question in questions:
+        if len(question) > _MAX_QUESTION_CHARS or "\n" in question or "\r" in question:
+            raise _review_invalid("澄清问题过长或格式不合法，未展示")
+        if _QUESTION_CONTACT.search(question):
+            raise _review_invalid("澄清问题不得包含外部链接或联系方式")
+        if any(marker in question for marker in _QUESTION_SUGGESTION_MARKERS):
+            raise _review_invalid("澄清问题包含未经审查的建议正文，未展示")
+        if not any(marker in question for marker in _QUESTION_MARKERS):
+            raise _review_invalid("澄清问题必须只询问缺失信息")
     text = "\n".join(questions)
     if len(text) > _MAX_QUESTIONS_CHARS:
-        raise _invalid_service()
-    return text
+        raise _review_invalid("澄清问题总长度不合法，未展示")
+    return questions
+
+
+def _joined_questions(output: RoleOutput) -> str:
+    return "\n".join(_validated_questions(output))
+
+
+async def server_evidence_ids(
+    ctx: WorkflowContext, *, target_id: str, artifact_id: str | None = None
+) -> list[str]:
+    """Rebuild the evidence set from current rows instead of trusting history."""
+    messages = await _user_messages(ctx)
+    evidence = [target_id, *(message.id for message in messages)]
+    if ctx.project.reference_asset_id and await current_reference_report(ctx) is not None:
+        evidence.append(f"{_REFERENCE_EVIDENCE_PREFIX}{ctx.project.reference_asset_id}")
+    if artifact_id is not None:
+        evidence.append(artifact_id)
+    return list(dict.fromkeys(evidence))
 
 
 def _blocking_slot(rule_id: str, instance: str) -> bool:
@@ -905,7 +965,11 @@ async def _compose(
                 raise
             if decision == "pass":
                 if output.status == "needs_input":
-                    question_text = _joined_questions(output)
+                    try:
+                        question_text = _joined_questions(output)
+                    except ApiError as exc:
+                        await _record_review_error(ctx, exc)
+                        raise
                     await set_stage(
                         ctx,
                         STAGE,

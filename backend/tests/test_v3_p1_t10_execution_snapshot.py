@@ -258,6 +258,24 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
 
         llm.gate.set()
         await _drain(app)
+        prepared = (await client.get(
+            f"/api/projects/{setup['project_id']}/workflow"
+        )).json()
+        assert prepared["stage"] == "S07" and prepared["status"] == "needs_input"
+        assert prepared["prompt_preview"]["status"] == "awaiting_confirmation"
+        for item in snapshot["fields"]:
+            if item["executable"]:
+                assert item["destination"]
+                assert item["destination"] != "non_executable"
+        frozen = prepared["prompt_preview"]["request"]
+        assert frozen["execution_requirements"]["snapshot_digest"] == digest
+        assert frozen["execution_requirements"]["fields"] == snapshot["fields"]
+        from tests.support.t02_prompt import final_click
+
+        setup["workflow"] = prepared
+        clicked = await final_click(client, setup, command_id=str(uuid.uuid4()))
+        assert clicked.status_code == 200, clicked.text
+        await _drain(app)
         engineer = (await _wait_for_role(app, llm, "generation_engineer"))[0]
         approved_inputs = engineer.payload["approved_inputs"]
         assert approved_inputs["final_brief"]["background"] == "浅灰无缝背景"
