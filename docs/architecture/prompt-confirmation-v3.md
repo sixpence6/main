@@ -1,6 +1,6 @@
 # v3 真实提示词预览与最终确认契约
 
-状态：**本轮实施的技术契约，尚未实现或验收。** 记录日期：2026-11-03（America/Toronto）。依据 [modify_v3](../../version/v3/modify_v3.md) 第 3、5 节；产品规则以 [SRS v3](../../version/v3/SRS_v3.md) 为准。当前基线与验证范围见[实施记录](../acceptance/modify-v3-start.md)。
+状态：**本轮实施的技术契约，尚未实现或验收。** 记录日期：2026-11-03（America/Toronto）。依据 [modify_v3](../../version/v3/modify_v3.md) 第 3、5 节；产品规则以 [SRS v3](../../version/v3/SRS_v3.md) 为准。当前基线与验证范围见[实施记录](../../version/v3/modify-v3-start.md)。
 
 本文细化 HLD 的 R2 seam，不新增通用工作流框架、队列或授权引擎。以下是目标逻辑事实与 interface；**命令名、字段与状态不表示现有路由或表已经提供这些能力**。落到物理表和迁移时仍需审查当前结构，并在临时库验证升级与回退保护。
 

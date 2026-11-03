@@ -382,4 +382,4 @@ v2 的 revision、artifact、approval、policy version、quarantine 等术语继
 
 用户确认 modify_v3 的 Q1—Q11 推荐与 Q12“先展示真实提示词，再确认生图”，并在本轮明确要求依据该文开始实施。第 8—10 节、受影响 V3-AC、HLD、前端设计与门禁交接已同步；准备和最终确认的可测试契约见 [prompt-confirmation-v3](../../docs/architecture/prompt-confirmation-v3.md)。第 12 节参数没有修改。
 
-这覆盖前一轮的复杂确认卡、独立成果 Body、自动跳转、折叠提示词与需求确认后直接生图，不放宽身份、逐角色独立审查、额度或发布条件。本批仅完成基线复核与契约／规范对齐，实际进度及证据见[实施记录](../../docs/acceptance/modify-v3-start.md)；不能把旧 R1/R2 或前端测试通过计作 MV3 新验收完成。
+这覆盖前一轮的复杂确认卡、独立成果 Body、自动跳转、折叠提示词与需求确认后直接生图，不放宽身份、逐角色独立审查、额度或发布条件。本批仅完成基线复核与契约／规范对齐，实际进度及证据见[实施记录](modify-v3-start.md)；不能把旧 R1/R2 或前端测试通过计作 MV3 新验收完成。
