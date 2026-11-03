@@ -108,4 +108,10 @@ C:/Users/28425/.codex/worktrees/issue-112-integration/新建文件夹/backend/.v
 
 ## 8. 合并复核（Lead）
 
-- 待本票提交、`--no-ff` 合并、合并后复跑主验收并填写。
+- 功能提交：`df2ab87931c816ff301f15e1dcaee3863cf2d450 feat(chat): preserve multi-round image history and read-only links (#126)`（4 个文件，+596/−14；多轮图片历史、各自提示词、旧链接只读定位、7 个测试和验收文档，无后端生产代码或迁移变更）。
+- 集成合并：`8771430a230d1afe45f8189aba8125bbe92f32dd merge: T14 multi-round image history and read-only links (#126)`，以 `--no-ff` 合入 `codex/issue-112-integration`（第一父提交 `5b2c849`，第二父提交 `df2ab87`）。
+- 合并后前端验收：30 个 spec 文件，`62 passed / 62`（JSON `D:/Desktop/issue-112-context/t126-postmerge.json`）；`vue-tsc --noEmit -p tsconfig.json` 通过；`vite build --config main/vite.config.ts` 通过（1654 modules，既有大 chunk 警告）。`tests/t105-results-history.spec.ts` 的 4 个旧结果页只读用例仍包含在全套通过中。
+- 合并后后端版本历史：选定的 6 个 `test_v2_t44_versions.py` 用例 `6 passed in 11.00s`（basetemp `D:/Desktop/issue-112-context/t126-postmerge-backend`）；本票未改后端生产代码。
+- 测试文件一致性：`git diff df2ab87 8771430 -- tests/t126-history.spec.ts docs/acceptance/issue-112-t14.md` 无输出；测试文件 SHA-256 为 `c80f4503a0db405293a66df839095d0c06993d1a0c7b0778cfa58e0df5fff6c3`，功能提交与合并提交一致。
+- 合并后工作树：`git status --short` 为空；`git diff --check` 无输出。
+- 结论：#126 的多轮图片/提示词历史、刷新不重复、历史浏览不切基准、不可访问安全状态、下载/大图/旧成果链接只读定位和旧阶段链接无副作用，通过合并后前端验收、类型检查、生产构建及既有后端版本历史回归；真实浏览器视觉、手机软键盘和真实供应商留 #129/#128。
