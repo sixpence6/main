@@ -59,7 +59,7 @@ async def test_s07_rejects_all_not_applicable_prompt_review(full_settings):
 
 
 class _AdvisoryFailureScript(Script):
-    """视觉方案必审项全部通过，仅额外治理建议失败。"""
+    """当前目录的 G03_CONFIRMATION 建议失败；未知规则仍由 #90 回归拒绝。"""
 
     def __call__(self, request):
         if request.payload["task"]["role"] == "output_reviewer":
@@ -79,7 +79,7 @@ class _AdvisoryFailureScript(Script):
             ]
             checks.append(
                 {
-                    "rule_id": "SCOPE_AND_RESPONSIBILITY",
+                    "rule_id": "G03_CONFIRMATION",
                     "outcome": "fail",
                     "evidence_ids": evidence,
                     "note": "建议性治理检查未通过",
@@ -101,10 +101,6 @@ class _AdvisoryFailureScript(Script):
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    strict=True,
-    reason="WG3-AC-02: fixed by #90",
-)
 async def test_visual_gate_ignores_advisory_failure_when_blocking_checks_pass(full_settings):
     """WG3-AC-02：所有必审项通过时，注册的额外建议失败不得推翻批准。"""
     script = _AdvisoryFailureScript(visual=[visual_data()])

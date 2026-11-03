@@ -1069,11 +1069,27 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
             params={key: str(value) for key, value in params.items()},
         )
 
+    from app.prompt_preparation import safe_preview
+
+    preview = await safe_preview(ctx)
     artifact_views: list[ArtifactView] = []
     for artifact in artifacts:
         payload = (
             _json_dict(artifact.payload_json)
             if artifact.status == "approved"
+            and (
+                artifact.kind != "prompt_plan"
+                or preview is not None
+                and preview["request"]["prompt_artifact_id"] == artifact.id
+                or job is not None
+                and job.prompt_artifact_id == artifact.id
+                and any(
+                    a.artifact_id == artifact.id
+                    and a.approval_type == "generation_prompt"
+                    and a.revoked_at is None
+                    for a in approvals
+                )
+            )
             else None
         )
         artifact_views.append(
@@ -1139,6 +1155,7 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
     )
 
     return WorkflowView(
+        prompt_preview=preview,
         project_id=ctx.project_id,
         run_id=ctx.run.id,
         stage=ctx.run.stage,

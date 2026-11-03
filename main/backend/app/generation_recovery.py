@@ -92,6 +92,8 @@ async def resume_interrupted(app: FastAPI, job_id: str) -> dict[str, Any] | None
         or generation.result_locator_json
     ):
         return None
+    from app.prompt_preparation import require_image_execution
+    require_image_execution()
     async with read_session(app.state.session_factory) as session:
         from app.workflow.tables import Artifact
 

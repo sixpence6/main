@@ -1234,6 +1234,10 @@ async def _compile(
             },
         )
 
+        reviewed_request = None
+        if intent is not None:
+            from app.prompt_preparation import build_request
+            reviewed_request = await build_request(ctx, payload, final_artifact)
         coverage_explanations = _coverage_explanations(requirements, payload)
         await state.record_diagnostic(
             ctx,
@@ -1266,6 +1270,7 @@ async def _compile(
                         "target_id": artifact.id,
                         "target_kind": "prompt_plan",
                         "payload": payload,
+                        "effective_request": reviewed_request,
                     }
                 ],
                 required_rule_ids=tuple(rule.rule_id for rule in ruleset.blocking()),
@@ -1304,6 +1309,13 @@ async def _compile(
             raise
 
         review_checks = {"ruleset_version": RULESET_VERSION, "checks": checks}
+        if decision == "pass" and intent is not None:
+            from app.prompt_preparation import approve_and_wait
+            await approve_and_wait(
+                ctx, artifact, final_artifact, payload, reviewed_request,
+                review_checks, review_output, recovering=recovery is not None,
+            )
+            return
         await state.add_review(
             ctx,
             artifact,
@@ -1353,6 +1365,8 @@ async def _compile(
 
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
     if action not in ACTIONS:
+        raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    if ctx.run is None or ctx.run.stage != STAGE or ctx.run.status != "active":
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
     if action == "revise_prompt":
         note = payload.get("text")

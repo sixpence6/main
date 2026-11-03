@@ -225,7 +225,19 @@ class TaskStateView(BaseModel):
     resource_state: ResourceStateView
 
 
+class PromptPreviewView(BaseModel):
+    """A read-only approved request; T01 intentionally cannot authorize execution."""
+
+    id: str
+    status: Literal["awaiting_confirmation"]
+    request_digest: str
+    request: dict[str, Any]
+    created_at: str
+    can_confirm: Literal[False] = False
+
+
 class WorkflowView(BaseModel):
+    prompt_preview: PromptPreviewView | None = None
     project_id: str
     run_id: str | None = None
     stage: str | None = None
