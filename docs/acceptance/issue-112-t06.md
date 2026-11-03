@@ -78,3 +78,10 @@ TDD 红绿证据：在 556826f 基线上临时移除本票 6 个实现文件后�
 - `revise_requirements` 先结算旧未提交 intent，随后才启动需求修订；若后续需求修订在写消息后失败，旧 intent 保持已结算且 usage 保留，这是“已合法结算”的保守结果，需在后续消息流程中按该事实继续处理。
 - 未覆盖真实浏览器、手机和前端展示；R3 后按 #129 补真实浏览器与设备证据。
 - S12 用例验证 review checkpoint 重放与预算持久，不重复证明真实进程崩溃边界；崩溃恢复边界由 T05 主验收覆盖。
+
+## 6. 合并复核（Lead）
+
+- 合并：`c9fb79b` 将 `codex/issue-112-t06`（`5990ccc`）以 `--no-ff` 合并入 `codex/issue-112-integration`。
+- 合并后主验收集（119 条既有 + T06 10 条）：`129 passed in 435.67s`，basetemp `D:\Desktop\issue-112-context\t06-main-accept1`。
+- 静态检查：本票修改文件通过 ruff（dispatch/templates 仅既有 E501），`git diff --check` 退出 0。
+- 结论：合并结果与 T06 分支验收一致，接受 #118 并关闭。
