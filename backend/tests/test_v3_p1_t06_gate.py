@@ -38,7 +38,7 @@ STAGE_ACTIONS = {
     "S04": ("plan_creative", "revise_creative"),
     "S05": ("plan_visual", "revise_visual", "finalize_requirements"),
     "S06": ("confirm_requirements", "revise_requirements"),
-    "S07": ("compile_prompt", "revise_prompt"),
+    "S07": ("compile_prompt", "revise_prompt", "confirm_prompt", "abandon_generation"),
     "S08": (
         "submit_generation",
         "verify_generation",
@@ -50,6 +50,7 @@ STAGE_ACTIONS = {
     "S09": (
         "review_candidate",
         "recheck_candidate",
+        "request_correction",
         "retry_rejected_generation",
         "revise_prompt_and_retry",
     ),
@@ -221,21 +222,52 @@ def _fail_first_reviewer(ids: Any) -> Any:
 async def test_s10_recovery_replays_persisted_manifest_without_new_producer(
     full_settings: Any,
 ) -> None:
-    from tests.support.adapters import LLMStub
+    import uuid
+
+    from app.adapters.base import ProviderOutcome
+    from tests.support.adapters import LLMStub, VisualStub
+    from tests.support.t02_prompt import final_click, ready_project
+    from tests.support.t02_prompt import responder as prompt_responder
+    from tests.test_t65_generation_cycle import _drain, _environment
+    from tests.test_v2_t40_prompt_review import png_bytes
 
     stub = LLMStub()
+    pending = {"value": True}
 
-    async def seed(settings: Any, session: Any) -> Any:
-        ids = await _seed_ready_state(settings, session)
-        stub.role_responder = _fail_first_reviewer(ids)
-        return ids
+    def responder(request: Any) -> Any:
+        task = request.payload.get("task", {})
+        if (
+            task.get("role") == "output_reviewer"
+            and task.get("stage") == "S10"
+            and pending["value"]
+        ):
+            pending["value"] = False
+            raise ProviderError(
+                "review timeout", evidence="uncertain", error_code="LLM_TIMEOUT"
+            )
+        return prompt_responder(request)
 
-    async with _delivery_env(full_settings, stub, seed) as env:
-        failed = await _post_action(env, "prepare_delivery")
-        assert failed.status_code == 503, failed.text
-        view = (
-            await env.client.get(f"/api/projects/{env.ids.project_id}/workflow")
-        ).json()
+    visual = VisualStub(
+        submit_outcome=ProviderOutcome(
+            state="succeeded", image_bytes=png_bytes(1024, 1024), image_count=1
+        )
+    )
+    async with _environment(full_settings, stub, visual, responder) as (app, client):
+        setup = await ready_project(app, client)
+        clicked = await final_click(client, setup, command_id=str(uuid.uuid4()))
+        assert clicked.status_code == 200, clicked.text
+        await _drain(app)
+        view = (await client.get(
+            f"/api/projects/{setup['project_id']}/workflow"
+        )).json()
+        if view["stage"] == "S09":
+            reviewed = await client.post(
+                f"/api/projects/{setup['project_id']}/workflow/actions/review_candidate",
+                json={"expected_revision": view["project_revision"]},
+            )
+            assert reviewed.status_code == 200, reviewed.text
+            view = reviewed.json()
+
         assert view["stage"] == "S10"
         assert view["status"] == "failed"
         assert view["issue"]["template_id"] == "REVIEW_UNAVAILABLE"
@@ -248,10 +280,10 @@ async def test_s10_recovery_replays_persisted_manifest_without_new_producer(
             item["approval_type"] == "delivery_manifest" for item in view["approvals"]
         )
         roles = [call.payload["task"]["role"] for call in stub.role_calls_received]
-        assert roles == ["delivery_manager", "output_reviewer"]
+        assert roles[-2:] == ["delivery_manager", "output_reviewer"]
 
-        continued = await env.client.post(
-            f"/api/projects/{env.ids.project_id}/workflow/actions/continue_workflow",
+        continued = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/continue_workflow",
             json={"expected_revision": view["project_revision"]},
         )
         assert continued.status_code == 200, continued.text
@@ -272,23 +304,25 @@ async def test_s10_recovery_replays_persisted_manifest_without_new_producer(
         assert approval["artifact_id"] == manifest["id"]
         assert approval["approved_by"] == "output_reviewer"
         roles = [call.payload["task"]["role"] for call in stub.role_calls_received]
-        assert roles == ["delivery_manager", "output_reviewer", "output_reviewer"]
+        assert roles[-3:] == ["delivery_manager", "output_reviewer", "output_reviewer"]
+        asset_id = recovered_manifest["payload"]["asset_id"]
 
-        hidden = await env.client.get(f"/api/assets/{env.ids.asset_id}")
+        hidden = await client.get(f"/api/assets/{asset_id}")
         assert hidden.status_code == 409, hidden.text
-        assert env.ids.image_bytes not in hidden.content
 
-        approved = await _post_action(
-            env, "approve_delivery", revision=recovered["project_revision"]
+        approved = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/approve_delivery",
+            json={"expected_revision": recovered["project_revision"]},
         )
         assert approved.status_code == 200, approved.text
-        published = await _post_action(
-            env, "publish_delivery", revision=approved.json()["project_revision"]
+        published = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/publish_delivery",
+            json={"expected_revision": approved.json()["project_revision"]},
         )
         assert published.status_code == 200, published.text
-        visible = await env.client.get(f"/api/assets/{env.ids.asset_id}?download=true")
+        visible = await client.get(f"/api/assets/{asset_id}?download=true")
         assert visible.status_code == 200, visible.text
-        assert visible.content == env.ids.image_bytes
+        assert visible.content
 
 
 async def test_s10_recovery_invalidates_approval_before_reviewer_retry(

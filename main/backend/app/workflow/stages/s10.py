@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 
 from app.acceptance import GenerationIntent, release_slots_in_session
 from app.adapters.base import OrganizeImage
+from app.auth.audit import write_audit
 from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict, validation_error
 from app.generation_guard import (
@@ -589,6 +590,132 @@ async def _approve(ctx: WorkflowContext) -> None:
     )
 
 
+async def _latest_active_approval(
+    session, project_id: str, approval_type: str
+) -> Approval | None:
+    return await session.scalar(
+        select(Approval)
+        .where(
+            Approval.project_id == project_id,
+            Approval.approval_type == approval_type,
+            Approval.revoked_at.is_(None),
+        )
+        .order_by(Approval.created_at.desc(), Approval.id.desc())
+        .limit(1)
+    )
+
+
+async def _revalidate_publication_in_session(
+    ctx: WorkflowContext,
+    session,
+    *,
+    delivery: Delivery,
+    asset: Asset,
+    job: GenerationJob,
+    artifact: Artifact,
+    data: bytes,
+) -> Delivery:
+    """Recheck every publication fact inside the one final write transaction.
+
+    The preflight reads are only a fast rejection path.  A concurrent request,
+    account lifecycle change, approval revocation, asset replacement or file
+    rewrite must still make this transaction fail before anything is published.
+    """
+    await ensure_job_active_in_session(session, job.id)
+    stored_job = await session.get(GenerationJob, job.id)
+    stored_asset = await session.get(Asset, asset.id)
+    stored_delivery = await session.get(Delivery, delivery.id)
+    stored_artifact = await session.get(Artifact, artifact.id)
+    if (
+        stored_job is None
+        or stored_asset is None
+        or stored_delivery is None
+        or stored_artifact is None
+        or stored_job.status != "approved"
+        or stored_job.result_asset_id != stored_asset.id
+        or stored_asset.project_id != ctx.project_id
+        or stored_asset.kind != "generated"
+        or stored_asset.review_status != "approved"
+        or not stored_asset.sha256
+        or stored_delivery.status != "approved"
+        or stored_delivery.project_id != ctx.project_id
+        or stored_delivery.generation_job_id != stored_job.id
+        or stored_delivery.asset_id != stored_asset.id
+        or stored_delivery.manifest_artifact_id != stored_artifact.id
+        or stored_delivery.asset_digest != stored_asset.sha256
+        or stored_artifact.status != "approved"
+    ):
+        raise _asset_unavailable()
+
+    image_approval = await _latest_active_approval(session, ctx.project_id, "image")
+    if (
+        image_approval is None
+        or image_approval.approved_by != "output_reviewer"
+        or image_approval.rules_version != "2.0.0"
+        or image_approval.prompt_version != "2.0.0"
+        or image_approval.requirement_snapshot_digest
+        != stored_job.confirmed_snapshot_digest
+        or not await asset_approval_matches(session, stored_asset, image_approval)
+    ):
+        raise _image_not_approved()
+
+    manifest_approval = await _latest_active_approval(
+        session, ctx.project_id, "delivery_manifest"
+    )
+    if (
+        manifest_approval is None
+        or manifest_approval.approved_by != "output_reviewer"
+        or manifest_approval.artifact_id != stored_artifact.id
+        or not manifest_approval.artifact_digest
+        or manifest_approval.artifact_digest != stored_artifact.digest
+        or manifest_approval.requirement_snapshot_digest
+        != stored_job.confirmed_snapshot_digest
+        or manifest_approval.rules_version != "2.0.0"
+        or manifest_approval.prompt_version != "2.0.0"
+    ):
+        raise _asset_unavailable()
+
+    try:
+        payload = DeliveryData.model_validate_json(stored_artifact.payload_json)
+    except Exception:
+        raise _manifest_invalid() from None
+    if digest_payload(payload.model_dump(mode="json")) != stored_artifact.digest:
+        raise _digest_mismatch()
+    run = await session.get(WorkflowRun, stored_job.run_id)
+    if (
+        run is None
+        or payload.asset_id != stored_asset.id
+        or payload.requirement_revision != run.requirement_revision
+    ):
+        raise _requirement_changed()
+    requirement = await session.scalar(
+        select(Artifact.id)
+        .where(
+            Artifact.run_id == stored_job.run_id,
+            Artifact.kind.in_(("final_brief", "brief_draft")),
+            Artifact.status == "approved",
+            Artifact.digest == stored_job.confirmed_snapshot_digest,
+        )
+        .limit(1)
+    )
+    if requirement is None:
+        raise _requirement_changed()
+
+    source_path = resolve_asset_file(ctx.settings, stored_asset)
+    if source_path is None:
+        raise _asset_unavailable()
+    try:
+        actual = await asyncio.to_thread(source_path.read_bytes)
+    except OSError:
+        raise _asset_unavailable() from None
+    if (
+        hashlib.sha256(actual).hexdigest() != stored_asset.sha256
+        or hashlib.sha256(data).hexdigest() != stored_asset.sha256
+    ):
+        raise _digest_mismatch()
+    return stored_delivery
+
+
 async def _publish(ctx: WorkflowContext) -> None:
     job, asset = await _load_job_and_asset(ctx)
     try:
@@ -639,17 +766,36 @@ async def _publish(ctx: WorkflowContext) -> None:
     now = format_timestamp(utc_now())
     try:
         async with write_transaction(ctx.session_factory) as session:
-            await ensure_job_active_in_session(session, job.id)
-            stored_delivery = await session.get(Delivery, delivery.id)
+            stored_delivery = await _revalidate_publication_in_session(
+                ctx,
+                session,
+                delivery=delivery,
+                asset=asset,
+                job=job,
+                artifact=artifact,
+                data=data,
+            )
             stored_asset = await session.get(Asset, asset.id)
             stored_job = await session.get(GenerationJob, job.id)
-            if (
-                stored_delivery is None
-                or stored_asset is None
-                or stored_job is None
-                or stored_delivery.status != "approved"
-            ):
-                raise _asset_unavailable()
+            write_audit(
+                session,
+                event_type="delivery.published",
+                result="success",
+                now=ctx.app.state.clock.now(),
+                actor_kind="account" if ctx.principal is not None else "anonymous",
+                actor_account_id=(
+                    ctx.principal.account_id if ctx.principal is not None else None
+                ),
+                target_kind="delivery",
+                target_id=stored_delivery.id,
+                after={
+                    "project_id": ctx.project_id,
+                    "job_id": stored_job.id,
+                    "generation_id": stored_job.generation_id,
+                    "asset_id": stored_asset.id,
+                    "asset_digest": stored_asset.sha256,
+                },
+            )
             stored_asset.relative_path = destination
             stored_delivery.status = "published"
             stored_delivery.published_at = now
@@ -876,11 +1022,15 @@ async def _request_new_version(ctx: WorkflowContext, payload: dict[str, Any]) ->
     ctx.run = new_run
 
     # The current feedback cycle's confirmation and execution authorization
-    # cannot carry into a new version. Published image/delivery approvals are
-    # deliberately left active; they belong to immutable history snapshots.
-    await revoke_active_approval_types(
-        ctx, ("requirements_card", "generation_prompt"), "new_version"
+    # cannot carry into a new version. A published run's prompt approval is a
+    # historical fact required to read its immutable snapshot, so only an
+    # unpublished cycle loses its prompt approval here.
+    revocation_types = (
+        ("requirements_card",)
+        if delivery.status == "published"
+        else ("requirements_card", "generation_prompt")
     )
+    await revoke_active_approval_types(ctx, revocation_types, "new_version")
 
     has_reference = ctx.project.reference_asset_id is not None
     if has_reference:

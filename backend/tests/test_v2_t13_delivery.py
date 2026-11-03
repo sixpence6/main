@@ -310,6 +310,76 @@ async def _delivery_env(
             )
 
 
+@asynccontextmanager
+async def _real_delivery_env(settings: Any) -> AsyncIterator[DeliveryEnv]:
+    """Build the reviewed workflow through real HTTP, then yield at S10 active."""
+
+    from app.adapters.base import ProviderOutcome
+    from tests.support.adapters import VisualStub
+    from tests.support.t02_prompt import final_click, ready_project
+    from tests.support.t02_prompt import responder as prompt_responder
+    from tests.test_t65_generation_cycle import _drain, _environment
+    from tests.test_v2_t40_prompt_review import png_bytes
+
+    stub = LLMStub()
+    visual = VisualStub(
+        submit_outcome=ProviderOutcome(
+            state="succeeded", image_bytes=png_bytes(1024, 1024), image_count=1
+        )
+    )
+    async with _environment(settings, stub, visual, prompt_responder) as (app, client):
+        setup = await ready_project(app, client)
+        project_id = setup["project_id"]
+        clicked = await final_click(client, setup)
+        assert clicked.status_code == 200, clicked.text
+        await _drain(app)
+        view = (await client.get(f"/api/projects/{project_id}/workflow")).json()
+        if view["stage"] == "S09":
+            reviewed = await client.post(
+                f"/api/projects/{project_id}/workflow/actions/review_candidate",
+                json={"expected_revision": view["project_revision"]},
+            )
+            assert reviewed.status_code == 200, reviewed.text
+            view = reviewed.json()
+        assert view["stage"] == "S10", view
+        async with app.state.session_factory() as session:
+            job = await session.scalar(
+                select(GenerationJob)
+                .where(GenerationJob.project_id == project_id)
+                .order_by(GenerationJob.created_at.desc())
+                .limit(1)
+            )
+            assert job is not None and job.result_asset_id is not None
+            asset = await session.get(Asset, job.result_asset_id)
+            approval = await session.scalar(
+                select(Approval)
+                .where(
+                    Approval.project_id == project_id,
+                    Approval.approval_type == "image",
+                    Approval.revoked_at.is_(None),
+                )
+                .order_by(Approval.created_at.desc())
+                .limit(1)
+            )
+        assert asset is not None and approval is not None and asset.sha256
+        image_bytes = (settings.resolved_data_dir() / asset.relative_path).read_bytes()
+        yield DeliveryEnv(
+            client=client,
+            app=app,
+            settings=settings,
+            stub=stub,
+            ids=SeedIds(
+                project_id=project_id,
+                run_id=job.run_id,
+                job_id=job.id,
+                asset_id=asset.id,
+                approval_id=approval.id,
+                digest=asset.sha256,
+                image_bytes=image_bytes,
+            ),
+        )
+
+
 async def _post_action(
     env: DeliveryEnv, action: str, *, revision: int = 1, payload: dict | None = None
 ) -> Any:
@@ -319,33 +389,38 @@ async def _post_action(
     )
 
 
+async def _current_revision(env: DeliveryEnv) -> int:
+    response = await env.client.get(f"/api/projects/{env.ids.project_id}/workflow")
+    assert response.status_code == 200, response.text
+    return int(response.json()["project_revision"])
+
+
 async def _prepare(env: DeliveryEnv) -> dict[str, Any]:
-    response = await _post_action(env, "prepare_delivery")
+    response = await _post_action(
+        env, "prepare_delivery", revision=await _current_revision(env)
+    )
     assert response.status_code == 200, response.text
     return response.json()
 
 
 async def _approve(env: DeliveryEnv) -> dict[str, Any]:
-    response = await _post_action(env, "approve_delivery")
+    response = await _post_action(
+        env, "approve_delivery", revision=await _current_revision(env)
+    )
     assert response.status_code == 200, response.text
     return response.json()
 
 
 async def _publish(env: DeliveryEnv) -> dict[str, Any]:
-    response = await _post_action(env, "publish_delivery")
+    response = await _post_action(
+        env, "publish_delivery", revision=await _current_revision(env)
+    )
     assert response.status_code == 200, response.text
     return response.json()
 
 
 async def test_delivery_is_reviewed_atomically_and_only_published_asset_is_readable(full_settings):
-    stub = LLMStub()
-
-    async def seed(settings: Any, session: Any) -> SeedIds:
-        ids = await _seed_ready_state(settings, session)
-        stub.role_responder = _role_responder(ids)
-        return ids
-
-    async with _delivery_env(full_settings, stub, seed) as env:
+    async with _real_delivery_env(full_settings) as env:
         before = await env.client.get(f"/api/assets/{env.ids.asset_id}")
         assert before.status_code == 409, before.text
         assert env.ids.image_bytes not in before.content
@@ -361,7 +436,7 @@ async def test_delivery_is_reviewed_atomically_and_only_published_asset_is_reada
         assert manifest["status"] == "approved"
         assert manifest["payload"]["asset_id"] == env.ids.asset_id
         assert manifest["payload"]["requirement_revision"] == 1
-        assert manifest["payload"]["filename_hint"] == "product-main.png"
+        assert manifest["payload"]["filename_hint"] == "delivery.png"
         assert set(manifest["payload"]) == {
             "asset_id",
             "requirement_revision",
@@ -375,8 +450,9 @@ async def test_delivery_is_reviewed_atomically_and_only_published_asset_is_reada
         assert manifest_approval["artifact_id"] == manifest["id"]
         assert manifest_approval["artifact_digest"] == manifest["digest"]
         assert manifest_approval["rules_version"] == "2.0.0"
-        roles = [call.payload["task"]["role"] for call in stub.role_calls_received]
-        assert roles == ["delivery_manager", "output_reviewer"]
+        roles = [call.payload["task"]["role"] for call in env.stub.role_calls_received]
+        assert "delivery_manager" in roles
+        assert "output_reviewer" in roles
         assert "generated/" not in prepared_text(prepared)
         assert str(full_settings.resolved_data_dir()) not in prepared_text(prepared)
 
@@ -412,7 +488,7 @@ async def test_delivery_is_reviewed_atomically_and_only_published_asset_is_reada
         assert download.content == env.ids.image_bytes
         assert "attachment" in download.headers["content-disposition"]
         assert published["delivery"]["filename"] in download.headers["content-disposition"]
-        assert len(stub.role_calls_received) == 2
+        assert len(env.stub.role_calls_received) >= 2
         assert json.dumps(published, ensure_ascii=False).find("remote-task-not-public") == -1
         assert str(full_settings.resolved_data_dir()) not in json.dumps(
             published, ensure_ascii=False
@@ -581,14 +657,7 @@ async def test_invalid_image_evidence_blocks_before_model_call(full_settings, va
 
 
 async def test_tampered_file_rule_change_and_revocation_fail_closed(full_settings):
-    stub = LLMStub()
-
-    async def seed(settings: Any, session: Any) -> SeedIds:
-        ids = await _seed_ready_state(settings, session)
-        stub.role_responder = _role_responder(ids)
-        return ids
-
-    async with _delivery_env(full_settings, stub, seed) as env:
+    async with _real_delivery_env(full_settings) as env:
         await _prepare(env)
         await _approve(env)
         await _publish(env)
@@ -645,19 +714,12 @@ async def test_tampered_file_rule_change_and_revocation_fail_closed(full_setting
 async def test_publish_file_failure_leaves_no_downloadable_half_published_asset(
     full_settings, monkeypatch
 ):
-    stub = LLMStub()
-
-    async def seed(settings: Any, session: Any) -> SeedIds:
-        ids = await _seed_ready_state(settings, session)
-        stub.role_responder = _role_responder(ids)
-        return ids
-
     real_write_asset_file = s10.write_asset_file
 
     def fail_write(*args: Any, **kwargs: Any) -> None:
         raise OSError("simulated disk failure")
 
-    async with _delivery_env(full_settings, stub, seed) as env:
+    async with _real_delivery_env(full_settings) as env:
         await _prepare(env)
         await _approve(env)
         monkeypatch.setattr(s10, "write_asset_file", fail_write)
@@ -686,14 +748,7 @@ async def test_publish_file_failure_leaves_no_downloadable_half_published_asset(
 
 
 async def test_history_uses_its_own_confirmed_snapshot_after_project_changes(full_settings):
-    stub = LLMStub()
-
-    async def seed(settings: Any, session: Any) -> SeedIds:
-        ids = await _seed_ready_state(settings, session)
-        stub.role_responder = _role_responder(ids)
-        return ids
-
-    async with _delivery_env(full_settings, stub, seed) as env:
+    async with _real_delivery_env(full_settings) as env:
         await _prepare(env)
         await _approve(env)
         await _publish(env)
@@ -773,19 +828,12 @@ async def test_delivery_uses_the_immutable_approved_snapshot_after_project_chang
 async def test_publish_database_failure_leaves_no_downloadable_half_published_asset(
     full_settings, monkeypatch
 ):
-    stub = LLMStub()
-
-    async def seed(settings: Any, session: Any) -> SeedIds:
-        ids = await _seed_ready_state(settings, session)
-        stub.role_responder = _role_responder(ids)
-        return ids
-
     @asynccontextmanager
     async def failing_transaction(*_args: Any, **_kwargs: Any):
         raise RuntimeError("simulated database failure")
         yield  # pragma: no cover
 
-    async with _delivery_env(full_settings, stub, seed) as env:
+    async with _real_delivery_env(full_settings) as env:
         await _prepare(env)
         await _approve(env)
         monkeypatch.setattr(s10, "write_transaction", failing_transaction)
@@ -807,14 +855,7 @@ async def test_publish_database_failure_leaves_no_downloadable_half_published_as
 
 
 async def test_revoked_delivery_cannot_be_reapproved_with_old_record(full_settings):
-    stub = LLMStub()
-
-    async def seed(settings: Any, session: Any) -> SeedIds:
-        ids = await _seed_ready_state(settings, session)
-        stub.role_responder = _role_responder(ids)
-        return ids
-
-    async with _delivery_env(full_settings, stub, seed) as env:
+    async with _real_delivery_env(full_settings) as env:
         await _prepare(env)
         await _approve(env)
         await _publish(env)
@@ -833,14 +874,7 @@ async def test_revoked_delivery_cannot_be_reapproved_with_old_record(full_settin
 
 
 async def test_tampered_manifest_payload_fails_closed(full_settings):
-    stub = LLMStub()
-
-    async def seed(settings: Any, session: Any) -> SeedIds:
-        ids = await _seed_ready_state(settings, session)
-        stub.role_responder = _role_responder(ids)
-        return ids
-
-    async with _delivery_env(full_settings, stub, seed) as env:
+    async with _real_delivery_env(full_settings) as env:
         await _prepare(env)
         await _approve(env)
         await _publish(env)

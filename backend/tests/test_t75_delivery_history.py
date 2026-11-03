@@ -46,6 +46,20 @@ async def test_current_delivery_content_gate_and_feedback_preserve_history(full_
         gate.set()
         await _drain(app)
 
+        waiting = await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        assert waiting.status_code == 200, waiting.text
+        assert waiting.json()["stage"] == "S07"
+        assert waiting.json()["prompt_preview"] is not None
+        from tests.support.t02_prompt import final_click
+
+        clicked = await final_click(
+            client,
+            {"project_id": setup["project_id"], "workflow": waiting.json()},
+            command_id=str(uuid.uuid4()),
+        )
+        assert clicked.status_code == 200, clicked.text
+        await _drain(app)
+
         preparing = await client.get(
             f"/api/projects/{setup['project_id']}/workflow"
         )

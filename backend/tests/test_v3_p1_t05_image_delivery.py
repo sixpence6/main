@@ -3,12 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from sqlalchemy import select
 
-from app.auth.models import Account
-from app.auth.service import normalize_email
-from app.db import write_transaction
-from app.models import Project
 from app.workflow import adjudication
 from app.workflow.stages import s09, s10, s11
 from tests.test_t59_isolation import _add_account, _login_user
@@ -288,56 +283,69 @@ async def test_legacy_unknown_rule_stays_isolated_and_typed(
 async def test_published_image_identity_matrix_blocks_other_users_and_admin(
     full_settings: Any,
 ) -> None:
-    from tests.support.adapters import LLMStub
+    import uuid
 
-    stub = LLMStub()
+    from app.adapters.base import ProviderOutcome
+    from tests.support.adapters import LLMStub, VisualStub
+    from tests.support.t02_prompt import final_click, ready_project
+    from tests.support.t02_prompt import responder as prompt_responder
+    from tests.test_t65_generation_cycle import _drain, _environment
+    from tests.test_v2_t40_prompt_review import png_bytes
 
-    async def seed(settings: Any, session: Any):
-        ids = await _seed_ready_state(settings, session)
-        stub.role_responder = _role_responder(ids)
-        return ids
+    visual = VisualStub(
+        submit_outcome=ProviderOutcome(
+            state="succeeded", image_bytes=png_bytes(1024, 1024), image_count=1
+        )
+    )
+    async with _environment(full_settings, LLMStub(), visual, prompt_responder) as (
+        app,
+        _admin_client,
+    ):
+        await _add_account(app, "asset-a@example.com")
+        await _add_account(app, "asset-b@example.com")
+        user_a = await _login_user(app, "asset-a@example.com")
+        user_b = await _login_user(app, "asset-b@example.com")
 
-    async with _delivery_env(full_settings, stub, seed) as env:
-        await _add_account(env.app, "asset-a@example.com")
-        await _add_account(env.app, "asset-b@example.com")
-        async with write_transaction(env.app.state.session_factory) as session:
-            account = await session.scalar(
-                select(Account).where(
-                    Account.email_normalized == normalize_email("asset-a@example.com")
-                )
+        setup = await ready_project(app, user_a)
+        project_id = setup["project_id"]
+        clicked = await final_click(user_a, setup, command_id=str(uuid.uuid4()))
+        assert clicked.status_code == 200, clicked.text
+        await _drain(app)
+        view = (await user_a.get(f"/api/projects/{project_id}/workflow")).json()
+        if view["stage"] == "S09":
+            reviewed = await user_a.post(
+                f"/api/projects/{project_id}/workflow/actions/review_candidate",
+                json={"expected_revision": view["project_revision"]},
             )
-            project = await session.get(Project, env.ids.project_id)
-            assert account is not None and project is not None
-            project.owner_account_id = account.id
-        user_a = await _login_user(env.app, "asset-a@example.com")
-        user_b = await _login_user(env.app, "asset-b@example.com")
-
-        prepared = await user_a.post(
-            f"/api/projects/{env.ids.project_id}/workflow/actions/prepare_delivery",
-            json={"expected_revision": 1},
-        )
-        assert prepared.status_code == 200, prepared.text
-        approved = await user_a.post(
-            f"/api/projects/{env.ids.project_id}/workflow/actions/approve_delivery",
-            json={"expected_revision": prepared.json()["project_revision"]},
-        )
-        assert approved.status_code == 200, approved.text
+            assert reviewed.status_code == 200, reviewed.text
+            view = reviewed.json()
+        assert view["stage"] == "S10", view
+        for action in ("prepare_delivery", "approve_delivery"):
+            response = await user_a.post(
+                f"/api/projects/{project_id}/workflow/actions/{action}",
+                json={"expected_revision": view["project_revision"]},
+            )
+            assert response.status_code == 200, response.text
+            view = response.json()
         published = await user_a.post(
-            f"/api/projects/{env.ids.project_id}/workflow/actions/publish_delivery",
-            json={"expected_revision": approved.json()["project_revision"]},
+            f"/api/projects/{project_id}/workflow/actions/publish_delivery",
+            json={"expected_revision": view["project_revision"]},
         )
         assert published.status_code == 200, published.text
         assert published.json()["delivery"]["status"] == "published"
+        asset_id = published.json()["delivery"]["asset_id"]
+        assert asset_id
 
-        owner = await user_a.get(f"/api/assets/{env.ids.asset_id}?download=true")
+        owner = await user_a.get(f"/api/assets/{asset_id}?download=true")
         assert owner.status_code == 200, owner.text
-        assert owner.content == env.ids.image_bytes
-        for client in (user_b, env.client):
+        image_bytes = owner.content
+        assert image_bytes
+        for client in (user_b, _admin_client):
             for suffix in ("", "?download=true"):
-                denied = await client.get(f"/api/assets/{env.ids.asset_id}{suffix}")
+                denied = await client.get(f"/api/assets/{asset_id}{suffix}")
                 assert denied.status_code in {403, 404}, denied.text
-                assert env.ids.image_bytes not in denied.content
-            workflow = await client.get(f"/api/projects/{env.ids.project_id}/workflow")
+                assert image_bytes not in denied.content
+            workflow = await client.get(f"/api/projects/{project_id}/workflow")
             assert workflow.status_code == 404, workflow.text
-            detail = await client.get(f"/api/projects/{env.ids.project_id}")
+            detail = await client.get(f"/api/projects/{project_id}")
             assert detail.status_code == 404, detail.text

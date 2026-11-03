@@ -21,7 +21,6 @@ from app.models import Generation, Project
 from app.timeutil import format_timestamp
 from app.workflow.tables import Delivery
 from tests.conftest import migrate
-from tests.support.adapters import LLMStub
 from tests.support.auth import (
     TEST_ORIGIN,
     AuthClient,
@@ -30,11 +29,9 @@ from tests.support.auth import (
 )
 from tests.test_v2_t13_delivery import (
     _approve,
-    _delivery_env,
     _prepare,
     _publish,
-    _role_responder,
-    _seed_ready_state,
+    _real_delivery_env,
 )
 from tests.test_v2_t20_retention import _seed_candidate
 
@@ -264,14 +261,7 @@ async def test_cross_account_ids_never_expose_history_or_asset_metadata(settings
 
 @pytest.mark.asyncio
 async def test_published_bytes_are_exact_and_unapproved_states_stay_closed(full_settings):
-    stub = LLMStub()
-
-    async def seed(settings: Any, session: Any):
-        ids = await _seed_ready_state(settings, session)
-        stub.role_responder = _role_responder(ids)
-        return ids
-
-    async with _delivery_env(full_settings, stub, seed) as env:
+    async with _real_delivery_env(full_settings) as env:
         before = await env.client.get(f"/api/assets/{env.ids.asset_id}")
         assert before.status_code == 409, before.text
         assert env.ids.image_bytes not in before.content
