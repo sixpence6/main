@@ -90,3 +90,17 @@ $env:TEMP='<backend>\.scratch\t03\temp'; $env:TMP=$env:TEMP
 - 本票验证的是服务端拒绝与不产生副作用；前端按钮禁用/隐藏的视觉回归不在本票范围内，仍由前端测试覆盖。
 - 测试依赖 SQLite 直接改库模拟外部变化，能证明服务端复验，但不模拟真实并发下“复验后、提交前”最后一刻的配置变更；该窗口仍依赖提交路径的再次 guard 与数据库事务边界。
 - 未新增数据库迁移；若部署环境已有旧版 `prepared_prompts` 行，首次读取会按 `PROMPT_STALE` 要求重新预览，这是预期行为。
+
+## 7. 合并复核（集成分支，2026-11-03 12:07）
+
+- 合并提交：`2ecb14f`（`merge: T03 stale command and login invalidation (#115)`），被合并分支 tip `d113e02`。
+- 合并后在集成 worktree 复跑主验收（隔离 basetemp `D:\Desktop\issue-112-context\merge-t03-main`，日志 `backend/.scratch/merge-t03/main.log`）：
+
+```powershell
+& $py -m pytest tests/test_issue_115_t03.py tests/test_issue_116_t04.py tests/test_issue_114_t02.py tests/test_issue_114_migration.py tests/test_issue_113_t01.py tests/test_issue_113_migration.py -q -p no:cacheprovider --basetemp D:\Desktop\issue-112-context\merge-t03-main
+```
+
+实际结果：`105 passed in 383.82s`（T03 28 + T04 22 + T02 24 + 迁移 6 + T01 25）。
+
+- Ruff：`All checks passed!`（confirmation_invalidation.py、prompt_preparation.py、test_issue_115_t03.py）。
+- `git diff --check`：无输出，退出码 0。
