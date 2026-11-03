@@ -220,7 +220,7 @@ def test_migration_from_supported_0010_preserves_legacy_approval(settings: Any) 
         stored = connection.execute(
             "SELECT checks_json FROM approvals WHERE id='approval-1'"
         ).fetchone()[0]
-    assert version == "0014"
+    assert version == "0015"
     assert {"recovery_claim_id", "recovery_claimed_at"} <= columns
     assert stored == checks_json
     assert execution_snapshot_from_checks(json.loads(stored)) is None

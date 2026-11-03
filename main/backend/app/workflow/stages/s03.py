@@ -1042,11 +1042,21 @@ async def _compose(
         return
 
 
+async def record_revision_text(ctx: WorkflowContext, text: str) -> Message:
+    cleaned = text.strip()
+    if not cleaned:
+        raise validation_error("消息内容不能为空")
+    if len(text) > 20_000:
+        raise validation_error("消息内容过长")
+    return await _record_user_text(ctx, text)
+
+
 async def start_requirements_revision(
     ctx: WorkflowContext,
     text: str,
     *,
     current_requirement: dict[str, Any] | None = None,
+    record_user_text: bool = True,
 ) -> None:
     """Record an explicit requirements edit and rerun the S03 review chain.
 
@@ -1059,7 +1069,8 @@ async def start_requirements_revision(
         raise validation_error("消息内容不能为空")
     if len(text) > 20_000:
         raise validation_error("消息内容过长")
-    await _record_user_text(ctx, text)
+    if record_user_text:
+        await _record_user_text(ctx, text)
     await _supersede_prior_draft(ctx)
     await _compose(
         ctx,

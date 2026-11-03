@@ -47,6 +47,11 @@ async def send_message_endpoint(
             principal=principal,
             app=request.app,
             request_id=request_id,
+            attachment_asset_id=(
+                str(payload.attachment_asset_id)
+                if payload.attachment_asset_id is not None
+                else None
+            ),
         )
     except ApiError as exc:
         await record_operator_event_safely(
@@ -86,7 +91,9 @@ async def send_message_endpoint(
         project=project_view(
             exchange.project, exchange.reference_asset, data_dir, policy=policy
         ),
-        user_message=message_view(exchange.user_message, policy=policy),
+        user_message=message_view(
+            exchange.user_message, policy=policy, attachment=exchange.attachment
+        ),
         assistant_message=message_view(exchange.assistant_message, policy=policy),
         workflow=exchange.workflow,
     )

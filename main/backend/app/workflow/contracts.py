@@ -114,8 +114,8 @@ class ConversationData(StrictModel):
         if self.kind == "reference_usage_change":
             if self.reference_usage == "none":
                 raise ValueError("reference_usage_change 必须给出参考图用途")
-        elif self.reference_usage != "none":
-            raise ValueError("只有 reference_usage_change 可以携带参考图用途")
+        elif self.reference_usage != "none" and self.kind in {"conversation", "prompt_change"}:
+            raise ValueError("普通交流或提示词修改不能携带参考图用途")
         return self
 
 

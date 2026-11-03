@@ -4,12 +4,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from app.models import Asset, Generation, Message, Project
+from app.models import Asset, Generation, Message, MessageAttachment, Project
 from app.schemas import (
     AssetView,
     Brief,
     ErrorView,
     GenerationView,
+    MessageAttachmentView,
     MessageView,
     ProjectView,
 )
@@ -119,10 +120,28 @@ def project_view(
     )
 
 
+def attachment_view(attachment: MessageAttachment) -> MessageAttachmentView:
+    return MessageAttachmentView(
+        id=attachment.id,
+        message_id=attachment.message_id,
+        asset_id=attachment.asset_id,
+        usage=attachment.usage,  # type: ignore[arg-type]
+        content_version=attachment.content_version,
+        sha256=attachment.content_version,
+        mime_type=attachment.mime_type,
+        width=attachment.width,
+        height=attachment.height,
+        byte_size=attachment.byte_size,
+        preview_url=f"/api/assets/{attachment.asset_id}",
+        created_at=attachment.created_at,
+    )
+
+
 def message_view(
     message: Message,
     *,
     policy: ProjectAccessPolicy | None = None,
+    attachment: MessageAttachment | None = None,
 ) -> MessageView:
     hidden = policy is not None and policy.hides_message(message.id)
     snapshot = None
@@ -137,6 +156,11 @@ def message_view(
         brief_snapshot=snapshot,
         turn_kind=message.turn_kind,
         request_id=message.operation_id,
+        attachment=(
+            attachment_view(attachment)
+            if attachment is not None and not hidden
+            else None
+        ),
         legacy_unreviewed=hidden,
         legacy_notice=policy.notice if hidden and policy is not None else None,
         created_at=message.created_at,

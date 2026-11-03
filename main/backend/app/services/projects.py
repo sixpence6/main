@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.auth.principal import Principal
 from app.db import read_session, write_transaction
 from app.errors import ApiError, not_found_project
-from app.models import Asset, Generation, Message, Project
+from app.models import Asset, Generation, Message, MessageAttachment, Project
 from app.ownership import revalidate_principal
 from app.schemas import ProjectSummary
 from app.timeutil import format_timestamp, utc_now
@@ -251,6 +251,7 @@ class ProjectDetail:
     generations: list[Generation]
     reference_asset: Asset | None
     result_assets: dict[str, Asset]
+    attachments: dict[str, MessageAttachment]
     policy: ProjectAccessPolicy
 
 
@@ -296,6 +297,16 @@ async def get_project_detail(
             if project.reference_asset_id
             else None
         )
+        attachments = {
+            row.message_id: row
+            for row in (
+                await session.scalars(
+                    select(MessageAttachment).where(
+                        MessageAttachment.project_id == project_id
+                    )
+                )
+            ).all()
+        }
         if reference_asset is not None and reference_asset.project_id != project_id:
             reference_asset = None
         result_ids = sorted(
@@ -317,6 +328,7 @@ async def get_project_detail(
         generations=generations,
         reference_asset=reference_asset,
         result_assets=result_assets,
+        attachments=attachments,
         policy=policy[project_id],
     )
 
