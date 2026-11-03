@@ -279,6 +279,8 @@ async def submit_generation(
                     return SubmissionResult(duplicate, result_asset, created=False)
 
                 project = await require_project_scope(session, project_id, principal)
+                from app.prompt_preparation import require_image_execution
+                require_image_execution()
                 if project.brief_status == "organizing":
                     raise conflict("STALE_ORGANIZATION", "项目正在整理中，请稍后重试")
                 active = await session.scalar(
@@ -493,6 +495,8 @@ def _claim_generation(
             generation = await session.get(Generation, generation_id)
             if generation is None or generation.status != "queued":
                 return None
+            from app.prompt_preparation import require_image_execution
+            require_image_execution()
             now = format_timestamp(utc_now())
             generation.status = "running"
             generation.stage = "submitting"

@@ -262,6 +262,8 @@ async def _create_job(
     previous: Generation | None = None,
     intent: GenerationIntent | None = None,
 ) -> tuple[GenerationJob, Generation]:
+    from app.prompt_preparation import require_image_execution
+    require_image_execution()
     visual = ctx.settings.visual()
     canonical_payload: dict[str, Any] = {
         "project_id": ctx.project_id,
@@ -1006,6 +1008,8 @@ async def _run_job(
                     await session.flush()
             return
 
+        from app.prompt_preparation import require_image_execution
+        require_image_execution()
         await _mark_job(app.state.session_factory, job_id, status="submitted", submit_attempted=1)
         await execute_generation(app, generation_id)
 
@@ -1330,6 +1334,9 @@ async def _submit(ctx: WorkflowContext, action_payload: dict[str, Any]) -> None:
 
 
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
+    if action in {"submit_generation", "retry_generation", "start_new_generation"}:
+        from app.prompt_preparation import require_image_execution
+        require_image_execution()
     if action == "verify_generation":
         await _verify(ctx)
         return

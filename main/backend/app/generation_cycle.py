@@ -2,9 +2,8 @@
 
 The HTTP confirmation path only writes durable facts. This module advances that
 intent after the transaction commits: S07 prompt compilation + independent
-review, then S08 image submission. S08 continues with S09 quality review and
-S10 delivery-manifest preparation. No human approval or publish step is
-performed automatically.
+review, then persists a frozen request and waits. It creates no image attempt
+and never submits, authorizes execution, approves delivery, or publishes.
 """
 
 from __future__ import annotations
@@ -19,7 +18,7 @@ from sqlalchemy import select
 from app.acceptance import GenerationIntent
 from app.db import read_session
 from app.workflow import state
-from app.workflow.stages import s07, s08
+from app.workflow.stages import s07
 
 logger = logging.getLogger(__name__)
 
@@ -78,21 +77,15 @@ async def _run_cycle(
         if context.run.stage != "S07" or context.run.status != "active":
             return
         await s07.handle(context, "compile_prompt", {})
-        context = await state.load_context(app, project_id)
-        if context.run is None or context.run.id != run_id:
-            return
-        if context.run.stage != "S08" or context.run.status != "active":
-            return
-        fact = await _intent_state(app, intent_id)
-        if fact is None or fact[1] not in {"accepted", "executing"}:
-            return
-        await s08.handle(context, "submit_generation", {})
+        # Independent prompt approval commits the durable waiting state.
     except asyncio.CancelledError:
         raise
-    except BaseException:
+    except BaseException as exc:
         # The durable workflow state is authoritative. A driver failure must
         # not invent a terminal fact, release usage or trigger a resend.
-        logger.exception("generation cycle failed for intent %s", intent_id)
+        logger.error(
+            "generation preparation stopped for intent %s (%s)", intent_id, type(exc).__name__
+        )
 
 
 __all__ = ["schedule_confirmed_cycle"]

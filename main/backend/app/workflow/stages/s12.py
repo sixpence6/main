@@ -438,6 +438,20 @@ async def _resume_s07_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
         await set_artifact_status(ctx, artifact.id, "superseded")
         raise _stale()
     review_checks = {"ruleset_version": RULESET_VERSION, "checks": checks}
+    if decision == "pass":
+        from app.acceptance import latest_intent
+        intent = await latest_intent(
+            ctx.session_factory, project_id=ctx.project_id, run_id=ctx.run_id
+        )
+        if intent is not None:
+            from app.prompt_preparation import approve_and_wait
+            final, _, _ = await s07._require_confirmed(ctx)
+            reviewed_request = target.get("effective_request")
+            if not isinstance(reviewed_request, dict):
+                raise _stale()
+            await approve_and_wait(ctx, artifact, final, json.loads(artifact.payload_json),
+                                   reviewed_request, review_checks, output, recovering=True)
+            return
     await add_review(
         ctx,
         artifact,

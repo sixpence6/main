@@ -600,7 +600,7 @@ async def _confirm_atomic(
         # Idempotent replays may arrive after the confirmed cycle has already
         # advanced. They must return the original snapshot without rewinding
         # the run to S07 (which would strand an in-flight S08/S09 review).
-        advance_confirmation = run.stage in {"S06", "S07"}
+        advance_confirmation = existing_intent is None and run.stage in {"S06", "S07"}
         if advance_confirmation:
             run.stage = "S07"
             run.status = "active"
@@ -635,7 +635,7 @@ async def _after_acceptance(ctx: WorkflowContext, intent: GenerationIntent) -> N
         },
     )
     # The durable acceptance is already committed. The background driver only
-    # compiles/reviews the prompt and submits the image after this transaction.
+    # compiles/reviews the prompt and durably waits after this transaction.
     from app.generation_cycle import schedule_confirmed_cycle
 
     schedule_confirmed_cycle(ctx.app, ctx.project_id, ctx.run_id, intent.id)

@@ -38,7 +38,7 @@ GENERATION_WINDOW_MS = 24 * 60 * 60 * 1000
 
 
 class GenerationIntent(Base):
-    """An immutable, one-shot authorization created by one user confirmation."""
+    """One counted preparation intent; this is not final image-execution authorization."""
 
     __tablename__ = "generation_intents"
 

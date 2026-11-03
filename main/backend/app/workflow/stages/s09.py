@@ -1315,6 +1315,9 @@ async def handle(
         raise ApiError(
             409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
         )
+    if action in {"retry_rejected_generation", "revise_prompt_and_retry"}:
+        from app.prompt_preparation import require_image_execution
+        require_image_execution()
     if action == "retry_rejected_generation":
         await _retry_rejected_generation(ctx, payload)
         return
