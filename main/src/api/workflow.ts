@@ -233,6 +233,16 @@ export interface WorkflowTaskState {
   resource_state: WorkflowResourceView
 }
 
+export interface PromptPreviewView {
+  id: string
+  status: string
+  request_digest: string
+  request: Record<string, unknown>
+  created_at: string
+  can_confirm: boolean
+  command_context: Record<string, unknown>
+}
+
 export interface WorkflowView {
   project_id: string
   run_id: string | null
@@ -249,6 +259,9 @@ export interface WorkflowView {
   legacy: WorkflowLegacyItem[]
   generation_job: WorkflowGenerationJob | null
   delivery: WorkflowDelivery | null
+  prompt_preview?: PromptPreviewView | null
+  execution_snapshot?: Record<string, unknown> | null
+  execution_snapshot_digest?: string | null
   versions?: WorkflowVersion[]
   usage?: WorkflowUsage | null
   intent?: WorkflowIntent | null

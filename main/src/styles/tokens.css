@@ -1,19 +1,24 @@
 :root {
-  --color-page: #F4F0E8;
-  --color-panel: #FFFCF7;
-  --color-glass: rgba(255, 252, 247, 0.84);
-  --color-text: #2C2723;
-  --color-text-muted: #6F665C;
-  --color-primary: #705239;
-  --color-primary-hover: #5B4330;
-  --color-border: #DED5C7;
-  --color-accent: #B89A68;
-  --color-success: #42664C;
-  --color-warning: #7C5A22;
-  --color-danger: #A43D35;
-  --color-info: #4F6274;
+  --color-page: #EEF0F8;
+  --color-panel: #FFFFFF;
+  --color-panel-soft: #F5F6FA;
+  --color-primary-soft: #EEEAFF;
+  --color-glass: rgba(255, 255, 255, 0.86);
+  --color-text: #1F2438;
+  --color-text-muted: #626D88;
+  --color-primary: #5846E8;
+  --color-primary-hover: #4736CD;
+  --color-border: #E5E8F3;
+  --color-border-soft: #EEF0F7;
+  --color-code: #F5F6FA;
+  --color-accent: #7A67F0;
+  --color-success: #35745B;
+  --color-warning: #8A611E;
+  --color-danger: #B23B4B;
+  --color-info: #4965A8;
 
   --font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --text-body: 14px;
   --text-body-line: 22px;
   --text-input: 16px;
@@ -30,15 +35,18 @@
   --space-6: 24px;
   --space-8: 32px;
 
-  --radius-control: 8px;
+  --radius-control: 10px;
   --radius-panel: 16px;
-  --radius-image: 24px;
+  --radius-image: 20px;
+  --radius-shell: 28px;
 
-  --shadow-panel: 0 8px 24px rgba(44, 39, 35, 0.06);
+  --shadow-panel: 0 12px 40px rgba(35, 40, 70, 0.07);
 
   --head-height: 56px;
+  --topbar-height: 68px;
   --body-padding: 16px;
-  --sidebar-width: 0px;
+  --sidebar-width: 288px;
+  --conversation-width: 880px;
   --conversation-max: 880px;
   --results-max: 1120px;
 }

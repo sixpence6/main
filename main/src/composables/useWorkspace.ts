@@ -103,6 +103,7 @@ export interface WorkspaceStore {
   showMessageLocalCopy: () => void
   loadLatestAfterMessageConflict: () => Promise<void>
   refreshProjectDetail: () => Promise<boolean>
+  adoptCreatedProject: (project: ProjectView) => void
   creationUnknown: Ref<boolean>
   organizing: ComputedRef<boolean>
   sendDisabledReason: ComputedRef<string>
@@ -392,6 +393,24 @@ function createWorkspace(): WorkspaceStore {
     const pending = drafts.get('__new__')
     if (pending !== undefined) drafts.set(projectId, pending)
     drafts.delete('__new__')
+  }
+
+  function adoptCreatedProject(project: ProjectView): void {
+    detailController?.abort()
+    detailController = null
+    detailToken += 1
+    projectContextToken += 1
+    creationUnknown.value = false
+    sendError.value = ''
+    projectLoading.value = false
+    projectError.value = ''
+    projectErrorKind.value = null
+    currentProject.value = project
+    projectMessages.value = []
+    projectGenerations.value = []
+    projectParam.value = project.id
+    adoptDraftForProject(project.id)
+    void updateProjectUrl(project.id, 'push')
   }
 
   function openNavigationConfirm(intent: NavigationIntent): void {
@@ -1642,6 +1661,7 @@ function createWorkspace(): WorkspaceStore {
     showMessageLocalCopy,
     loadLatestAfterMessageConflict,
     refreshProjectDetail,
+    adoptCreatedProject,
     creationUnknown,
     organizing,
     sendDisabledReason,

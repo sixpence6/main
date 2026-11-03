@@ -326,7 +326,7 @@ export const api = {
   },
   sendMessage(
     projectId: string,
-    input: { content: string; expected_revision: number },
+    input: { content: string; expected_revision: number; request_id?: string },
   ): Promise<MessageCreateResponse> {
     return requestJson<MessageCreateResponse>(
       `/api/projects/${encodeURIComponent(projectId)}/messages`,

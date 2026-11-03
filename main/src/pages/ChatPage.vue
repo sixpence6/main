@@ -1,154 +1,418 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, provide, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import ComposerPanel from '@/components/ComposerPanel.vue'
-import ConversationPanel from '@/components/ConversationPanel.vue'
-import HistoryPreview from '@/components/HistoryPreview.vue'
-import WorkflowPanel from '@/components/workflow/WorkflowPanel.vue'
-import { useWorkflow, WORKFLOW_KEY } from '@/composables/useWorkflow'
+import { computed, nextTick, ref, watch } from 'vue'
+import { assetUrl } from '@/api/client'
+import { useChatFlow } from '@/composables/useChatFlow'
 import { useWorkspace } from '@/composables/useWorkspace'
-import { sessionRevision } from '@/auth/session'
 import { displayProjectTitle } from '@/utils/format'
-import { currentPublishedVersion } from '@/workflow/projection'
 
 const workspace = useWorkspace()
-const { currentProject, projectParam } = workspace
-const workflow = useWorkflow(projectParam)
-provide(WORKFLOW_KEY, workflow)
-const route = useRoute()
-const router = useRouter()
+const flow = useChatFlow()
+const {
+  projectMessages,
+  projectLoading,
+  projectError,
+  currentProject,
+  draft,
+} = workspace
+const {
+  busy,
+  flowError,
+  copied,
+  hasConversation,
+  requirementRows,
+  canConfirmRequirements,
+  promptPreview,
+  positivePrompt,
+  negativePrompt,
+  promptOutput,
+  referenceInfo,
+  publishedAssetId,
+  publishedCaption,
+  questionText,
+  statusText,
+  send,
+  confirmRequirements,
+  confirmPrompt,
+  copyPrompt,
+  retry,
+} = flow
 
-const progressLabel = computed(() => {
-  const state = workflow.view.value?.task_state
-  return state?.progress.stage_label ?? ''
+const scrollRegion = ref<HTMLElement | null>(null)
+const composing = ref(false)
+const title = computed(() => currentProject.value ? displayProjectTitle(currentProject.value.title) : '新对话')
+const usageText = computed(() => {
+  const usage = flow.workflow.view.value?.usage
+  if (!usage) return '本次生成会占用 1 次额度。'
+  return '本次生成会占用 1 次额度；今日已受理 ' + usage.used + ' / ' + usage.daily_limit + ' 次。'
 })
-const publishedVersion = computed(() =>
-  currentPublishedVersion(currentProject.value, workflow.view.value),
-)
-const heading = computed(() =>
-  currentProject.value ? displayProjectTitle(currentProject.value.title) : '新建生图需求',
-)
+const sendDisabled = computed(() => busy.value || !draft.value.trim())
+const promptStateLabel = computed(() => {
+  if (!promptPreview.value) return ''
+  return promptPreview.value.can_confirm ? '' : '提示词正在检查，确认按钮暂不可用。'
+})
 
-let baselineReady = false
-let baselineProject: string | null = null
-let previousPublishedDeliveryId: string | null = null
-let lastJumpedDeliveryId: string | null = null
-
-watch(
-  projectParam,
-  () => {
-    baselineReady = false
-    baselineProject = null
-    previousPublishedDeliveryId = null
-    lastJumpedDeliveryId = null
-  },
-  { flush: 'sync' },
-)
+function scrollToLatest(): void {
+  const element = scrollRegion.value
+  if (!element) return
+  element.scrollTop = element.scrollHeight
+}
 
 watch(
-  sessionRevision,
-  () => {
-    baselineReady = false
-    baselineProject = null
-    previousPublishedDeliveryId = null
-    lastJumpedDeliveryId = null
-  },
-  { flush: 'sync' },
-)
-
-watch(
-  () => workflow.view.value,
-  (view) => {
-    const projectId = projectParam.value
-    if (!projectId || !view || view.project_id !== projectId) return
-    if (!baselineReady || baselineProject !== projectId) {
-      baselineReady = true
-      baselineProject = projectId
-      previousPublishedDeliveryId = currentPublishedVersion(currentProject.value, view)
-        ? (view.delivery?.id ?? null)
-        : null
-      return
-    }
-    const version = currentPublishedVersion(currentProject.value, view)
-    const publishedDeliveryId = version ? (view.delivery?.id ?? null) : null
-    const previous = previousPublishedDeliveryId
-    previousPublishedDeliveryId = publishedDeliveryId
-    if (route.name !== 'project-chat') return
-    if (!version || !version.asset_id || !version.can_download) return
-    if (!publishedDeliveryId || previous !== null) return
-    if (lastJumpedDeliveryId === publishedDeliveryId) return
-    lastJumpedDeliveryId = publishedDeliveryId
-    void router.push({ name: 'project-results', params: { projectId } })
+  () => [
+    projectMessages.value.length,
+    questionText.value,
+    canConfirmRequirements.value,
+    Boolean(promptPreview.value),
+    publishedAssetId.value,
+    statusText.value,
+  ],
+  async () => {
+    await nextTick()
+    scrollToLatest()
   },
   { flush: 'post' },
 )
 
-function openResults(): void {
-  const id = projectParam.value
-  if (id) void router.push({ name: 'project-results', params: { projectId: id } })
+async function submit(): Promise<void> {
+  const value = draft.value
+  if (!value.trim() || busy.value) return
+  await send(value)
 }
 
-function focusComposer(): void {
-  if (route.hash === '#composer') {
-    void nextTick(() => document.getElementById('workspace-prompt')?.focus())
-  }
+function onEnter(event: KeyboardEvent): void {
+  if (composing.value || event.isComposing) return
+  event.preventDefault()
+  void submit()
 }
 
-onMounted(focusComposer)
-watch(currentProject, focusComposer, { flush: 'post' })
+function roleLabel(role: string): string {
+  return role === 'user' ? '你' : '智能生图助手'
+}
 </script>
 
 <template>
-  <section class="chat-page" aria-label="需求工作台">
-    <div class="chat-scroll">
-      <div class="workspace-page-topbar">
-        <div class="workspace-page-heading">
-          <p class="eyebrow">需求对话</p>
-          <p id="chat-page-title" class="workspace-page-title">{{ heading }}</p>
+  <section class="pure-chat" aria-label="生图对话">
+    <header class="chat-topbar">
+      <div class="chat-heading">
+        <p class="chat-eyebrow">智能生图助手</p>
+        <h2 class="chat-title">{{ title }}</h2>
+      </div>
+      <span v-if="busy" class="chat-working">处理中…</span>
+    </header>
+
+    <div ref="scrollRegion" class="chat-scroll" aria-label="对话内容">
+      <div v-if="!hasConversation" class="welcome">
+        <p class="welcome-mark" aria-hidden="true">✦</p>
+        <h1>发来商品图片，或告诉我你想做什么样的电商图片</h1>
+        <p class="welcome-note">用一句话描述商品、用途和画面感觉即可。需要确认时，我会把要点整理给你。</p>
+      </div>
+
+      <template v-else>
+        <div v-if="projectLoading" class="chat-loading" role="status">正在读取对话…</div>
+        <div v-else-if="projectError" class="chat-error" role="alert">
+          <p>{{ projectError }}</p>
+          <button type="button" class="text-button" @click="retry">重试</button>
         </div>
-        <div class="workspace-page-status">
-          <span v-if="progressLabel" class="status-badge">{{ progressLabel }}</span>
-          <button
-            v-if="publishedVersion"
-            type="button"
-            class="secondary-button"
-            @click="openResults"
+
+        <template v-else>
+          <ol v-if="projectMessages.length" class="message-list" aria-label="对话记录">
+            <li
+              v-for="message in projectMessages"
+              :key="message.id"
+              class="message-row"
+              :class="message.role === 'user' ? 'is-user' : 'is-assistant'"
+            >
+              <div class="message-bubble">
+                <p class="message-role">{{ roleLabel(message.role) }}</p>
+                <img
+                  v-if="message.attachment"
+                  class="message-attachment"
+                  :src="message.attachment.preview_url"
+                  :alt="'随消息发送的图片，用途：' + message.attachment.usage"
+                >
+                <p class="message-content">{{ message.content }}</p>
+              </div>
+            </li>
+          </ol>
+
+          <div v-if="questionText" class="assistant-turn">
+            <div class="message-bubble">
+              <p class="message-role">智能生图助手</p>
+              <p class="message-content">{{ questionText }}</p>
+            </div>
+          </div>
+
+          <section
+            v-if="canConfirmRequirements"
+            class="assistant-turn requirement-turn"
+            aria-label="需求确认"
           >
-            查看当前结果
-          </button>
-        </div>
-      </div>
+            <div class="message-bubble">
+              <p class="message-role">智能生图助手</p>
+              <p class="assistant-lead">我先把你的描述整理成了这份需求，确认后我会准备提示词。</p>
+              <dl class="requirement-list">
+                <template v-for="row in requirementRows" :key="row.label">
+                  <dt>{{ row.label }}</dt>
+                  <dd>{{ row.value }}</dd>
+                </template>
+              </dl>
+              <p class="usage-note">{{ usageText }}</p>
+              <button type="button" class="primary-action" :disabled="busy" @click="confirmRequirements">
+                确认需求并生成提示词
+              </button>
+            </div>
+          </section>
 
-      <section class="model-data-notice" aria-labelledby="model-data-notice-title">
-        <h2 id="model-data-notice-title">外部模型数据说明</h2>
-        <p>
-          你在工作台提交的文字描述、需求卡信息和参考图会发送给已配置的外部模型服务，用于需求整理、图片生成和结果核验。请勿在描述或图片中填写密码、会话凭证、恢复链接或其他秘密信息。模型服务可能按其自身政策处理数据，本应用不承诺供应商零保留。
-        </p>
-      </section>
+          <section
+            v-if="promptPreview"
+            class="assistant-turn prompt-turn"
+            aria-label="提示词确认"
+          >
+            <div class="message-bubble">
+              <p class="message-role">智能生图助手</p>
+              <p class="assistant-lead">提示词已经准备好。下面就是实际会交给图片模型的内容，请确认后开始生成。</p>
+              <div class="prompt-block">
+                <div class="prompt-heading">
+                  <h3>实际提示词</h3>
+                  <button type="button" class="text-button" @click="copyPrompt">
+                    {{ copied ? '已复制' : '复制提示词' }}
+                  </button>
+                </div>
+                <pre class="prompt-text">{{ positivePrompt }}</pre>
+                <template v-if="negativePrompt">
+                  <h3>需要避免</h3>
+                  <pre class="prompt-text prompt-negative">{{ negativePrompt }}</pre>
+                </template>
+                <dl class="prompt-meta">
+                  <template v-if="promptOutput">
+                    <dt>输出</dt><dd>{{ promptOutput }}</dd>
+                  </template>
+                  <template v-if="referenceInfo">
+                    <dt>参考图</dt><dd>{{ referenceInfo }}</dd>
+                  </template>
+                </dl>
+              </div>
+              <p v-if="promptStateLabel" class="usage-note">{{ promptStateLabel }}</p>
+              <button
+                type="button"
+                class="primary-action"
+                :disabled="busy || !promptPreview?.can_confirm"
+                @click="confirmPrompt"
+              >
+                {{ promptPreview?.can_confirm ? '确认使用以上提示词生成' : '提示词检查中…' }}
+              </button>
+            </div>
+          </section>
 
-      <div class="chat-stream">
-        <ConversationPanel />
-        <WorkflowPanel />
-        <HistoryPreview />
-      </div>
+          <div v-if="statusText && !publishedAssetId" class="assistant-turn">
+            <div class="message-bubble status-bubble">
+              <p class="message-role">智能生图助手</p>
+              <p class="message-content">{{ statusText }}</p>
+              <span class="typing-dots" aria-hidden="true"><i /><i /><i /></span>
+            </div>
+          </div>
+
+          <figure v-if="publishedAssetId" class="assistant-turn result-turn">
+            <div class="message-bubble">
+              <p class="message-role">智能生图助手</p>
+              <p class="message-content">图片已经生成，可以保存使用了。</p>
+              <img
+                class="result-image"
+                :src="assetUrl(publishedAssetId)"
+                :alt="publishedCaption"
+              >
+              <figcaption>{{ publishedCaption }}</figcaption>
+            </div>
+          </figure>
+        </template>
+      </template>
     </div>
 
-    <ComposerPanel />
+    <footer class="composer-area">
+      <div v-if="flowError" class="chat-error composer-error" role="alert">
+        <p>{{ flowError }}</p>
+        <button type="button" class="text-button" @click="retry">重试</button>
+      </div>
+      <div class="composer-shell">
+        <label class="sr-only" for="workspace-prompt">描述商品与图片需求</label>
+        <textarea
+          id="workspace-prompt"
+          v-model="draft"
+          rows="1"
+          class="composer-input"
+          placeholder="描述商品、用途和画面感觉…"
+          aria-label="描述商品与图片需求"
+          :disabled="busy"
+          @keydown.enter.exact="onEnter"
+          @compositionstart="composing = true"
+          @compositionend="composing = false"
+        />
+        <button
+          type="button"
+          class="send-button"
+          aria-label="发送"
+          :disabled="sendDisabled"
+          @click="submit"
+        >
+          发送
+        </button>
+      </div>
+      <p class="composer-hint">Enter 发送，Shift + Enter 换行</p>
+    </footer>
   </section>
 </template>
 
 <style scoped>
-.chat-page { display: flex; flex-direction: column; gap: var(--space-3); height: 100%; min-height: 0; }
-.chat-scroll { display: flex; flex: 1; flex-direction: column; gap: var(--space-4); width: 100%; max-width: 880px; min-height: 0; margin: 0 auto; overflow-x: hidden; overflow-y: auto; scroll-behavior: smooth; }
-.workspace-page-topbar { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
-.workspace-page-heading { display: grid; gap: 2px; }
-.workspace-page-title { margin: 0; font-size: clamp(20px, 2.2vw, 26px); line-height: 1.25; font-weight: 700; }
-.workspace-page-heading .eyebrow { margin: 0; color: var(--color-text-muted); font-size: var(--text-small); letter-spacing: 0.08em; text-transform: uppercase; }
-.workspace-page-status { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-.chat-stream { display: flex; flex-direction: column; gap: var(--space-4); width: 100%; min-width: 0; }
-.chat-stream :deep(.conversation-panel), .chat-stream :deep(.workflow-panel), .chat-stream :deep(.history-preview) { max-width: none; margin: 0; width: 100%; }
-.model-data-notice { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-left: 3px solid var(--color-warning); border-radius: var(--radius-control); background: var(--color-panel); }
-.model-data-notice h2 { margin: 0; font-size: var(--text-body); line-height: var(--text-body-line); }
-.model-data-notice p { margin: 0; color: var(--color-text-muted); font-size: var(--text-body); line-height: var(--text-body-line); }
-@media (max-width: 767px) { .chat-scroll, .chat-stream { gap: var(--space-3); } }
+.pure-chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--color-panel);
+  border-radius: var(--radius-shell);
+  overflow: hidden;
+}
+.chat-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex: none;
+  min-height: var(--topbar-height);
+  padding: 0 clamp(20px, 4vw, 44px);
+  border-bottom: 1px solid var(--color-border-soft);
+}
+.chat-heading { min-width: 0; }
+.chat-eyebrow { margin: 0 0 2px; color: var(--color-text-muted); font-size: 12px; letter-spacing: .08em; }
+.chat-title { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; line-height: 1.3; }
+.chat-working { flex: none; color: var(--color-primary); font-size: 13px; }
+.chat-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 34px clamp(20px, 5vw, 56px) 24px;
+  scroll-behavior: smooth;
+}
+.welcome {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 100%;
+  padding-bottom: 8vh;
+  text-align: center;
+}
+.welcome-mark {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin: 0 0 22px;
+  border-radius: 18px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 28px;
+}
+.welcome h1 {
+  max-width: 720px;
+  margin: 0;
+  font-size: clamp(26px, 3.2vw, 42px);
+  line-height: 1.25;
+  letter-spacing: -.025em;
+}
+.welcome-note { max-width: 560px; margin: 18px 0 0; color: var(--color-text-muted); font-size: 15px; line-height: 1.7; }
+.chat-loading { padding: 48px 0; color: var(--color-text-muted); text-align: center; }
+.message-list { display: flex; flex-direction: column; gap: 24px; width: min(var(--conversation-width), 100%); margin: 0 auto; padding: 0; list-style: none; }
+.message-row { display: flex; }
+.message-row.is-user { justify-content: flex-end; }
+.message-row.is-assistant { justify-content: flex-start; }
+.message-bubble {
+  max-width: min(760px, 100%);
+  padding: 17px 20px;
+  border-radius: 18px;
+  background: var(--color-panel-soft);
+}
+.is-user .message-bubble { background: var(--color-primary); color: #fff; border-bottom-right-radius: 5px; }
+.is-assistant .message-bubble { border-bottom-left-radius: 5px; }
+.message-role { margin: 0 0 6px; color: var(--color-text-muted); font-size: 12px; }
+.is-user .message-role { color: rgba(255,255,255,.72); }
+.message-content { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+.message-attachment { display: block; max-width: min(360px, 100%); max-height: 260px; margin: 0 0 12px; border-radius: 12px; object-fit: cover; }
+.assistant-turn { width: min(var(--conversation-width), 100%); margin: 24px auto 0; }
+.assistant-turn .message-bubble { max-width: 100%; }
+.assistant-lead { margin: 0 0 16px; line-height: 1.7; }
+.requirement-list, .prompt-meta { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 18px; margin: 0 0 18px; }
+.requirement-list dt, .prompt-meta dt { color: var(--color-text-muted); font-size: 13px; }
+.requirement-list dd, .prompt-meta dd { margin: 0; overflow-wrap: anywhere; }
+.usage-note { margin: 0 0 14px; color: var(--color-text-muted); font-size: 13px; line-height: 1.6; }
+.primary-action {
+  min-height: 44px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+}
+.primary-action:hover:not(:disabled) { background: var(--color-primary-hover); }
+.primary-action:disabled { cursor: not-allowed; opacity: .55; }
+.prompt-block { margin: 0 0 18px; padding: 18px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-panel); }
+.prompt-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.prompt-heading h3, .prompt-block h3 { margin: 0; font-size: 14px; }
+.prompt-block h3 + .prompt-text { margin-top: 8px; }
+.prompt-text { max-height: none; margin: 0 0 16px; padding: 14px; border-radius: 10px; background: var(--color-code); white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.65 var(--font-mono); }
+.prompt-negative { background: #fbf1f1; }
+.prompt-meta { margin-bottom: 0; }
+.text-button { padding: 2px 0; border: 0; background: transparent; color: var(--color-primary); font-size: 13px; }
+.text-button:hover { text-decoration: underline; }
+.status-bubble { display: inline-flex; align-items: center; gap: 12px; color: var(--color-text-muted); }
+.status-bubble .message-content { color: var(--color-text-muted); }
+.typing-dots { display: inline-flex; gap: 4px; }
+.typing-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--color-primary); animation: typing 1s infinite ease-in-out; }
+.typing-dots i:nth-child(2) { animation-delay: .15s; }
+.typing-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes typing { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+.result-image { display: block; width: min(640px, 100%); max-height: 620px; margin: 4px 0 10px; border-radius: 16px; object-fit: contain; background: var(--color-panel); }
+figcaption { color: var(--color-text-muted); font-size: 13px; }
+.chat-error { width: min(var(--conversation-width), 100%); margin: 0 auto 20px; padding: 12px 14px; border: 1px solid #efcaca; border-radius: 12px; background: #fff7f7; color: var(--color-danger); }
+.chat-error p { margin: 0 0 4px; }
+.composer-area { flex: none; padding: 12px clamp(20px, 5vw, 56px) 20px; background: linear-gradient(to top, var(--color-panel) 78%, rgba(255,255,255,0)); }
+.composer-error { margin-bottom: 10px; }
+.composer-shell {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: min(var(--conversation-width), 100%);
+  margin: 0 auto;
+  padding: 8px 8px 8px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 22px;
+  background: var(--color-panel);
+  box-shadow: 0 10px 30px rgba(40, 44, 72, .08);
+}
+.composer-input {
+  flex: 1;
+  min-height: 44px;
+  max-height: 180px;
+  padding: 10px 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: var(--color-text);
+  font: 16px/1.5 var(--font-family);
+}
+.composer-input:disabled { opacity: .6; }
+.send-button { flex: none; min-width: 68px; height: 44px; border: 0; border-radius: 16px; background: var(--color-primary); color: #fff; font-weight: 600; }
+.send-button:hover:not(:disabled) { background: var(--color-primary-hover); }
+.send-button:disabled { cursor: not-allowed; opacity: .45; }
+.composer-hint { width: min(var(--conversation-width), 100%); margin: 8px auto 0; color: var(--color-text-muted); font-size: 12px; text-align: center; }
+@media (max-width: 767px) {
+  .chat-topbar { min-height: 58px; padding: 0 18px; }
+  .chat-scroll { padding: 24px 16px 16px; }
+  .welcome h1 { font-size: 28px; }
+  .composer-area { padding: 10px 14px 14px; }
+  .composer-shell { border-radius: 18px; }
+  .message-bubble { padding: 15px 16px; }
+}
 </style>
