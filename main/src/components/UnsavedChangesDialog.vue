@@ -103,7 +103,7 @@ onBeforeUnmount(() => {
         </p>
         <ul v-if="draftDirty || attachmentPending" class="unsaved-list">
           <li v-if="draftDirty">输入框中尚未发送的文字</li>
-          <li v-if="attachmentPending">尚未上传完成的参考图</li>
+          <li v-if="attachmentPending">尚未发送的图片</li>
         </ul>
         <p class="unsaved-hint">这些内容只保留在当前页面内存中，离开后无法恢复。</p>
         <div class="unsaved-actions">

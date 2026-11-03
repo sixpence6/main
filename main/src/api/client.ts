@@ -26,6 +26,7 @@ import type {
   AdminSecurityEventListResponse,
   InstanceGenerationLimitsResponse,
   AccountGenerationLimitsResponse,
+  StagedMessageAttachmentView,
 } from './types'
 import { getCsrfToken, setCsrfToken } from './csrf'
 
@@ -326,11 +327,30 @@ export const api = {
   },
   sendMessage(
     projectId: string,
-    input: { content: string; expected_revision: number; request_id?: string },
+    input: {
+      content: string
+      expected_revision: number
+      request_id?: string
+      attachment_asset_id?: string
+    },
   ): Promise<MessageCreateResponse> {
     return requestJson<MessageCreateResponse>(
       `/api/projects/${encodeURIComponent(projectId)}/messages`,
       { method: 'POST', body: JSON.stringify(input) },
+    )
+  },
+  stageMessageAttachment(projectId: string, file: File): Promise<StagedMessageAttachmentView> {
+    const body = new FormData()
+    body.append('file', file)
+    return requestJson<StagedMessageAttachmentView>(
+      `/api/projects/${encodeURIComponent(projectId)}/message-attachments`,
+      { method: 'POST', body },
+    )
+  },
+  discardMessageAttachment(projectId: string, assetId: string): Promise<{ asset_id: string; discarded: boolean }> {
+    return requestJson<{ asset_id: string; discarded: boolean }>(
+      `/api/projects/${encodeURIComponent(projectId)}/message-attachments/${encodeURIComponent(assetId)}`,
+      { method: 'DELETE' },
     )
   },
   updateBrief(projectId: string, input: PatchBriefRequest): Promise<ProjectView> {

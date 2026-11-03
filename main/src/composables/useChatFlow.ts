@@ -1,13 +1,23 @@
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { ApiError, api } from '@/api/client'
+import { sessionRevision } from '@/auth/session'
 import {
   runWorkflowAction,
   type PromptPreviewView,
   type WorkflowAction,
   type WorkflowArtifact,
 } from '@/api/workflow'
+import type { MessageCreateResponse, StagedMessageAttachmentView } from '@/api/types'
 import { useWorkspace } from '@/composables/useWorkspace'
 import { useWorkflow } from '@/composables/useWorkflow'
+
+interface PendingAttachment {
+  file: File
+  objectUrl: string | null
+  previewUrl: string
+  staged: StagedMessageAttachmentView | null
+  stagedProjectId: string | null
+}
 
 const AUTO_ACTION_IDS = new Set([
   'compose_brief',
@@ -57,11 +67,18 @@ export function useChatFlow() {
   const flowError = ref('')
   const copied = ref(false)
   const autoBusy = ref(false)
+  const pendingAttachment = shallowRef<PendingAttachment | null>(null)
+  const attachmentBusy = ref(false)
+  const attachmentError = ref('')
   const pendingRequirementRequestId = ref('')
   const pendingPromptCommandId = ref('')
   let lastAutoAction = ''
   let autoArmed = false
   let copyTimer: ReturnType<typeof setTimeout> | null = null
+  let attachmentToken = 0
+  let stageTask: Promise<StagedMessageAttachmentView> | null = null
+  let stageTaskKey = ''
+  let keepAttachmentOnProjectChange = false
 
   const view = workflow.view
   const finalBrief = computed<WorkflowArtifact | null>(() => {
@@ -158,6 +175,134 @@ export function useChatFlow() {
     return ''
   })
   const hasConversation = computed(() => Boolean(workspace.projectParam.value))
+  const attachmentFileName = computed(() => pendingAttachment.value?.file.name ?? '')
+
+  function objectUrlFor(file: File): string | null {
+    try {
+      if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+        return URL.createObjectURL(file)
+      }
+    } catch {
+      // 预览失败不阻止选择文件，发送时仍以服务端暂存结果为准。
+    }
+    return null
+  }
+
+  function revokeObjectUrl(value: string | null | undefined): void {
+    if (!value) return
+    try {
+      if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+        URL.revokeObjectURL(value)
+      }
+    } catch {
+      // 已释放的临时 URL 不影响业务状态。
+    }
+  }
+
+  function replacePendingAttachment(next: PendingAttachment | null): void {
+    pendingAttachment.value = next
+    workspace.setMessageAttachmentPending(next !== null)
+  }
+
+  function clearAttachmentState(discard: boolean): void {
+    const current = pendingAttachment.value
+    attachmentToken += 1
+    attachmentBusy.value = false
+    stageTask = null
+    stageTaskKey = ''
+    revokeObjectUrl(current?.objectUrl)
+    replacePendingAttachment(null)
+    attachmentError.value = ''
+    if (discard && current?.staged && current.stagedProjectId) {
+      void api.discardMessageAttachment(current.stagedProjectId, current.staged.asset.id).catch(() => undefined)
+    }
+  }
+
+  async function ensureStagedAttachment(projectId: string): Promise<StagedMessageAttachmentView | null> {
+    const current = pendingAttachment.value
+    if (!current) return null
+    if (current.staged && current.stagedProjectId === projectId) return current.staged
+    const key = [projectId, current.file.name, current.file.size, current.file.lastModified].join(':')
+    if (stageTask && stageTaskKey === key) return stageTask
+    const token = attachmentToken
+    attachmentBusy.value = true
+    attachmentError.value = ''
+    const task = api.stageMessageAttachment(projectId, current.file)
+    stageTask = task
+    stageTaskKey = key
+    try {
+      const staged = await task
+      if (
+        token !== attachmentToken ||
+        pendingAttachment.value !== current ||
+        workspace.currentProject.value?.id !== projectId
+      ) {
+        void api.discardMessageAttachment(projectId, staged.asset.id).catch(() => undefined)
+        return null
+      }
+      revokeObjectUrl(current.objectUrl)
+      replacePendingAttachment({
+        ...current,
+        objectUrl: null,
+        previewUrl: staged.preview_url,
+        staged,
+        stagedProjectId: projectId,
+      })
+      return staged
+    } catch (caught) {
+      if (token === attachmentToken) {
+        attachmentError.value = caught instanceof ApiError
+          ? caught.message
+          : '图片没有上传成功，请重试。'
+      }
+      return null
+    } finally {
+      if (token === attachmentToken) attachmentBusy.value = false
+      if (stageTask === task) {
+        stageTask = null
+        stageTaskKey = ''
+      }
+    }
+  }
+
+  async function chooseAttachment(file: File): Promise<void> {
+    const mime = file.type.toLowerCase()
+    if (mime !== 'image/png' && mime !== 'image/jpeg') {
+      attachmentError.value = '只支持 PNG 或 JPEG 图片。'
+      return
+    }
+    if (attachmentBusy.value) return
+    const previous = pendingAttachment.value
+    const objectUrl = objectUrlFor(file)
+    attachmentToken += 1
+    attachmentError.value = ''
+    replacePendingAttachment({
+      file,
+      objectUrl,
+      previewUrl: objectUrl ?? '',
+      staged: null,
+      stagedProjectId: null,
+    })
+    if (previous?.staged && previous.stagedProjectId) {
+      void api.discardMessageAttachment(previous.stagedProjectId, previous.staged.asset.id).catch(() => undefined)
+    }
+    const projectId = workspace.currentProject.value?.id
+    if (projectId) await ensureStagedAttachment(projectId)
+  }
+
+  async function removeAttachment(): Promise<void> {
+    if (attachmentBusy.value) return
+    clearAttachmentState(true)
+  }
+
+  function clearAttachmentAfterSend(): void {
+    clearAttachmentState(false)
+  }
+
+  function applyMessageResponse(response: MessageCreateResponse): void {
+    if (response.workflow) workflow.adopt(response.workflow)
+    else if (view.value) void workflow.refresh()
+  }
 
   function actionById(id: string): WorkflowAction | null {
     return view.value?.available_actions.find((action) => action.id === id) ?? null
@@ -245,11 +390,43 @@ export function useChatFlow() {
     }
   }
 
+  async function beginWithAttachment(body: string): Promise<void> {
+    autoArmed = true
+    busy.value = true
+    flowError.value = ''
+    try {
+      const project = await api.createProject()
+      keepAttachmentOnProjectChange = true
+      workspace.adoptCreatedProject(project)
+      autoArmed = true
+      const staged = await ensureStagedAttachment(project.id)
+      if (!staged) return
+      const response = await api.sendMessage(project.id, {
+        content: body,
+        expected_revision: project.revision,
+        request_id: makeId(),
+        attachment_asset_id: staged.asset.id,
+      })
+      applyMessageResponse(response)
+      workspace.draft.value = ''
+      clearAttachmentAfterSend()
+      await afterWorkflowChange(true)
+    } catch (caught) {
+      flowError.value = caught instanceof ApiError
+        ? caught.message
+        : '没有成功建立这次对话，请稍后重试。'
+      await workspace.refreshProjectDetail()
+    } finally {
+      busy.value = false
+    }
+  }
+
   async function send(content: string): Promise<void> {
     const body = content.trim()
     if (!body || busy.value) return
     if (!workspace.currentProject.value) {
-      await begin(body)
+      if (pendingAttachment.value) await beginWithAttachment(body)
+      else await begin(body)
       return
     }
     autoArmed = true
@@ -257,15 +434,20 @@ export function useChatFlow() {
     flowError.value = ''
     const project = workspace.currentProject.value
     try {
+      const staged = pendingAttachment.value
+        ? await ensureStagedAttachment(project.id)
+        : null
+      if (pendingAttachment.value && !staged) return
       const expectedRevision = view.value?.project_revision ?? project.revision
       const response = await api.sendMessage(project.id, {
         content: body,
         expected_revision: expectedRevision,
         request_id: makeId(),
+        ...(staged ? { attachment_asset_id: staged.asset.id } : {}),
       })
-      if (response.workflow) workflow.adopt(response.workflow)
-      else if (view.value) await workflow.refresh()
+      applyMessageResponse(response)
       workspace.draft.value = ''
+      if (staged) clearAttachmentAfterSend()
       await afterWorkflowChange(true)
     } catch (caught) {
       flowError.value = caught instanceof ApiError
@@ -353,6 +535,11 @@ export function useChatFlow() {
   watch(
     () => workspace.projectParam.value,
     () => {
+      if (keepAttachmentOnProjectChange) {
+        keepAttachmentOnProjectChange = false
+      } else if (pendingAttachment.value) {
+        clearAttachmentState(true)
+      }
       lastAutoAction = ''
       autoArmed = false
       pendingRequirementRequestId.value = ''
@@ -362,6 +549,30 @@ export function useChatFlow() {
     },
     { flush: 'sync' },
   )
+  watch(
+    () => workspace.currentProject.value?.id ?? null,
+    (projectId) => {
+      if (projectId && pendingAttachment.value && !pendingAttachment.value.staged) {
+        void ensureStagedAttachment(projectId)
+      }
+    },
+    { flush: 'post' },
+  )
+  watch(
+    sessionRevision,
+    () => {
+      if (pendingAttachment.value) clearAttachmentState(true)
+    },
+    { flush: 'sync' },
+  )
+  onBeforeUnmount(() => {
+    const current = pendingAttachment.value
+    if (current?.staged && current.stagedProjectId) {
+      void api.discardMessageAttachment(current.stagedProjectId, current.staged.asset.id).catch(() => undefined)
+    }
+    revokeObjectUrl(current?.objectUrl)
+    workspace.setMessageAttachmentPending(false)
+  })
 
   return {
     workflow,
@@ -369,6 +580,12 @@ export function useChatFlow() {
     busy,
     flowError,
     copied,
+    pendingAttachment,
+    attachmentBusy,
+    attachmentError,
+    attachmentFileName,
+    chooseAttachment,
+    removeAttachment,
     hasConversation,
     finalBrief,
     requirementRows,

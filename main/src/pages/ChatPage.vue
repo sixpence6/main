@@ -18,6 +18,12 @@ const {
   busy,
   flowError,
   copied,
+  pendingAttachment,
+  attachmentBusy,
+  attachmentError,
+  attachmentFileName,
+  chooseAttachment,
+  removeAttachment,
   hasConversation,
   requirementRows,
   canConfirmRequirements,
@@ -38,6 +44,7 @@ const {
 } = flow
 
 const scrollRegion = ref<HTMLElement | null>(null)
+const attachmentInput = ref<HTMLInputElement | null>(null)
 const composing = ref(false)
 const title = computed(() => currentProject.value ? displayProjectTitle(currentProject.value.title) : '新对话')
 const usageText = computed(() => {
@@ -45,11 +52,50 @@ const usageText = computed(() => {
   if (!usage) return '本次生成会占用 1 次额度。'
   return '本次生成会占用 1 次额度；今日已受理 ' + usage.used + ' / ' + usage.daily_limit + ' 次。'
 })
-const sendDisabled = computed(() => busy.value || !draft.value.trim())
+const sendDisabled = computed(() => busy.value || attachmentBusy.value || !draft.value.trim())
 const promptStateLabel = computed(() => {
   if (!promptPreview.value) return ''
   return promptPreview.value.can_confirm ? '' : '提示词正在检查，确认按钮暂不可用。'
 })
+
+function openAttachmentPicker(): void {
+  attachmentInput.value?.click()
+}
+
+function onAttachmentChange(event: Event): void {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (file) void chooseAttachment(file)
+  input.value = ''
+}
+
+function firstImageFile(data: DataTransfer | null): File | null {
+  if (!data) return null
+  const files = Array.from(data.files ?? [])
+  const direct = files.find((file) => file.type.startsWith('image/'))
+  if (direct) return direct
+  for (const item of Array.from(data.items ?? [])) {
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      const file = item.getAsFile()
+      if (file) return file
+    }
+  }
+  return null
+}
+
+function onPaste(event: ClipboardEvent): void {
+  const file = firstImageFile(event.clipboardData)
+  if (!file) return
+  event.preventDefault()
+  void chooseAttachment(file)
+}
+
+function onDrop(event: DragEvent): void {
+  const file = firstImageFile(event.dataTransfer)
+  if (!file) return
+  event.preventDefault()
+  void chooseAttachment(file)
+}
 
 function scrollToLatest(): void {
   const element = scrollRegion.value
@@ -233,7 +279,42 @@ function roleLabel(role: string): string {
         <p>{{ flowError }}</p>
         <button type="button" class="text-button" @click="retry">重试</button>
       </div>
-      <div class="composer-shell">
+      <div v-if="attachmentError" class="chat-error composer-error" role="alert">
+        <p>{{ attachmentError }}</p>
+      </div>
+      <div v-if="pendingAttachment" class="attachment-preview" aria-label="待发送的图片">
+        <img :src="pendingAttachment.previewUrl" alt="待发送的图片预览">
+        <div class="attachment-preview-copy">
+          <strong>{{ attachmentFileName }}</strong>
+          <span v-if="attachmentBusy">正在上传…</span>
+          <span v-else>将随这条消息一起发送</span>
+        </div>
+        <button type="button" class="text-button" :disabled="attachmentBusy" @click="openAttachmentPicker">替换图片</button>
+        <button type="button" class="text-button attachment-remove" :disabled="attachmentBusy" @click="removeAttachment">移除图片</button>
+      </div>
+      <div
+        class="composer-shell"
+        @dragover.prevent
+        @drop.prevent="onDrop"
+      >
+        <input
+          ref="attachmentInput"
+          class="file-input"
+          type="file"
+          accept="image/png,image/jpeg"
+          aria-label="选择参考图文件"
+          :disabled="busy || attachmentBusy"
+          @change="onAttachmentChange"
+        >
+        <button
+          type="button"
+          class="attachment-button"
+          aria-label="添加参考图"
+          :disabled="busy || attachmentBusy"
+          @click="openAttachmentPicker"
+        >
+          <span aria-hidden="true">+</span>
+        </button>
         <label class="sr-only" for="workspace-prompt">描述商品与图片需求</label>
         <textarea
           id="workspace-prompt"
@@ -242,8 +323,9 @@ function roleLabel(role: string): string {
           class="composer-input"
           placeholder="描述商品、用途和画面感觉…"
           aria-label="描述商品与图片需求"
-          :disabled="busy"
+          :disabled="busy || attachmentBusy"
           @keydown.enter.exact="onEnter"
+          @paste="onPaste"
           @compositionstart="composing = true"
           @compositionend="composing = false"
         />
@@ -376,6 +458,37 @@ function roleLabel(role: string): string {
 figcaption { color: var(--color-text-muted); font-size: 13px; }
 .chat-error { width: min(var(--conversation-width), 100%); margin: 0 auto 20px; padding: 12px 14px; border: 1px solid #efcaca; border-radius: 12px; background: #fff7f7; color: var(--color-danger); }
 .chat-error p { margin: 0 0 4px; }
+.attachment-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(var(--conversation-width), 100%);
+  margin: 0 auto 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-panel-soft);
+}
+.attachment-preview img { width: 46px; height: 46px; flex: none; border-radius: 9px; object-fit: cover; }
+.attachment-preview-copy { display: flex; flex: 1 1 auto; min-width: 0; flex-direction: column; gap: 2px; }
+.attachment-preview-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.attachment-preview-copy span { color: var(--color-text-muted); font-size: 12px; }
+.attachment-remove { color: var(--color-danger); }
+.file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.attachment-button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 26px;
+  line-height: 1;
+}
+.attachment-button:hover:not(:disabled) { color: var(--color-primary); }
+.attachment-button:disabled { cursor: not-allowed; opacity: .45; }
 .composer-area { flex: none; padding: 12px clamp(20px, 5vw, 56px) 20px; background: linear-gradient(to top, var(--color-panel) 78%, rgba(255,255,255,0)); }
 .composer-error { margin-bottom: 10px; }
 .composer-shell {

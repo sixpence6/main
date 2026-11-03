@@ -58,6 +58,7 @@ export interface WorkspaceStore {
   draft: Ref<string>
   draftDirty: ComputedRef<boolean>
   attachmentPending: ComputedRef<boolean>
+  setMessageAttachmentPending: (pending: boolean) => void
   hasUnsavedChanges: ComputedRef<boolean>
   navigationConfirmOpen: Ref<boolean>
   navigationIntentLabel: ComputedRef<string>
@@ -186,6 +187,7 @@ function createWorkspace(): WorkspaceStore {
   let workspaceSessionRevision = sessionRevision.value
 
   const drafts = reactive(new Map<string, string>())
+  const messageAttachmentPending = ref(false)
   const projectParam = ref<string | null>(routeProjectId(route.params, route.query))
   const draftKey = computed(() => projectParam.value ?? '__new__')
   const draft = computed<string>({
@@ -341,7 +343,9 @@ function createWorkspace(): WorkspaceStore {
     return ''
   })
   const draftDirty = computed(() => draft.value.trim().length > 0)
-  const attachmentPending = computed(() => referencePending.value !== null)
+  const attachmentPending = computed(
+    () => referencePending.value !== null || messageAttachmentPending.value,
+  )
   const hasUnsavedChanges = computed(() => draftDirty.value || attachmentPending.value)
   const sendDisabledReason = computed(() => {
     if (sendBusy.value) return '正在发送消息，请稍候。'
@@ -423,7 +427,12 @@ function createWorkspace(): WorkspaceStore {
 
   function discardCurrentEditingState(): void {
     drafts.delete(draftKey.value)
+    messageAttachmentPending.value = false
     clearReferenceState()
+  }
+
+  function setMessageAttachmentPending(pending: boolean): void {
+    messageAttachmentPending.value = pending
   }
 
   function cancelNavigation(): void {
@@ -458,6 +467,7 @@ function createWorkspace(): WorkspaceStore {
     currentProject.value = null
     projectMessages.value = []
     projectGenerations.value = []
+    messageAttachmentPending.value = false
     clearReferenceState()
     projectLoading.value = false
     projectError.value = ''
@@ -1616,6 +1626,7 @@ function createWorkspace(): WorkspaceStore {
     draft,
     draftDirty,
     attachmentPending,
+    setMessageAttachmentPending,
     hasUnsavedChanges,
     navigationConfirmOpen,
     navigationIntentLabel,

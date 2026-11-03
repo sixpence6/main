@@ -82,6 +82,14 @@ export interface MessageAttachmentView {
   created_at: string
 }
 
+export interface StagedMessageAttachmentView {
+  asset: AssetView
+  usage: 'none'
+  content_version: string
+  sha256: string
+  preview_url: string
+}
+
 export interface MessageView {
   id: string
   sequence_no: number
