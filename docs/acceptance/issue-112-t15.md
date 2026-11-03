@@ -107,4 +107,10 @@ C:/Users/28425/.codex/worktrees/issue-112-integration/新建文件夹/backend/.v
 
 ## 8. 合并复核（Lead）
 
-- 待功能提交、合并和合并后验收完成后填写。
+- 功能提交：`2504d2c654ea5db1f0478b9e25ca41282d5c7580 feat(chat): isolate conversation state across account lifecycles (#127)`（5 个文件，+747/−8；账号生命周期守卫、侧栏列表重载、晚到建项目/发送/动作隔离、7 个测试和验收文档，无后端生产代码或迁移变更）。
+- 集成合并：`3d10c2746bda807571520ce0ce99f15a811bd1b0 merge: T15 account lifecycle isolation (#127)`，以 `--no-ff` 合入 `codex/issue-112-integration`（第一父提交 `449ed22`，第二父提交 `2504d2c`）。
+- 合并后前端验收：32 个 spec 文件，`69 passed / 69`（JSON `D:/Desktop/issue-112-context/t127-postmerge.json`）；`vue-tsc --noEmit -p tsconfig.json` 通过；`vite build --config main/vite.config.ts` 通过（1654 modules，既有大 chunk 警告）。
+- 合并后后端隔离/所有权/后台/会话测试：14 个用例 `14 passed in 25.83s`（basetemp `D:/Desktop/issue-112-context/t127-postmerge-backend`）；本票未改后端生产代码。
+- 测试文件一致性：`git diff 2504d2c 3d10c27 -- tests/t127-lifecycle-isolation.spec.ts docs/acceptance/issue-112-t15.md` 无输出；提交内测试文件 SHA-256 为 `12f97033ca5bc3319fc165c458e4dea8aa5c3c0cc7f236f2e5681612ba3eb4b9`，功能提交与合并提交一致。
+- 合并后工作树：`git status --short` 为空；`git diff --check` 无输出。
+- 结论：#127 的五种账号生命周期组合、列表/搜索/草稿/旧恢复引用清理、迟到建项目/发送/动作隔离、跨标签信号最小化和 401/403/503 语义区分，通过合并后前端全套、类型检查、生产构建及既有后端安全回归；真实浏览器、手机软键盘和真实供应商留 #129/#128。
