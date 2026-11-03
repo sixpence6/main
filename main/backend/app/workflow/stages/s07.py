@@ -3,14 +3,24 @@ from __future__ import annotations
 import json
 import re
 from typing import Any
+from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import select
 
-from app.acceptance import abandon_intent, latest_intent
-from app.db import read_session
-from app.errors import ApiError, conflict
+from app.acceptance import (
+    GenerationIntent,
+    abandon_intent,
+    latest_intent,
+    settle_unsubmitted_intent,
+)
+from app.auth.models import AuditEvent
+from app.db import read_session, write_transaction
+from app.errors import ApiError, conflict, validation_error
 from app.models import Asset
 from app.prompt_guard import prompt_drift_errors
+from app.prompt_preparation import PreparedPrompt
+from app.timeutil import format_timestamp, utc_now
 from app.workflow import state, templates
 from app.workflow.adjudication import (
     RULESET_VERSION,
@@ -38,10 +48,16 @@ from app.workflow.snapshot import (
     requirements_from_snapshot,
 )
 from app.workflow.state import WorkflowContext
-from app.workflow.tables import Artifact, ArtifactReview, GenerationJob, RevisionBudget
+from app.workflow.tables import (
+    Artifact,
+    ArtifactReview,
+    GenerationJob,
+    RevisionBudget,
+    WorkflowRun,
+)
 
 STAGE = "S07"
-ACTIONS = ["compile_prompt", "revise_prompt", "confirm_prompt"]
+ACTIONS = ["compile_prompt", "revise_prompt", "confirm_prompt", "abandon_generation"]
 # Coverage is clause-scoped and token-aware. Natural-language prompt writing
 # may add a small, explicit set of connective words, but it can never be used
 # to stitch characters across clauses or to hide a numeric/semantic change.
@@ -68,7 +84,11 @@ _RECONFIRM_MESSAGE = (
 
 
 def available(ctx: WorkflowContext) -> list[str]:
-    if ctx.run is None or ctx.run.stage != STAGE or ctx.run.status != "active":
+    if ctx.run is None or ctx.run.stage != STAGE:
+        return []
+    if ctx.run.status == "needs_input":
+        return ["revise_prompt", "abandon_generation"]
+    if ctx.run.status != "active":
         return []
     return ["compile_prompt", "revise_prompt"]
 
@@ -924,6 +944,178 @@ async def _reconfirm_prompt(
     raise ApiError(409, "PROMPT_REQUIRES_RECONFIRMATION", _RECONFIRM_MESSAGE)
 
 
+class _AbandonPromptCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    snapshot_id: UUID
+    snapshot_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    command_id: UUID
+
+
+async def _invalidate_awaiting_prompts(ctx: WorkflowContext, intent_id: str) -> int:
+    """Invalidate every displayed candidate before a replacement is compiled."""
+
+    async with write_transaction(ctx.session_factory) as session:
+        rows = list(
+            (
+                await session.scalars(
+                    select(PreparedPrompt).where(
+                        PreparedPrompt.project_id == ctx.project_id,
+                        PreparedPrompt.run_id == ctx.run_id,
+                        PreparedPrompt.intent_id == intent_id,
+                        PreparedPrompt.status == "awaiting_confirmation",
+                    )
+                )
+            ).all()
+        )
+        for row in rows:
+            row.status = "invalidated"
+        await session.flush()
+        return len(rows)
+
+
+async def _finalize_prompt_abandonment(
+    ctx: WorkflowContext, intent_id: str
+) -> None:
+    """Invalidate the closed candidate and expose a new-requirements action."""
+
+    async with write_transaction(ctx.session_factory) as session:
+        rows = list(
+            (
+                await session.scalars(
+                    select(PreparedPrompt).where(
+                        PreparedPrompt.project_id == ctx.project_id,
+                        PreparedPrompt.run_id == ctx.run_id,
+                        PreparedPrompt.intent_id == intent_id,
+                        PreparedPrompt.status == "awaiting_confirmation",
+                    )
+                )
+            ).all()
+        )
+        for row in rows:
+            row.status = "invalidated"
+        run = await session.get(WorkflowRun, ctx.run_id)
+        if run is not None:
+            run.stage = STAGE
+            run.status = "blocked"
+            run.issue_code = "PROMPT_ABANDONED"
+            run.issue_message = templates.render("PROMPT_ABANDONED")
+            run.template_id = "PROMPT_ABANDONED"
+            run.updated_at = format_timestamp(utc_now())
+        await session.flush()
+
+
+async def _abandon_generation(
+    ctx: WorkflowContext, payload: dict[str, Any]
+) -> None:
+    """Explicitly close one prepared but never-executed request.
+
+    The command is bound to the original intent through its displayed snapshot,
+    the exact request digest and the stable command id used as the audit
+    correlation id. Replaying the same command is idempotent; a different
+    command cannot reopen or re-interpret the closed request.
+    """
+
+    if ctx.principal is None:
+        raise ApiError(401, "AUTH_REQUIRED", "请先登录后再操作。")
+    try:
+        command = _AbandonPromptCommand.model_validate(payload)
+    except ValidationError as exc:
+        raise validation_error("放弃命令参数不完整或不合法") from exc
+
+    command_id = str(command.command_id)
+    async with read_session(ctx.session_factory) as session:
+        existing = await session.scalar(
+            select(AuditEvent)
+            .where(
+                AuditEvent.event_type == "generation_prompt_abandoned",
+                AuditEvent.correlation_id == command_id,
+            )
+            .order_by(AuditEvent.occurred_at.desc())
+            .limit(1)
+        )
+        if existing is not None:
+            detail = json.loads(existing.detail_json or "{}")
+            if (
+                detail.get("snapshot_id") != str(command.snapshot_id)
+                or detail.get("snapshot_digest") != command.snapshot_digest
+                or detail.get("project_id") != ctx.project_id
+                or detail.get("run_id") != ctx.run_id
+            ):
+                raise conflict(
+                    "COMMAND_ID_CONFLICT",
+                    "该放弃命令编号已用于另一提示词，请刷新后重试。",
+                )
+            await _finalize_prompt_abandonment(ctx, str(detail.get("intent_id", "")))
+            return
+
+        snapshot = await session.get(PreparedPrompt, str(command.snapshot_id))
+        if (
+            snapshot is None
+            or snapshot.project_id != ctx.project_id
+            or snapshot.run_id != ctx.run_id
+            or snapshot.status != "awaiting_confirmation"
+        ):
+            raise conflict(
+                "PROMPT_NOT_AWAITING_CONFIRMATION",
+                "当前提示词已失效或不属于本流程，请刷新后重试。",
+            )
+        if snapshot.request_digest != command.snapshot_digest:
+            raise conflict("SNAPSHOT_CHANGED", "提示词内容已变化，请刷新后重新确认。")
+        intent = await session.get(GenerationIntent, snapshot.intent_id)
+        if intent is None or intent.status != "accepted":
+            raise conflict("INTENT_STATE_INVALID", "原任务已不处于可放弃状态。")
+        if intent.owner_account_id != ctx.principal.account_id:
+            raise conflict("OWNERSHIP_MISMATCH", "原任务与当前账号不一致。")
+        attempt = await session.scalar(
+            select(GenerationJob.id)
+            .where(GenerationJob.intent_id == intent.id)
+            .limit(1)
+        )
+        if attempt is not None:
+            raise conflict(
+                "INTENT_ATTEMPT_EXISTS",
+                "原任务已有图片尝试或结果未知，不能按未提交任务放弃；"
+                "本次受理计数与占用仍保留，请先处理原任务。",
+            )
+
+    settled = await settle_unsubmitted_intent(
+        ctx.session_factory,
+        intent_id=snapshot.intent_id,
+        reason="user_abandoned_before_submission",
+        operator_account_id=ctx.principal.account_id,
+        command_id=command_id,
+        audit_event_type="generation_prompt_abandoned",
+        detail={
+            "command_id": command_id,
+            "snapshot_id": str(snapshot.id),
+            "snapshot_digest": snapshot.request_digest,
+            "request_id": intent.request_id,
+            "project_id": ctx.project_id,
+            "run_id": ctx.run_id,
+            "project_revision": ctx.project.revision,
+            "remote_cancelled": False,
+        },
+    )
+    if not settled:
+        raise conflict(
+            "INTENT_ATTEMPT_EXISTS",
+            "原任务已有图片尝试或结果未知，不能按未提交任务放弃。",
+        )
+    await _finalize_prompt_abandonment(ctx, snapshot.intent_id)
+    await state.record_diagnostic(
+        ctx,
+        "generation_prompt_abandoned",
+        {
+            "intent_id": snapshot.intent_id,
+            "snapshot_id": snapshot.id,
+            "snapshot_digest": snapshot.request_digest,
+            "command_id": command_id,
+            "project_revision": ctx.project.revision,
+        },
+    )
+
+
 async def _compile(
     ctx: WorkflowContext,
     revision_note: str | None,
@@ -1366,17 +1558,47 @@ async def _compile(
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
     if action == "confirm_prompt":
         from app.final_confirmation import confirm_prompt
+
         await confirm_prompt(ctx, payload)
         return
     if action not in ACTIONS:
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
-    if ctx.run is None or ctx.run.stage != STAGE or ctx.run.status != "active":
+    if ctx.run is None or ctx.run.stage != STAGE:
+        raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    status = ctx.run.status
+    if action == "abandon_generation":
+        abandoned_already = (
+            status == "blocked" and ctx.run.issue_code == "PROMPT_ABANDONED"
+        )
+        if status != "needs_input" and not abandoned_already:
+            raise ApiError(
+                409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
+            )
+        await _abandon_generation(ctx, payload)
+        return
+    if status not in {"active", "needs_input"}:
+        raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    if action == "compile_prompt" and status != "active":
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
     if action == "revise_prompt":
         note = payload.get("text")
         if not isinstance(note, str) or not note.strip():
             raise ApiError(422, "VALIDATION_ERROR", "请说明提示词调整内容")
         note = note.strip()[:20000]
+        if status == "needs_input":
+            intent = await latest_intent(
+                ctx.session_factory, project_id=ctx.project_id, run_id=ctx.run_id
+            )
+            if intent is None or intent.status != "accepted":
+                raise conflict("INTENT_STATE_INVALID", "原任务已不处于可修改状态。")
+            # Check the durable candidate budget before hiding the displayed
+            # candidate. If the budget is exhausted, the old prompt stays valid.
+            await _ensure_budget(ctx)
+            await _invalidate_awaiting_prompts(ctx, intent.id)
+            # A repaired text request is a fresh compile. Move the run back to
+            # active so approve_and_wait can freeze the new candidate only after
+            # independent review; the old awaiting snapshot is already gone.
+            await state.set_stage(ctx, STAGE, "active")
     else:
         note = None
     await _compile(ctx, note)

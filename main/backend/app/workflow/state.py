@@ -602,9 +602,12 @@ async def add_approval(
         )
         if (
             existing is not None
+            and existing.artifact_id == artifact.id
             and existing.artifact_digest == row_digest
             and existing.requirement_snapshot_digest == req_digest
         ):
+            # A digest-equal rewrite is still a new artifact revision. An old
+            # approval must never be inherited by a re-reviewed text candidate.
             return existing
         # Requirements and prompt approvals are superseded by a new version.
         # Image/delivery approvals are version-scoped evidence: a new published
@@ -1152,7 +1155,11 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
 
     actions = dispatch.available_actions(ctx)
     if preview is not None and preview["can_confirm"]:
-        actions = [dispatch.action_view("confirm_prompt")]
+        # Keep the explicit repair and abandonment choices beside final
+        # confirmation; refreshing or reopening the page must not remove them.
+        actions = [dispatch.action_view("confirm_prompt")] + [
+            view for view in actions if view.id != "confirm_prompt"
+        ]
     task_state = build_task_state(
         project=ctx.project,
         run=ctx.run,
