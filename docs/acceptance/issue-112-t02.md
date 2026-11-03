@@ -98,3 +98,10 @@ New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
 1. 本票不覆盖 #115 的完整失效／重登矩阵、#116 的写点与并发竞争矩阵、#117 的崩溃恢复与历史升级矩阵；这些按任务图在 T02 通过后解锁。
 2. 未调用真实供应商、未执行真实数据迁移、未做前端 / 浏览器 / 手机 / 视觉验收；R3 界面替换在 T09 门槛通过前不开始。
 3. `docs/acceptance` 只记录本轮实际结果；历史测试通过、issue 关闭状态或父规格文本均不作为本轮完成证据。
+
+## 7. 合并复核（集成分支，2026-11-03 11:17）
+
+- 合并提交 `da459a4`（`git merge --no-ff codex/issue-112-t02`，父 `8a72851` 与 `39182e4`），无冲突，工作树干净。
+- 在集成树复跑 T02 目标汇总：**61 passed / 165.77s**（`merge-t02-pytest-target`，日志 `backend/.scratch/merge/t02-target.log`）。
+- 在集成树复跑 R1/入口回归：**132 passed / 220.57s**，0 失败（`merge-t02-r1-lead`，日志 `backend/.scratch/merge/r1-entry-lead.log`）。前一次合并复跑出现两条 `test_t79_release_package` 失败，定位为执行外壳 PATH 缺少 `git`（`tools/release_package.py:75` 的 `git ls-files` 抛 WinError 2），单独复跑 3 passed，属环境问题而非实现回归。
+- 结论：T02 在集成基线上可重复通过，已在 #114 记录证据并关闭。
