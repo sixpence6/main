@@ -567,6 +567,7 @@ async def add_approval(
     model_fingerprint: str | None = None,
     target_digest: str | None = None,
     session: AsyncSession | None = None,
+    revoke_existing: bool = True,
 ) -> Approval:
     """写入不可变审批记录。
 
@@ -612,7 +613,11 @@ async def add_approval(
         # Requirements and prompt approvals are superseded by a new version.
         # Image/delivery approvals are version-scoped evidence: a new published
         # version must not revoke approvals that keep older assets readable.
-        if existing is not None and approval_type in {"requirements_card", "generation_prompt"}:
+        if (
+            revoke_existing
+            and existing is not None
+            and approval_type in {"requirements_card", "generation_prompt"}
+        ):
             existing.revoked_at = now
             existing.revocation_reason = "superseded"
         approval = Approval(

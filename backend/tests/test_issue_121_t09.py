@@ -981,11 +981,14 @@ def test_gate_0015_upgrade_preserves_history_without_inventing_attachments(setti
         )
     command.upgrade(config, "head")
     with sqlite3.connect(settings.database_path) as db:
-        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0015",)
+        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0016",)
         assert db.execute(
             "SELECT content,turn_kind FROM messages WHERE id='message-1'"
         ).fetchall() == [("旧消息", "conversation")]
         assert db.execute("SELECT count(*) FROM message_attachments").fetchone() == (0,)
+        assert db.execute(
+            "SELECT name FROM sqlite_master WHERE name='image_corrections'"
+        ).fetchall() == [("image_corrections",)]
     command.downgrade(config, "0014")
     with sqlite3.connect(settings.database_path) as db:
         assert db.execute(
@@ -994,6 +997,12 @@ def test_gate_0015_upgrade_preserves_history_without_inventing_attachments(setti
         assert (
             db.execute(
                 "SELECT name FROM sqlite_master WHERE name='message_attachments'"
+            ).fetchall()
+            == []
+        )
+        assert (
+            db.execute(
+                "SELECT name FROM sqlite_master WHERE name='image_corrections'"
             ).fetchall()
             == []
         )

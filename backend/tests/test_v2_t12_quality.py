@@ -666,6 +666,7 @@ async def test_hard_failure_keeps_image_quarantined_but_report_may_pass(
     assert body["status"] == "blocked"
     assert body["issue"]["code"] == "IMAGE_NOT_APPROVED"
     assert {item["id"] for item in body["available_actions"]} == {
+        "request_correction",
         "recheck_candidate",
         "revise_prompt_and_retry",
         "retry_rejected_generation",
@@ -683,7 +684,7 @@ async def test_hard_failure_keeps_image_quarantined_but_report_may_pass(
     assert len(stub.role_calls_received) == 2
 
 
-async def test_recheck_approves_corrected_derivative_without_report_budget(
+async def test_recheck_rejects_unregistered_corrected_derivative_without_report_budget(
     llm_app: Any, llm_client: Any, llm_settings: Any
 ) -> None:
     stub = llm_app.state.registry.stub_llm
@@ -724,22 +725,13 @@ async def test_recheck_approves_corrected_derivative_without_report_budget(
         },
     )
 
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["stage"] == "S10"
-    assert body["status"] == "active"
-    recheck = _artifact_by_kind(body, "quality_recheck")
-    assert recheck["status"] == "approved"
-    assert recheck["payload"]["asset_id"] == cleaned_id
-    assert (await _load_asset(llm_app, cleaned_id)).review_status == "approved"
-    job = await _load_job(llm_app, seed.job_id)
-    assert job.status == "approved"
-    assert job.result_asset_id == cleaned_id
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "CORRECTION_NOT_REGISTERED"
+    assert (await _load_asset(llm_app, cleaned_id)).review_status == "quarantined"
+    assert (await _load_asset(llm_app, seed.asset_id)).review_status == "quarantined"
+    assert (await _load_job(llm_app, seed.job_id)).status == "rejected"
     approvals = await _approvals(llm_app, seed.project_id)
-    image_approval = next(item for item in approvals if item.approval_type == "image")
-    checks = json.loads(image_approval.checks_json)
-    assert checks["asset_id"] == cleaned_id
-    assert checks["quality_report_id"] == recheck["id"]
+    assert not any(item.approval_type == "image" for item in approvals)
     async with read_session(llm_app.state.session_factory) as session:
         budget = await session.get(
             RevisionBudget, (seed.run_id, "quality_report")
@@ -749,7 +741,7 @@ async def test_recheck_approves_corrected_derivative_without_report_budget(
         assert budget.max_allowed == 3
 
 
-async def test_recheck_can_run_while_candidate_review_is_active(
+async def test_recheck_rejects_external_asset_while_candidate_review_is_active(
     llm_app: Any, llm_client: Any, llm_settings: Any
 ) -> None:
     stub = llm_app.state.registry.stub_llm
@@ -786,11 +778,12 @@ async def test_recheck_can_run_while_candidate_review_is_active(
         },
     )
 
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["stage"] == "S10"
-    assert _artifact_by_kind(body, "quality_recheck")["status"] == "approved"
-    assert (await _load_job(llm_app, seed.job_id)).result_asset_id == cleaned_id
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "CORRECTION_NOT_REGISTERED"
+    assert (await _load_asset(llm_app, cleaned_id)).review_status == "quarantined"
+    job = await _load_job(llm_app, seed.job_id)
+    assert job.status == "quarantined"
+    assert job.result_asset_id == seed.asset_id
 
 
 async def test_recheck_can_recover_a_failed_role_contract(
@@ -814,16 +807,13 @@ async def test_recheck_can_recover_a_failed_role_contract(
 
     response = await llm_client.post(
         f"/api/projects/{seed.project_id}/workflow/actions/recheck_candidate",
-        json={
-            "expected_revision": seed.revision,
-            "payload": {"asset_id": seed.asset_id},
-        },
+        json={"expected_revision": seed.revision, "payload": {}},
     )
 
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["stage"] == "S10"
-    assert _artifact_by_kind(body, "quality_recheck")["status"] == "approved"
+    assert _artifact_by_kind(body, "quality_report")["status"] == "approved"
 
 
 async def test_unknown_hard_rule_does_not_default_to_pass(

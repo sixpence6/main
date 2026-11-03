@@ -21,9 +21,10 @@ from app.confirmation_invalidation import (
     raise_for_reasons,
     require_snapshot_binding,
 )
+from app.corrections import source_bytes
 from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict
-from app.models import Asset, Base, Project
+from app.models import Asset, Base, ImageCorrection, Project
 from app.ownership import revalidate_principal
 from app.services.assets import resolve_asset_file
 from app.services.generations import service_fingerprint
@@ -111,6 +112,9 @@ async def build_request(ctx, payload, final_artifact, *, session=None, authorize
         .order_by(GenerationIntent.created_at.desc())
         .limit(1)
     )
+    correction = await session.scalar(
+        select(ImageCorrection).where(ImageCorrection.intent_id == intent.id)
+    ) if intent is not None else None
     confirmation = await session.scalar(
         select(Approval)
         .where(
@@ -138,15 +142,51 @@ async def build_request(ctx, payload, final_artifact, *, session=None, authorize
         or payload["count"] != 1
         or payload["size"] != intent.image_size
         or payload["size"] != ctx.settings.visual().image_size
-        or payload.get("reference_asset_id") != project.reference_asset_id
+        or (correction is None and payload.get("reference_asset_id") != project.reference_asset_id)
     ):
         raise conflict("PROMPT_STALE", "准备请求与已确认需求不一致。")
     requirements = json.loads(final_artifact.payload_json)
     if digest_payload(requirements) != final_artifact.digest:
         raise conflict("PROMPT_STALE", "需求快照已变化。")
     dependencies = []
+    correction_payload = None
     reference_id = payload.get("reference_asset_id")
-    if reference_id:
+    if correction is not None:
+        asset, _ = await source_bytes(session, ctx.settings, correction)
+        capabilities = ctx.registry.visual_capabilities(ctx.settings.visual().adapter_id or "")
+        if (
+            not asset.sha256
+            or capabilities is None
+            or capabilities.reference_image is not True
+        ):
+            raise conflict("CORRECTION_NOT_REGISTERED", "修正图来源不可用。")
+        if (
+            capabilities.reference_mime_types
+            and asset.mime_type not in capabilities.reference_mime_types
+            or capabilities.provider_max_reference_bytes is not None
+            and asset.byte_size > capabilities.provider_max_reference_bytes
+        ):
+            raise conflict("CORRECTION_NOT_REGISTERED", "修正图来源超出适配器边界。")
+        dependencies.append(
+            {
+                "asset_id": asset.id,
+                "content_version": asset.sha256,
+                "sha256": asset.sha256,
+                "mime_type": asset.mime_type,
+                "byte_size": asset.byte_size,
+                "usage": "edit_source",
+                "report_artifact_id": None,
+                "report_digest": None,
+            }
+        )
+        correction_payload = {
+            "correction_id": correction.id,
+            "source_job_id": correction.source_job_id,
+            "source_asset_id": correction.source_asset_id,
+            "source_asset_sha256": correction.source_asset_sha256,
+            "instruction": correction.instruction,
+        }
+    elif reference_id:
         asset = await session.get(Asset, reference_id)
         capabilities = ctx.registry.visual_capabilities(ctx.settings.visual().adapter_id or "")
         if (
@@ -232,6 +272,7 @@ async def build_request(ctx, payload, final_artifact, *, session=None, authorize
         "negative_strategy": "combined-text-v1",
         "references": dependencies,
         "output": {"count": 1, "size": payload["size"], "response_format": "b64_json"},
+        **({"correction": correction_payload} if correction_payload is not None else {}),
         "service": {
             "adapter_id": visual.adapter_id,
             "model": visual.model,
@@ -306,8 +347,10 @@ async def approve_and_wait(
                 created_at=now,
             )
         )
+        from app.corrections import correction_for_intent
         from app.workflow.state import add_approval
 
+        correction = await correction_for_intent(session, intent.id)
         approval = await add_approval(
             ctx,
             approval_type="generation_prompt",
@@ -317,6 +360,7 @@ async def approve_and_wait(
             model_fingerprint=review_output.model_fingerprint,
             requirement_digest=final.digest,
             session=session,
+            revoke_existing=correction is None,
         )
         actual = {
             **actual,

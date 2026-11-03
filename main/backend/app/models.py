@@ -248,3 +248,61 @@ class Generation(Base):
         Index("ix_generations_project_created", "project_id", "created_at"),
         Index("ix_generations_owner_created", "owner_account_id", "created_at"),
     )
+
+
+class ImageCorrection(Base):
+    """An immutable, server-registered edit of one generated image attempt."""
+
+    __tablename__ = "image_corrections"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    intent_id: Mapped[str] = mapped_column(
+        ForeignKey("generation_intents.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_job_id: Mapped[str] = mapped_column(
+        ForeignKey("generation_jobs.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_asset_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    operator_account_id: Mapped[str] = mapped_column(
+        ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=False
+    )
+    instruction: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="prepared", server_default="prepared"
+    )
+    adapter_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    request_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    correction_generation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("generations.id", ondelete="RESTRICT"), nullable=True
+    )
+    correction_job_id: Mapped[str | None] = mapped_column(
+        ForeignKey("generation_jobs.id", ondelete="RESTRICT"), nullable=True
+    )
+    result_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL"), nullable=True
+    )
+    result_asset_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("intent_id", name="uq_image_corrections_intent"),
+        UniqueConstraint(
+            "correction_generation_id", name="uq_image_corrections_generation"
+        ),
+        UniqueConstraint("correction_job_id", name="uq_image_corrections_job"),
+        CheckConstraint(
+            "status IN ('prepared','authorized','reviewing','approved','rejected','failed')",
+            name="ck_image_corrections_status",
+        ),
+        Index("ix_image_corrections_project_run", "project_id", "run_id"),
+        Index("ix_image_corrections_source", "source_job_id"),
+    )

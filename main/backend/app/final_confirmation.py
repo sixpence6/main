@@ -17,6 +17,7 @@ from app.acceptance import GenerationIntent, GenerationSlot
 from app.auth.audit import write_audit
 from app.auth.models import AuthSession
 from app.confirmation_conflicts import is_unique_violation, resolve_final_integrity_conflict
+from app.corrections import correction_for_intent
 from app.db import read_session, write_transaction
 from app.errors import conflict, validation_error
 from app.generation_guard import generation_authorization_ref, job_authorization_ref
@@ -357,6 +358,27 @@ async def _confirm_prompt_once(ctx, payload):
             await session.flush()
             job.generation_id = generation.id
             generation.workflow_job_id = job.id
+            correction = await correction_for_intent(session, intent.id)
+            requested_correction = request.get("correction")
+            if requested_correction is not None:
+                if (
+                    correction is None
+                    or correction.id != requested_correction["correction_id"]
+                    or correction.status != "prepared"
+                    or correction.source_job_id != requested_correction["source_job_id"]
+                    or correction.source_asset_sha256
+                    != requested_correction["source_asset_sha256"]
+                ):
+                    raise conflict("CORRECTION_NOT_REGISTERED", "修正图登记已失效。")
+                correction.correction_generation_id = generation.id
+                correction.correction_job_id = job.id
+                correction.adapter_id = generation.adapter_id
+                correction.model = generation.model
+                correction.request_digest = snapshot.request_digest
+                correction.status = "authorized"
+                correction.updated_at = timestamp
+            elif correction is not None:
+                raise conflict("CORRECTION_NOT_REGISTERED", "修正图登记已失效。")
             session.add(
                 FinalAuthorization(
                     id=authorization_id,

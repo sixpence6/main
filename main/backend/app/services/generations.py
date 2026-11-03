@@ -33,7 +33,7 @@ from app.generation_guard import (
     ensure_generation_active_in_session,
     generation_authorization_ref,
 )
-from app.models import Asset, Generation, Project
+from app.models import Asset, Generation, ImageCorrection, Project
 from app.ownership import require_project_scope, revalidate_principal
 from app.presenters import brief_from_project, dumps_json, snapshot_json
 from app.services.assets import (
@@ -961,6 +961,16 @@ async def _deliver_result(
                 created_at=now,
             )
             session.add(asset)
+            correction = await session.scalar(
+                select(ImageCorrection).where(
+                    ImageCorrection.correction_generation_id == claimed.id
+                )
+            )
+            if correction is not None:
+                correction.result_asset_id = asset_id
+                correction.result_asset_sha256 = hashlib.sha256(normalized).hexdigest()
+                correction.status = "reviewing"
+                correction.updated_at = now
             generation.result_asset_id = asset_id
             generation.status = "succeeded"
             generation.stage = "done"
@@ -1098,13 +1108,33 @@ async def _execute_claimed(app: FastAPI, claimed: ClaimedGeneration) -> None:
     reference_path: Path | None = None
     reference_mime_type: str | None = None
     reference_bytes: bytes | None = None
+    correction = frozen_request.get("correction")
     if frozen_request["references"]:
         async with read_session(session_factory) as session:
             reference = await session.get(Asset, frozen_request["references"][0]["asset_id"])
+            if correction is not None:
+                from app.final_confirmation import require_authorized_attempt
+                from app.models import ImageCorrection
+                from app.workflow.tables import GenerationJob
+
+                row = await session.get(ImageCorrection, correction["correction_id"])
+                source_job = await session.get(GenerationJob, correction["source_job_id"])
+                if (
+                    row is None
+                    or row.source_asset_id != correction["source_asset_id"]
+                    or row.source_asset_sha256 != correction["source_asset_sha256"]
+                    or source_job is None
+                    or source_job.generation_id is None
+                ):
+                    raise GenerationGuardError(
+                        "CORRECTION_NOT_REGISTERED", "修正图登记已失效。"
+                    )
+                await require_authorized_attempt(session, source_job.generation_id)
+        allowed_kind = "generated" if correction is not None else "reference"
         if (
             reference is None
             or reference.project_id != claimed.project_id
-            or reference.kind != "reference"
+            or reference.kind != allowed_kind
         ):
             await _finish_generation(
                 session_factory,

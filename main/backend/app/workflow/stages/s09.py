@@ -5,15 +5,15 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from sqlalchemy import select
 
-from app.acceptance import GenerationIntent, release_slots_in_session
+from app.acceptance import GenerationIntent, accept_in_session, release_slots_in_session
 from app.adapters.base import OrganizeImage
 from app.db import read_session, write_transaction
 from app.errors import ApiError
-from app.models import Asset, Generation
+from app.models import Asset, Generation, ImageCorrection, Project
 from app.services.assets import inspect_image, resolve_asset_file
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
@@ -50,6 +50,7 @@ STAGE = "S09"
 ACTIONS = [
     "review_candidate",
     "recheck_candidate",
+    "request_correction",
     "retry_rejected_generation",
     "revise_prompt_and_retry",
 ]
@@ -139,6 +140,7 @@ def available(ctx: WorkflowContext) -> list[dict[str, Any]]:
         # it does not consume the three-candidate quality-report budget.
         return [
             "recheck_candidate",
+            "request_correction",
             "revise_prompt_and_retry",
             "retry_rejected_generation",
         ]
@@ -174,6 +176,7 @@ async def _load_candidate(
     *,
     asset_id: str | None = None,
     allow_rejected_job: bool = False,
+    expected_sha256: str | None = None,
 ) -> _Candidate:
     async with read_session(ctx.session_factory) as session:
         job = await session.scalar(
@@ -234,6 +237,10 @@ async def _load_candidate(
             503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE")
         ) from None
     digest = hashlib.sha256(data).hexdigest()
+    if expected_sha256 is not None and digest != expected_sha256:
+        raise ApiError(
+            409, "CORRECTION_NOT_REGISTERED", "修正图字节已被替换。"
+        )
     if asset.sha256 and asset.sha256 != digest:
         raise ApiError(
             503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE")
@@ -871,6 +878,28 @@ async def _set_job(
         await session.flush()
 
 
+async def _mark_correction(
+    ctx: WorkflowContext,
+    job: GenerationJob,
+    status: str,
+    asset: Asset | None = None,
+) -> None:
+    async with write_transaction(ctx.session_factory) as session:
+        correction = await session.scalar(
+            select(ImageCorrection).where(
+                ImageCorrection.correction_job_id == job.id
+            )
+        )
+        if correction is None:
+            return
+        correction.status = status
+        if asset is not None:
+            correction.result_asset_id = asset.id
+            correction.result_asset_sha256 = asset.sha256
+        correction.updated_at = format_timestamp(utc_now())
+        await session.flush()
+
+
 async def _add_image_review(
     ctx: WorkflowContext,
     *,
@@ -1203,6 +1232,7 @@ async def _apply_review(
             "approved",
             result_asset_id=candidate.asset.id,
         )
+        await _mark_correction(ctx, candidate.job, "approved", candidate.asset)
         await set_stage(ctx, "S10", "active")
         return
     decision = image_decision if image_decision in {
@@ -1231,7 +1261,138 @@ async def _apply_review(
     )
     job_status = "rejected" if decision == "reject" else "quarantined"
     await _set_job(ctx, candidate.job, job_status)
+    if decision == "reject":
+        await _mark_correction(ctx, candidate.job, "rejected")
     await _block_stage(ctx, "IMAGE_NOT_APPROVED", "IMAGE_NOT_APPROVED")
+
+
+async def _load_correction_candidate(
+    ctx: WorkflowContext, correction_id: str
+) -> _Candidate:
+    async with read_session(ctx.session_factory) as session:
+        correction = await session.get(ImageCorrection, correction_id)
+        if (
+            correction is None
+            or correction.project_id != ctx.project_id
+            or correction.run_id != ctx.run_id
+            or correction.status not in {"reviewing", "authorized"}
+            or not correction.result_asset_id
+            or not correction.result_asset_sha256
+        ):
+            raise ApiError(
+                409,
+                "CORRECTION_NOT_REGISTERED",
+                "修正图未登记或不可复核。",
+            )
+        job = await session.get(GenerationJob, correction.correction_job_id)
+        if job is None or job.result_asset_id != correction.result_asset_id:
+            raise ApiError(
+                409, "CORRECTION_NOT_REGISTERED", "修正图未登记或不可复核。"
+            )
+    candidate = await _load_candidate(
+        ctx,
+        asset_id=correction.result_asset_id,
+        allow_rejected_job=True,
+        expected_sha256=correction.result_asset_sha256,
+    )
+    return candidate
+
+
+async def _request_correction(
+    ctx: WorkflowContext, payload: dict[str, Any]
+) -> None:
+    instruction = payload.get("text")
+    if not isinstance(instruction, str) or not instruction.strip():
+        raise ApiError(422, "VALIDATION_ERROR", "请说明修正要求")
+    instruction = instruction.strip()[:20000]
+    from app.final_confirmation import require_authorized_attempt
+    from app.workflow.tables import WorkflowRun
+
+    async with write_transaction(ctx.session_factory) as session:
+        project = await session.get(Project, ctx.project_id)
+        run = await session.get(WorkflowRun, ctx.run_id)
+        if project is None or run is None:
+            raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+        job = await session.scalar(
+            select(GenerationJob)
+            .where(GenerationJob.run_id == ctx.run_id)
+            .order_by(GenerationJob.created_at.desc())
+            .limit(1)
+        )
+        if job is None or job.status not in {"rejected", "quarantined"}:
+            raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+        if not job.result_asset_id or not job.generation_id:
+            raise ApiError(409, "CANDIDATE_UNAVAILABLE", templates.render("CANDIDATE_UNAVAILABLE"))
+        await require_authorized_attempt(session, job.generation_id)
+        existing = await session.scalar(
+            select(ImageCorrection).where(
+                ImageCorrection.source_job_id == job.id,
+                ImageCorrection.status.in_(("prepared", "authorized", "reviewing", "approved")),
+            )
+        )
+        if existing is not None:
+            raise ApiError(409, "CORRECTION_ALREADY_EXISTS", "该候选已有修正图。")
+        source = await session.get(Asset, job.result_asset_id)
+        if source is None or source.project_id != project.id or source.kind != "generated":
+            raise ApiError(409, "CANDIDATE_UNAVAILABLE", templates.render("CANDIDATE_UNAVAILABLE"))
+        path = resolve_asset_file(ctx.settings, source)
+        if path is None:
+            raise ApiError(409, "CANDIDATE_UNAVAILABLE", templates.render("CANDIDATE_UNAVAILABLE"))
+        data = path.read_bytes()
+        source_digest = hashlib.sha256(data).hexdigest()
+        if source.sha256 and source.sha256 != source_digest:
+            raise ApiError(409, "CORRECTION_NOT_REGISTERED", "修正图来源已被替换。")
+        final_artifact = await latest_artifact(ctx, "final_brief", status="approved")
+        if final_artifact is None:
+            raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+        previous_intent = await session.scalar(
+            select(GenerationIntent)
+            .where(GenerationIntent.project_id == project.id, GenerationIntent.run_id == run.id)
+            .order_by(GenerationIntent.created_at.desc())
+            .limit(1)
+        )
+        if previous_intent is None or previous_intent.status != "failed":
+            raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+        request_id = str(
+            uuid5(
+                NAMESPACE_URL,
+                f"v3-correction:{job.id}:{hashlib.sha256(instruction.encode()).hexdigest()}",
+            )
+        )
+        accepted = await accept_in_session(
+            session,
+            settings=ctx.settings,
+            project=project,
+            run=run,
+            operator_account_id=ctx.principal.account_id,
+            artifact=final_artifact,
+            requirement_revision=project.revision,
+            reference_usage=previous_intent.reference_usage,
+            image_size=previous_intent.image_size,
+            request_id=request_id,
+            approval_id=previous_intent.approval_id,
+        )
+        now = format_timestamp(utc_now())
+        correction = ImageCorrection(
+            id=str(uuid4()),
+            project_id=project.id,
+            run_id=run.id,
+            intent_id=accepted.intent.id,
+            source_job_id=job.id,
+            source_asset_id=source.id,
+            source_asset_sha256=source_digest,
+            operator_account_id=ctx.principal.account_id,
+            instruction=instruction,
+            status="prepared",
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(correction)
+        await session.flush()
+    await set_stage(ctx, "S07", "active")
+    from app.workflow.stages import s07
+
+    await s07._compile(ctx, instruction, allow_known_rejection=True)
 
 
 async def _retry_rejected_generation(
@@ -1297,6 +1458,9 @@ async def handle(
         raise ApiError(
             409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
         )
+    if action == "request_correction":
+        await _request_correction(ctx, payload)
+        return
     if action == "retry_rejected_generation":
         await _retry_rejected_generation(ctx, payload)
         return
@@ -1304,31 +1468,45 @@ async def handle(
         await _revise_prompt_and_retry(ctx, payload)
         return
     artifact_kind = "quality_report"
-    recheck_asset_id: str | None = None
     if action == "recheck_candidate":
-        # A recheck is a review action. It is valid while the normal candidate
-        # review is still active (for example after the quality-report budget
-        # was consumed) and after the run is blocked for a rejected image.
+        # A recheck only accepts an immutable correction registered for the
+        # current attempt. A client-supplied project asset id is not derivation.
         if not _can_recheck(ctx):
             raise ApiError(
                 409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
             )
-        raw_asset_id = payload.get("asset_id")
-        if raw_asset_id is not None:
-            if not isinstance(raw_asset_id, str) or not raw_asset_id.strip():
-                raise ApiError(422, "VALIDATION_ERROR", "修正图标识无效")
-            recheck_asset_id = raw_asset_id.strip()
-        artifact_kind = "quality_recheck"
-    try:
-        candidate = await _load_candidate(
-            ctx,
-            asset_id=recheck_asset_id,
-            allow_rejected_job=action == "recheck_candidate",
-        )
-    except ApiError as exc:
-        if exc.code == "SERVICE_UNAVAILABLE":
-            await _fail_stage(ctx, "SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE")
-        raise
+        if payload.get("asset_id") is not None:
+            raise ApiError(
+                409, "CORRECTION_NOT_REGISTERED", "修正图未登记或不可复核。"
+            )
+        raw_correction_id = payload.get("correction_id")
+        if raw_correction_id is not None and (
+            not isinstance(raw_correction_id, str) or not raw_correction_id.strip()
+        ):
+            raise ApiError(
+                409, "CORRECTION_NOT_REGISTERED", "修正图未登记或不可复核。"
+            )
+        try:
+            if isinstance(raw_correction_id, str) and raw_correction_id.strip():
+                candidate = await _load_correction_candidate(
+                    ctx, raw_correction_id.strip()
+                )
+                artifact_kind = "quality_recheck"
+            else:
+                # A durable original candidate can still be rechecked after a
+                # recoverable technical failure; no new image is requested.
+                candidate = await _load_candidate(ctx, allow_rejected_job=True)
+        except ApiError as exc:
+            if exc.code == "SERVICE_UNAVAILABLE":
+                await _fail_stage(ctx, "SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE")
+            raise
+    else:
+        try:
+            candidate = await _load_candidate(ctx)
+        except ApiError as exc:
+            if exc.code == "SERVICE_UNAVAILABLE":
+                await _fail_stage(ctx, "SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE")
+            raise
     snapshot, snapshot_digest, execution_snapshot = await _confirmed_snapshot(ctx)
     reference, reference_usage, reference_bytes = await _reference_context(ctx, snapshot)
     if reference_usage != "none" and (reference is None or reference_bytes is None):
