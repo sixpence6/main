@@ -20,13 +20,21 @@ from app.workflow import roles, state
 from app.workflow.stages import s10
 from tests.support.adapters import LLMStub, VisualStub
 from tests.support.auth import TEST_ORIGIN, AuthClient, login
+from tests.support.t02_prompt import (
+    SubmissionObservedVisual,
+    final_click,
+    ready_project,
+)
+from tests.support.t02_prompt import (
+    responder as final_responder,
+)
+from tests.test_t65_generation_cycle import _environment as final_environment
 from tests.test_v2_t11_generation import (
     db_job,
     drain,
     environment,
     png_bytes,
     setup_ready_project,
-    workflow_action,
 )
 from tests.test_v2_t13_delivery import _delivery_env, _seed_ready_state
 
@@ -60,12 +68,9 @@ async def _login_user(app: Any, email: str) -> AuthClient:
     return client
 
 
-async def _wait_for_submit(visual: VisualStub) -> None:
-    for _ in range(200):
-        if visual.submit_calls:
-            return
-        await asyncio.sleep(0.01)
-    raise AssertionError("the fake visual adapter was never called")
+async def _wait_for_submit(visual: SubmissionObservedVisual) -> None:
+    await asyncio.wait_for(visual.submit_started.wait(), timeout=10)
+    assert len(visual.submit_calls) == 1
 
 
 async def _job_state(app: Any, project_id: str) -> tuple[Any, Any]:
@@ -82,19 +87,20 @@ async def test_logout_does_not_change_persisted_task_owner_or_stop_authorized_wo
     full_settings,
 ):
     gate = asyncio.Event()
-    visual = VisualStub(
-        submit_outcome=ProviderOutcome(
-            state="succeeded", image_bytes=png_bytes(), image_count=1
-        ),
+    visual = SubmissionObservedVisual(
+        submit_outcome=ProviderOutcome(state="succeeded", image_bytes=png_bytes(), image_count=1),
         gate=gate,
     )
-    async with environment(full_settings, visual=visual) as (app, _admin, _llm, _visual, _registry):
+    async with final_environment(full_settings, LLMStub(), visual, final_responder) as (
+        app,
+        _admin,
+    ):
         owner = await _add_account(app, "owner62@example.com")
         other = await _add_account(app, "other62@example.com")
         owner_client = await _login_user(app, owner.email_normalized)
-        setup = await setup_ready_project(app, owner_client)
+        setup = await ready_project(app, owner_client)
 
-        started = await workflow_action(owner_client, setup, "submit_generation")
+        started = await final_click(owner_client, setup)
         assert started.status_code == 200, started.text
         await _wait_for_submit(visual)
         job_before, _generation_before = await _job_state(app, setup["project_id"])
@@ -111,7 +117,7 @@ async def test_logout_does_not_change_persisted_task_owner_or_stop_authorized_wo
         gate.set()
         await drain(app)
         job, _generation = await _job_state(app, setup["project_id"])
-        assert job.status == "quarantined", (
+        assert job.status == "approved", (
             job.status,
             job.error_code,
             job.error_message,
@@ -122,7 +128,7 @@ async def test_logout_does_not_change_persisted_task_owner_or_stop_authorized_wo
         assert job.operator_account_id == owner.id
         ctx = await state.load_context(app, setup["project_id"])
         assert ctx.run is not None
-        assert ctx.run.stage == "S09"
+        assert ctx.run.stage == "S10"
 
 
 @pytest.mark.asyncio
@@ -130,16 +136,16 @@ async def test_disable_stops_next_remote_call_and_keeps_remote_fact_without_publ
     full_settings,
 ):
     gate = asyncio.Event()
-    visual = VisualStub(
+    visual = SubmissionObservedVisual(
         submit_outcome=ProviderOutcome(state="pending", remote_task_id="remote-62"),
         gate=gate,
     )
-    async with environment(full_settings, visual=visual) as (app, admin, _llm, _visual, _registry):
+    async with final_environment(full_settings, LLMStub(), visual, final_responder) as (app, admin):
         owner = await _add_account(app, "disabled62@example.com")
         owner_client = await _login_user(app, owner.email_normalized)
-        setup = await setup_ready_project(app, owner_client)
+        setup = await ready_project(app, owner_client)
 
-        started = await workflow_action(owner_client, setup, "submit_generation")
+        started = await final_click(owner_client, setup)
         assert started.status_code == 200, started.text
         await _wait_for_submit(visual)
 
@@ -188,15 +194,16 @@ async def test_disable_stops_next_remote_call_and_keeps_remote_fact_without_publ
 async def test_job_creation_persists_server_authorization_not_client_fields(
     full_settings,
 ):
-    visual = VisualStub(
-        submit_outcome=ProviderOutcome(
-            state="succeeded", image_bytes=png_bytes(), image_count=1
-        )
+    visual = SubmissionObservedVisual(
+        submit_outcome=ProviderOutcome(state="succeeded", image_bytes=png_bytes(), image_count=1)
     )
-    async with environment(full_settings, visual=visual) as (app, _admin, _llm, _visual, _registry):
+    async with final_environment(full_settings, LLMStub(), visual, final_responder) as (
+        app,
+        _admin,
+    ):
         owner = await _add_account(app, "authref62@example.com")
         owner_client = await _login_user(app, owner.email_normalized)
-        setup = await setup_ready_project(app, owner_client)
+        setup = await ready_project(app, owner_client)
         forged = await owner_client.post(
             f"/api/projects/{setup['project_id']}/workflow/actions/submit_generation",
             json={
@@ -206,7 +213,7 @@ async def test_job_creation_persists_server_authorization_not_client_fields(
             },
         )
         assert forged.status_code == 422, forged.text
-        started = await workflow_action(owner_client, setup, "submit_generation")
+        started = await final_click(owner_client, setup)
         assert started.status_code == 200, started.text
         await drain(app)
         job = await db_job(app, setup["project_id"])
@@ -217,9 +224,7 @@ async def test_job_creation_persists_server_authorization_not_client_fields(
         assert len(job.authorization_ref) == 64
         async with read_session(app.state.session_factory) as session:
             sessions = (
-                await session.scalars(
-                    select(AuthSession).where(AuthSession.account_id == owner.id)
-                )
+                await session.scalars(select(AuthSession).where(AuthSession.account_id == owner.id))
             ).all()
         assert sessions
 
@@ -264,9 +269,7 @@ async def test_disabled_owner_cannot_make_another_model_call(
             assert project is not None
             project.owner_account_id = owner.id
 
-        disabled = await admin_client.post(
-            f"/api/admin/accounts/{owner.id}/disable", json={}
-        )
+        disabled = await admin_client.post(f"/api/admin/accounts/{owner.id}/disable", json={})
         assert disabled.status_code == 200, disabled.text
         ctx = await state.load_context(app, setup["project_id"])
         with pytest.raises(ApiError) as error:

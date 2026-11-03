@@ -495,8 +495,12 @@ def _claim_generation(
             generation = await session.get(Generation, generation_id)
             if generation is None or generation.status != "queued":
                 return None
-            from app.prompt_preparation import require_image_execution
-            require_image_execution()
+            from app.final_confirmation import require_authorized_attempt
+            await require_authorized_attempt(session, generation_id)
+            await ensure_generation_active_in_session(session, generation_id)
+            if (generation.submit_attempted or generation.remote_task_id
+                    or generation.result_locator_json):
+                return None
             now = format_timestamp(utc_now())
             generation.status = "running"
             generation.stage = "submitting"
@@ -1076,6 +1080,9 @@ async def _execute_claimed(app: FastAPI, claimed: ClaimedGeneration) -> None:
     except GenerationGuardError as exc:
         await _stop_for_generation_guard(session_factory, claimed, exc)
         return
+    from app.final_confirmation import execution_request
+    frozen_request = await execution_request(app, claimed.id)
+    from app.final_confirmation import frozen_brief
     role = settings.visual()
     adapter = registry.build_visual(role, app.state.http)
     if adapter is None:
@@ -1090,9 +1097,10 @@ async def _execute_claimed(app: FastAPI, claimed: ClaimedGeneration) -> None:
 
     reference_path: Path | None = None
     reference_mime_type: str | None = None
-    if claimed.reference_asset_id:
+    reference_bytes: bytes | None = None
+    if frozen_request["references"]:
         async with read_session(session_factory) as session:
-            reference = await session.get(Asset, claimed.reference_asset_id)
+            reference = await session.get(Asset, frozen_request["references"][0]["asset_id"])
         if (
             reference is None
             or reference.project_id != claimed.project_id
@@ -1107,7 +1115,7 @@ async def _execute_claimed(app: FastAPI, claimed: ClaimedGeneration) -> None:
             )
             return
         reference_path = resolve_asset_file(settings, reference)
-        reference_mime_type = reference.mime_type
+        reference_mime_type = frozen_request["references"][0]["mime_type"]
         if reference_path is None:
             await _finish_generation(
                 session_factory,
@@ -1118,8 +1126,12 @@ async def _execute_claimed(app: FastAPI, claimed: ClaimedGeneration) -> None:
             )
             return
 
+        reference_bytes = await asyncio.to_thread(reference_path.read_bytes)
+        if hashlib.sha256(reference_bytes).hexdigest() != frozen_request["references"][0]["sha256"]:
+            raise GenerationGuardError("REFERENCE_UNAVAILABLE", "冻结参考内容已变化。")
+
     try:
-        snapshot = BriefData(**json.loads(claimed.brief_snapshot_json))
+        snapshot = BriefData(**frozen_brief(frozen_request))
     except (TypeError, ValueError):
         await _finish_generation(
             session_factory,
@@ -1133,12 +1145,19 @@ async def _execute_claimed(app: FastAPI, claimed: ClaimedGeneration) -> None:
     request = GenerationRequest(
         project_id=claimed.project_id,
         version_no=claimed.version_no,
-        prompt=claimed.prompt,
+        prompt=frozen_request["prompt"],
         brief=snapshot,
-        image_size=claimed.image_size,
+        image_size=frozen_request["output"]["size"],
         reference_path=reference_path,
         reference_mime_type=reference_mime_type,
+        reference_bytes=reference_bytes,
+        count=frozen_request["output"]["count"],
+        response_format=frozen_request["output"]["response_format"],
     )
+    await ensure_generation_active(session_factory, claimed.id)
+    # Revalidate config/dependencies immediately before the network boundary.
+    if await execution_request(app, claimed.id) != frozen_request:
+        raise GenerationGuardError("PROMPT_STALE", "实际执行请求已变化。")
     try:
         outcome = await adapter.submit(request)
     except ProviderError as exc:

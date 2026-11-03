@@ -38,7 +38,8 @@ async def test_reads_and_old_actions_cannot_authorize_or_recompile(full_settings
         initial = (await client.get(path)).json()
         calls = len(llm.role_calls_received)
         preview = initial["prompt_preview"]
-        assert preview["can_confirm"] is False  # T02 has not implemented execution.
+        assert preview["can_confirm"] is True
+        assert preview["command_context"]
         request = preview["request"]
         assert request["negative_prompt"] == "价格标签；促销文案"
         assert "禁止内容（Negative prompt）:\n价格标签；促销文案" in request["prompt"]
@@ -88,7 +89,6 @@ async def test_reads_and_old_actions_cannot_authorize_or_recompile(full_settings
             "resume_after_restart",
             "continue_workflow",
             "compile_prompt",
-            "confirm_prompt",
         ):
             response = await client.post(
                 f"{path}/actions/{name}",
@@ -177,9 +177,10 @@ async def test_two_independent_restarts_keep_waiting_without_calls(full_settings
             LLM_VISION_MODEL="stub-vision",
             VISUAL_ADAPTER="stub-visual",
             VISUAL_BASE_URL="https://visual.invalid",
-            VISUAL_API_KEY="sk-test-only",
+            VISUAL_API_KEY=full_settings.visual().api_key.get_secret_value(),
             VISUAL_MODEL="stub-model",
             VISUAL_IMAGE_SIZE="1024x1024",
+            VISUAL_TIMEOUT_SECONDS=str(full_settings.visual().timeout_seconds),
             T01_CALL_LOG=str(log),
         )
         env.update(process_auth_env(full_settings, port))
@@ -210,7 +211,13 @@ async def test_two_independent_restarts_keep_waiting_without_calls(full_settings
             for _ in range(3):
                 status, view = session.request("GET", f"/api/projects/{project_id}/workflow")
                 assert status == 200, view
-                assert view["prompt_preview"] == expected["prompt_preview"]
+                assert {
+                    k: v for k, v in view["prompt_preview"].items() if k != "command_context"
+                } == {k: v for k, v in expected["prompt_preview"].items() if k != "command_context"}
+                assert (
+                    view["prompt_preview"]["command_context"]
+                    != expected["prompt_preview"]["command_context"]
+                )
                 assert view["generation_job"] is None and view["usage"]["used"] == 1
                 assert [
                     view["usage"][f"{scope}_active"]
@@ -449,7 +456,7 @@ async def test_preparation_identity_is_server_owned_not_client_execution_authori
             assert submitted.status_code == 409, submitted.text
             assert view["prompt_preview"]["request"]["owner_account_id"] == owner.id
             assert view["prompt_preview"]["request"]["operator_account_id"] == owner.id
-            assert view["prompt_preview"]["can_confirm"] is False
+            assert view["prompt_preview"]["can_confirm"] is True
             assert view["generation_job"] is None
         assert visual.submit_calls == []
 

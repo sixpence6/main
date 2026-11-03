@@ -233,7 +233,8 @@ class PromptPreviewView(BaseModel):
     request_digest: str
     request: dict[str, Any]
     created_at: str
-    can_confirm: Literal[False] = False
+    can_confirm: bool = False
+    command_context: str | None = None
 
 
 class WorkflowView(BaseModel):

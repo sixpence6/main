@@ -884,6 +884,9 @@ async def _build_versions(
             )
         ):
             prompt_artifact = None
+        from app.prompt_preparation import historical_prompt_readable
+        if not await historical_prompt_readable(session, job, prompt_artifact):
+            prompt_artifact = None
         quality_artifact = await session.scalar(
             select(Artifact)
             .where(
@@ -1022,6 +1025,18 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
                 .limit(1)
             )
 
+    from app.prompt_preparation import historical_prompt_readable
+
+    history_prompt_id = None
+    if job is not None:
+        async with read_session(ctx.session_factory) as session:
+            prompt = (
+                await session.get(Artifact, job.prompt_artifact_id)
+                if job.prompt_artifact_id else None
+            )
+            if await historical_prompt_readable(session, job, prompt):
+                history_prompt_id = job.prompt_artifact_id
+
     usage = None
     intent_view = None
     if ctx.project.owner_account_id is not None:
@@ -1081,14 +1096,7 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
                 artifact.kind != "prompt_plan"
                 or preview is not None
                 and preview["request"]["prompt_artifact_id"] == artifact.id
-                or job is not None
-                and job.prompt_artifact_id == artifact.id
-                and any(
-                    a.artifact_id == artifact.id
-                    and a.approval_type == "generation_prompt"
-                    and a.revoked_at is None
-                    for a in approvals
-                )
+                or history_prompt_id == artifact.id
             )
             else None
         )
@@ -1143,6 +1151,8 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
             active_execution_snapshot = candidate_snapshot
 
     actions = dispatch.available_actions(ctx)
+    if preview is not None and preview["can_confirm"]:
+        actions = [dispatch.action_view("confirm_prompt")]
     task_state = build_task_state(
         project=ctx.project,
         run=ctx.run,

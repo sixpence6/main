@@ -1008,8 +1008,8 @@ async def _run_job(
                     await session.flush()
             return
 
-        from app.prompt_preparation import require_image_execution
-        require_image_execution()
+        from app.final_confirmation import require_authorized_job
+        await require_authorized_job(app.state.session_factory, job_id)
         await _mark_job(app.state.session_factory, job_id, status="submitted", submit_attempted=1)
         await execute_generation(app, generation_id)
 

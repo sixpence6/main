@@ -28,7 +28,7 @@ from app.workflow.contracts import digest_payload
 from app.workflow.snapshot import execution_snapshot_from_checks
 from app.workflow.tables import Approval, Artifact, ArtifactReview, GenerationJob, WorkflowRun
 
-CONTRACT_VERSION = "prompt-request-1.0.0"
+CONTRACT_VERSION = "prompt-request-1.1.0"
 
 
 class PreparedPrompt(Base):
@@ -48,7 +48,8 @@ class PreparedPrompt(Base):
     __table_args__ = (
         UniqueConstraint("intent_id", "artifact_id", name="uq_prepared_prompt_candidate"),
         CheckConstraint(
-            "status IN ('awaiting_confirmation','invalidated')", name="ck_prepared_prompt_status"
+            "status IN ('awaiting_confirmation','authorized','invalidated')",
+            name="ck_prepared_prompt_status",
         ),
     )
 
@@ -62,16 +63,39 @@ def require_image_execution() -> None:
     raise final_confirmation_required()
 
 
+def configuration_fingerprint(role) -> str:
+    """Opaque exact execution configuration, separate from historical job identity.
+
+    The adapter consumes the original URL (including query). Never expose that
+    URL or credentials, and never change service_fingerprint's historical rules.
+    """
+    return digest_payload(
+        {
+            "version": "exact-image-config-v1",
+            "adapter_id": role.adapter_id,
+            "base_url": role.base_url,
+            "model": role.model,
+            "image_size": role.image_size,
+            "timeout_seconds": role.timeout_seconds,
+            "credential_digest": hashlib.sha256(
+                (role.api_key.get_secret_value() if role.api_key else "").encode("utf-8")
+            ).hexdigest(),
+        }
+    )
+
+
 def compose_request_text(positive: str, negative: str) -> str:
     # The adapters have one text input, not a native negative-prompt parameter.
     # Freeze the exact combined text before independent review, never on click.
     return positive if not negative else f"{positive}\n\n禁止内容（Negative prompt）:\n{negative}"
 
 
-async def build_request(ctx, payload, final_artifact, *, session=None) -> dict:
+async def build_request(ctx, payload, final_artifact, *, session=None, authorized=False) -> dict:
     if session is None:
         async with read_session(ctx.session_factory) as opened:
-            return await build_request(ctx, payload, final_artifact, session=opened)
+            return await build_request(
+                ctx, payload, final_artifact, session=opened, authorized=authorized
+            )
     project = await session.get(Project, ctx.project_id)
     run = await session.get(WorkflowRun, ctx.run_id)
     if project is None or run is None or project.owner_account_id is None:
@@ -95,7 +119,8 @@ async def build_request(ctx, payload, final_artifact, *, session=None) -> dict:
     )
     if (
         intent is None
-        or intent.status != "accepted"
+        or intent.status
+        not in ({"accepted", "executing", "delivered"} if authorized else {"accepted"})
         or confirmation is None
         or confirmation.approved_by != "user"
         or confirmation.artifact_digest != final_artifact.digest
@@ -206,6 +231,7 @@ async def build_request(ctx, payload, final_artifact, *, session=None) -> dict:
             "adapter_id": visual.adapter_id,
             "model": visual.model,
             "fingerprint": service_fingerprint(visual),
+            "configuration_fingerprint": configuration_fingerprint(visual),
         },
     }
 
@@ -341,6 +367,48 @@ async def approve_and_wait(
     ctx.run = run
 
 
+async def validated_request(ctx, session, snapshot, *, authorized=False) -> dict:
+    artifact = await session.get(Artifact, snapshot.artifact_id)
+    approval = await session.get(Approval, snapshot.approval_id)
+    try:
+        request = json.loads(snapshot.request_json)
+        if (
+            artifact is None
+            or artifact.status != "approved"
+            or approval is None
+            or approval.revoked_at is not None
+            or approval.artifact_id != artifact.id
+            or approval.artifact_digest != artifact.digest
+            or approval.requirement_snapshot_digest != request.get("requirements_digest")
+            or approval.rules_version != request.get("approval_rules_version")
+            or approval.prompt_version != request.get("approval_prompt_version")
+            or json.loads(approval.checks_json).get("ruleset_version")
+            != request.get("ruleset_version")
+            or request.get("prompt_artifact_id") != artifact.id
+            or request.get("prompt_artifact_digest") != artifact.digest
+            or request.get("prompt_artifact_revision") != artifact.revision_no
+            or request.get("prompt_approval_id") != approval.id
+            or approval.approved_by != "output_reviewer"
+            or approval.approval_type != "generation_prompt"
+            or approval.project_id != ctx.project_id
+            or snapshot.project_id != ctx.project_id
+            or digest_payload(request) != snapshot.request_digest
+            or artifact.digest != digest_payload(json.loads(artifact.payload_json))
+        ):
+            raise conflict("PROMPT_STALE", "提示词批准或冻结请求已失效。")
+        final = await session.get(Artifact, request["requirements_artifact_id"])
+        if final is None or final.status != "approved":
+            raise conflict("PROMPT_STALE", "提示词批准或冻结请求已失效。")
+        actual = await build_request(
+            ctx, json.loads(artifact.payload_json), final, session=session, authorized=authorized
+        )
+        if any(request.get(key) != value for key, value in actual.items()):
+            raise conflict("PROMPT_STALE", "提示词批准或冻结请求已失效。")
+    except (ValueError, KeyError, OSError) as exc:
+        raise conflict("PROMPT_STALE", "提示词批准或冻结请求已失效。") from exc
+    return request
+
+
 async def safe_preview(ctx) -> dict | None:
     if ctx.run is None:
         return None
@@ -356,49 +424,70 @@ async def safe_preview(ctx) -> dict | None:
         )
         if snapshot is None:
             return None
-        artifact = await session.get(Artifact, snapshot.artifact_id)
-        approval = await session.get(Approval, snapshot.approval_id)
         try:
-            request = json.loads(snapshot.request_json)
-            if (
-                artifact is None
-                or artifact.status != "approved"
-                or approval is None
-                or approval.revoked_at is not None
-                or approval.artifact_id != artifact.id
-                or approval.artifact_digest != artifact.digest
-                or approval.requirement_snapshot_digest != request.get("requirements_digest")
-                or approval.rules_version != request.get("approval_rules_version")
-                or approval.prompt_version != request.get("approval_prompt_version")
-                or json.loads(approval.checks_json).get("ruleset_version")
-                != request.get("ruleset_version")
-                or request.get("prompt_artifact_id") != artifact.id
-                or request.get("prompt_artifact_digest") != artifact.digest
-                or request.get("prompt_artifact_revision") != artifact.revision_no
-                or request.get("prompt_approval_id") != approval.id
-                or approval.approved_by != "output_reviewer"
-                or approval.approval_type != "generation_prompt"
-                or approval.project_id != ctx.project_id
-                or snapshot.project_id != ctx.project_id
-                or digest_payload(request) != snapshot.request_digest
-                or artifact.digest != digest_payload(json.loads(artifact.payload_json))
-            ):
-                return None
-            final = await session.get(Artifact, request["requirements_artifact_id"])
-            if final is None or final.status != "approved":
-                return None
-            actual = await build_request(
-                ctx, json.loads(artifact.payload_json), final, session=session
-            )
-            if any(request.get(key) != value for key, value in actual.items()):
-                return None
-        except (ApiError, ValueError, KeyError, OSError):
+            request = await validated_request(ctx, session, snapshot)
+        except ApiError:
             return None
+        from app.final_confirmation import command_context
+
+        context = await command_context(ctx, snapshot, session)
         return {
             "id": snapshot.id,
             "status": snapshot.status,
             "request_digest": snapshot.request_digest,
             "request": request,
             "created_at": snapshot.created_at,
-            "can_confirm": False,
+            "can_confirm": context is not None,
+            "command_context": context,
         }
+
+
+async def historical_prompt_readable(session, job, artifact) -> bool:
+    """Validate original content approval, never infer new execution permission."""
+    if (
+        artifact is None
+        or artifact.status != "approved"
+        or artifact.kind != "prompt_plan"
+        or artifact.id != job.prompt_artifact_id
+        or artifact.project_id != job.project_id
+        or artifact.run_id != job.run_id
+    ):
+        return False
+    try:
+        if digest_payload(json.loads(artifact.payload_json)) != artifact.digest:
+            return False
+    except (ValueError, TypeError):
+        return False
+    approvals = (
+        await session.scalars(
+            select(Approval).where(
+                Approval.project_id == job.project_id,
+                Approval.artifact_id == artifact.id,
+                Approval.approval_type == "generation_prompt",
+                Approval.revoked_at.is_(None),
+                Approval.artifact_digest == artifact.digest,
+                Approval.requirement_snapshot_digest == job.confirmed_snapshot_digest,
+                Approval.approved_by == "output_reviewer",
+                Approval.rules_version == "2.0.0",
+                Approval.prompt_version == "2.0.0",
+            )
+        )
+    ).all()
+    if not approvals:
+        return False
+    original = await session.scalar(
+        select(Artifact).where(
+            Artifact.project_id == job.project_id,
+            Artifact.run_id == job.run_id,
+            Artifact.kind == "final_brief",
+            Artifact.status == "approved",
+            Artifact.digest == job.confirmed_snapshot_digest,
+        )
+    )
+    try:
+        return (
+            original is not None
+            and digest_payload(json.loads(original.payload_json)) == original.digest
+        )
+    except (ValueError, TypeError):
+        return False
