@@ -213,6 +213,16 @@ export function useWorkflow(projectId: WorkflowProjectId) {
     errorCode,
     actionBusy,
     load,
+    adopt: (next: WorkflowView | null) => {
+      loadSequence += 1
+      controller?.abort()
+      controller = null
+      loading.value = false
+      error.value = ''
+      errorCode.value = ''
+      view.value = next
+      armPoll()
+    },
     refresh: () => load(),
     runAction,
   }

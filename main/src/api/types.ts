@@ -64,6 +64,24 @@ export interface ProjectView {
   updated_at: string
 }
 
+export type MessageTurnKind = 'workflow' | 'conversation' | 'prompt'
+export type ReferenceUsage = 'none' | 'product' | 'style' | 'composition'
+
+export interface MessageAttachmentView {
+  id: string
+  message_id: string
+  asset_id: string
+  usage: ReferenceUsage
+  content_version: string
+  sha256: string
+  mime_type: string
+  width: number
+  height: number
+  byte_size: number
+  preview_url: string
+  created_at: string
+}
+
 export interface MessageView {
   id: string
   sequence_no: number
@@ -71,6 +89,9 @@ export interface MessageView {
   content: string
   project_revision: number
   brief_snapshot: Brief | null
+  turn_kind: MessageTurnKind
+  request_id: string | null
+  attachment: MessageAttachmentView | null
   legacy_unreviewed: boolean
   legacy_notice: string | null
   created_at: string
@@ -216,6 +237,7 @@ export interface MessageCreateResponse {
   project: ProjectView
   user_message: MessageView
   assistant_message: MessageView
+  workflow?: import('./workflow').WorkflowView | null
 }
 
 export type AccountStatus = 'active' | 'pending_setup' | 'disabled'
