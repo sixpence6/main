@@ -94,10 +94,10 @@ C:/Users/28425/.codex/worktrees/issue-112-integration/新建文件夹/backend/.v
 
 ## 8. 合并复核（Lead）
 
-- 功能提交：待提交。
-- 集成合并：待合并。
-- 合并后前端验收：待运行。
-- 合并后后端安全投影：待运行。
-- 测试文件一致性：待核对。
-- 合并后工作树：待核对。
-- 结论：待合并复核。
+- 功能提交：`89d9f45414610626ad4f4f709841be5a991d25d5 feat(chat): show lightweight task status and server recovery actions (#125)`（4 个文件，+780/−29；轻量任务状态、恢复动作、7 个测试和验收文档，无后端生产代码或迁移变更）。
+- 集成合并：`62ea4dd19b1de6140a1fe7aba4a1c1029abda63b merge: T13 lightweight task status and recovery actions (#125)`，以 `--no-ff` 合入 `codex/issue-112-integration`（第一父提交 `2b5d46e`，第二父提交 `89d9f45`）。
+- 合并后前端验收：28 个 spec 文件，`55 passed / 55`（JSON `D:/Desktop/issue-112-context/t125-postmerge.json`）；`vue-tsc --noEmit -p tsconfig.json` 通过；`vite build --config main/vite.config.ts` 通过（1654 modules，既有大 chunk 警告）。
+- 合并后后端安全投影：`test_v3_p1_t13_safe_projection.py` 共 `18 passed in 13.37s`（basetemp `D:/Desktop/issue-112-context/t125-postmerge-backend`）；本票未改后端生产代码。
+- 测试文件一致性：`git diff 89d9f45 62ea4dd -- tests/t125-task-status.spec.ts docs/acceptance/issue-112-t13.md` 无输出；测试文件 SHA-256 为 `45e11d4d8f24d471a7d607562dd3e285b6bbed8e2665d4b167b552cbb1bc1fc6`，功能提交与合并提交一致。
+- 合并后工作树：`git status --short` 为空；`git diff --check` 无输出。
+- 结论：#125 的轻量单条状态、服务端安全原因、只读/模型调用区分、服务端动作白名单、确认计数动作、忙时草稿可编辑但不排队、文字修复回唯一输入框和账号禁用失败提示，通过合并后前端验收、类型检查、生产构建及既有后端 T13 安全投影回归；真实浏览器视觉、手机软键盘和真实供应商留 #129/#128。
