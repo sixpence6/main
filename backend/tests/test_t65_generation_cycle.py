@@ -405,6 +405,12 @@ async def test_one_confirmation_creates_intent_usage_slots_and_full_cycle(
         llm.gate = None
         gate.set()
         await _drain(app)
+        from tests.support.t02_prompt import final_click
+        preview = (await client.get(f"/api/projects/{setup['project_id']}/workflow")).json()
+        assert preview["prompt_preview"] is not None and visual.submit_calls == []
+        final = await final_click(client, {"project_id": setup["project_id"], "workflow": preview})
+        assert final.status_code == 200, final.text
+        await _drain(app)
 
         intents, usages, slots = await _rows(app, setup["project_id"])
         assert len(intents) == 1

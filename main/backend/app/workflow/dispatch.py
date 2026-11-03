@@ -25,6 +25,10 @@ for _module in (s01, s02, s03, s04, s05, s06, s07, s08, s09, s10, s11, s12):
         ACTION_OWNER[_action] = _module
 
 _ACTIONS: dict[str, dict[str, Any]] = {
+    "confirm_prompt": {
+        "label": "确认使用以上提示词生成", "kind": "confirm", "requires_text": False,
+        "text_label": None, "requires_confirmation": True,
+    },
     "submit_request": {"label": "开始整理需求", "kind": "text", "requires_text": True, "text_label": "描述你想要的商品图", "requires_confirmation": False},
     "answer_intent_clarification": {"label": "补充说明", "kind": "text", "requires_text": True, "text_label": "请补充范围或用途", "requires_confirmation": False},
     "analyze_reference": {"label": "分析参考图", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
@@ -93,6 +97,7 @@ _MODEL_CALL_ACTIONS = frozenset(
         "retry_rejected_generation",
         "revise_prompt_and_retry",
         "submit_generation",
+        "confirm_prompt",
         "start_new_generation",
         "review_candidate",
         "recheck_candidate",

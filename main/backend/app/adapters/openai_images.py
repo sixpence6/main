@@ -122,16 +122,16 @@ class OpenAIImagesAdapter:
                         "model": self.model,
                         "prompt": request.prompt,
                         "size": image_size,
-                        "n": 1,
-                        "response_format": "b64_json",
+                        "n": request.count,
+                        "response_format": request.response_format,
                     },
                     timeout=self._timeout_seconds,
                     follow_redirects=False,
                 )
             else:
-                reference_bytes = await asyncio.to_thread(
-                    request.reference_path.read_bytes
-                )
+                reference_bytes = request.reference_bytes
+                if reference_bytes is None:
+                    reference_bytes = await asyncio.to_thread(request.reference_path.read_bytes)
                 response = await self._client.post(
                     f"{self._base_url}/images/edits",
                     headers=headers,
@@ -139,8 +139,8 @@ class OpenAIImagesAdapter:
                         "model": self.model,
                         "prompt": request.prompt,
                         "size": image_size,
-                        "n": "1",
-                        "response_format": "b64_json",
+                        "n": str(request.count),
+                        "response_format": request.response_format,
                     },
                     files={
                         "image": (

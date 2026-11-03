@@ -19,7 +19,7 @@ from app.generation_guard import (
     ensure_job_active,
     ensure_job_active_in_session,
 )
-from app.models import Asset, Message, Project
+from app.models import Asset, Generation, Message, Project
 from app.services.assets import (
     ImageValidationError,
     delete_asset_file,
@@ -230,7 +230,14 @@ async def _verify_image_file(ctx: WorkflowContext, asset: Asset) -> tuple[bytes,
         info = inspect_image(data)
     except ImageValidationError:
         raise _asset_unavailable() from None
-    expected = _parse_size(ctx.project.image_size)
+    from app.final_confirmation import FinalAuthorization
+    async with ctx.session_factory() as session:
+        frozen_generation = await session.scalar(select(Generation).join(
+            FinalAuthorization, FinalAuthorization.generation_id == Generation.id
+        ).where(Generation.project_id == ctx.project_id, Generation.result_asset_id == asset.id))
+    expected = _parse_size(
+        frozen_generation.image_size if frozen_generation else ctx.project.image_size
+    )
     if expected is None:
         raise _asset_unavailable()
     if (info.width, info.height) != expected or (
@@ -588,6 +595,13 @@ async def _publish(ctx: WorkflowContext) -> None:
         await ensure_job_active(ctx.session_factory, job.id)
     except GenerationGuardError as exc:
         raise ApiError(409, exc.code, exc.message) from exc
+    from app.final_confirmation import FinalAuthorization, execution_request
+    async with ctx.session_factory() as session:
+        has_final = await session.scalar(
+            select(FinalAuthorization.id).where(FinalAuthorization.job_id == job.id)
+        )
+    if has_final:
+        await execution_request(ctx.app, job.generation_id)
     artifact, _approval, payload = await _require_manifest_evidence(ctx, asset, job)
     data, _info = await _verify_image_file(ctx, asset)
     async with ctx.session_factory() as session:

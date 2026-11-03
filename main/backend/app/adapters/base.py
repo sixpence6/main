@@ -111,6 +111,9 @@ class GenerationRequest:
     image_size: str | None
     reference_path: Path | None = None
     reference_mime_type: str | None = None
+    reference_bytes: bytes | None = None
+    count: int = 1
+    response_format: str = "b64_json"
 
 
 @dataclass(frozen=True)

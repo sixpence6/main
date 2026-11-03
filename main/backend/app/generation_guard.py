@@ -5,10 +5,12 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.auth.models import Account
 from app.db import read_session
+from app.errors import ApiError
 from app.models import Generation, Project
 from app.workflow.tables import GenerationJob
 
@@ -113,6 +115,13 @@ async def ensure_job_active_in_session(
             raise GenerationGuardError(
                 "AUTHORIZATION_INVALID", "后台任务授权关联不一致，已拒绝继续。"
             )
+    from app.final_confirmation import FinalAuthorization, require_authorized_attempt
+    if await session.scalar(select(FinalAuthorization.id).where(
+            FinalAuthorization.job_id == job.id)) is not None:
+        try:
+            await require_authorized_attempt(session, job.generation_id)
+        except ApiError as exc:
+            raise GenerationGuardError(exc.code, exc.message) from None
     return job, JobAuthorization(job.id, job.project_id, owner_id, job.operator_account_id)
 
 
@@ -152,6 +161,13 @@ async def ensure_generation_active_in_session(
             raise GenerationGuardError(
                 "AUTHORIZATION_INVALID", "生成任务授权关联不一致，已拒绝继续。"
             )
+    from app.final_confirmation import FinalAuthorization, require_authorized_attempt
+    if await session.scalar(select(FinalAuthorization.id).where(
+            FinalAuthorization.generation_id == generation.id)) is not None:
+        try:
+            await require_authorized_attempt(session, generation.id)
+        except ApiError as exc:
+            raise GenerationGuardError(exc.code, exc.message) from None
     return generation, JobAuthorization(
         generation.workflow_job_id or generation.id,
         generation.project_id,

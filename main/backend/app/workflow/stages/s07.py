@@ -41,7 +41,7 @@ from app.workflow.state import WorkflowContext
 from app.workflow.tables import Artifact, ArtifactReview, GenerationJob, RevisionBudget
 
 STAGE = "S07"
-ACTIONS = ["compile_prompt", "revise_prompt"]
+ACTIONS = ["compile_prompt", "revise_prompt", "confirm_prompt"]
 # Coverage is clause-scoped and token-aware. Natural-language prompt writing
 # may add a small, explicit set of connective words, but it can never be used
 # to stitch characters across clauses or to hide a numeric/semantic change.
@@ -70,7 +70,7 @@ _RECONFIRM_MESSAGE = (
 def available(ctx: WorkflowContext) -> list[str]:
     if ctx.run is None or ctx.run.stage != STAGE or ctx.run.status != "active":
         return []
-    return list(ACTIONS)
+    return ["compile_prompt", "revise_prompt"]
 
 
 def _confirmed_error() -> ApiError:
@@ -1364,6 +1364,10 @@ async def _compile(
         return
 
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
+    if action == "confirm_prompt":
+        from app.final_confirmation import confirm_prompt
+        await confirm_prompt(ctx, payload)
+        return
     if action not in ACTIONS:
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
     if ctx.run is None or ctx.run.stage != STAGE or ctx.run.status != "active":

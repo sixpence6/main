@@ -17,7 +17,7 @@ from tests.conftest import migrate
 
 ROOT = Path(REPO_ROOT)
 MAIN_BACKEND = Path(MAIN_DIR) / "backend"
-EXPECTED_MIGRATION_HEAD = "0012"
+EXPECTED_MIGRATION_HEAD = "0013"
 
 
 def _read(path: Path) -> str:
