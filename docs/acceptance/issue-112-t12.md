@@ -93,10 +93,10 @@ C:/Users/28425/.codex/worktrees/issue-112-integration/新建文件夹/backend/.v
 
 ## 8. 合并复核（Lead）
 
-- 功能提交：待填。
-- 集成合并：待填。
-- 合并后前端验收：待填。
-- 合并后后端回归：待填。
-- 测试文件一致性：待填。
-- 合并后工作树：待填。
-- 结论：待填。
+- 功能提交：`5c1393bf528e36077de7f7a797cd5ceccd9af311 feat(chat): attach one image to chat messages with natural-language usage (#124)`（8 个文件，+948/−10；唯一输入框单图附件、API 类型/客户端、生命周期状态、7 个测试和验收文档，无后端生产代码或迁移变更）。
+- 集成合并：`ab8046cdf69ac3ca362adaed3328680e39c85147 merge: T12 single image attachment with natural-language usage (#124)`，以 `--no-ff` 合入 `codex/issue-112-integration`（第一父提交 `686f082`，第二父提交 `5c1393b`）。
+- 合并后前端验收：13 个 spec 文件，`48 passed / 48`（JSON `D:/Desktop/issue-112-context/t124-postmerge.json`）；`vue-tsc --noEmit -p tsconfig.json` 通过；`vite build --config main/vite.config.ts` 通过（1654 modules，既有大 chunk 警告）。
+- 合并后后端回归：`test_issue_120_t08.py` + `test_issue_121_t09.py` 共 `21 passed in 81.13s`（basetemp `D:/Desktop/issue-112-context/t124-postmerge-backend`）；本票未改后端生产代码。
+- 测试文件一致性：`git diff 5c1393b ab8046c -- tests/t124-attachment.spec.ts docs/acceptance/issue-112-t12.md` 无输出；提交 blob 的测试文件 SHA-256 为 `2f53d0ee0f5a78ae25b139d24722219fffe2b0e63af93aee47f843e3fd24afc4`，功能提交与合并提交一致。
+- 合并后工作树：`git status --short` 为空；`git diff --check` 无输出。
+- 结论：#124 的唯一输入框单图选择/粘贴/拖放、预览/替换/移除、首次发送暂存、真实消息附件、用途澄清、切换提醒和账号失效晚响应通过合并后前端验收、类型检查、生产构建及既有后端附件/工作流回归；真实浏览器视觉、手机软键盘与真实供应商留 #129/#128。
