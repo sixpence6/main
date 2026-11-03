@@ -99,5 +99,10 @@ C:/Users/28425/.codex/worktrees/issue-112-integration/新建文件夹/backend/.v
 
 ## 8. 合并复核（Lead）
 
-- 状态：待功能提交、`--no-ff` 合并、合并后专项/全套/类型检查/构建/后端回归完成后填写。
-- 需记录：功能提交与合并提交 hash、测试文件 SHA-256、合并后 34 个 spec 文件/74 用例结果、`vue-tsc`、生产构建、后端 33 用例、`git diff --check` 与工作树状态。
+- 功能提交：`3c625d3f8fb52316858fca287aa753659f09668c feat(chat): support keyboard scrolling drawer and image zoom (#128)`（6 个文件，+646/−12；键盘发送与输入法保护、独立滚动和新内容提示、窄屏抽屉可访问属性、图片放大对话框、5 个测试和验收文档；无后端生产代码或迁移变更）。
+- 集成合并：`d739fb6eca1cae686c126bef20f67e29e7b02e46 merge: T16 keyboard scrolling drawer and real phone input (#128)`，以 `--no-ff` 合入 `codex/issue-112-integration`（第一父提交 `147e0f5`，第二父提交 `3c625d3`）。
+- 合并后前端验收：34 个 spec 文件，`74 passed / 74`（JSON `D:/Desktop/issue-112-context/t128-postmerge.json`）；`vue-tsc --noEmit -p tsconfig.json` 通过；`vite build --config main/vite.config.ts` 通过（1654 modules，既有大 chunk 警告）。
+- 合并后后端公开流程与安全投影回归：33 个用例 `33 passed in 55.94s`（basetemp `D:/Desktop/issue-112-context/t128-postmerge-backend`）；本票未改后端生产代码。
+- 测试文件一致性：`git diff 3c625d3 d739fb6 -- tests/t128-responsive-keyboard.spec.ts docs/acceptance/issue-112-t16.md` 无输出；提交内测试文件 SHA-256 为 `181beda7a09929e610cb1ef1d81b93884d72901e15866b271856a6b793b3e842`，功能提交与合并提交一致。
+- 合并后工作树：`git status --short` 为空；`git diff --check` 无输出。
+- 结论：#128 的 Enter/Shift+Enter/composition、独立滚动和新内容提示、320/768/1440 抽屉与常驻侧栏语义、图片放大与焦点返回、关键操作可见标签与键盘焦点，通过合并后前端全套、类型检查、生产构建和既有后端公开流程/安全投影回归；真实手机软键盘和真实浏览器像素证据未取得，保持未知并留 #129。
