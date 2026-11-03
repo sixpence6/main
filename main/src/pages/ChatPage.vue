@@ -34,13 +34,25 @@ const {
   referenceInfo,
   publishedAssetId,
   publishedCaption,
-  questionText,
-  statusText,
+  taskReason,
+  taskReasonLabel,
+  taskStatusText,
+  taskActions,
+  taskConfirmations,
+  pendingTaskAction,
+  pendingTaskConfirmationMissing,
+  isWorkingStatus,
   send,
   confirmRequirements,
   confirmPrompt,
   copyPrompt,
   retry,
+  taskActionEffectLabel,
+  taskActionHelp,
+  taskConfirmationText,
+  taskCountNote,
+  taskActionDisabled,
+  runTaskAction,
 } = flow
 
 const scrollRegion = ref<HTMLElement | null>(null)
@@ -52,7 +64,12 @@ const usageText = computed(() => {
   if (!usage) return '本次生成会占用 1 次额度。'
   return '本次生成会占用 1 次额度；今日已受理 ' + usage.used + ' / ' + usage.daily_limit + ' 次。'
 })
-const sendDisabled = computed(() => busy.value || attachmentBusy.value || !draft.value.trim())
+const sendDisabled = computed(() =>
+  busy.value ||
+  attachmentBusy.value ||
+  pendingTaskConfirmationMissing.value ||
+  !draft.value.trim()
+)
 const promptStateLabel = computed(() => {
   if (!promptPreview.value) return ''
   return promptPreview.value.can_confirm ? '' : '提示词正在检查，确认按钮暂不可用。'
@@ -106,11 +123,10 @@ function scrollToLatest(): void {
 watch(
   () => [
     projectMessages.value.length,
-    questionText.value,
+    taskStatusText.value,
     canConfirmRequirements.value,
     Boolean(promptPreview.value),
     publishedAssetId.value,
-    statusText.value,
   ],
   async () => {
     await nextTick()
@@ -181,12 +197,45 @@ function roleLabel(role: string): string {
             </li>
           </ol>
 
-          <div v-if="questionText" class="assistant-turn">
-            <div class="message-bubble">
+          <section
+            v-if="(taskStatusText || taskActions.length) && !publishedAssetId"
+            class="assistant-turn task-turn"
+            aria-label="任务状态"
+          >
+            <div class="message-bubble status-bubble">
               <p class="message-role">智能生图助手</p>
-              <p class="message-content">{{ questionText }}</p>
+              <p v-if="taskReasonLabel" class="task-reason-label" :data-category="taskReason?.category">
+                {{ taskReasonLabel }}
+              </p>
+              <p v-if="taskStatusText" class="message-content">{{ taskStatusText }}</p>
+              <span v-if="isWorkingStatus" class="typing-dots" aria-hidden="true"><i /><i /><i /></span>
+              <div v-if="taskActions.length" class="task-actions">
+                <p class="task-actions-note">安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。</p>
+                <div v-for="action in taskActions" :key="action.id" class="task-action">
+                  <div class="task-action-head">
+                    <button
+                      type="button"
+                      class="task-action-button"
+                      :disabled="taskActionDisabled(action)"
+                      @click="runTaskAction(action)"
+                    >
+                      {{ action.label }}
+                    </button>
+                    <span class="task-effect">{{ taskActionEffectLabel(action) }}</span>
+                  </div>
+                  <p class="task-help">{{ taskActionHelp(action) }}</p>
+                  <p v-if="taskCountNote(action)" class="task-count">{{ taskCountNote(action) }}</p>
+                  <p v-if="action.requires_text" class="task-text-note">
+                    请在下方输入框说明{{ action.text_label || '补充内容' }}，然后点击发送。
+                  </p>
+                  <label v-if="action.requires_confirmation" class="task-confirm">
+                    <input v-model="taskConfirmations[action.id]" type="checkbox">
+                    <span>{{ taskConfirmationText(action) }}</span>
+                  </label>
+                </div>
+              </div>
             </div>
-          </div>
+          </section>
 
           <section
             v-if="canConfirmRequirements"
@@ -250,14 +299,6 @@ function roleLabel(role: string): string {
             </div>
           </section>
 
-          <div v-if="statusText && !publishedAssetId" class="assistant-turn">
-            <div class="message-bubble status-bubble">
-              <p class="message-role">智能生图助手</p>
-              <p class="message-content">{{ statusText }}</p>
-              <span class="typing-dots" aria-hidden="true"><i /><i /><i /></span>
-            </div>
-          </div>
-
           <figure v-if="publishedAssetId" class="assistant-turn result-turn">
             <div class="message-bubble">
               <p class="message-role">智能生图助手</p>
@@ -282,6 +323,9 @@ function roleLabel(role: string): string {
       <div v-if="attachmentError" class="chat-error composer-error" role="alert">
         <p>{{ attachmentError }}</p>
       </div>
+      <p v-if="pendingTaskAction" class="pending-task-note" role="status">
+        正在修改：{{ pendingTaskAction.label }}。填写{{ pendingTaskAction.text_label || '补充内容' }}后点击发送。
+      </p>
       <div v-if="pendingAttachment" class="attachment-preview" aria-label="待发送的图片">
         <img :src="pendingAttachment.previewUrl" alt="待发送的图片预览">
         <div class="attachment-preview-copy">
@@ -321,9 +365,9 @@ function roleLabel(role: string): string {
           v-model="draft"
           rows="1"
           class="composer-input"
-          placeholder="描述商品、用途和画面感觉…"
           aria-label="描述商品与图片需求"
-          :disabled="busy || attachmentBusy"
+          :placeholder="pendingTaskAction ? '说明要修改的地方，然后发送…' : '描述商品、用途和画面感觉…'"
+          :disabled="attachmentBusy"
           @keydown.enter.exact="onEnter"
           @paste="onPaste"
           @compositionstart="composing = true"
@@ -449,6 +493,20 @@ function roleLabel(role: string): string {
 .text-button:hover { text-decoration: underline; }
 .status-bubble { display: inline-flex; align-items: center; gap: 12px; color: var(--color-text-muted); }
 .status-bubble .message-content { color: var(--color-text-muted); }
+.task-reason-label { margin: 0 0 6px; color: var(--color-primary); font-size: 13px; font-weight: 600; }
+.task-actions { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
+.task-actions-note { margin: 0; color: var(--color-text-muted); font-size: 13px; line-height: 1.6; }
+.task-action { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--color-border-soft); }
+.task-action-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.task-action-button { min-height: 34px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-panel); color: var(--color-text); font-size: 13px; }
+.task-action-button:hover:not(:disabled) { border-color: var(--color-primary); color: var(--color-primary); }
+.task-action-button:disabled { cursor: not-allowed; opacity: .5; }
+.task-effect { padding: 2px 8px; border-radius: 999px; background: var(--color-primary-soft); color: var(--color-primary); font-size: 12px; }
+.task-help, .task-count, .task-text-note { margin: 0; color: var(--color-text-muted); font-size: 12px; line-height: 1.55; }
+.task-count { color: var(--color-text); }
+.task-confirm { display: flex; align-items: flex-start; gap: 8px; color: var(--color-text); font-size: 13px; line-height: 1.5; }
+.task-confirm input { margin-top: 2px; }
+.pending-task-note { width: min(var(--conversation-width), 100%); margin: 0 auto 8px; color: var(--color-primary); font-size: 13px; }
 .typing-dots { display: inline-flex; gap: 4px; }
 .typing-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--color-primary); animation: typing 1s infinite ease-in-out; }
 .typing-dots i:nth-child(2) { animation-delay: .15s; }

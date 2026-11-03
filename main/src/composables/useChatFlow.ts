@@ -29,6 +29,70 @@ const AUTO_ACTION_IDS = new Set([
   'publish_delivery',
 ])
 
+const TASK_ACTION_IDS = new Set([
+  'verify_generation',
+  'recover_generation',
+  'retrieve_original_result',
+  'recover_submission',
+  'resume_after_restart',
+  'continue_workflow',
+  'close_generation_tracking',
+  'start_new_generation',
+  'retry_generation',
+  'retry_rejected_generation',
+  'revise_prompt_and_retry',
+  'revise_requirements',
+  'revise_prompt',
+  'abandon_generation',
+])
+
+const TASK_REASON_LABELS: Record<string, string> = {
+  missing_information: '需要补充信息',
+  repairable_composition: '内容需要修复',
+  true_drift: '需要重新确认',
+  hard_failure: '硬约束不满足',
+  content_rejection: '内容未通过检查',
+  missing_evidence: '缺少必要证据',
+  protocol_error: '处理结果异常',
+  technical_failure: '技术故障',
+  remote_unknown: '结果未知',
+  authorization_invalid: '授权已失效',
+}
+
+const TASK_ACTION_HELP: Record<string, string> = {
+  verify_generation: '只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。',
+  recover_generation: '只在原任务已有可找回结果时读取原结果，不提交新生成、不新增计数。',
+  retrieve_original_result: '只找回原任务的结果，不新增计数。',
+  recover_submission: '查询原提交状态，不会重复提交。',
+  resume_after_restart: '恢复中断前的原任务并继续，不会自动补发已提交的请求。',
+  continue_workflow: '从已保存的检查点继续原流程，不新建生成意图。',
+  close_generation_tracking: '只结束本地跟踪并释放已证实占用；不会声称远端已取消，已计入的受理次数不变。',
+  start_new_generation: '这是新任务，会重新计数并占用槽位；旧任务仍可能在远端执行或计费。',
+  retry_generation: '重新生成会新增一次受理计数并占用生成槽位，请明确确认后再操作。',
+  retry_rejected_generation: '会按当前已批提示词重新生成一张图，新增一次受理计数并占用生成槽位。',
+  revise_prompt_and_retry: '先修改并重新审查提示词，再生成一张新图；会新增一次受理计数并占用生成槽位。',
+  revise_requirements: '修改需求会让旧提示词和授权失效；确认新需求前不会继续生成。',
+  revise_prompt: '修改提示词后会重新审查；确认前不会生成图片。',
+  abandon_generation: '放弃本次生成只结束当前尝试；已计入的受理次数不会退回。',
+}
+
+const TASK_CONFIRMATION_TEXT: Record<string, string> = {
+  close_generation_tracking: '我确认结束本地跟踪；原受理计数保留，且这不代表取消远端任务',
+  start_new_generation: '我确认这是新任务，将重新计数并占用槽位；旧任务仍可能在远端执行或计费',
+  retry_generation: '我确认重新生成会新增一次受理计数并占用生成槽位',
+  retry_rejected_generation: '我确认重新生成会新增一次受理计数并占用生成槽位',
+  revise_prompt_and_retry: '我确认重新生成会新增一次受理计数并占用生成槽位',
+  abandon_generation: '我确认放弃本次生成，已计入的受理次数不会退回',
+}
+
+const TASK_ACKNOWLEDGEMENT: Record<string, string> = {
+  close_generation_tracking: 'acknowledge_local_close',
+  start_new_generation: 'acknowledge_risk',
+  retry_generation: 'acknowledge_new_attempt',
+  retry_rejected_generation: 'acknowledge_new_attempt',
+  revise_prompt_and_retry: 'acknowledge_new_attempt',
+}
+
 function makeId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
@@ -72,6 +136,8 @@ export function useChatFlow() {
   const attachmentError = ref('')
   const pendingRequirementRequestId = ref('')
   const pendingPromptCommandId = ref('')
+  const pendingTaskAction = ref<WorkflowAction | null>(null)
+  const taskConfirmations = ref<Record<string, boolean>>({})
   let lastAutoAction = ''
   let autoArmed = false
   let copyTimer: ReturnType<typeof setTimeout> | null = null
@@ -173,6 +239,27 @@ export function useChatFlow() {
     if (current.stage === 'S08' || current.stage === 'S09') return '正在生成图片…'
     if (current.stage === 'S10') return '正在整理交付图片…'
     return ''
+  })
+  const taskReason = computed(() => view.value?.task_state?.reason ?? null)
+  const taskReasonLabel = computed(() => {
+    if (!taskReason.value) return ''
+    return TASK_REASON_LABELS[taskReason.value.category] || '任务需要处理'
+  })
+  const taskStatusText = computed(() => taskReason.value?.message || statusText.value)
+  const taskActions = computed<WorkflowAction[]>(() => {
+    const current = view.value
+    if (!current) return []
+    return current.available_actions.filter((action) => TASK_ACTION_IDS.has(action.id))
+  })
+  const isWorkingStatus = computed(() =>
+    !taskReason.value &&
+    !publishedAssetId.value &&
+    !promptPreview.value &&
+    view.value?.status === 'active',
+  )
+  const pendingTaskConfirmationMissing = computed(() => {
+    const action = pendingTaskAction.value
+    return Boolean(action?.requires_confirmation && !taskConfirmations.value[action.id])
   })
   const hasConversation = computed(() => Boolean(workspace.projectParam.value))
   const attachmentFileName = computed(() => pendingAttachment.value?.file.name ?? '')
@@ -308,15 +395,83 @@ export function useChatFlow() {
     return view.value?.available_actions.find((action) => action.id === id) ?? null
   }
 
-  function fallbackAction(id: string, label: string): WorkflowAction {
-    return {
-      id,
-      label,
-      kind: 'button',
-      requires_text: false,
-      text_label: null,
-      requires_confirmation: false,
+  function taskActionEffectLabel(action: WorkflowAction): string {
+    if (action.read_only || action.effect === 'read_only') return '只读核实'
+    if (action.requires_model_call || action.effect === 'model_call') return '可能调用模型'
+    return '更新状态'
+  }
+
+  function taskActionHelp(action: WorkflowAction): string {
+    return TASK_ACTION_HELP[action.id] || action.label
+  }
+
+  function taskConfirmationText(action: WorkflowAction): string {
+    return TASK_CONFIRMATION_TEXT[action.id] || '我已核对当前内容并确认继续。'
+  }
+
+  function taskActionPayload(action: WorkflowAction): Record<string, unknown> | null {
+    const key = TASK_ACKNOWLEDGEMENT[action.id]
+    return key ? { [key]: true } : null
+  }
+
+  function taskCountNote(action: WorkflowAction): string {
+    if (action.read_only || action.effect === 'read_only') return '只读核实不会新增受理计数。'
+    if (TASK_ACKNOWLEDGEMENT[action.id]) return '此操作会新增一次受理计数并占用生成槽位。'
+    return ''
+  }
+
+  function taskActionDisabled(action: WorkflowAction): boolean {
+    if (busy.value || workflow.actionBusy.value) return true
+    return Boolean(action.requires_confirmation && !taskConfirmations.value[action.id])
+  }
+
+  async function executeTaskAction(action: WorkflowAction, taskText: string | null = null): Promise<boolean> {
+    const projectId = workspace.projectParam.value
+    if (!projectId || busy.value || workflow.actionBusy.value) return false
+    if (action.requires_text && !taskText?.trim()) return false
+    if (action.requires_confirmation && !taskConfirmations.value[action.id]) {
+      flowError.value = '请先勾选确认后再执行这个动作。'
+      return false
     }
+    const sessionAtStart = sessionRevision.value
+    autoArmed = false
+    busy.value = true
+    flowError.value = ''
+    try {
+      const ok = await workflow.runAction(action, taskText?.trim() ?? null, taskActionPayload(action))
+      if (!ok) {
+        if (sessionAtStart === sessionRevision.value) {
+          flowError.value = workflow.error.value || '操作没有完成，请稍后重试。'
+        }
+        return false
+      }
+      if (sessionAtStart !== sessionRevision.value || workspace.projectParam.value !== projectId) {
+        return false
+      }
+      delete taskConfirmations.value[action.id]
+      pendingTaskAction.value = null
+      if (taskText !== null) workspace.draft.value = ''
+      await workspace.refreshProjectDetail()
+      return true
+    } finally {
+      busy.value = false
+    }
+  }
+
+  async function runTaskAction(action: WorkflowAction): Promise<void> {
+    if (taskActionDisabled(action)) return
+    if (action.requires_text) {
+      pendingTaskAction.value = action
+      flowError.value = ''
+      return
+    }
+    await executeTaskAction(action)
+  }
+
+  async function submitTaskText(body: string): Promise<boolean> {
+    const action = pendingTaskAction.value
+    if (!action || !body.trim() || busy.value) return false
+    return executeTaskAction(action, body)
   }
 
   function autoAction(): WorkflowAction | null {
@@ -424,6 +579,10 @@ export function useChatFlow() {
   async function send(content: string): Promise<void> {
     const body = content.trim()
     if (!body || busy.value) return
+    if (pendingTaskAction.value) {
+      await submitTaskText(body)
+      return
+    }
     if (!workspace.currentProject.value) {
       if (pendingAttachment.value) await beginWithAttachment(body)
       else await begin(body)
@@ -464,7 +623,8 @@ export function useChatFlow() {
     const current = view.value
     const artifact = finalBrief.value
     if (!current || !artifact || busy.value) return
-    const action = actionById('confirm_requirements') ?? fallbackAction('confirm_requirements', '确认需求')
+    const action = actionById('confirm_requirements')
+    if (!action) return
     if (!pendingRequirementRequestId.value) pendingRequirementRequestId.value = makeId()
     autoArmed = true
     busy.value = true
@@ -486,7 +646,8 @@ export function useChatFlow() {
   async function confirmPrompt(): Promise<void> {
     const preview = promptPreview.value
     if (!preview?.can_confirm || busy.value) return
-    const action = actionById('confirm_prompt') ?? fallbackAction('confirm_prompt', '确认提示词')
+    const action = actionById('confirm_prompt')
+    if (!action) return
     if (!pendingPromptCommandId.value) pendingPromptCommandId.value = makeId()
     autoArmed = true
     busy.value = true
@@ -544,6 +705,8 @@ export function useChatFlow() {
       autoArmed = false
       pendingRequirementRequestId.value = ''
       pendingPromptCommandId.value = ''
+      pendingTaskAction.value = null
+      taskConfirmations.value = {}
       flowError.value = ''
       copied.value = false
     },
@@ -562,6 +725,9 @@ export function useChatFlow() {
     sessionRevision,
     () => {
       if (pendingAttachment.value) clearAttachmentState(true)
+      pendingTaskAction.value = null
+      taskConfirmations.value = {}
+      flowError.value = ''
     },
     { flush: 'sync' },
   )
@@ -584,6 +750,14 @@ export function useChatFlow() {
     attachmentBusy,
     attachmentError,
     attachmentFileName,
+    taskReason,
+    taskReasonLabel,
+    taskStatusText,
+    taskActions,
+    taskConfirmations,
+    pendingTaskAction,
+    pendingTaskConfirmationMissing,
+    isWorkingStatus,
     chooseAttachment,
     removeAttachment,
     hasConversation,
@@ -604,5 +778,11 @@ export function useChatFlow() {
     confirmPrompt,
     copyPrompt,
     retry,
+    taskActionEffectLabel,
+    taskActionHelp,
+    taskConfirmationText,
+    taskCountNote,
+    taskActionDisabled,
+    runTaskAction,
   }
 }
