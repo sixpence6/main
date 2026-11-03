@@ -63,10 +63,10 @@ TDD 红绿证据：
 主验收（既有 119 条 + T06 10 条 + T07 8 条 + T08 6 条）：
 
 ```powershell
-& $py -m pytest tests/test_issue_117_t05.py tests/test_issue_115_t03.py tests/test_issue_116_t04.py tests/test_issue_114_t02.py tests/test_issue_114_migration.py tests/test_issue_113_t01.py tests/test_issue_113_migration.py tests/test_issue_118_t06.py tests/test_issue_119_t07.py tests/test_issue_120_t08.py -q -p no:cacheprovider --basetemp D:/Desktop/issue-112-context/t120-main1
+& $py -m pytest tests/test_issue_117_t05.py tests/test_issue_115_t03.py tests/test_issue_116_t04.py tests/test_issue_114_t02.py tests/test_issue_114_migration.py tests/test_issue_113_t01.py tests/test_issue_113_migration.py tests/test_issue_118_t06.py tests/test_issue_119_t07.py tests/test_issue_120_t08.py -q -p no:cacheprovider --basetemp D:/Desktop/issue-112-context/t120-main2
 ```
 
-结果：`143 passed in 555.41s`。
+结果：`143 passed in 493.37s`。
 
 静态检查：`main/backend/app/models.py`、`message_attachments.py`、`messages.py`、`projects.py`、`routers/assets.py`、`routers/messages.py`、`routers/projects.py`、`schemas.py`、`presenters.py`、`workflow/contracts.py`、`s03.py` 与新增测试均通过 `ruff check --no-cache`；`workflow/prompts.py` 仅报告 60 条既有 E501，`workflow/templates.py` 仅报告既有 `IMAGE_NOT_APPROVED` 单行过长，无其他类型错误，本次新增说明未引入检查错误。`git diff --check` 无错误，`compileall` 通过。
 
@@ -93,4 +93,8 @@ TDD 红绿证据：
 
 ## 6. 合并复核（Lead）
 
-- 待合并后填写。
+- 功能提交：`23eb28c feat(workflow): attach images to messages with stable reference usage (#120)`（22 个文件，+1509/-23）。
+- 集成合并：`8a41efe merge: T08 image-text messages with stable reference usage (#120)`，以 `--no-ff` 合入 `codex/issue-112-integration`（父提交 `82cdb1e`）。
+- 合并后主验收使用同一 10 个测试文件与隔离临时库：`143 passed in 493.37s`（basetemp `D:/Desktop/issue-112-context/t120-main2`）。
+- 测试文件与功能提交中的版本一致（`git diff 23eb28c..8a41efe -- backend/tests/test_issue_120_t08.py` 无输出）；合并前静态检查为仅既有 E501、`compileall` 通过、`git diff --check` 无错误。
+- 结论：T08 后端纵向切片验收通过，`#120` 可关闭；R3 前端仍须先通过 #121 的 R2→R3 门槛，真实浏览器/设备证据留待 #129。
