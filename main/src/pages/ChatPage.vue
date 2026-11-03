@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { assetUrl } from '@/api/client'
 import { useChatFlow } from '@/composables/useChatFlow'
 import { useWorkspace } from '@/composables/useWorkspace'
-import { displayProjectTitle } from '@/utils/format'
+import { displayProjectTitle, formatDateTime } from '@/utils/format'
 
 const workspace = useWorkspace()
 const flow = useChatFlow()
@@ -34,6 +35,8 @@ const {
   referenceInfo,
   publishedAssetId,
   publishedCaption,
+  imageHistory,
+  resultUnavailableText,
   taskReason,
   taskReasonLabel,
   taskStatusText,
@@ -127,6 +130,7 @@ watch(
     canConfirmRequirements.value,
     Boolean(promptPreview.value),
     publishedAssetId.value,
+    imageHistory.value.length,
   ],
   async () => {
     await nextTick()
@@ -145,6 +149,12 @@ function onEnter(event: KeyboardEvent): void {
   if (composing.value || event.isComposing) return
   event.preventDefault()
   void submit()
+}
+
+function resultPageRoute(runId: string): { name: string; params?: { projectId: string }; query?: { version: string } } {
+  const projectId = currentProject.value?.id
+  if (!projectId) return { name: 'describe' }
+  return { name: 'project-results', params: { projectId }, query: { version: runId } }
 }
 
 function roleLabel(role: string): string {
@@ -299,18 +309,80 @@ function roleLabel(role: string): string {
             </div>
           </section>
 
-          <figure v-if="publishedAssetId" class="assistant-turn result-turn">
+          <section
+            v-if="resultUnavailableText"
+            class="assistant-turn result-turn"
+            aria-label="当前结果不可用"
+          >
             <div class="message-bubble">
               <p class="message-role">智能生图助手</p>
-              <p class="message-content">图片已经生成，可以保存使用了。</p>
-              <img
-                class="result-image"
-                :src="assetUrl(publishedAssetId)"
-                :alt="publishedCaption"
-              >
-              <figcaption>{{ publishedCaption }}</figcaption>
+              <p class="message-content">{{ resultUnavailableText }}</p>
             </div>
-          </figure>
+          </section>
+
+          <section v-if="imageHistory.length" class="assistant-turn image-history" aria-label="图片历史">
+            <div class="message-bubble history-bubble">
+              <p class="message-role">智能生图助手</p>
+              <p class="history-lead">图片和当时实际使用的提示词都按版本保留。默认继续使用最新版本，查看旧版本不会改变修改基准。</p>
+            </div>
+            <article
+              v-for="item in imageHistory"
+              :key="item.runId"
+              class="message-bubble result-card"
+              :aria-label="'版本 ' + item.sequenceNo + ' 结果'"
+            >
+              <p class="result-heading">
+                <span class="result-badge" :class="{ 'is-current': item.isCurrent }">
+                  {{ item.isCurrent ? '当前版本' : item.isLatest ? '最新已发布' : '历史版本' }}
+                </span>
+                <span>版本 {{ item.sequenceNo }} · 需求 v{{ item.requirementRevision }}</span>
+              </p>
+              <a
+                v-if="item.assetId"
+                class="result-image-link"
+                :href="assetUrl(item.assetId)"
+                target="_blank"
+                rel="noopener"
+                :aria-label="'查看大图：' + item.caption"
+              >
+                <img class="result-image" :src="assetUrl(item.assetId)" :alt="item.caption">
+              </a>
+              <div v-else class="result-unavailable" role="status">
+                <strong>该版本图片不可用</strong>
+                <p>该版本图片已撤销、过期、文件缺失或未通过内容门禁，系统不会用其他版本替代。</p>
+              </div>
+              <p v-if="item.isCurrent && item.assetId" class="message-content result-status">图片已经生成，可以保存使用了。</p>
+              <p class="result-caption">{{ item.caption }}</p>
+              <details v-if="item.prompt" class="result-prompt">
+                <summary>该版本实际使用的已批准提示词</summary>
+                <pre v-if="item.prompt.positive">{{ item.prompt.positive }}</pre>
+                <template v-if="item.prompt.negative">
+                  <h4>需要避免</h4>
+                  <pre>{{ item.prompt.negative }}</pre>
+                </template>
+              </details>
+              <details v-else class="result-prompt">
+                <summary>该版本提示词不可用</summary>
+                <p>该版本未保存可展示的已批准提示词；系统不会用当前提示词替代。</p>
+              </details>
+              <div class="result-actions">
+                <a
+                  v-if="item.canDownload && item.assetId"
+                  class="primary-action result-download"
+                  :href="assetUrl(item.assetId) + '?download=true'"
+                  download
+                >
+                  下载原图
+                </a>
+                <RouterLink class="text-button" :to="resultPageRoute(item.runId)">
+                  在结果页只读查看
+                </RouterLink>
+              </div>
+              <p class="result-time">
+                发布于 <time :datetime="item.publishedAt || item.createdAt">{{ formatDateTime(item.publishedAt || item.createdAt) }}</time>
+              </p>
+            </article>
+          </section>
         </template>
       </template>
     </div>
@@ -512,7 +584,27 @@ function roleLabel(role: string): string {
 .typing-dots i:nth-child(2) { animation-delay: .15s; }
 .typing-dots i:nth-child(3) { animation-delay: .3s; }
 @keyframes typing { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+.image-history { display: flex; flex-direction: column; gap: 14px; }
+.history-bubble { width: 100%; }
+.history-lead { margin: 0; color: var(--color-text-muted); font-size: 13px; line-height: 1.6; }
+.result-card { width: 100%; padding: 16px 18px; }
+.result-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; color: var(--color-text-muted); font-size: 13px; }
+.result-badge { padding: 2px 8px; border-radius: 999px; background: var(--color-panel); color: var(--color-text-muted); font-size: 12px; }
+.result-badge.is-current { background: var(--color-primary-soft); color: var(--color-primary); }
+.result-image-link { display: block; }
 .result-image { display: block; width: min(640px, 100%); max-height: 620px; margin: 4px 0 10px; border-radius: 16px; object-fit: contain; background: var(--color-panel); }
+.result-caption { margin: 8px 0 0; color: var(--color-text-muted); font-size: 13px; }
+.result-status { margin-top: 10px; }
+.result-prompt { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--color-border-soft); border-radius: 10px; background: var(--color-panel); }
+.result-prompt summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.result-prompt pre { margin: 10px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono); }
+.result-prompt h4 { margin: 12px 0 4px; font-size: 12px; color: var(--color-text-muted); }
+.result-prompt p { margin: 8px 0 0; color: var(--color-text-muted); font-size: 13px; }
+.result-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+.result-download { min-height: 36px; padding: 0 14px; font-size: 13px; text-decoration: none; }
+.result-time { margin: 10px 0 0; color: var(--color-text-muted); font-size: 12px; }
+.result-unavailable { margin: 8px 0 0; padding: 12px; border: 1px solid #efcaca; border-radius: 10px; background: #fff7f7; color: var(--color-danger); }
+.result-unavailable p { margin: 6px 0 0; font-size: 13px; line-height: 1.6; }
 figcaption { color: var(--color-text-muted); font-size: 13px; }
 .chat-error { width: min(var(--conversation-width), 100%); margin: 0 auto 20px; padding: 12px 14px; border: 1px solid #efcaca; border-radius: 12px; background: #fff7f7; color: var(--color-danger); }
 .chat-error p { margin: 0 0 4px; }

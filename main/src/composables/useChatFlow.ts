@@ -19,6 +19,25 @@ interface PendingAttachment {
   stagedProjectId: string | null
 }
 
+interface ImageHistoryPrompt {
+  positive: string
+  negative: string
+}
+
+interface ImageHistoryItem {
+  runId: string
+  sequenceNo: number
+  requirementRevision: number
+  assetId: string | null
+  caption: string
+  publishedAt: string | null
+  createdAt: string
+  prompt: ImageHistoryPrompt | null
+  canDownload: boolean
+  isCurrent: boolean
+  isLatest: boolean
+}
+
 const AUTO_ACTION_IDS = new Set([
   'compose_brief',
   'plan_creative',
@@ -203,14 +222,77 @@ export function useChatFlow() {
     const version = text(reference.content_version)
     return version ? usage + ' · 版本 ' + version.slice(0, 12) : usage
   })
+  function promptOfVersion(prompt: Record<string, unknown> | null): ImageHistoryPrompt | null {
+    if (!prompt) return null
+    const positive = text(prompt.positive_prompt) || text(prompt.prompt)
+    const negative = text(prompt.negative_prompt)
+    if (!positive && !negative) return null
+    return { positive, negative }
+  }
+
   const publishedAssetId = computed(() => {
     const current = view.value
     if (!current) return null
-    if (current.delivery?.status === 'published' && current.delivery.asset_id) {
-      return current.delivery.asset_id
+    if (current.delivery?.status !== 'published') return null
+    const versions = current.versions ?? []
+    const currentVersion = versions.find(
+      (version) => version.run_id === current.run_id && version.asset_id,
+    )
+    if (currentVersion?.asset_id) return currentVersion.asset_id
+    // 旧数据或尚未提供版本列表时，才回退到交付记录本身。
+    if (versions.length === 0 && current.delivery.asset_id) return current.delivery.asset_id
+    return null
+  })
+
+  const imageHistory = computed<ImageHistoryItem[]>(() => {
+    const current = view.value
+    if (!current) return []
+    const versions = [...(current.versions ?? [])]
+      .filter((version) => version.status === 'published')
+      .sort((left, right) => left.sequence_no - right.sequence_no)
+    if (versions.length === 0) {
+      if (current.delivery?.status === 'published' && current.delivery.asset_id) {
+        return [{
+          runId: current.run_id ?? 'current-delivery',
+          sequenceNo: 1,
+          requirementRevision: current.requirement_revision,
+          assetId: current.delivery.asset_id,
+          caption: current.delivery.caption || current.delivery.filename || '已完成的电商图片',
+          publishedAt: current.delivery.published_at,
+          createdAt: current.delivery.created_at,
+          prompt: null,
+          canDownload: true,
+          isCurrent: true,
+          isLatest: true,
+        }]
+      }
+      return []
     }
-    const version = [...(current.versions ?? [])].reverse().find((item) => item.asset_id && item.published_at)
-    return version?.asset_id ?? null
+    return versions.map((version, index) => ({
+      runId: version.run_id,
+      sequenceNo: version.sequence_no,
+      requirementRevision: version.requirement_revision,
+      assetId: version.asset_id,
+      caption: version.caption || version.filename || ('版本 ' + version.sequence_no + ' 生成图片'),
+      publishedAt: version.published_at,
+      createdAt: version.created_at,
+      prompt: promptOfVersion(version.prompt),
+      canDownload: version.can_download,
+      isCurrent: Boolean(current.run_id && version.run_id === current.run_id),
+      isLatest: index === versions.length - 1,
+    }))
+  })
+
+  const resultUnavailableText = computed(() => {
+    const current = view.value
+    if (!current?.delivery) return ''
+    if (current.delivery.status === 'revoked') {
+      return '当前交付已撤销，图片不可访问；历史记录（如有）仅作只读回看，系统不会用其他版本替代。'
+    }
+    if (current.delivery.status === 'published' && !publishedAssetId.value) {
+      return '当前交付图片已过期、文件缺失或未通过内容门禁，不能预览或下载；系统不会用其他版本替代。'
+    }
+    return ''
   })
   const publishedCaption = computed(() => {
     const current = view.value
@@ -771,6 +853,8 @@ export function useChatFlow() {
     referenceInfo,
     publishedAssetId,
     publishedCaption,
+    imageHistory,
+    resultUnavailableText,
     questionText,
     statusText,
     send,
