@@ -63,7 +63,7 @@ TDD 红证据：在基线 `cfe2db1` 的临时 worktree 中放入同一测试文�
 
 旧 `/messages` 非生成回归（无 `WorkflowRun` 的 organize 路径）：8 个文件合计 `55 passed in 98.42s`（basetemp `t119-msg2`）。更大范围旧 V2 回归中存在的 67 个 `FINAL_CONFIRMATION_REQUIRED` 失败，已在集成基线 `cfe2db1` 复现，属既有基线红，与本票无关。
 
-静态检查：新增测试与 `services/messages.py`、`routers/messages.py`、`models.py`、`schemas.py`、`presenters.py`、`prompt_preparation.py`、`contracts.py`、`s01.py`、`s03.py`、`s06.py` 均通过 `ruff check --no-cache`；`s02.py` 与 `templates.py` 仅报告既有 E501（`s02.py:333`、`s02.py:454`、`templates.py:48`），`prompts.py` 仅既有长行；`git diff --check` 无输出。
+静态检查：新增测试与 `services/messages.py`、`routers/messages.py`、`models.py`、`schemas.py`、`presenters.py`、`prompt_preparation.py`、`contracts.py`、`s01.py`、`s03.py`、`s06.py` 均通过 `ruff check --no-cache`；`s02.py` 与 `templates.py` 仅报告既有 E501（`s02.py:333`、`s02.py:454`、`templates.py:48`）；`prompts.py` 仍有既有及本次沿用同风格的长行 E501；`git diff --check` 无输出。
 
 ## 4. 逐条验收判定
 
@@ -85,3 +85,10 @@ TDD 红证据：在基线 `cfe2db1` 的临时 worktree 中放入同一测试文�
 - 同一项目锁覆盖请求幂等检查、忙检查与动作执行；多进程部署时仍依赖数据库事务与项目锁策略，极端并发窗口未在本票用真实多进程压测覆盖。
 - 旧 V2 `/generations` 回归存在基线 `FINAL_CONFIRMATION_REQUIRED` 失败；已在 `cfe2db1` 复现，非本票引入，但会持续影响旧链路的全量绿色度。
 - 未覆盖真实浏览器、手机和前端展示；R3 后按 #129 补真实浏览器与设备证据。
+
+## 6. 合并复核（Lead）
+
+- 合并：`6b0adeb` 将 `codex/issue-112-t119`（`13294b3`）以 `--no-ff` 合并入 `codex/issue-112-integration`。
+- 合并后主验收集（119 条既有 + T06 10 条 + T07 8 条）：`137 passed in 474.56s`，basetemp `D:\Desktop\issue-112-context\t119-main-accept1`。
+- 静态检查：本票修改的生产文件与测试通过 `ruff check --no-cache` 的其余规则；仅报告既有 E501 与 `prompts.py` 同风格长行，`git diff --check` 无输出。
+- 结论：合并结果与 #119 分支验收一致，接受 #119 并关闭。
