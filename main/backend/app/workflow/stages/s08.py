@@ -10,6 +10,7 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from app import recovery_states as recovery_state
 from app.acceptance import (
     GenerationIntent,
     accept_in_session,
@@ -426,6 +427,40 @@ async def _mark_job(
         if submit_attempted is not None:
             job.submit_attempted = submit_attempted
         job.updated_at = _now()
+        await session.flush()
+
+
+async def _mark_submit_started(
+    session_factory,
+    job_id: str,
+    *,
+    generation_id: str,
+) -> None:
+    """Mark the attempt as dispatched with a durable submit-boundary trace.
+
+    The job marker and its audit row commit atomically: either both exist (an
+    unknown outcome is provable and must stay unknown) or neither does (the
+    request was provably not sent).
+    """
+
+    async with write_transaction(session_factory) as session:
+        job = await session.get(GenerationJob, job_id)
+        if job is None:
+            return
+        job.status = "submitted"
+        job.submit_attempted = 1
+        job.updated_at = _now()
+        write_audit(
+            session,
+            event_type=recovery_state.SUBMISSION_AUDIT_EVENT,
+            result="success",
+            now=utc_now(),
+            actor_kind="system",
+            target_kind="generation_job",
+            target_id=job.id,
+            correlation_id=job.id,
+            detail={"generation_id": generation_id, "submit_attempted": 1},
+        )
         await session.flush()
 
 
@@ -938,8 +973,20 @@ async def _recover(ctx: WorkflowContext) -> None:
     job = await _latest_job(ctx.app, ctx.run_id)
     if job is None or job.generation_id is None:
         raise ApiError(409, "RECOVERY_NOT_AVAILABLE", "没有可恢复的原生成任务。")
-    resumed = await resume_interrupted(ctx.app, job.id)
-    if resumed is not None:
+    async with read_session(ctx.app.state.session_factory) as session:
+        record = await recovery_state.load_recovery_record(session, job.id)
+    if record.state == recovery_state.WAITING:
+        # No durable final authorization exists: legacy recovery cannot mint one.
+        recovery_state.require_legacy_authorization(record.authorization)
+        raise ApiError(409, "RECOVERY_NOT_AVAILABLE", "生成尚未获得最终授权，不能恢复执行。")
+    if record.state == recovery_state.AUTHORIZED_NOT_CALLED:
+        resumed = await resume_interrupted(ctx.app, job.id)
+        if resumed is None:
+            raise ApiError(
+                409,
+                "RECOVERY_NOT_AVAILABLE",
+                "当前任务不能消费最终授权，不能恢复执行。",
+            )
         await state.set_stage(ctx, STAGE, "active")
         _schedule(
             ctx.app,
@@ -950,6 +997,10 @@ async def _recover(ctx: WorkflowContext) -> None:
             resumed["snapshot_digest"],
         )
         return
+    if record.state not in (recovery_state.SUBMITTED, recovery_state.UNKNOWN):
+        raise ApiError(409, "RECOVERY_NOT_AVAILABLE", "任务状态不支持恢复。")
+    # Submitted/unknown tasks are only verified or retrieved, never submitted again.
+    recovery_state.require_action(record.state, "verify_submission")
     outcome = await recover_remote(ctx.app, job.id)
     if outcome == "succeeded":
         await _advance_to_review(ctx.app, job.id)
@@ -1010,7 +1061,9 @@ async def _run_job(
 
         from app.final_confirmation import require_authorized_job
         await require_authorized_job(app.state.session_factory, job_id)
-        await _mark_job(app.state.session_factory, job_id, status="submitted", submit_attempted=1)
+        await _mark_submit_started(
+            app.state.session_factory, job_id, generation_id=generation_id
+        )
         await execute_generation(app, generation_id)
 
         # 供应商返回时再次核对当前确认版本；旧版本结果只保留审计信息，

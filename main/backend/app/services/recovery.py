@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import FastAPI
 from sqlalchemy import select
 
+from app import recovery_states
 from app.db import write_transaction
 from app.models import Generation, Project
 from app.timeutil import format_timestamp, utc_now
@@ -130,17 +131,26 @@ async def _repair_generation_jobs(session, now: str) -> int:
             affected_runs[job.run_id] = "S09"
             repaired += 1
             continue
-        uncertain = (
-            job.status in {"submitted", "remote_pending"}
-            or (
-                generation is not None
-                and (
-                    (generation.submit_attempted or 0) > 0
-                    or bool(generation.remote_task_id)
-                    or generation.status in {"running", "succeeded", "unknown"}
-                )
-            )
+        from app.final_confirmation import FinalAuthorization
+
+        authorization = await session.scalar(
+            select(FinalAuthorization).where(FinalAuthorization.job_id == job.id)
         )
+        facts = recovery_states.facts_from_rows(
+            job,
+            generation,
+            authorization,
+            submission_audit=await recovery_states.has_submission_audit(
+                session, job.id
+            ),
+        )
+        # Job.submit_attempted, the durable submit audit trace and any remote
+        # evidence all count. Unknown outcomes are never rewritten as
+        # "not submitted": that would invite a second provider submit.
+        uncertain = recovery_states.classify(facts) in {
+            recovery_states.SUBMITTED,
+            recovery_states.UNKNOWN,
+        }
         if uncertain:
             job.status = "unknown"
             job.error_code = "VISUAL_OUTCOME_UNKNOWN"
