@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 
 class ContractError(ValueError):
@@ -94,6 +94,29 @@ class IntentData(StrictModel):
         "upload_help", "status_query", "download", "none",
     ]
     evidence_ids: EvidenceIds
+
+
+class ConversationData(StrictModel):
+    """Bounded attribution for a message that does not itself execute a stage."""
+
+    kind: Literal[
+        "conversation",
+        "clarification",
+        "requirements_change",
+        "reference_usage_change",
+        "prompt_change",
+    ]
+    reference_usage: Usage = "none"
+    evidence_ids: EvidenceIds
+
+    @model_validator(mode="after")
+    def _usage_matches_kind(self) -> ConversationData:
+        if self.kind == "reference_usage_change":
+            if self.reference_usage == "none":
+                raise ValueError("reference_usage_change 必须给出参考图用途")
+        elif self.reference_usage != "none":
+            raise ValueError("只有 reference_usage_change 可以携带参考图用途")
+        return self
 
 
 class ReferenceData(StrictModel):
@@ -230,8 +253,12 @@ GenerationEnvelope = _envelope(
 QualityEnvelope = _envelope("quality_compliance", ("ready", "blocked"), QualityData)
 DeliveryEnvelope = _envelope("delivery_manager", ("ready", "blocked"), DeliveryData)
 ReviewEnvelope = _envelope("output_reviewer", ("ready", "blocked"), ReviewData)
+ConversationEnvelope = _envelope(
+    "conversation_router", ("ready", "blocked"), ConversationData
+)
 
 ENVELOPES: dict[str, type[BaseModel]] = {
+    "conversation_router": ConversationEnvelope,
     "intent_router": IntentEnvelope,
     "reference_analyst": ReferenceEnvelope,
     "requirements_consultant": RequirementsEnvelope,

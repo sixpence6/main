@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import UUID4, BaseModel, ConfigDict, Field, StrictBool, StrictInt, model_validator
 
+from app.workflow.schemas_workflow import WorkflowView
+
 BriefStatus = Literal["draft", "organizing", "needs_input", "review", "confirmed"]
 GenerationStatus = Literal["queued", "running", "succeeded", "failed", "unknown"]
 GenerationStage = Literal["waiting_slot", "submitting", "waiting_remote", "fetching_result", "done"]
@@ -76,6 +78,8 @@ class MessageView(BaseModel):
     content: str
     project_revision: int
     brief_snapshot: Brief | None
+    turn_kind: Literal["workflow", "conversation", "prompt"] = "workflow"
+    request_id: str | None = None
     legacy_unreviewed: bool = False
     legacy_notice: str | None = None
     created_at: str
@@ -222,6 +226,7 @@ class SendMessageRequest(BaseModel):
 
     content: str = Field(min_length=1, max_length=20_000)
     expected_revision: StrictInt = Field(ge=0)
+    request_id: UUID4 | None = None
 
 
 class UpdateBriefRequest(BaseModel):
@@ -269,6 +274,7 @@ class MessageExchangeResponse(BaseModel):
     project: ProjectView
     user_message: MessageView
     assistant_message: MessageView
+    workflow: WorkflowView | None = None
 
 
 class GenerationResponse(BaseModel):
