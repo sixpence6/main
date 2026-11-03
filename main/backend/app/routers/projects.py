@@ -132,6 +132,13 @@ async def get_project_endpoint(request: Request, project_id: str) -> ProjectDeta
         project=project_view(
             detail.project, detail.reference_asset, data_dir, policy=detail.policy
         ),
-        messages=[message_view(message, policy=detail.policy) for message in detail.messages],
+        messages=[
+            message_view(
+                message,
+                policy=detail.policy,
+                attachment=detail.attachments.get(message.id),
+            )
+            for message in detail.messages
+        ],
         generations=generation_views,
     )

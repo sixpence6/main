@@ -18,7 +18,7 @@ def test_0012_upgrade_preserves_history_and_creates_no_final_authorization(setti
     original = _insert_legacy_approval(settings)
     command.upgrade(config, "head")
     with sqlite3.connect(settings.database_path) as db:
-        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0014",)
+        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0015",)
         assert db.execute("SELECT checks_json FROM approvals").fetchall() == [(original,)]
         assert db.execute("SELECT count(*) FROM final_authorizations").fetchone() == (0,)
         assert db.execute("SELECT count(*) FROM generation_jobs").fetchone() == (0,)

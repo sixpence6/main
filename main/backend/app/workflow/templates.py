@@ -91,6 +91,10 @@ TEMPLATES: Final[dict[str, str]] = {
     "REFERENCE_USAGE_UPDATED": (
         "已更新参考图用途并重新整理需求；旧等待和授权不再有效，完成后会重新展示并需要再次确认。"
     ),
+    "REFERENCE_USAGE_CLARIFY": (
+        "图片已收到，但还需要你说明它作为商品参考、风格参考还是构图参考；"
+        "在用途明确前，不会改变当前需求或业务引用，也不会开始生成。"
+    ),
 }
 
 _PARAMS: Final[dict[str, tuple[str, ...]]] = {

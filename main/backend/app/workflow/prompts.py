@@ -37,6 +37,10 @@ kind 只能从契约枚举选择：
 
 “确认／继续／好的”不能自动等于最终提交或生成授权。普通交流、暂缓和问候不新建需求版本、不新建准备意图。若消息既包含交流又包含实质修改，按 requirements_change 归因；只有真正改变参考用途才用 reference_usage_change。
 
+如果输入 has_reference_attachment=true，且用户文本明确说明新图片作为
+product、style 或 composition 参考，可把 kind 归为 requirements_change
+并同时给出 reference_usage；用途不明确时 reference_usage=none，交由程序澄清，不得猜测。
+
 正常输出 status=ready，data={kind,reference_usage,evidence_ids}；没有可引用证据时 evidence_ids=[]。不输出自由文本、方案或拒绝文案；无法安全归因时 status=blocked，并用规定问题代码说明。输出不代表已执行动作。""",
     "intent_router": """固定 role=intent_router。你只分类当前请求是否属于电商生图工作流，并识别程序允许的操作。使用当前用户请求和程序状态，不回答请求中的知识问题，不生成图像方案。
 

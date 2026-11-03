@@ -35,6 +35,29 @@ class AssetView(BaseModel):
     review_status: AssetReviewStatus = "quarantined"
 
 
+class MessageAttachmentView(BaseModel):
+    id: str
+    message_id: str
+    asset_id: str
+    usage: Literal["none", "product", "style", "composition"]
+    content_version: str
+    sha256: str
+    mime_type: str
+    width: int
+    height: int
+    byte_size: int
+    preview_url: str
+    created_at: str
+
+
+class StagedMessageAttachmentView(BaseModel):
+    asset: AssetView
+    usage: Literal["none"] = "none"
+    content_version: str
+    sha256: str
+    preview_url: str
+
+
 class ErrorView(BaseModel):
     code: str
     message: str
@@ -80,6 +103,7 @@ class MessageView(BaseModel):
     brief_snapshot: Brief | None
     turn_kind: Literal["workflow", "conversation", "prompt"] = "workflow"
     request_id: str | None = None
+    attachment: MessageAttachmentView | None = None
     legacy_unreviewed: bool = False
     legacy_notice: str | None = None
     created_at: str
@@ -227,6 +251,7 @@ class SendMessageRequest(BaseModel):
     content: str = Field(min_length=1, max_length=20_000)
     expected_revision: StrictInt = Field(ge=0)
     request_id: UUID4 | None = None
+    attachment_asset_id: UUID4 | None = None
 
 
 class UpdateBriefRequest(BaseModel):

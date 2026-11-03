@@ -133,6 +133,47 @@ class Asset(Base):
     )
 
 
+class MessageAttachment(Base):
+    __tablename__ = "message_attachments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    message_id: Mapped[str] = mapped_column(
+        ForeignKey("messages.id", ondelete="CASCADE"), nullable=False
+    )
+    asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), nullable=False
+    )
+    usage: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="none", server_default="none"
+    )
+    content_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    width: Mapped[int] = mapped_column(Integer, nullable=False)
+    height: Mapped[int] = mapped_column(Integer, nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "usage IN ('none','product','style','composition')",
+            name="ck_message_attachments_usage",
+        ),
+        CheckConstraint(
+            "width > 0 AND height > 0",
+            name="ck_message_attachments_dimensions_positive",
+        ),
+        CheckConstraint(
+            "byte_size >= 0", name="ck_message_attachments_byte_size_non_negative"
+        ),
+        UniqueConstraint("message_id", name="uq_message_attachments_message"),
+        UniqueConstraint("asset_id", name="uq_message_attachments_asset"),
+        Index("ix_message_attachments_project", "project_id"),
+    )
+
+
 class Generation(Base):
     __tablename__ = "generations"
 

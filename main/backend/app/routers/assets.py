@@ -15,9 +15,9 @@ from app.errors import ApiError, validation_error
 from app.models import Asset, Project
 from app.operator_audit import record_operator_event_safely
 from app.ownership import require_project_owner, revalidate_principal
-from app.presenters import project_view
+from app.presenters import asset_view, project_view
 from app.request_source import client_ip
-from app.schemas import ERROR_RESPONSE, ProjectView
+from app.schemas import ERROR_RESPONSE, ProjectView, StagedMessageAttachmentView
 from app.services.assets import (
     ImageValidationError,
     attach_reference,
@@ -26,6 +26,11 @@ from app.services.assets import (
     inspect_image,
     remove_reference,
     require_asset_file,
+)
+from app.services.message_attachments import (
+    discard_staged_attachment,
+    preview_url,
+    stage_message_attachment,
 )
 from app.services.retention import asset_is_retention_expired
 from app.workflow import templates
@@ -233,6 +238,108 @@ async def delete_reference(
         state.settings.resolved_data_dir(),
         policy=policy,
     )
+
+
+
+@router.post(
+    "/api/projects/{project_id}/message-attachments",
+    response_model=StagedMessageAttachmentView,
+    responses={
+        401: ERROR_RESPONSE,
+        404: ERROR_RESPONSE,
+        409: ERROR_RESPONSE,
+        413: ERROR_RESPONSE,
+        422: ERROR_RESPONSE,
+    },
+)
+async def stage_message_attachment_endpoint(
+    project_id: str, request: Request
+) -> StagedMessageAttachmentView:
+    state = request.app.state
+    principal = require_principal(request)
+    await require_project_owner(state.session_factory, project_id, principal)
+    settings = state.settings
+    max_bytes = effective_reference_max_bytes(settings, state.registry)
+    form = await _parse_multipart(request, max_bytes + REFERENCE_MULTIPART_OVERHEAD_BYTES)
+    try:
+        items = form.multi_items()
+        files = [value for key, value in items if key == "file"]
+        if (
+            len(items) != 1
+            or {key for key, _value in items} != {"file"}
+            or len(files) != 1
+            or not isinstance(files[0], UploadFile)
+        ):
+            raise validation_error("仅支持一个待发送图片文件")
+        data = await files[0].read()
+    finally:
+        await form.close()
+    if len(data) > max_bytes:
+        raise ApiError(413, "UPLOAD_TOO_LARGE", "参考图文件过大")
+    try:
+        image = await asyncio.to_thread(inspect_image, data)
+    except ImageValidationError as exc:
+        raise ApiError(422, exc.code, exc.message) from None
+    staged = await stage_message_attachment(
+        state.session_factory,
+        state.locks,
+        settings,
+        project_id=project_id,
+        data=data,
+        image=image,
+        principal=principal,
+    )
+    await record_operator_event_safely(
+        request.app,
+        event_type="message_attachment_staged",
+        principal=principal,
+        project_id=project_id,
+        source=client_ip(request),
+        detail={
+            "asset_id": staged.asset.id,
+            "content_version": staged.content_version,
+            "mime_type": image.mime_type,
+            "width": image.width,
+            "height": image.height,
+            "byte_size": len(data),
+        },
+    )
+    return StagedMessageAttachmentView(
+        asset=asset_view(staged.asset, settings.resolved_data_dir()),
+        usage="none",
+        content_version=staged.content_version,
+        sha256=staged.content_version,
+        preview_url=preview_url(staged.asset.id),
+    )
+
+
+@router.delete(
+    "/api/projects/{project_id}/message-attachments/{asset_id}",
+    responses={401: ERROR_RESPONSE, 404: ERROR_RESPONSE, 409: ERROR_RESPONSE},
+)
+async def discard_message_attachment_endpoint(
+    project_id: str, asset_id: str, request: Request
+) -> dict[str, object]:
+    state = request.app.state
+    principal = require_principal(request)
+    await require_project_owner(state.session_factory, project_id, principal)
+    await discard_staged_attachment(
+        state.session_factory,
+        state.locks,
+        state.settings,
+        project_id=project_id,
+        asset_id=asset_id,
+        principal=principal,
+    )
+    await record_operator_event_safely(
+        request.app,
+        event_type="message_attachment_discarded",
+        principal=principal,
+        project_id=project_id,
+        source=client_ip(request),
+        detail={"asset_id": asset_id},
+    )
+    return {"asset_id": asset_id, "discarded": True}
 
 
 @router.get(

@@ -21,10 +21,15 @@ from app.auth.principal import Principal
 from app.config import Settings
 from app.db import ProjectLocks, read_session, write_transaction
 from app.errors import ApiError, conflict, validation_error
-from app.models import Asset, Generation, Message, Project
+from app.models import Asset, Generation, Message, MessageAttachment, Project
 from app.ownership import require_project_scope
 from app.presenters import brief_from_project, snapshot_json
 from app.services.assets import resolve_asset_file
+from app.services.message_attachments import (
+    bind_message_attachment,
+    load_pending_attachment,
+    require_attachment_asset,
+)
 from app.services.projects import DEFAULT_PROJECT_TITLE
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates as workflow_templates
@@ -48,6 +53,7 @@ class MessageExchange:
     reference_asset: Asset | None = None
     workflow: Any | None = None
     kind: str | None = None
+    attachment: MessageAttachment | None = None
 
 
 def ensure_llm_ready(settings: Settings, registry: AdapterRegistry) -> Any:
@@ -198,6 +204,11 @@ async def _existing_request_exchange(
             if project.reference_asset_id
             else None
         )
+        attachment = await session.scalar(
+            select(MessageAttachment).where(
+                MessageAttachment.message_id == users[0].id
+            )
+        )
         view = await workflow_state.build_workflow_view(ctx)
         return MessageExchange(
             project=project,
@@ -206,6 +217,7 @@ async def _existing_request_exchange(
             reference_asset=reference_asset,
             workflow=view,
             kind=assistants[-1].turn_kind,
+            attachment=attachment,
         )
 
 
@@ -275,7 +287,9 @@ async def _settle_pending_intent(ctx: Any, reason: str) -> None:
         )
 
 
-async def _classify_message(ctx: Any, content: str) -> Any:
+async def _classify_message(
+    ctx: Any, content: str, *, has_reference_attachment: bool = False
+) -> Any:
     from app.workflow.contracts import ConversationData
     from app.workflow.roles import run_role
 
@@ -290,6 +304,7 @@ async def _classify_message(ctx: Any, content: str) -> Any:
             "intent_route": ctx.run.intent_route,
             "intent_action": ctx.run.intent_action,
             "reference_asset_id": ctx.project.reference_asset_id,
+            "has_reference_attachment": has_reference_attachment,
             "available_actions": [],
         },
     )
@@ -378,6 +393,7 @@ async def _write_conversation_exchange(
     request_id: str,
     principal: Principal | None,
     template: str = "CONVERSATION_ACK",
+    attachment_asset: Asset | None = None,
 ) -> MessageExchange:
     from app.workflow import state as workflow_state
 
@@ -390,6 +406,17 @@ async def _write_conversation_exchange(
         operation_id=request_id,
         turn_kind="conversation",
     )
+    attachment = None
+    if attachment_asset is not None:
+        async with write_transaction(ctx.session_factory) as session:
+            attachment = await bind_message_attachment(
+                session,
+                project_id=ctx.project_id,
+                message_id=user_message.id,
+                asset=attachment_asset,
+                usage="none",
+                now=format_timestamp(utc_now()),
+            )
     assistant_message = await _append_workflow_message(
         ctx.session_factory,
         project_id=ctx.project_id,
@@ -414,6 +441,7 @@ async def _write_conversation_exchange(
         reference_asset=reference_asset,
         workflow=view,
         kind="conversation",
+        attachment=attachment,
     )
 
 
@@ -480,6 +508,12 @@ async def _finish_action_exchange(
             if project.reference_asset_id
             else None
         )
+    async with read_session(ctx.session_factory) as session:
+        attachment = await session.scalar(
+            select(MessageAttachment).where(
+                MessageAttachment.message_id == user_message.id
+            )
+        )
     fresh = await workflow_state.reload_context(ctx)
     view = await workflow_state.build_workflow_view(fresh)
     return MessageExchange(
@@ -489,6 +523,7 @@ async def _finish_action_exchange(
         reference_asset=reference_asset,
         workflow=view,
         kind=kind,
+        attachment=attachment,
     )
 
 
@@ -515,6 +550,170 @@ async def _stamp_partial_action_messages(
                     row.turn_kind = "prompt" if kind == "prompt_change" else "workflow"
 
 
+async def _load_attachment_asset(ctx: Any, asset_id: str) -> Asset:
+    from app.workflow.access import can_access_asset
+
+    async with read_session(ctx.session_factory) as session:
+        asset = await require_attachment_asset(
+            session, project_id=ctx.project_id, asset_id=asset_id
+        )
+        bound = await session.scalar(
+            select(func.count())
+            .select_from(MessageAttachment)
+            .where(MessageAttachment.asset_id == asset.id)
+        )
+        if bound:
+            raise conflict(
+                "ATTACHMENT_ALREADY_SENT",
+                "该图片已经随消息发送，不能重复使用。",
+            )
+        decision = await can_access_asset(session, ctx.settings, asset)
+    if not decision.allow:
+        raise conflict(
+            "ATTACHMENT_NOT_AVAILABLE",
+            "待发送图片不可访问或内容已变化，请重新上传。",
+        )
+    if not asset.sha256:
+        raise conflict(
+            "ATTACHMENT_NOT_AVAILABLE",
+            "待发送图片缺少稳定内容版本，请重新上传。",
+        )
+    return asset
+
+
+async def _set_project_reference(ctx: Any, asset_id: str) -> None:
+    async with write_transaction(ctx.session_factory) as session:
+        project = await session.get(Project, ctx.project_id)
+        if project is None:
+            raise conflict("PROJECT_NOT_FOUND", "项目不存在")
+        project.reference_asset_id = asset_id
+        project.updated_at = format_timestamp(utc_now())
+        await session.flush()
+    ctx.project.reference_asset_id = asset_id
+
+
+async def _bind_attachment_for_action(
+    ctx: Any,
+    *,
+    asset: Asset,
+    usage: str,
+    start_sequence: int,
+    message_id: str | None = None,
+    existing: MessageAttachment | None = None,
+) -> MessageAttachment:
+    async with write_transaction(ctx.session_factory) as session:
+        if existing is not None:
+            row = await session.get(MessageAttachment, existing.id)
+            if row is None:
+                raise conflict("ATTACHMENT_NOT_FOUND", "消息附件不存在。")
+            row.usage = usage
+            message = await session.get(Message, row.message_id)
+            if message is not None:
+                message.turn_kind = "workflow"
+            await session.flush()
+            return row
+        if message_id is None:
+            latest = await session.scalar(
+                select(Message)
+                .where(
+                    Message.project_id == ctx.project_id,
+                    Message.role == "user",
+                    Message.sequence_no > start_sequence,
+                )
+                .order_by(Message.sequence_no.desc())
+                .limit(1)
+            )
+            if latest is None:
+                raise conflict("MESSAGE_NOT_RECORDED", "消息未能记录，请重新发送。")
+            message_id = latest.id
+        return await bind_message_attachment(
+            session,
+            project_id=ctx.project_id,
+            message_id=message_id,
+            asset=asset,
+            usage=usage,
+            now=format_timestamp(utc_now()),
+        )
+
+
+async def _load_pending_attachment(
+    ctx: Any,
+) -> tuple[MessageAttachment, Asset] | None:
+    from app.workflow.access import can_access_asset
+
+    pending = await load_pending_attachment(ctx.session_factory, ctx.project_id)
+    if pending is None:
+        return None
+    attachment, _message = pending
+    async with read_session(ctx.session_factory) as session:
+        asset = await session.get(Asset, attachment.asset_id)
+        if asset is None:
+            return None
+        decision = await can_access_asset(session, ctx.settings, asset)
+    if not decision.allow:
+        return None
+    return attachment, asset
+
+
+async def _send_attachment_action(
+    ctx: Any,
+    *,
+    content: str,
+    request_id: str,
+    principal: Principal | None,
+    asset: Asset,
+    usage: str,
+    start_sequence: int,
+    existing: MessageAttachment | None = None,
+) -> MessageExchange:
+    from app.workflow import state as workflow_state
+    from app.workflow.stages import s01, s02, s03
+
+    await _settle_pending_intent(ctx, "attachment_reference_change")
+    if ctx.run.stage == "S01" or ctx.run.intent_route is None:
+        await _set_project_reference(ctx, asset.id)
+        await workflow_state.record_diagnostic(
+            ctx,
+            "reference_usage_selected",
+            {"usage": usage, "asset_id": asset.id},
+        )
+        action = (
+            "answer_intent_clarification"
+            if ctx.run.status in {"needs_input", "blocked"}
+            else "submit_request"
+        )
+        await s01.handle(ctx, action, {"text": content})
+    else:
+        await s03.record_revision_text(ctx, content)
+        await _set_project_reference(ctx, asset.id)
+        await s02.prepare_after_reference_change(ctx)
+        await workflow_state.record_diagnostic(
+            ctx,
+            "reference_usage_selected",
+            {"usage": usage, "asset_id": asset.id},
+        )
+        await s02.analyze(ctx, usage=usage)
+        await s03.start_requirements_revision(ctx, content, record_user_text=False)
+    attachment = await _bind_attachment_for_action(
+        ctx,
+        asset=asset,
+        usage=usage,
+        start_sequence=start_sequence,
+        existing=existing,
+    )
+    exchange = await _finish_action_exchange(
+        ctx,
+        request_id=request_id,
+        kind="requirements_change",
+        start_sequence=start_sequence,
+        fixed_template="REFERENCE_USAGE_UPDATED",
+        principal=principal,
+    )
+    if attachment.message_id == exchange.user_message.id:
+        exchange.attachment = attachment
+    return exchange
+
+
 async def _send_workflow_message(
     session_factory: async_sessionmaker[AsyncSession],
     locks: ProjectLocks,
@@ -526,6 +725,7 @@ async def _send_workflow_message(
     expected_revision: int,
     request_id: str | None,
     principal: Principal | None,
+    attachment_asset_id: str | None = None,
 ) -> MessageExchange:
     from app.workflow import dispatch
     from app.workflow import state as workflow_state
@@ -539,10 +739,12 @@ async def _send_workflow_message(
     async with locks.hold(project_id):
         ctx = await workflow_state.load_context(app, project_id, principal=principal)
         if ctx.run is None:
-            raise conflict(
-                "LEGACY_FLOW_DISABLED",
-                workflow_templates.render("LEGACY_FLOW_DISABLED"),
-            )
+            if attachment_asset_id is None:
+                raise conflict(
+                    "LEGACY_FLOW_DISABLED",
+                    workflow_templates.render("LEGACY_FLOW_DISABLED"),
+                )
+            await workflow_state.create_run(ctx, "S01")
         effective_request_id = request_id or str(uuid4())
         existing = await _existing_request_exchange(
             ctx, effective_request_id, content, principal
@@ -581,7 +783,72 @@ async def _send_workflow_message(
             )
         if active or unconverged:
             raise conflict("ACTIVE_GENERATION_EXISTS", "项目有正在进行的生成，请稍后再试")
-        decision = await _classify_message(ctx, content)
+        attachment_asset = (
+            await _load_attachment_asset(ctx, attachment_asset_id)
+            if attachment_asset_id is not None
+            else None
+        )
+        decision = await _classify_message(
+            ctx, content, has_reference_attachment=attachment_asset is not None
+        )
+        if (
+            attachment_asset is None
+            and decision.reference_usage != "none"
+            and decision.kind == "reference_usage_change"
+        ):
+            pending = await _load_pending_attachment(ctx)
+            if pending is not None:
+                pending_attachment, pending_asset = pending
+                start_sequence = await _max_sequence(session_factory, project_id)
+                try:
+                    exchange = await _send_attachment_action(
+                        ctx,
+                        content=content,
+                        request_id=effective_request_id,
+                        principal=principal,
+                        asset=pending_asset,
+                        usage=decision.reference_usage,
+                        start_sequence=start_sequence,
+                        existing=pending_attachment,
+                    )
+                except ApiError:
+                    await _stamp_partial_action_messages(
+                        ctx,
+                        request_id=effective_request_id,
+                        kind=decision.kind,
+                        start_sequence=start_sequence,
+                    )
+                    raise
+                return exchange
+        if attachment_asset is not None:
+            if decision.reference_usage == "none":
+                return await _write_conversation_exchange(
+                    ctx,
+                    content=content,
+                    request_id=effective_request_id,
+                    principal=principal,
+                    template="REFERENCE_USAGE_CLARIFY",
+                    attachment_asset=attachment_asset,
+                )
+            start_sequence = await _max_sequence(session_factory, project_id)
+            try:
+                return await _send_attachment_action(
+                    ctx,
+                    content=content,
+                    request_id=effective_request_id,
+                    principal=principal,
+                    asset=attachment_asset,
+                    usage=decision.reference_usage,
+                    start_sequence=start_sequence,
+                )
+            except ApiError:
+                await _stamp_partial_action_messages(
+                    ctx,
+                    request_id=effective_request_id,
+                    kind=decision.kind,
+                    start_sequence=start_sequence,
+                )
+                raise
         action, direct, fixed_template = await _plan_message_action(ctx, decision)
         if action is None and direct is None:
             return await _write_conversation_exchange(
@@ -665,6 +932,7 @@ async def send_message(
     principal: Principal | None = None,
     app: Any | None = None,
     request_id: str | None = None,
+    attachment_asset_id: str | None = None,
 ) -> MessageExchange:
     if not content.strip():
         raise validation_error("消息内容不能为空")
@@ -675,7 +943,7 @@ async def send_message(
             .where(WorkflowRun.project_id == project_id)
             .limit(1)
         )
-        if workflow_started is not None:
+        if workflow_started is not None or attachment_asset_id is not None:
             return await _send_workflow_message(
                 session_factory,
                 locks,
@@ -686,6 +954,7 @@ async def send_message(
                 expected_revision=expected_revision,
                 request_id=request_id,
                 principal=principal,
+                attachment_asset_id=attachment_asset_id,
             )
         # 旧项目的模型整理入口必须由后端统一暂停，前端禁用不具备授权效力。
         await ensure_legacy_entry_available(session, project_id)
