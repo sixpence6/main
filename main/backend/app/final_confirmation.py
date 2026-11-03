@@ -10,11 +10,13 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import ForeignKey, String, UniqueConstraint, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.acceptance import GenerationIntent, GenerationSlot
 from app.auth.audit import write_audit
 from app.auth.models import AuthSession
+from app.confirmation_conflicts import is_unique_violation, resolve_final_integrity_conflict
 from app.db import read_session, write_transaction
 from app.errors import conflict, validation_error
 from app.generation_guard import generation_authorization_ref, job_authorization_ref
@@ -191,7 +193,7 @@ async def execution_request(app, generation_id):
         return await validated_request(ctx, session, snapshot, authorized=True)
 
 
-async def confirm_prompt(ctx, payload):
+async def _confirm_prompt_once(ctx, payload):
     try:
         command = FinalCommand.model_validate(payload).model_dump(mode="json")
     except ValidationError:
@@ -408,3 +410,23 @@ async def confirm_prompt(ctx, payload):
             request["prompt_artifact_digest"],
             request["requirements_digest"],
         )
+
+
+async def confirm_prompt(ctx, payload):
+    """Run the one-shot confirmation, translating a uniqueness race to a stable 409."""
+    try:
+        return await _confirm_prompt_once(ctx, payload)
+    except IntegrityError as error:
+        if not is_unique_violation(error):
+            raise
+        command = FinalCommand.model_validate(payload).model_dump(mode="json")
+        command_digest = digest_payload(
+            {"domain": "final-prompt-v1", "revision": ctx.revision, **command}
+        )
+        raise await resolve_final_integrity_conflict(
+            ctx.session_factory,
+            project_id=ctx.project_id,
+            command_id=command["command_id"],
+            command_digest=command_digest,
+            snapshot_id=command["snapshot_id"],
+        ) from None
