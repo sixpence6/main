@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import type { ProjectSummary } from '@/api/types'
-import { currentAccount, logout } from '@/auth/session'
+import { currentAccount, logout, sessionRevision } from '@/auth/session'
 import { useWorkspace } from '@/composables/useWorkspace'
 import {
   briefStatusLabel,
@@ -43,6 +43,17 @@ watch(
   (id) => {
     if (id && !workspace.projectList.value.some((item) => item.id === id)) void loadProjects()
   },
+)
+
+watch(
+  sessionRevision,
+  () => {
+    renamingId.value = null
+    renameInput.value = ''
+    workspace.projectRenameError.value = ''
+    if (currentAccount.value) void loadProjects()
+  },
+  { flush: 'sync' },
 )
 
 function newConversation(): void {
