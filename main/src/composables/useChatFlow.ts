@@ -603,21 +603,25 @@ export function useChatFlow() {
   async function begin(content: string): Promise<void> {
     const body = content.trim()
     if (!body || busy.value) return
+    const sessionAtStart = sessionRevision.value
     autoArmed = true
     busy.value = true
     flowError.value = ''
     try {
       const project = await api.createProject()
+      if (sessionAtStart !== sessionRevision.value) return
       workspace.adoptCreatedProject(project)
       autoArmed = true
       const next = await runWorkflowAction(project.id, 'submit_request', {
         expected_revision: project.revision,
         text: body,
       })
+      if (sessionAtStart !== sessionRevision.value) return
       workflow.adopt(next)
       workspace.draft.value = ''
       await afterWorkflowChange(true)
     } catch (caught) {
+      if (sessionAtStart !== sessionRevision.value) return
       flowError.value = caught instanceof ApiError
         ? caught.message
         : '没有成功建立这次对话，请稍后重试。'
@@ -628,27 +632,31 @@ export function useChatFlow() {
   }
 
   async function beginWithAttachment(body: string): Promise<void> {
+    const sessionAtStart = sessionRevision.value
     autoArmed = true
     busy.value = true
     flowError.value = ''
     try {
       const project = await api.createProject()
+      if (sessionAtStart !== sessionRevision.value) return
       keepAttachmentOnProjectChange = true
       workspace.adoptCreatedProject(project)
       autoArmed = true
       const staged = await ensureStagedAttachment(project.id)
-      if (!staged) return
+      if (!staged || sessionAtStart !== sessionRevision.value) return
       const response = await api.sendMessage(project.id, {
         content: body,
         expected_revision: project.revision,
         request_id: makeId(),
         attachment_asset_id: staged.asset.id,
       })
+      if (sessionAtStart !== sessionRevision.value) return
       applyMessageResponse(response)
       workspace.draft.value = ''
       clearAttachmentAfterSend()
       await afterWorkflowChange(true)
     } catch (caught) {
+      if (sessionAtStart !== sessionRevision.value) return
       flowError.value = caught instanceof ApiError
         ? caught.message
         : '没有成功建立这次对话，请稍后重试。'
@@ -670,6 +678,7 @@ export function useChatFlow() {
       else await begin(body)
       return
     }
+    const sessionAtStart = sessionRevision.value
     autoArmed = true
     busy.value = true
     flowError.value = ''
@@ -679,6 +688,7 @@ export function useChatFlow() {
         ? await ensureStagedAttachment(project.id)
         : null
       if (pendingAttachment.value && !staged) return
+      if (sessionAtStart !== sessionRevision.value) return
       const expectedRevision = view.value?.project_revision ?? project.revision
       const response = await api.sendMessage(project.id, {
         content: body,
@@ -686,11 +696,13 @@ export function useChatFlow() {
         request_id: makeId(),
         ...(staged ? { attachment_asset_id: staged.asset.id } : {}),
       })
+      if (sessionAtStart !== sessionRevision.value) return
       applyMessageResponse(response)
       workspace.draft.value = ''
       if (staged) clearAttachmentAfterSend()
       await afterWorkflowChange(true)
     } catch (caught) {
+      if (sessionAtStart !== sessionRevision.value) return
       flowError.value = caught instanceof ApiError
         ? caught.message
         : '消息没有发送成功，请稍后重试。'
@@ -707,6 +719,7 @@ export function useChatFlow() {
     if (!current || !artifact || busy.value) return
     const action = actionById('confirm_requirements')
     if (!action) return
+    const sessionAtStart = sessionRevision.value
     if (!pendingRequirementRequestId.value) pendingRequirementRequestId.value = makeId()
     autoArmed = true
     busy.value = true
@@ -718,7 +731,12 @@ export function useChatFlow() {
         requirement_revision: current.requirement_revision,
         request_id: pendingRequirementRequestId.value,
       })
-      if (ok) pendingRequirementRequestId.value = ''
+      if (sessionAtStart !== sessionRevision.value) return
+      if (!ok) {
+        flowError.value = workflow.error.value || '操作没有完成，请稍后重试。'
+        return
+      }
+      pendingRequirementRequestId.value = ''
       await afterWorkflowChange(true)
     } finally {
       busy.value = false
@@ -730,6 +748,7 @@ export function useChatFlow() {
     if (!preview?.can_confirm || busy.value) return
     const action = actionById('confirm_prompt')
     if (!action) return
+    const sessionAtStart = sessionRevision.value
     if (!pendingPromptCommandId.value) pendingPromptCommandId.value = makeId()
     autoArmed = true
     busy.value = true
@@ -741,7 +760,12 @@ export function useChatFlow() {
         command_id: pendingPromptCommandId.value,
         command_context: preview.command_context,
       })
-      if (ok) pendingPromptCommandId.value = ''
+      if (sessionAtStart !== sessionRevision.value) return
+      if (!ok) {
+        flowError.value = workflow.error.value || '操作没有完成，请稍后重试。'
+        return
+      }
+      pendingPromptCommandId.value = ''
       await afterWorkflowChange(true)
     } finally {
       busy.value = false
@@ -807,9 +831,18 @@ export function useChatFlow() {
     sessionRevision,
     () => {
       if (pendingAttachment.value) clearAttachmentState(true)
+      pendingRequirementRequestId.value = ''
+      pendingPromptCommandId.value = ''
       pendingTaskAction.value = null
       taskConfirmations.value = {}
       flowError.value = ''
+      attachmentError.value = ''
+      lastAutoAction = ''
+      copied.value = false
+      if (copyTimer) {
+        clearTimeout(copyTimer)
+        copyTimer = null
+      }
     },
     { flush: 'sync' },
   )

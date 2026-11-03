@@ -151,10 +151,11 @@ export function useWorkflow(projectId: WorkflowProjectId) {
         payload,
       })
       if (
-        sessionAtStart === sessionRevision.value &&
-        sequence === actionSequence &&
-        projectId.value === id
-      ) view.value = next
+        sessionAtStart !== sessionRevision.value ||
+        sequence !== actionSequence ||
+        projectId.value !== id
+      ) return false
+      view.value = next
       return true
     } catch (caught) {
       if (
