@@ -35,6 +35,7 @@ TEMPLATES: Final[dict[str, str]] = {
     "CAPABILITY_NOT_READY": "当前{capability_label}能力未配置或不满足要求，流程已暂停。",
     "SERVICE_UNAVAILABLE": "当前处理服务暂不可用，已保留输入，本次未自动重试。",
     "REVIEW_UNAVAILABLE": "审查暂不可用，内容尚未放行。",
+    "RULESET_UNSUPPORTED": "审查规则契约已变更，旧候选未放行；请按新契约重新审查。",
     "REVIEW_INVALID": "独立审查结果不完整，内容尚未放行；可重新提交本次审查。",
     "REVIEW_REJECTED": "独立审查未通过，本次内容未放行。",
     "CANDIDATE_EXPIRED": (
@@ -45,7 +46,9 @@ TEMPLATES: Final[dict[str, str]] = {
         "待审图片文件已不可用，无法恢复或继续审查。"
     ),
     "CONFIRM_REQUIRED": "请先确认当前需求卡，再明确提交生成。",
-    "IMAGE_NOT_APPROVED": "本次图片未通过检查，未展示或提供下载。你可以补充需求后重新确认并提交生成。",
+    "IMAGE_NOT_APPROVED": (
+        "本次图片未通过检查，未展示或提供下载。你可以补充需求后重新确认并提交生成。"
+    ),
     "RUN_SUPERSEDED": "需求已更新，旧处理结果不会覆盖当前版本。",
     "GENERATION_UNKNOWN": "上次生成结果尚未确认，可能已经计费。再次生成可能产生额外费用。",
     "RESULT_RETRIEVAL_PENDING": (

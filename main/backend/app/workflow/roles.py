@@ -181,6 +181,9 @@ def _recovery_detail(
             detail["approved_inputs_digest"] = digest_payload(
                 payload.get("approved_inputs") or []
             )
+            input_data = payload.get("input_data")
+            if isinstance(input_data, dict):
+                detail["ruleset_version"] = input_data.get("ruleset_version")
             targets = payload.get("review_targets") or []
             if targets and isinstance(targets[0], dict):
                 detail["target_id"] = targets[0].get("target_id")

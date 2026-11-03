@@ -136,8 +136,9 @@ async def test_s07_producer_failure_replays_exact_request_without_new_budget(ful
         response = await _continue(client, setup["project_id"], setup["revision"])
         assert response.status_code == 200, response.text
         view = response.json()
-        assert view["stage"] == "S08"
-        assert view["status"] == "active"
+        assert view["stage"] == "S07"
+        assert view["status"] == "needs_input"
+        assert view["prompt_preview"]["status"] == "awaiting_confirmation"
 
         assert len(llm.role_calls_received) == 3
         assert llm.role_calls_received[1].payload == first_payload
@@ -152,9 +153,11 @@ async def test_s07_producer_failure_replays_exact_request_without_new_budget(ful
         assert len(slots) == 3 and all(slot.released_at is None for slot in slots)
         assert visual.submit_calls == []
 
-        # Repeating the same manual continue is idempotent and never replays the model.
+        # Once the prompt is prepared, the recovery action is no longer offered;
+        # replaying it must not call the model again.
         response = await _continue(client, setup["project_id"], setup["revision"])
-        assert response.status_code == 200, response.text
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "ACTION_NOT_AVAILABLE"
         assert len(llm.role_calls_received) == 3
 
 
@@ -184,7 +187,9 @@ async def test_s07_replay_budget_and_ledger_survive_process_restart(full_setting
 
         response = await _continue(client, project_id, revision)
         assert response.status_code == 200, response.text
-        assert response.json()["stage"] == "S08"
+        assert response.json()["stage"] == "S07"
+        assert response.json()["status"] == "needs_input"
+        assert response.json()["prompt_preview"]["status"] == "awaiting_confirmation"
         assert len(llm.role_calls_received) == 3
         budget = await _budget(app, project_id)
         assert budget is not None and budget.used == 1
@@ -273,6 +278,7 @@ async def test_s07_recovery_stops_when_image_submission_is_unknown(full_settings
         await _drain(app)
         assert len(llm.role_calls_received) == 1
         run = await _run(app, setup["project_id"])
+        intents, _, _ = await _rows(app, setup["project_id"])
         now = format_timestamp(utc_now())
         async with write_transaction(app.state.session_factory) as session:
             session.add(
@@ -280,6 +286,7 @@ async def test_s07_recovery_stops_when_image_submission_is_unknown(full_settings
                     id=str(uuid.uuid4()),
                     project_id=setup["project_id"],
                     run_id=run.id,
+                    intent_id=intents[0].id,
                     request_id=str(uuid.uuid4()),
                     request_digest="a" * 64,
                     confirmed_snapshot_digest="b" * 64,
@@ -376,8 +383,9 @@ async def test_s12_review_resume_replays_exact_reviewer_request_without_new_budg
 
         response = await _continue(client, setup["project_id"], setup["revision"])
         assert response.status_code == 200, response.text
-        assert response.json()["stage"] == "S08"
-        assert response.json()["status"] == "active"
+        assert response.json()["stage"] == "S07"
+        assert response.json()["status"] == "needs_input"
+        assert response.json()["prompt_preview"]["status"] == "awaiting_confirmation"
 
         assert len(llm.role_calls_received) == 3
         assert llm.role_calls_received[2].payload == first_review_payload
@@ -423,7 +431,9 @@ async def test_concurrent_manual_recovery_shares_one_budget_and_one_replay(
         llm.gate.set()
         first_response = await first
         assert first_response.status_code == 200, first_response.text
-        assert first_response.json()["stage"] == "S08"
+        assert first_response.json()["stage"] == "S07"
+        assert first_response.json()["status"] == "needs_input"
+        assert first_response.json()["prompt_preview"]["status"] == "awaiting_confirmation"
 
         assert len(llm.role_calls_received) == 3
         budget = await _budget(app, setup["project_id"])

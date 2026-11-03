@@ -11,7 +11,11 @@ from app.db import read_session
 from app.errors import ApiError, conflict
 from app.models import Asset, Message, Project
 from app.workflow import templates
-from app.workflow.adjudication import RULESET_VERSION, ruleset_from_payload, s07_rules
+from app.workflow.adjudication import (
+    RULESET_VERSION,
+    RulesetCompatibilityError,
+    recovery_ruleset,
+)
 from app.workflow.roles import (
     RoleOutput,
     _capability_error,
@@ -404,8 +408,53 @@ async def _resume_s07_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
     input_data = (
         payload.get("input_data") if isinstance(payload.get("input_data"), dict) else {}
     )
-    ruleset = ruleset_from_payload(input_data) or s07_rules()
-    allowed = set(task.get("allowed_evidence_ids") or []) | {target_id}
+    try:
+        if target.get("target_kind") != "prompt_plan":
+            raise RulesetCompatibilityError("目标类型不受支持")
+        ruleset = recovery_ruleset(input_data)
+    except RulesetCompatibilityError:
+        await set_stage(
+            ctx,
+            "S07",
+            "blocked",
+            issue_code="RULESET_UNSUPPORTED",
+            template_id="RULESET_UNSUPPORTED",
+        )
+        raise ApiError(
+            409, "RULESET_UNSUPPORTED", templates.render("RULESET_UNSUPPORTED")
+        ) from None
+    final_artifact, _, _ = await s07._require_confirmed(ctx)
+    allowed = [artifact.id, final_artifact.id]
+    # The persisted request is historical evidence, not the current contract.
+    # Re-issue the replay against the server-owned catalogue and evidence set;
+    # this keeps normal and recovery paths on the same adjudication inputs.
+    request = json.loads(request_raw)
+    replay_payload = request.get("payload")
+    if not isinstance(replay_payload, dict):
+        raise _stale()
+    replay_input = (
+        replay_payload.get("input_data")
+        if isinstance(replay_payload.get("input_data"), dict)
+        else {}
+    )
+    replay_input = {
+        **replay_input,
+        "target_kind": "prompt_plan",
+        "ruleset_version": ruleset.version,
+        "rules": ruleset.describe(),
+    }
+    replay_payload["input_data"] = replay_input
+    replay_task = (
+        replay_payload.get("task")
+        if isinstance(replay_payload.get("task"), dict)
+        else {}
+    )
+    replay_payload["task"] = {
+        **replay_task,
+        "allowed_evidence_ids": allowed,
+    }
+    request["payload"] = replay_payload
+    request_raw = json.dumps(request, ensure_ascii=False, sort_keys=True)
     try:
         output = await run_role_request(
             ctx,
@@ -437,7 +486,7 @@ async def _resume_s07_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
     ) or ctx.run.requirement_revision != checkpoint.get("requirement_revision"):
         await set_artifact_status(ctx, artifact.id, "superseded")
         raise _stale()
-    review_checks = {"ruleset_version": RULESET_VERSION, "checks": checks}
+    review_checks = {"ruleset_version": ruleset.version, "checks": checks}
     if decision == "pass":
         from app.acceptance import latest_intent
         intent = await latest_intent(
@@ -445,11 +494,10 @@ async def _resume_s07_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -
         )
         if intent is not None:
             from app.prompt_preparation import approve_and_wait
-            final, _, _ = await s07._require_confirmed(ctx)
             reviewed_request = target.get("effective_request")
             if not isinstance(reviewed_request, dict):
                 raise _stale()
-            await approve_and_wait(ctx, artifact, final, json.loads(artifact.payload_json),
+            await approve_and_wait(ctx, artifact, final_artifact, json.loads(artifact.payload_json),
                                    reviewed_request, review_checks, output, recovering=True)
             return
     await add_review(

@@ -18,6 +18,13 @@ from typing import Any, Final, Literal
 
 RULESET_VERSION = "v3.rules.1"
 
+SUPPORTED_RULESET_VERSIONS: Final[frozenset[str]] = frozenset({RULESET_VERSION})
+_MAX_PERSISTED_RULES = 256
+
+
+class RulesetCompatibilityError(ValueError):
+    """A persisted catalog cannot authorize a current adjudication."""
+
 Outcome = Literal["pass", "fail", "unknown", "not_applicable"]
 Kind = Literal["blocking", "advisory"]
 
@@ -391,8 +398,45 @@ def s07_rules(*, echo_rules: Iterable[str] = ()) -> RuleSet:
     return RuleSet(target_kind="prompt_plan", rules=tuple(rules))
 
 
+def recovery_ruleset(payload: dict[str, Any]) -> RuleSet:
+    """Build the current server catalog for replaying a persisted review.
+
+    The historical request is evidence of what the reviewer saw, never an
+    authority to weaken the current contract. Only a supported catalogue
+    version may be replayed; rule strength, applicability and evidence
+    permissions are always taken from the server. Historical rule IDs are
+    retained as advisory echo checks so an old reviewer answer still explains
+    its coverage without becoming a gate.
+    """
+    target_kind = payload.get("target_kind")
+    version = payload.get("ruleset_version")
+    raw_rules = payload.get("rules")
+    if target_kind != "prompt_plan":
+        raise RulesetCompatibilityError("目标类型不受支持")
+    if not isinstance(version, str) or version not in SUPPORTED_RULESET_VERSIONS:
+        raise RulesetCompatibilityError("规则版本不受支持")
+    if not isinstance(raw_rules, list) or not raw_rules or len(raw_rules) > _MAX_PERSISTED_RULES:
+        raise RulesetCompatibilityError("规则目录不可识别")
+    echo_rules: list[str] = []
+    for item in raw_rules:
+        if not isinstance(item, dict):
+            raise RulesetCompatibilityError("规则目录不可识别")
+        rule_id = item.get("rule_id")
+        if not isinstance(rule_id, str) or not rule_id:
+            raise RulesetCompatibilityError("规则目录不可识别")
+        echo_rules.append(rule_id)
+    if version != RULESET_VERSION:
+        raise RulesetCompatibilityError("规则版本不受支持")
+    return s07_rules(echo_rules=tuple(echo_rules))
+
+
 def ruleset_from_payload(payload: dict[str, Any]) -> RuleSet | None:
-    """Rebuild the catalog a persisted reviewer request was issued with."""
+    """Explain the catalog a persisted reviewer request was issued with.
+
+    This function is intentionally for historical display only. A current
+    adjudication must use :func:`recovery_ruleset` (or the live stage catalog),
+    never the caller-supplied strengths and evidence permissions here.
+    """
     target_kind = payload.get("target_kind")
     raw_rules = payload.get("rules")
     if not isinstance(target_kind, str) or not target_kind or not isinstance(raw_rules, list):
@@ -600,10 +644,13 @@ __all__ = [
     "RULESET_VERSION",
     "Rule",
     "RuleSet",
+    "RulesetCompatibilityError",
+    "SUPPORTED_RULESET_VERSIONS",
     "adjudicate",
     "evidence_type",
     "governance_ruleset",
     "review_output",
+    "recovery_ruleset",
     "review_results",
     "ruleset_from_payload",
     "s07_rules",
