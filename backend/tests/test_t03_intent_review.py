@@ -639,8 +639,25 @@ async def test_failed_s01_review_can_be_continued_from_completed_checkpoint(
         assert visual.submit_calls == []
 
 
-async def test_old_messages_endpoint_cannot_bypass_after_workflow_start(llm_settings):
-    async with _environment(llm_settings, _responder()) as (_, client, stub, _):
+async def test_messages_endpoint_uses_same_workflow_entry_after_workflow_start(llm_settings):
+    base = _responder()
+
+    def responder(request):
+        if request.payload["task"]["role"] == "conversation_router":
+            return {
+                "role": "conversation_router",
+                "status": "ready",
+                "data": {
+                    "kind": "conversation",
+                    "reference_usage": "none",
+                    "evidence_ids": [],
+                },
+                "issues": [],
+                "questions": [],
+            }
+        return base(request)
+
+    async with _environment(llm_settings, responder) as (_, client, _, visual):
         project = await _create_project(client)
         first = await _act(
             client,
@@ -650,19 +667,26 @@ async def test_old_messages_endpoint_cannot_bypass_after_workflow_start(llm_sett
             expected_revision=0,
         )
         assert first.status_code == 200, first.text
+        before = first.json()
+        messages_before = await _messages(client, project["id"])
         response = await client.post(
             f"/api/projects/{project['id']}/messages",
             json={
                 "content": "继续整理需求",
-                "expected_revision": first.json()["project_revision"],
+                "expected_revision": before["project_revision"],
             },
         )
-        assert response.status_code == 409, response.text
-        assert response.json()["error"]["code"] == "LEGACY_FLOW_DISABLED"
-        assert response.json()["error"]["message"] == templates.render(
-            "LEGACY_FLOW_DISABLED"
-        )
-        assert stub.calls == []
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["workflow"]["project_revision"] == before["project_revision"]
+        assert body["workflow"]["requirement_revision"] == before["requirement_revision"]
+        assert body["workflow"]["stage"] == before["stage"]
+        assert body["workflow"]["status"] == before["status"]
+        assert body["workflow"]["intent"] is None
+        assert body["user_message"]["turn_kind"] == "conversation"
+        assert body["assistant_message"]["turn_kind"] == "conversation"
+        assert len(await _messages(client, project["id"])) == len(messages_before) + 2
+        assert visual.submit_calls == []
 
 
 async def test_stale_expected_revision_is_rejected(llm_settings):

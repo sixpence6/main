@@ -74,6 +74,23 @@ TEMPLATES: Final[dict[str, str]] = {
     "LEGACY_UNREVIEWED": "此历史内容尚未通过 v2 审查，暂不可查看或下载。可以主动发起补审。",
     "ASSET_UNAVAILABLE": "当前内容不可访问或批准已失效，请检查状态或重新审查。",
     "SAFETY_REFUSAL": "抱歉，无法处理该图片请求。",
+    "CONVERSATION_ACK": (
+        "已记录。当前需求、等待中的准备意图和图片授权均未改变，不会开始新的生成，"
+        "也不会自动排队、超时或重试。"
+    ),
+    "CONVERSATION_CLARIFY": (
+        "已记录补充，正在按当前需求继续澄清；不会开始新的生成，也不会自动重试。"
+    ),
+    "CONVERSATION_CHANGE_ACCEPTED": (
+        "已按你的修改开始新的需求版本；旧的等待和文本授权不再有效，完成后会重新展示并需要再次最终确认。"
+        "最终确认前不会生成图片。"
+    ),
+    "CONVERSATION_PROMPT_CHANGE": (
+        "已按你的说明重新编制提示词；新候选会独立审查后展示，旧文本授权不能继承，最终确认前不会生成图片。"
+    ),
+    "REFERENCE_USAGE_UPDATED": (
+        "已更新参考图用途并重新整理需求；旧等待和授权不再有效，完成后会重新展示并需要再次确认。"
+    ),
 }
 
 _PARAMS: Final[dict[str, tuple[str, ...]]] = {

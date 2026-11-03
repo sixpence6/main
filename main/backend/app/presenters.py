@@ -135,6 +135,8 @@ def message_view(
         content=policy.notice if hidden and policy is not None else message.content,
         project_revision=message.project_revision,
         brief_snapshot=snapshot,
+        turn_kind=message.turn_kind,
+        request_id=message.operation_id,
         legacy_unreviewed=hidden,
         legacy_notice=policy.notice if hidden and policy is not None else None,
         created_at=message.created_at,

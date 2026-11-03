@@ -416,6 +416,42 @@ async def validated_request(ctx, session, snapshot, *, authorized=False) -> dict
     return request
 
 
+async def invalidate_awaiting(
+    ctx, *, intent_id: str | None = None, reason: str
+) -> int:
+    """Mark frozen, not-yet-executed prompt previews stale without deleting facts."""
+
+    async with write_transaction(ctx.session_factory) as session:
+        statement = select(PreparedPrompt).where(
+            PreparedPrompt.project_id == ctx.project_id,
+            PreparedPrompt.run_id == ctx.run_id,
+            PreparedPrompt.status == "awaiting_confirmation",
+        )
+        if intent_id is not None:
+            statement = statement.where(PreparedPrompt.intent_id == intent_id)
+        snapshots = list((await session.scalars(statement)).all())
+        for snapshot in snapshots:
+            snapshot.status = "invalidated"
+        if snapshots:
+            write_audit(
+                session,
+                event_type="prompt.invalidated",
+                result="success",
+                now=utc_now(),
+                actor_kind="system",
+                target_kind="project",
+                target_id=ctx.project_id,
+                reason_code=reason,
+                detail={
+                    "intent_id": intent_id,
+                    "count": len(snapshots),
+                    "snapshot_ids": [snapshot.id for snapshot in snapshots],
+                },
+            )
+        await session.flush()
+        return len(snapshots)
+
+
 async def safe_preview(ctx) -> dict | None:
     if ctx.run is None:
         return None

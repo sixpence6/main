@@ -180,6 +180,7 @@ async def _user_messages(ctx: WorkflowContext) -> list[Message]:
                     .where(
                         Message.project_id == ctx.project_id,
                         Message.role == "user",
+                        Message.turn_kind == "workflow",
                     )
                     .order_by(Message.sequence_no.asc())
                 )
@@ -210,6 +211,7 @@ async def _record_user_text(ctx: WorkflowContext, text: str) -> Message:
             project_revision=project.revision,
             brief_snapshot_json=None,
             operation_id=None,
+            turn_kind="workflow",
             created_at=now,
         )
         session.add(message)
@@ -223,6 +225,9 @@ async def _record_user_text(ctx: WorkflowContext, text: str) -> Message:
         ctx.run.requirement_revision = project.revision
     # A new user statement creates a new requirement version; no downstream
     # approval may survive it.
+    from app.prompt_preparation import invalidate_awaiting
+
+    await invalidate_awaiting(ctx, reason="requirements_changed")
     await revoke_downstream_approvals(ctx, "requirements_changed")
     return message
 

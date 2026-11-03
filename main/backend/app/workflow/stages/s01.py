@@ -123,6 +123,7 @@ async def _append_message(
             project_revision=revision,
             brief_snapshot_json=None,
             operation_id=None,
+            turn_kind="workflow",
             created_at=format_timestamp(utc_now()),
         )
         session.add(message)
@@ -160,6 +161,7 @@ async def _record_user_turn(ctx: WorkflowContext, text: str) -> tuple[Message, i
             project_revision=revision,
             brief_snapshot_json=None,
             operation_id=None,
+            turn_kind="workflow",
             created_at=format_timestamp(utc_now()),
         )
         session.add(message)

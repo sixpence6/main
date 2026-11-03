@@ -527,6 +527,11 @@ async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> 
                 {"usage": usage, "asset_id": ctx.project.reference_asset_id},
             )
             await invalidate_requirements(ctx, "reference_usage_changed")
+            from app import prompt_preparation
+
+            await prompt_preparation.invalidate_awaiting(
+                ctx, reason="reference_usage_changed"
+            )
             await _supersede_reports(ctx)
             await analyze(ctx, usage=usage)
         await _advance_after_usage(ctx)

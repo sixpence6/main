@@ -385,9 +385,12 @@ async def _revise_requirements(ctx: WorkflowContext, payload: dict[str, Any]) ->
     artifact, data = await _require_approved_card(ctx)
     confirmation = await latest_approval(ctx, _APPROVAL_TYPE)
     if ctx.run.stage == "S07":
-        if confirmation is None:
-            raise _changed_error()
-        if not await _matches_existing(ctx, confirmation, artifact, data):
+        # Before a final click there is no generation authorization to match.
+        # Once one exists it must still prove the exact current card; a stale
+        # or mismatched authorization can never be inherited by an edit.
+        if confirmation is not None and not await _matches_existing(
+            ctx, confirmation, artifact, data
+        ):
             raise _changed_error()
     elif confirmation is not None and not await _matches_existing(
         ctx, confirmation, artifact, data

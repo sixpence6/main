@@ -81,10 +81,17 @@ class Message(Base):
     project_revision: Mapped[int] = mapped_column(Integer, nullable=False)
     brief_snapshot_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     operation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    turn_kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="workflow", server_default="workflow"
+    )
     created_at: Mapped[str] = mapped_column(String(32), nullable=False)
 
     __table_args__ = (
         CheckConstraint("role IN ('user','assistant','system')", name="ck_messages_role"),
+        CheckConstraint(
+            "turn_kind IN ('workflow','conversation','prompt')",
+            name="ck_messages_turn_kind",
+        ),
         CheckConstraint(
             "project_revision >= 0", name="ck_messages_project_revision_non_negative"
         ),
