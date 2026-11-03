@@ -62,6 +62,8 @@ export async function mountWorkspace(options: MountWorkspaceOptions = {}) {
 
   const steps = options.configResponses ?? [{ body: options.config ?? emptyConfig() }]
   fetchController.sequence('GET', '/api/config/status', steps)
+  // 侧栏首屏会读取会话列表；各测试可在 setup 中覆盖为更具体的响应。
+  fetchController.sequence('GET', '/api/projects', [{ body: { items: [], next_cursor: null } }])
   for (const route of options.routes ?? []) {
     fetchController.sequence(route.method, route.url, route.responses)
   }
