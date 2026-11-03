@@ -8,6 +8,7 @@ const props = withDefaults(
     closeLabel: string
     width?: string
     description?: string
+    panelId?: string
   }>(),
   { width: '400px', description: '' },
 )
@@ -92,6 +93,7 @@ onBeforeUnmount(() => {
       <div class="drawer-backdrop" @click.self="requestClose" />
       <aside
         ref="panel"
+        :id="panelId"
         class="drawer-panel"
         role="dialog"
         aria-modal="true"
