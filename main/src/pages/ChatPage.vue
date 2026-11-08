@@ -2012,6 +2012,6 @@ figcaption { color: var(--text-muted); font-size: 13px; }
   .welcome { padding-top: max(0px, calc(30vh - 24px)); }
   .composer-area { padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
   .composer-shell { border-radius: 18px; }
-  .message-bubble { padding: var(--space-3) var(--space-4); }
+  .message-bubble:not(.result-card) { padding: var(--space-3) var(--space-4); }
 }
 </style>
