@@ -12,7 +12,7 @@ const { sideDrawerOpen, closeSideDrawer } = useWorkspace()
     title="工作区菜单"
     close-label="关闭侧栏"
     panel-id="workspace-side-drawer"
-    width="min(272px, calc(100vw - 32px))"
+    width="min(264px, calc(100vw - 32px))"
     @close="closeSideDrawer"
   >
     <AppSidebar mobile @navigate="closeSideDrawer" />

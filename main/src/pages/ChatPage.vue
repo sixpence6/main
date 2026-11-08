@@ -356,7 +356,7 @@ function resizeComposerNow(): void {
   const element = composerInput.value
   if (!element) return
   element.style.height = 'auto'
-  const next = Math.min(element.scrollHeight || 44, 180) + 'px'
+  const next = Math.min(element.scrollHeight || 44, 212) + 'px'
   if (element.style.height !== next) element.style.height = next
 }
 
@@ -1162,14 +1162,41 @@ watch(
         正在修改：{{ pendingTaskAction.label }}。填写{{ pendingTaskAction.text_label || '补充内容' }}后点击发送。
       </p>
       <div v-if="pendingAttachment" class="attachment-preview" aria-label="待发送的图片">
-        <img :src="pendingAttachment.previewUrl" alt="待发送的图片预览">
+        <img
+          v-if="!attachmentBusy"
+          class="attachment-thumb"
+          :src="pendingAttachment.previewUrl"
+          alt="待发送的图片预览"
+        >
         <div class="attachment-preview-copy">
           <strong>{{ attachmentFileName }}</strong>
           <span v-if="attachmentBusy">正在上传…</span>
           <span v-else>将随这条消息一起发送</span>
         </div>
-        <button type="button" class="text-button" :disabled="attachmentBusy" @click="openAttachmentPicker">替换图片</button>
-        <button type="button" class="text-button attachment-remove" :disabled="attachmentBusy" @click="removeAttachment">移除图片</button>
+        <template v-if="!attachmentBusy">
+          <button
+            type="button"
+            class="attachment-action"
+            aria-label="替换图片"
+            title="替换图片"
+            @click="openAttachmentPicker"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+              <path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3ZM13.5 7.5l3 3" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="attachment-remove"
+            aria-label="移除图片"
+            title="移除图片"
+            @click="removeAttachment"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </template>
       </div>
       <div
         id="composer"
@@ -1217,13 +1244,17 @@ watch(
           class="send-button"
           aria-label="发送"
           :aria-busy="busy"
+          :title="busy ? '处理中…' : '发送'"
+          :data-label="busy ? '处理中…' : '发送'"
           :disabled="sendDisabled"
           @click="submit"
         >
-          {{ busy ? '处理中…' : '发送' }}
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 19V5M6 11l6-6 6 6" />
+          </svg>
         </button>
       </div>
-      <p class="composer-hint">Enter 发送，Shift + Enter 换行</p>
+      <p class="composer-hint">{{ busy ? '正在生成，完成后可发送' : 'Enter 发送，Shift + Enter 换行' }}</p>
     </footer>
 
     <Transition name="float-pop">
@@ -1896,38 +1927,77 @@ figcaption { color: var(--text-muted); font-size: 13px; }
   flex-wrap: wrap;
   gap: 10px;
   min-width: 0;
+  min-height: 58px;
   width: min(var(--conversation-width), 100%);
   margin: 0 auto 8px;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--line-hairline);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--surface-inset);
 }
-.attachment-preview img { width: 46px; height: 46px; flex: none; border-radius: 9px; object-fit: cover; }
+.attachment-thumb {
+  flex: none;
+  width: 34px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-media);
+  object-fit: cover;
+}
 .attachment-preview-copy { display: flex; flex: 1 1 auto; min-width: 0; flex-direction: column; gap: 2px; }
-.attachment-preview-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.attachment-preview-copy span { color: var(--text-muted); font-size: 12px; }
-.attachment-remove { color: var(--state-danger); }
+.attachment-preview-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
+}
+.attachment-preview-copy span { color: var(--text-muted); font-size: var(--text-caption); line-height: var(--text-caption-line); }
+.attachment-action {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+}
+.attachment-remove {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--state-danger);
+}
+.attachment-action:hover:not(:disabled) { background: var(--surface-panel); color: var(--text-primary); }
+.attachment-remove:hover:not(:disabled) { background: var(--surface-panel); }
 .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .attachment-button {
   display: grid;
   flex: none;
   place-items: center;
-  width: 34px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   border: 0;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
-  font-size: 26px;
-  line-height: 1;
 }
-.attachment-button:hover:not(:disabled) { color: var(--action-primary); }
-.attachment-button:disabled { cursor: not-allowed; opacity: .45; }
+.attachment-button:hover:not(:disabled) { background: var(--surface-inset); color: var(--action-primary); }
+.attachment-button:disabled { cursor: not-allowed; color: var(--text-muted); }
 .composer-area {
   flex: none;
   min-width: 0;
-  padding: 12px clamp(20px, 5vw, 56px) calc(20px + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(to top, var(--surface-panel) 78%, rgba(255,255,255,0));
+  padding: 12px var(--shell-pad-x) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, var(--surface-canvas) 78%, transparent);
 }
 .new-content-button {
   position: absolute;
@@ -1970,19 +2040,19 @@ figcaption { color: var(--text-muted); font-size: 13px; }
 .composer-shell {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   width: min(var(--conversation-width), 100%);
   margin: 0 auto;
-  padding: 8px 8px 8px 18px;
+  padding: 12px 16px;
   border: 1px solid var(--line-hairline);
-  border-radius: 22px;
+  border-radius: var(--radius-md);
   background: var(--surface-panel);
   box-shadow: var(--shadow-composer);
-  transition: border-color .22s ease, box-shadow .28s var(--ease-out), transform .28s var(--ease-out);
+  transition: border-color var(--dur-base) ease, box-shadow var(--dur-base) var(--ease-out);
 }
 .composer-shell:focus-within {
-  border-color: var(--text-muted);
+  border-color: var(--line-control);
   outline: 2px solid var(--focus-ring-light);
   outline-offset: 2px;
 }
@@ -1990,28 +2060,56 @@ figcaption { color: var(--text-muted); font-size: 13px; }
   flex: 1;
   min-width: 0;
   min-height: 44px;
-  max-height: 180px;
+  max-height: 212px;
   padding: 10px 0;
+  overflow-y: auto;
   border: 0;
   resize: none;
   background: transparent;
   color: var(--text-primary);
-  font: 16px/1.5 var(--font-family);
+  font-family: var(--font-family);
+  font-size: var(--text-reading);
+  line-height: 24px;
 }
-.composer-input:disabled { opacity: .6; }
-.send-button { flex: none; min-width: 68px; height: 44px; border: 0; border-radius: 16px; background: var(--action-primary); color: var(--action-primary-text); font-weight: 600; transition: background-color .2s ease, transform .18s var(--ease-out), opacity .2s ease, min-width .24s var(--ease-out); }
+.composer-input:disabled { opacity: 1; color: var(--text-muted); }
+.send-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--action-primary);
+  color: var(--action-primary-text);
+  transition: background-color var(--dur-fast) ease, transform var(--dur-fast) var(--ease-out);
+}
 .send-button:hover:not(:disabled) { background: var(--action-primary-hover); }
-.send-button:active:not(:disabled) { transform: scale(.96); }
-.send-button:disabled { cursor: not-allowed; opacity: .45; }
-.composer-hint { width: min(var(--conversation-width), 100%); margin: 8px auto 0; color: var(--text-muted); font-size: 12px; text-align: center; }
+.send-button:active:not(:disabled) { transform: scale(.94); }
+.send-button:disabled {
+  cursor: not-allowed;
+  background: var(--surface-inset);
+  color: var(--text-muted);
+  opacity: 1;
+}
+.composer-hint {
+  width: min(var(--conversation-width), 100%);
+  min-height: 18px;
+  margin: 8px auto 0;
+  color: var(--text-muted);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
+  text-align: center;
+}
 @media (min-width: 768px) and (max-width: 1023px) {
   .welcome { padding-top: max(0px, calc(30vh - 82px)); }
 }
 @media (max-width: 767px) {
   .chat-scroll { padding: 24px 16px 16px; }
   .welcome { padding-top: max(0px, calc(30vh - 24px)); }
-  .composer-area { padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
-  .composer-shell { border-radius: 18px; }
+  .composer-area { padding: 10px var(--space-4) max(var(--space-3), env(safe-area-inset-bottom, 0px)); }
   .message-bubble:not(.result-card) { padding: var(--space-3) var(--space-4); }
 }
 </style>
