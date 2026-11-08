@@ -35,15 +35,15 @@ async function signOut(): Promise<void> {
 .account-area {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   margin-left: auto;
-  color: var(--color-text-muted);
-  font-size: 13px;
+  color: var(--text-muted);
+  font-size: var(--text-caption);
 }
 
 .account-admin,
 .account-security {
-  color: var(--color-primary);
+  color: var(--action-primary);
   text-decoration: none;
 }
 
@@ -61,14 +61,14 @@ async function signOut(): Promise<void> {
 
 .account-logout {
   padding: 5px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-pill);
   background: transparent;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
 }
 
 .account-logout:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--action-primary);
+  color: var(--action-primary);
 }
 </style>

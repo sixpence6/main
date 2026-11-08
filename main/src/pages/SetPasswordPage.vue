@@ -213,15 +213,15 @@ onMounted(loadLink)
   gap: 6px;
   margin: 0 0 20px;
   padding: 11px 13px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
   background: rgba(244, 240, 232, 0.58);
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1.6;
 }
 .password-account strong {
-  color: var(--color-text);
+  color: var(--text-primary);
   font-weight: 600;
   word-break: break-all;
 }
@@ -231,8 +231,8 @@ onMounted(loadLink)
   margin: -2px 0 0;
   padding: 0;
   list-style: none;
-  color: var(--color-text-muted);
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: 12px;
   line-height: 1.6;
 }
 .password-policy li {
@@ -242,42 +242,42 @@ onMounted(loadLink)
 }
 .password-policy li span {
   width: 12px;
-  color: var(--color-accent);
+  color: var(--action-link);
 }
 .password-policy-met {
-  color: var(--color-success);
+  color: var(--state-success);
 }
 .password-policy-met span {
-  color: var(--color-success);
+  color: var(--state-success);
 }
 .password-manager-hint {
   margin: -4px 0 0;
-  color: var(--color-text-muted);
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: 12px;
   line-height: 1.6;
 }
 .password-error {
   margin: 0;
   padding: 10px 12px;
   border: 1px solid rgba(164, 61, 53, 0.24);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-sm);
   background: rgba(164, 61, 53, 0.06);
-  color: var(--color-danger);
+  color: var(--state-danger);
   font-size: 12px;
   line-height: 1.6;
 }
 .password-submit {
   min-height: 48px;
   border: 0;
-  border-radius: var(--radius-control);
-  background: var(--color-primary);
-  color: #fff;
+  border-radius: var(--radius-sm);
+  background: var(--action-primary);
+  color: var(--action-primary-text);
   font-size: 15px;
   letter-spacing: 0.04em;
   transition: background 160ms ease, opacity 160ms ease;
 }
 .password-submit:hover:not(:disabled) {
-  background: var(--color-primary-hover);
+  background: var(--action-primary-hover);
 }
 .password-submit:disabled {
   cursor: not-allowed;
@@ -291,16 +291,16 @@ onMounted(loadLink)
 }
 .password-state p {
   margin: 0;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   line-height: 1.7;
 }
 .password-state small {
-  color: var(--color-text-muted);
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 .password-state-kicker {
-  color: var(--color-accent) !important;
-  font-size: 11px;
+  color: var(--action-link) !important;
+  font-size: 12px;
   letter-spacing: 0.12em;
 }
 .password-state-help {
@@ -312,8 +312,8 @@ onMounted(loadLink)
 .password-spinner {
   width: 22px;
   height: 22px;
-  border: 2px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  border: 2px solid var(--line-hairline);
+  border-top-color: var(--action-primary);
   border-radius: 50%;
   animation: password-spin 0.9s linear infinite;
 }
@@ -327,11 +327,11 @@ onMounted(loadLink)
   height: 42px;
   border-radius: 50%;
   background: rgba(66, 102, 76, 0.12);
-  color: var(--color-success);
+  color: var(--state-success);
   font-size: 22px;
 }
 .password-success {
-  color: var(--color-text) !important;
+  color: var(--text-primary) !important;
   font-size: 16px;
   font-weight: 500;
 }
@@ -342,13 +342,13 @@ onMounted(loadLink)
   min-height: 44px;
   margin-top: 6px;
   padding: 8px 18px;
-  border-radius: var(--radius-control);
-  background: var(--color-primary);
-  color: #fff;
+  border-radius: var(--radius-sm);
+  background: var(--action-primary);
+  color: var(--action-primary-text);
   text-decoration: none;
   font-size: 14px;
 }
 .password-link:hover {
-  background: var(--color-primary-hover);
+  background: var(--action-primary-hover);
 }
 </style>

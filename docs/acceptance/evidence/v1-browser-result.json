@@ -1,0 +1,775 @@
+{
+  "base": "http://127.0.0.1:8090",
+  "checks": [
+    {
+      "name": "1440 sidebar 264px",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 264,
+          "h": 900,
+          "bottom": 900
+        },
+        "background": "rgb(23, 25, 29)",
+        "width": "264px"
+      }
+    },
+    {
+      "name": "1440 topbar 48px",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 264,
+          "y": 0,
+          "w": 1176,
+          "h": 48,
+          "bottom": 48
+        },
+        "background": "rgb(23, 25, 29)",
+        "borderBottom": "rgb(44, 47, 53)",
+        "paddingRight": "16px"
+      }
+    },
+    {
+      "name": "1440 one topbar, no mobile bar",
+      "ok": true,
+      "detail": {
+        "viewport": {
+          "w": 1440,
+          "h": 900
+        },
+        "topbarCount": 1,
+        "mobileBarCount": 0,
+        "sidebarCount": 1,
+        "drawerCount": 0,
+        "shell": {
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1440,
+            "h": 900,
+            "bottom": 900
+          },
+          "padding": "0px",
+          "background": "rgb(246, 244, 239)"
+        },
+        "sidebar": {
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 264,
+            "h": 900,
+            "bottom": 900
+          },
+          "background": "rgb(23, 25, 29)",
+          "width": "264px"
+        },
+        "topbar": {
+          "rect": {
+            "x": 264,
+            "y": 0,
+            "w": 1176,
+            "h": 48,
+            "bottom": 48
+          },
+          "background": "rgb(23, 25, 29)",
+          "borderBottom": "rgb(44, 47, 53)",
+          "paddingRight": "16px"
+        },
+        "mainPanel": {
+          "rect": {
+            "x": 264,
+            "y": 48,
+            "w": 1176,
+            "h": 852,
+            "bottom": 900
+          },
+          "background": "rgba(0, 0, 0, 0)",
+          "radius": "0px"
+        },
+        "capsuleTopbar": {
+          "rect": {
+            "x": 1310,
+            "y": 12,
+            "w": 114,
+            "h": 24,
+            "bottom": 36
+          },
+          "height": "24px",
+          "display": "flex"
+        },
+        "capsuleInline": null,
+        "chatScroll": {
+          "x": 264,
+          "y": 48,
+          "w": 1176,
+          "h": 728,
+          "bottom": 776
+        },
+        "composer": {
+          "rect": {
+            "x": 472,
+            "y": 788,
+            "w": 760,
+            "h": 62,
+            "bottom": 850
+          },
+          "maxWidth": "none"
+        },
+        "focus": {
+          "tag": "BODY",
+          "cls": "",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "focusVisible": false
+        },
+        "overflowX": {
+          "doc": 1440,
+          "body": 1440,
+          "inner": 1440
+        },
+        "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n需求已确认 · 成功\n2026/11/5 15:06:46\n未命名项目\n需求已确认\n2026/11/4 21:35:27\n未命名项目\n需求已确认 · 成功\n2026/11/4 19:28:14\n未命名项目\n需求已确认 · 成功\n2026/11/4 17:44:10\n未命名项目\n草稿\n2026/11/4 10:18:59\n未命名项目\n草稿\n2026/1"
+      }
+    },
+    {
+      "name": "1440 shell full-bleed (padding 0)",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 900,
+          "bottom": 900
+        },
+        "padding": "0px",
+        "background": "rgb(246, 244, 239)"
+      }
+    },
+    {
+      "name": "1440 main panel transparent / no radius",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 264,
+          "y": 48,
+          "w": 1176,
+          "h": 852,
+          "bottom": 900
+        },
+        "background": "rgba(0, 0, 0, 0)",
+        "radius": "0px"
+      }
+    },
+    {
+      "name": "1440 content column 760",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 472,
+          "y": 788,
+          "w": 760,
+          "h": 62,
+          "bottom": 850
+        },
+        "maxWidth": "none"
+      }
+    },
+    {
+      "name": "1440 no horizontal overflow",
+      "ok": true,
+      "detail": {
+        "doc": 1440,
+        "body": 1440,
+        "inner": 1440
+      }
+    },
+    {
+      "name": "1440 sidebar focus ring 2px + 2px dark",
+      "ok": true,
+      "detail": {
+        "tag": "BUTTON",
+        "cls": "new-chat-button",
+        "outlineWidth": "2px",
+        "outlineColor": "rgb(207, 230, 242)",
+        "outlineOffset": "2px",
+        "focusVisible": true
+      }
+    },
+    {
+      "name": "768 one topbar 48px",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 768,
+          "h": 48,
+          "bottom": 48
+        },
+        "background": "rgb(23, 25, 29)",
+        "borderBottom": "rgb(44, 47, 53)",
+        "paddingRight": "16px"
+      }
+    },
+    {
+      "name": "768 no legacy mobile bar",
+      "ok": true,
+      "detail": {
+        "viewport": {
+          "w": 768,
+          "h": 1024
+        },
+        "topbarCount": 1,
+        "mobileBarCount": 0,
+        "sidebarCount": 0,
+        "drawerCount": 0,
+        "shell": {
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 768,
+            "h": 1024,
+            "bottom": 1024
+          },
+          "padding": "0px",
+          "background": "rgb(246, 244, 239)"
+        },
+        "sidebar": null,
+        "topbar": {
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 768,
+            "h": 48,
+            "bottom": 48
+          },
+          "background": "rgb(23, 25, 29)",
+          "borderBottom": "rgb(44, 47, 53)",
+          "paddingRight": "16px"
+        },
+        "mainPanel": {
+          "rect": {
+            "x": 0,
+            "y": 48,
+            "w": 768,
+            "h": 976,
+            "bottom": 1024
+          },
+          "background": "rgba(0, 0, 0, 0)",
+          "radius": "0px"
+        },
+        "capsuleTopbar": {
+          "rect": {
+            "x": 638,
+            "y": 12,
+            "w": 114,
+            "h": 24,
+            "bottom": 36
+          },
+          "height": "24px",
+          "display": "flex"
+        },
+        "capsuleInline": null,
+        "chatScroll": {
+          "x": 0,
+          "y": 48,
+          "w": 768,
+          "h": 852,
+          "bottom": 900
+        },
+        "composer": {
+          "rect": {
+            "x": 38,
+            "y": 912,
+            "w": 691,
+            "h": 62,
+            "bottom": 974
+          },
+          "maxWidth": "none"
+        },
+        "focus": {
+          "tag": "BODY",
+          "cls": "",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "focusVisible": false
+        },
+        "overflowX": {
+          "doc": 768,
+          "body": 768,
+          "inner": 768
+        },
+        "text": "电商生图工作台\n新对话\n准备开始\n0:04\n\n✦\n\n发来商品图片，或告诉我你想做什么样的电商图片\n\n用一句话描述商品、用途和画面感觉即可。需要确认时，我会把要点整理给你。\n\n+\n描述商品与图片需求\n发送\n\nEnter 发送，Shift + Enter 换行"
+      }
+    },
+    {
+      "name": "768 sidebar is drawer (closed)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "768 no horizontal overflow",
+      "ok": true,
+      "detail": {
+        "doc": 768,
+        "body": 768,
+        "inner": 768
+      }
+    },
+    {
+      "name": "320 topbar 44px",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 44,
+          "bottom": 44
+        },
+        "background": "rgb(23, 25, 29)",
+        "borderBottom": "rgb(44, 47, 53)",
+        "paddingRight": "16px"
+      }
+    },
+    {
+      "name": "320 topbar capsule absent, inline capsule present",
+      "ok": true,
+      "detail": {
+        "top": null,
+        "inline": {
+          "rect": {
+            "x": 16,
+            "y": 52,
+            "w": 114,
+            "h": 24,
+            "bottom": 76
+          },
+          "position": "static",
+          "height": "24px"
+        }
+      }
+    },
+    {
+      "name": "320 capsule is in flow below topbar and above chat scroll",
+      "ok": true,
+      "detail": {
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 44,
+          "bottom": 44
+        },
+        "capsule": {
+          "rect": {
+            "x": 16,
+            "y": 52,
+            "w": 114,
+            "h": 24,
+            "bottom": 76
+          },
+          "position": "static",
+          "height": "24px"
+        },
+        "chat": {
+          "x": 0,
+          "y": 76,
+          "w": 320,
+          "h": 608,
+          "bottom": 684
+        }
+      }
+    },
+    {
+      "name": "320 no horizontal overflow",
+      "ok": true,
+      "detail": {
+        "doc": 320,
+        "body": 320,
+        "inner": 320
+      }
+    }
+  ],
+  "metrics": {
+    "320": {
+      "viewport": {
+        "w": 320,
+        "h": 800
+      },
+      "topbarCount": 1,
+      "mobileBarCount": 0,
+      "sidebarCount": 0,
+      "drawerCount": 0,
+      "shell": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 800,
+          "bottom": 800
+        },
+        "padding": "0px",
+        "background": "rgb(246, 244, 239)"
+      },
+      "sidebar": null,
+      "topbar": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 44,
+          "bottom": 44
+        },
+        "background": "rgb(23, 25, 29)",
+        "borderBottom": "rgb(44, 47, 53)",
+        "paddingRight": "16px"
+      },
+      "mainPanel": {
+        "rect": {
+          "x": 0,
+          "y": 76,
+          "w": 320,
+          "h": 724,
+          "bottom": 800
+        },
+        "background": "rgba(0, 0, 0, 0)",
+        "radius": "0px"
+      },
+      "capsuleTopbar": null,
+      "capsuleInline": {
+        "rect": {
+          "x": 16,
+          "y": 52,
+          "w": 114,
+          "h": 24,
+          "bottom": 76
+        },
+        "position": "static",
+        "height": "24px"
+      },
+      "chatScroll": {
+        "x": 0,
+        "y": 76,
+        "w": 320,
+        "h": 608,
+        "bottom": 684
+      },
+      "composer": {
+        "rect": {
+          "x": 14,
+          "y": 694,
+          "w": 292,
+          "h": 62,
+          "bottom": 756
+        },
+        "maxWidth": "none"
+      },
+      "focus": {
+        "tag": "BODY",
+        "cls": "",
+        "outlineWidth": "3px",
+        "outlineColor": "rgb(27, 29, 33)",
+        "outlineOffset": "0px",
+        "focusVisible": false
+      },
+      "overflowX": {
+        "doc": 320,
+        "body": 320,
+        "inner": 320
+      },
+      "text": "电商生图工作台\n新对话\n准备开始\n0:05\n\n✦\n\n发来商品图片，或告诉我你想做什么样的电商图片\n\n用一句话描述商品、用途和画面感觉即可。需要确认时，我会把要点整理给你。\n\n+\n描述商品与图片需求\n发送\n\nEnter 发送，Shift + Enter 换行"
+    },
+    "768": {
+      "viewport": {
+        "w": 768,
+        "h": 1024
+      },
+      "topbarCount": 1,
+      "mobileBarCount": 0,
+      "sidebarCount": 0,
+      "drawerCount": 0,
+      "shell": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 768,
+          "h": 1024,
+          "bottom": 1024
+        },
+        "padding": "0px",
+        "background": "rgb(246, 244, 239)"
+      },
+      "sidebar": null,
+      "topbar": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 768,
+          "h": 48,
+          "bottom": 48
+        },
+        "background": "rgb(23, 25, 29)",
+        "borderBottom": "rgb(44, 47, 53)",
+        "paddingRight": "16px"
+      },
+      "mainPanel": {
+        "rect": {
+          "x": 0,
+          "y": 48,
+          "w": 768,
+          "h": 976,
+          "bottom": 1024
+        },
+        "background": "rgba(0, 0, 0, 0)",
+        "radius": "0px"
+      },
+      "capsuleTopbar": {
+        "rect": {
+          "x": 638,
+          "y": 12,
+          "w": 114,
+          "h": 24,
+          "bottom": 36
+        },
+        "height": "24px",
+        "display": "flex"
+      },
+      "capsuleInline": null,
+      "chatScroll": {
+        "x": 0,
+        "y": 48,
+        "w": 768,
+        "h": 852,
+        "bottom": 900
+      },
+      "composer": {
+        "rect": {
+          "x": 38,
+          "y": 912,
+          "w": 691,
+          "h": 62,
+          "bottom": 974
+        },
+        "maxWidth": "none"
+      },
+      "focus": {
+        "tag": "BODY",
+        "cls": "",
+        "outlineWidth": "3px",
+        "outlineColor": "rgb(27, 29, 33)",
+        "outlineOffset": "0px",
+        "focusVisible": false
+      },
+      "overflowX": {
+        "doc": 768,
+        "body": 768,
+        "inner": 768
+      },
+      "text": "电商生图工作台\n新对话\n准备开始\n0:04\n\n✦\n\n发来商品图片，或告诉我你想做什么样的电商图片\n\n用一句话描述商品、用途和画面感觉即可。需要确认时，我会把要点整理给你。\n\n+\n描述商品与图片需求\n发送\n\nEnter 发送，Shift + Enter 换行"
+    },
+    "1440": {
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "topbarCount": 1,
+      "mobileBarCount": 0,
+      "sidebarCount": 1,
+      "drawerCount": 0,
+      "shell": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 900,
+          "bottom": 900
+        },
+        "padding": "0px",
+        "background": "rgb(246, 244, 239)"
+      },
+      "sidebar": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 264,
+          "h": 900,
+          "bottom": 900
+        },
+        "background": "rgb(23, 25, 29)",
+        "width": "264px"
+      },
+      "topbar": {
+        "rect": {
+          "x": 264,
+          "y": 0,
+          "w": 1176,
+          "h": 48,
+          "bottom": 48
+        },
+        "background": "rgb(23, 25, 29)",
+        "borderBottom": "rgb(44, 47, 53)",
+        "paddingRight": "16px"
+      },
+      "mainPanel": {
+        "rect": {
+          "x": 264,
+          "y": 48,
+          "w": 1176,
+          "h": 852,
+          "bottom": 900
+        },
+        "background": "rgba(0, 0, 0, 0)",
+        "radius": "0px"
+      },
+      "capsuleTopbar": {
+        "rect": {
+          "x": 1310,
+          "y": 12,
+          "w": 114,
+          "h": 24,
+          "bottom": 36
+        },
+        "height": "24px",
+        "display": "flex"
+      },
+      "capsuleInline": null,
+      "chatScroll": {
+        "x": 264,
+        "y": 48,
+        "w": 1176,
+        "h": 728,
+        "bottom": 776
+      },
+      "composer": {
+        "rect": {
+          "x": 472,
+          "y": 788,
+          "w": 760,
+          "h": 62,
+          "bottom": 850
+        },
+        "maxWidth": "none"
+      },
+      "focus": {
+        "tag": "BODY",
+        "cls": "",
+        "outlineWidth": "3px",
+        "outlineColor": "rgb(27, 29, 33)",
+        "outlineOffset": "0px",
+        "focusVisible": false
+      },
+      "overflowX": {
+        "doc": 1440,
+        "body": 1440,
+        "inner": 1440
+      },
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n需求已确认 · 成功\n2026/11/5 15:06:46\n未命名项目\n需求已确认\n2026/11/4 21:35:27\n未命名项目\n需求已确认 · 成功\n2026/11/4 19:28:14\n未命名项目\n需求已确认 · 成功\n2026/11/4 17:44:10\n未命名项目\n草稿\n2026/11/4 10:18:59\n未命名项目\n草稿\n2026/1"
+    },
+    "1440-focus": {
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "topbarCount": 1,
+      "mobileBarCount": 0,
+      "sidebarCount": 1,
+      "drawerCount": 0,
+      "shell": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 1440,
+          "h": 900,
+          "bottom": 900
+        },
+        "padding": "0px",
+        "background": "rgb(246, 244, 239)"
+      },
+      "sidebar": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 264,
+          "h": 900,
+          "bottom": 900
+        },
+        "background": "rgb(23, 25, 29)",
+        "width": "264px"
+      },
+      "topbar": {
+        "rect": {
+          "x": 264,
+          "y": 0,
+          "w": 1176,
+          "h": 48,
+          "bottom": 48
+        },
+        "background": "rgb(23, 25, 29)",
+        "borderBottom": "rgb(44, 47, 53)",
+        "paddingRight": "16px"
+      },
+      "mainPanel": {
+        "rect": {
+          "x": 264,
+          "y": 48,
+          "w": 1176,
+          "h": 852,
+          "bottom": 900
+        },
+        "background": "rgba(0, 0, 0, 0)",
+        "radius": "0px"
+      },
+      "capsuleTopbar": {
+        "rect": {
+          "x": 1310,
+          "y": 12,
+          "w": 114,
+          "h": 24,
+          "bottom": 36
+        },
+        "height": "24px",
+        "display": "flex"
+      },
+      "capsuleInline": null,
+      "chatScroll": {
+        "x": 264,
+        "y": 48,
+        "w": 1176,
+        "h": 728,
+        "bottom": 776
+      },
+      "composer": {
+        "rect": {
+          "x": 472,
+          "y": 788,
+          "w": 760,
+          "h": 62,
+          "bottom": 850
+        },
+        "maxWidth": "none"
+      },
+      "focus": {
+        "tag": "BUTTON",
+        "cls": "new-chat-button",
+        "outlineWidth": "2px",
+        "outlineColor": "rgb(207, 230, 242)",
+        "outlineOffset": "2px",
+        "focusVisible": true
+      },
+      "overflowX": {
+        "doc": 1440,
+        "body": 1440,
+        "inner": 1440
+      },
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n需求已确认 · 成功\n2026/11/5 15:06:46\n未命名项目\n需求已确认\n2026/11/4 21:35:27\n未命名项目\n需求已确认 · 成功\n2026/11/4 19:28:14\n未命名项目\n需求已确认 · 成功\n2026/11/4 17:44:10\n未命名项目\n草稿\n2026/11/4 10:18:59\n未命名项目\n草稿\n2026/1"
+    }
+  },
+  "browser": "Edg/156.0.4314.58",
+  "ok": true
+}

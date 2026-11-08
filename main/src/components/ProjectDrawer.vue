@@ -230,19 +230,19 @@ async function submitRename(projectId: string): Promise<void> {
   min-width: 0;
   height: 36px;
   padding: 0 var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: var(--color-panel);
-  color: var(--color-text);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  color: var(--text-primary);
 }
 .project-list-entry {
   display: flex;
   align-items: stretch;
   gap: var(--space-2);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-sm);
 }
 .project-list-entry.is-current {
-  background: var(--color-primary-soft, #eef0ff);
+  background: var(--action-soft);
 }
 .project-list-entry .project-list-item {
   flex: 1;
@@ -252,13 +252,13 @@ async function submitRename(projectId: string): Promise<void> {
   align-self: center;
   border: 0;
   background: transparent;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   cursor: pointer;
-  font-size: var(--text-small);
+  font-size: var(--text-caption);
   padding: var(--space-2);
 }
 .project-rename-button:hover {
-  color: var(--color-text);
+  color: var(--text-primary);
 }
 .project-rename-form {
   display: flex;
@@ -271,7 +271,7 @@ async function submitRename(projectId: string): Promise<void> {
   min-width: 0;
   height: 34px;
   padding: 0 var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
 }
 </style>

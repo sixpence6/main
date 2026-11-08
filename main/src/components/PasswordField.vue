@@ -93,28 +93,30 @@ function update(event: Event): void {
   gap: 8px;
 }
 .password-label {
-  color: var(--color-text-muted);
-  font-size: 13px;
+  color: var(--text-muted);
+  font-size: var(--text-body);
 }
 .password-control {
   display: flex;
   align-items: stretch;
   overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: #fff;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  transition: border-color var(--dur-base) var(--ease-out);
 }
 .password-control:focus-within {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(112, 82, 57, 0.12);
+  border-color: var(--action-primary);
+  outline: 2px solid var(--focus-ring-light);
+  outline-offset: 2px;
 }
 .password-control-invalid {
-  border-color: var(--color-danger);
+  border-color: var(--state-danger);
 }
 .password-control-invalid:focus-within {
-  border-color: var(--color-danger);
-  box-shadow: 0 0 0 3px rgba(164, 61, 53, 0.12);
+  border-color: var(--state-danger);
+  outline: 2px solid var(--focus-ring-light);
+  outline-offset: 2px;
 }
 .password-control input {
   width: 100%;
@@ -122,9 +124,8 @@ function update(event: Event): void {
   min-height: 46px;
   padding: 10px 12px;
   border: 0;
-  outline: 0;
   background: transparent;
-  color: var(--color-text);
+  color: var(--text-primary);
   font-size: var(--text-input);
 }
 .password-toggle {
@@ -132,13 +133,13 @@ function update(event: Event): void {
   min-width: 58px;
   padding: 0 12px;
   border: 0;
-  border-left: 1px solid var(--color-border);
+  border-left: 1px solid var(--line-hairline);
   background: transparent;
-  color: var(--color-primary);
+  color: var(--action-primary);
   font-size: 12px;
 }
 .password-toggle:hover:not(:disabled) {
-  background: rgba(184, 154, 104, 0.1);
+  background: var(--action-soft);
 }
 .password-toggle:disabled {
   cursor: not-allowed;
@@ -146,13 +147,13 @@ function update(event: Event): void {
 }
 .password-hint {
   margin: 0;
-  color: var(--color-text-muted);
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: 12px;
   line-height: 1.65;
 }
 .password-error {
   margin: 0;
-  color: var(--color-danger);
+  color: var(--state-danger);
   font-size: 12px;
   line-height: 1.6;
 }

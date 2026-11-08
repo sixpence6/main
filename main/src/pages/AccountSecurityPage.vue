@@ -364,9 +364,7 @@ onBeforeUnmount(() => {
 .security-shell-page {
   min-height: 100vh;
   min-height: 100dvh;
-  background:
-    radial-gradient(circle at 8% 0, rgba(184, 154, 104, 0.1), transparent 26%),
-    var(--color-page);
+  background: var(--surface-canvas);
 }
 .security-page {
   padding: 34px 20px 60px;
@@ -402,8 +400,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 7px;
   margin: 0 0 9px;
-  color: var(--color-accent);
-  font-size: 10px;
+  color: var(--action-link);
+  font-size: 12px;
   letter-spacing: 0.16em;
 }
 h1 {
@@ -419,29 +417,27 @@ h2 {
 .security-lede {
   max-width: 560px;
   margin: 10px 0 0;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   font-size: 13px;
   line-height: 1.75;
 }
 .security-back {
   flex: none;
-  color: var(--color-primary);
+  color: var(--action-primary);
   font-size: 13px;
 }
 .security-panel {
   padding: 24px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-panel);
-  background: var(--color-panel);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
   box-shadow: var(--shadow-panel);
 }
 .security-account-panel {
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  background:
-    linear-gradient(135deg, rgba(184, 154, 104, 0.1), transparent 42%),
-    var(--color-panel);
+  background: var(--surface-panel);
 }
 .security-panel-icon {
   display: grid;
@@ -450,8 +446,8 @@ h2 {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: var(--color-primary);
-  color: #fff;
+  background: var(--action-primary);
+  color: var(--action-primary-text);
   font-size: 14px;
   font-weight: 600;
 }
@@ -463,19 +459,19 @@ h2 {
 }
 .security-kicker {
   margin: 0 0 7px;
-  color: var(--color-accent);
-  font-size: 9px;
+  color: var(--action-link);
+  font-size: 12px;
   letter-spacing: 0.18em;
 }
 .security-note {
   margin: 8px 0;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   line-height: 1.7;
   font-size: 13px;
 }
 .security-note-inline {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
 }
 .security-form {
   display: grid;
@@ -497,31 +493,31 @@ h2 {
 .security-chip {
   flex: none;
   padding: 4px 9px;
-  border-radius: 999px;
-  background: rgba(184, 154, 104, 0.12);
-  color: var(--color-accent);
-  font-size: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--action-soft);
+  color: var(--action-link);
+  font-size: 12px;
 }
 .security-primary,
 .security-secondary {
   min-height: 42px;
   padding: 8px 16px;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-sm);
   font-size: 14px;
 }
 .security-primary {
   justify-self: start;
   border: 0;
-  background: var(--color-primary);
-  color: #fff;
+  background: var(--action-primary);
+  color: var(--action-primary-text);
 }
 .security-primary:hover:not(:disabled) {
-  background: var(--color-primary-hover);
+  background: var(--action-primary-hover);
 }
 .security-secondary {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--line-hairline);
   background: transparent;
-  color: var(--color-primary);
+  color: var(--action-primary);
 }
 .security-primary:disabled,
 .security-secondary:disabled {
@@ -530,12 +526,12 @@ h2 {
 }
 .security-error {
   margin: 8px 0 0;
-  color: var(--color-danger);
+  color: var(--state-danger);
   line-height: 1.6;
 }
 .security-success {
   margin: 8px 0 0;
-  color: var(--color-success);
+  color: var(--state-success);
 }
 .session-list,
 .event-list {
@@ -552,9 +548,9 @@ h2 {
   justify-content: space-between;
   gap: 16px;
   padding: 15px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: rgba(255, 252, 247, 0.5);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
 }
 .session-main {
   min-width: 0;
@@ -573,15 +569,15 @@ h2 {
 .session-current {
   flex: none;
   padding: 2px 7px;
-  border-radius: 999px;
-  background: rgba(66, 102, 76, 0.1);
-  color: var(--color-success);
-  font-size: 11px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--state-success) 10%, var(--surface-panel));
+  color: var(--state-success);
+  font-size: 12px;
 }
 .session-meta,
 .event-meta {
   margin: 3px 0 0;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
 }
 .session-revoke {
@@ -589,9 +585,9 @@ h2 {
 }
 .event-item {
   padding: 15px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: rgba(255, 252, 247, 0.5);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
 }
 .event-title {
   margin: 0 0 6px;
@@ -601,29 +597,29 @@ h2 {
 }
 .event-result {
   padding: 2px 7px;
-  border-radius: 999px;
-  background: var(--color-page);
-  color: var(--color-text-muted);
-  font-size: 11px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-canvas);
+  color: var(--text-muted);
+  font-size: 12px;
 }
 .event-result-success {
-  background: rgba(66, 102, 76, 0.1);
-  color: var(--color-success);
+  background: color-mix(in srgb, var(--state-success) 10%, var(--surface-panel));
+  color: var(--state-success);
 }
 .event-result-failure,
 .event-result-denied {
-  background: rgba(164, 61, 53, 0.08);
-  color: var(--color-danger);
+  background: color-mix(in srgb, var(--state-danger) 8%, var(--surface-panel));
+  color: var(--state-danger);
 }
 .event-result-limited {
-  background: rgba(124, 90, 34, 0.1);
-  color: var(--color-warning);
+  background: color-mix(in srgb, var(--state-warning) 10%, var(--surface-panel));
+  color: var(--state-warning);
 }
 .security-help {
   padding: 16px 18px;
-  border-left: 2px solid var(--color-accent);
-  border-radius: 0 var(--radius-control) var(--radius-control) 0;
-  background: rgba(184, 154, 104, 0.08);
+  border-left: 2px solid var(--action-link);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface-inset);
 }
 .security-help strong {
   display: block;
@@ -632,8 +628,8 @@ h2 {
 }
 .security-help p {
   margin: 0;
-  color: var(--color-text-muted);
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: 12px;
   line-height: 1.7;
 }
 @media (max-width: 640px) {

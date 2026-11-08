@@ -1,67 +1,146 @@
 :root {
-  --color-page: #EEF0F8;
-  --color-panel: #FFFFFF;
-  --color-panel-soft: #F5F6FA;
-  --color-primary-soft: #EEEAFF;
-  --color-glass: rgba(255, 255, 255, 0.86);
-  --color-text: #1F2438;
-  --color-text-muted: #626D88;
-  --color-primary: #5846E8;
-  --color-primary-hover: #4736CD;
-  --color-border: #E5E8F3;
-  --color-border-soft: #EEF0F7;
-  --color-code: #F5F6FA;
-  --color-accent: #7A67F0;
-  --color-success: #35745B;
-  --color-warning: #8A611E;
-  --color-danger: #B23B4B;
-  --color-info: #4965A8;
+  /* 表面 */
+  --surface-canvas: #f6f4ef;
+  --surface-panel: #fcfbf7;
+  --surface-inset: #efede6;
+  --surface-media: #e9e6de;
+  --surface-glass: rgba(252, 251, 247, 0.88);
+  --surface-shell: #17191d;
+  --surface-shell-raised: #1e2126;
+  --surface-shell-hover: #202329;
+  --surface-shell-active: #24272d;
+  --scrim: rgba(12, 14, 17, 0.4);
 
-  --font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Segoe UI", system-ui, sans-serif;
+  /* 线 */
+  --line-hairline: #dfddd5;
+  --line-hover: #c9c8c2;
+  --line-control: #8f8c84;
+  --line-inverse: #2c2f35;
+  --line-inverse-control: #6b7077;
+
+  /* 文字 */
+  --text-primary: #1b1d21;
+  --text-secondary: #4a4f57;
+  --text-muted: #636870;
+  --text-inverse-primary: #f4f1e9;
+  --text-inverse-secondary: #c7cbd1;
+  --text-inverse-muted: #a9adb4;
+  --text-inverse-meta: #8c9198;
+
+  /* 动作 / 焦点 / 状态 */
+  --action-primary: #1b1d21;
+  --action-primary-hover: #2c3037;
+  --action-primary-text: #f4f1e9;
+  --action-soft: #eceae3;
+  --action-link: #1e5a73;
+  --focus-ring-light: #1e5a73;
+  --focus-ring-dark: #cfe6f2;
+  --state-success: #35745B;
+  --state-warning: #8A611E;
+  --state-danger: #B23B4B;
+  --state-info: #4965A8;
+
+  /* 字体 */
+  --font-sans: system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --text-caption: 12px;
+  --text-caption-line: 18px;
   --text-body: 14px;
   --text-body-line: 22px;
-  --text-input: 16px;
-  --text-input-line: 24px;
-  --text-section: 16px;
+  --text-reading: 15px;
+  --text-reading-line: 25px;
+  --text-section: 17px;
   --text-section-line: 24px;
-  --text-product: 20px;
-  --text-product-line: 28px;
+  --text-page: 20px;
+  --text-page-line: 28px;
+  --text-display: clamp(26px, 3.2vw, 40px);
+  --text-display-line: 1.15;
 
+  /* 间距 */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
+  --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
 
-  --radius-control: 10px;
-  --radius-panel: 16px;
-  --radius-image: 20px;
-  --radius-shell: 28px;
-
-  --shadow-panel: 0 12px 40px rgba(35, 40, 70, 0.07);
+  /* 形状 / 阴影 / 动效 */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 19px;
+  --radius-pill: 999px;
+  --shadow-composer: 0 10px 30px rgba(23, 25, 29, 0.06);
+  --shadow-overlay: 0 24px 64px rgba(12, 14, 17, 0.24);
   --ease-out: cubic-bezier(0.22, 0.8, 0.3, 1);
-  --ease-spring: cubic-bezier(0.22, 1.16, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 240ms;
 
-  --head-height: 56px;
-  --topbar-height: 68px;
-  --body-padding: 16px;
-  --sidebar-width: 288px;
-  --conversation-width: 880px;
-  --conversation-max: 880px;
+  /* 图标 / 布局 */
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-lg: 24px;
+  --sidebar-width: 264px;
+  --topbar-height: 48px;
+  --conversation-max: 760px;
   --results-max: 1120px;
+  --shell-pad-x: 16px;
+}
+
+/* 兼容别名（V7 前保留；新代码请使用上方的语义令牌）。 */
+:root {
+  --font-family: var(--font-sans);
+  --text-input: var(--text-reading);
+  --text-input-line: var(--text-reading-line);
+  --text-product: var(--text-page);
+  --text-product-line: var(--text-page-line);
+  --text-small: var(--text-caption);
+  --text-heading: var(--text-section);
+  --color-page: var(--surface-canvas);
+  --color-panel: var(--surface-panel);
+  --color-panel-soft: var(--surface-inset);
+  --color-glass: var(--surface-glass);
+  --color-text: var(--text-primary);
+  --color-text-muted: var(--text-muted);
+  --color-primary: var(--action-primary);
+  --color-primary-hover: var(--action-primary-hover);
+  --color-primary-soft: var(--action-soft);
+  --color-border: var(--line-hairline);
+  --color-border-soft: var(--line-hairline);
+  --color-code: var(--surface-inset);
+  --color-accent: var(--action-link);
+  --color-success: var(--state-success);
+  --color-warning: var(--state-warning);
+  --color-danger: var(--state-danger);
+  --color-info: var(--state-info);
+  --color-error: var(--state-danger);
+  --color-muted: var(--text-muted);
+  --radius-control: var(--radius-sm);
+  --radius-panel: var(--radius-md);
+  --radius-card: var(--radius-md);
+  --radius-image: var(--radius-sm);
+  --shadow-panel: var(--shadow-composer);
+  --conversation-width: var(--conversation-max);
 }
 
 @media (min-width: 768px) {
   :root {
-    --head-height: 64px;
-    --body-padding: 20px;
+    --shell-pad-x: 24px;
   }
 }
 
 @media (min-width: 1280px) {
   :root {
-    --body-padding: 24px;
+    --shell-pad-x: 32px;
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --topbar-height: 44px;
   }
 }
