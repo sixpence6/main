@@ -9,7 +9,7 @@ import SideDrawer from '@/components/SideDrawer.vue'
 import StatusAnnouncer from '@/components/StatusAnnouncer.vue'
 import UnsavedChangesDialog from '@/components/UnsavedChangesDialog.vue'
 import { provideWorkspace } from '@/composables/useWorkspace'
-import { legacyNoticeText } from '@/utils/format'
+import { displayProjectTitle, legacyNoticeText } from '@/utils/format'
 import '@/styles/workspace.css'
 
 const route = useRoute()
@@ -23,6 +23,7 @@ const businessVisible = computed(
 const workspace = provideWorkspace()
 const {
   isCompact,
+  isMobile,
   sideDrawerOpen,
   openSideDrawer,
   navigationConfirmOpen,
@@ -33,6 +34,21 @@ const {
   cancelNavigation,
   currentProject,
 } = workspace
+
+const pageTitle = computed(() => {
+  switch (route.name) {
+    case 'project-results':
+      return '生成结果'
+    case 'account-security':
+      return '账号与用量'
+    case 'admin-accounts':
+      return '账号管理'
+    default:
+      break
+  }
+  if (currentProject.value) return displayProjectTitle(currentProject.value.title)
+  return route.name === 'project-chat' ? '对话' : '新对话'
+})
 
 // Status text can include a project title. Never let it survive an account or
 // login-lifecycle change, even for the first frame of the next workspace.
@@ -46,13 +62,30 @@ onBeforeUnmount(() => clearLiveStatus())
       <AppSidebar v-if="!isCompact" />
 
       <main class="pure-main">
-        <div v-if="isCompact" class="mobile-bar">
-          <button type="button" class="mobile-menu" aria-label="打开侧栏" :aria-expanded="sideDrawerOpen" aria-controls="workspace-side-drawer" @click="openSideDrawer">
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
-            <span>对话</span>
-          </button>
+        <header class="workspace-topbar">
+          <div class="topbar-left">
+            <button
+              v-if="isCompact"
+              type="button"
+              class="topbar-menu"
+              aria-label="打开侧栏"
+              :aria-expanded="sideDrawerOpen"
+              aria-controls="workspace-side-drawer"
+              @click="openSideDrawer"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            </button>
+            <span v-if="isCompact" class="topbar-brand">电商生图工作台</span>
+            <span v-if="isCompact" class="topbar-divider" aria-hidden="true"></span>
+            <h1 class="topbar-title">{{ pageTitle }}</h1>
+          </div>
+          <CurrentStatusCapsule v-if="!isMobile" variant="topbar" />
+        </header>
+
+        <div v-if="isMobile && chatView" class="capsule-inline">
+          <CurrentStatusCapsule variant="inline" />
         </div>
 
         <div class="main-panel" :class="{ 'is-chat': chatView }">
@@ -67,7 +100,6 @@ onBeforeUnmount(() => clearLiveStatus())
           </section>
           <RouterView />
         </div>
-        <CurrentStatusCapsule />
       </main>
 
       <SideDrawer />
@@ -88,27 +120,87 @@ onBeforeUnmount(() => clearLiveStatus())
 <style scoped>
 .pure-shell {
   display: flex;
-  gap: 12px;
   width: 100%;
   height: 100vh;
   height: 100dvh;
   max-width: 100vw;
-  padding: 12px;
-  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  background: var(--color-page);
   overflow: hidden;
+  background: var(--surface-canvas);
 }
-.pure-main { position: relative; display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; }
-.mobile-bar { display: flex; align-items: center; flex: none; height: 52px; padding: 0 4px; }
-.mobile-menu { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 11px; background: var(--color-panel); color: var(--color-text); }
-.main-panel { position: relative; display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; border-radius: var(--radius-shell); }
-.main-panel:not(.is-chat) { padding: 24px; background: var(--color-panel); overflow-y: auto; }
-.legacy-isolation-banner { flex: none; margin: 0 0 12px; padding: 10px 14px; border: 1px solid #ecd8b8; border-radius: 12px; background: #fff9ed; color: #6d5125; }
-.legacy-isolation-banner strong { font-size: 13px; }
-.legacy-isolation-banner p { margin: 2px 0 0; font-size: 12px; }
-.session-lost { display: grid; place-items: center; width: 100%; color: var(--color-text-muted); }
-@media (max-width: 767px) {
-  .pure-shell { padding: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
-  .pure-main { gap: 0; }
+.pure-main {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--surface-canvas);
 }
+.workspace-topbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  height: var(--topbar-height);
+  padding: 0 var(--space-4) 0 var(--shell-pad-x);
+  border-bottom: 1px solid var(--line-inverse);
+  background: var(--surface-shell);
+  color: var(--text-inverse-secondary);
+}
+.topbar-left { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.topbar-menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: calc(var(--space-2) * -1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-inverse-primary);
+}
+.topbar-menu:hover { background: var(--surface-shell-hover); }
+.topbar-brand {
+  color: var(--text-inverse-primary);
+  font-size: var(--text-body);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.topbar-divider { width: 1px; height: 16px; background: var(--line-inverse-control); }
+.topbar-title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-inverse-muted);
+  font-size: var(--text-body);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.capsule-inline { display: flex; flex: none; padding: var(--space-2) var(--shell-pad-x) 0; }
+.main-panel {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.main-panel:not(.is-chat) {
+  padding: var(--space-6) var(--shell-pad-x);
+  overflow-y: auto;
+}
+.legacy-isolation-banner {
+  flex: none;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid color-mix(in srgb, var(--state-warning) 35%, var(--line-hairline));
+  background: var(--surface-panel);
+  color: var(--text-secondary);
+}
+.legacy-isolation-banner strong { font-size: var(--text-body); font-weight: 600; }
+.legacy-isolation-banner p { margin: var(--space-1) 0 0; font-size: var(--text-caption); line-height: var(--text-caption-line); }
+.session-lost { display: grid; place-items: center; width: 100%; color: var(--text-muted); }
 </style>

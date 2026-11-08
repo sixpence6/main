@@ -651,7 +651,7 @@ onBeforeUnmount(() => {
   min-height: 100vh;
   min-height: 100dvh;
   padding: 32px 20px 56px;
-  background: var(--color-page);
+  background: var(--surface-canvas);
 }
 
 .accounts-shell {
@@ -670,7 +670,7 @@ onBeforeUnmount(() => {
 
 .accounts-brand {
   margin: 0 0 8px;
-  color: var(--color-accent);
+  color: var(--action-link);
   font-size: 13px;
   letter-spacing: 0.12em;
 }
@@ -682,14 +682,14 @@ h1 {
 }
 
 .accounts-back {
-  color: var(--color-primary);
+  color: var(--action-primary);
 }
 
 .accounts-panel {
   padding: 22px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-panel);
-  background: var(--color-panel);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
   box-shadow: var(--shadow-panel);
 }
 
@@ -700,7 +700,7 @@ h2 {
 
 .accounts-note {
   margin: 8px 0;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   line-height: 1.7;
   font-size: 13px;
 }
@@ -716,7 +716,7 @@ h2 {
   flex: 1;
   display: grid;
   gap: 8px;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -724,10 +724,10 @@ h2 {
   width: 100%;
   min-height: 44px;
   padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: #fff;
-  color: var(--color-text);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  color: var(--text-primary);
   font-size: var(--text-input);
 }
 
@@ -735,18 +735,18 @@ h2 {
 .accounts-action {
   min-height: 42px;
   padding: 8px 16px;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-sm);
   font-size: 14px;
 }
 
 .accounts-primary {
   border: 0;
-  background: var(--color-primary);
-  color: #fff;
+  background: var(--action-primary);
+  color: var(--action-primary-text);
 }
 
 .accounts-primary:hover:not(:disabled) {
-  background: var(--color-primary-hover);
+  background: var(--action-primary-hover);
 }
 
 .accounts-primary:disabled,
@@ -756,19 +756,19 @@ h2 {
 }
 
 .accounts-action {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--line-hairline);
   background: transparent;
-  color: var(--color-primary);
+  color: var(--action-primary);
 }
 
 .accounts-success {
   margin: 12px 0 0;
-  color: var(--color-primary);
+  color: var(--action-primary);
 }
 
 .accounts-error {
   margin: 12px 0 0;
-  color: var(--color-danger);
+  color: var(--state-danger);
   line-height: 1.6;
 }
 
@@ -786,13 +786,13 @@ h2 {
 .accounts-table th,
 .accounts-table td {
   padding: 12px 10px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--line-hairline);
   text-align: left;
   vertical-align: middle;
 }
 
 .accounts-table th {
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 500;
 }
@@ -805,13 +805,13 @@ h2 {
   margin-left: 8px;
   padding: 2px 7px;
   border-radius: 999px;
-  background: var(--color-page);
-  color: var(--color-text-muted);
-  font-size: 11px;
+  background: var(--surface-canvas);
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .link-panel {
-  border-color: var(--color-primary);
+  border-color: var(--action-primary);
 }
 
 .link-actions {
@@ -835,8 +835,8 @@ h2 {
 }
 
 .accounts-danger {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
+  border-color: var(--state-danger);
+  color: var(--state-danger);
 }
 
 .events-table td {
@@ -847,7 +847,7 @@ h2 {
 .accounts-event-target {
   display: block;
   margin-top: 4px;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -880,7 +880,7 @@ h2 {
 .accounts-lede {
   max-width: 620px;
   margin: 10px 0 0;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   font-size: 13px;
   line-height: 1.75;
 }
@@ -895,8 +895,8 @@ h2 {
   display: grid;
   gap: 3px;
   padding: 14px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
   background: rgba(255, 252, 247, 0.62);
 }
 
@@ -906,8 +906,8 @@ h2 {
 }
 
 .accounts-summary span {
-  color: var(--color-text-muted);
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .accounts-field-note {
@@ -920,33 +920,33 @@ h2 {
   min-height: 24px;
   padding: 2px 9px;
   border-radius: 999px;
-  background: var(--color-page);
-  color: var(--color-text-muted);
-  font-size: 11px;
+  background: var(--surface-canvas);
+  color: var(--text-muted);
+  font-size: 12px;
   white-space: nowrap;
 }
 
 .accounts-status-active,
 .accounts-status-result-success {
   background: rgba(66, 102, 76, 0.1);
-  color: var(--color-success);
+  color: var(--state-success);
 }
 
 .accounts-status-pending_setup {
   background: rgba(124, 90, 34, 0.1);
-  color: var(--color-warning);
+  color: var(--state-warning);
 }
 
 .accounts-status-disabled,
 .accounts-status-result-failure,
 .accounts-status-result-denied {
   background: rgba(164, 61, 53, 0.08);
-  color: var(--color-danger);
+  color: var(--state-danger);
 }
 
 .accounts-status-result-limited {
   background: rgba(124, 90, 34, 0.1);
-  color: var(--color-warning);
+  color: var(--state-warning);
 }
 
 @media (max-width: 720px) {
@@ -977,8 +977,8 @@ h2 {
 
   .accounts-table tr {
     padding: 12px 14px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-control);
+    border: 1px solid var(--line-hairline);
+    border-radius: var(--radius-sm);
     background: rgba(255, 252, 247, 0.54);
   }
 
@@ -993,8 +993,8 @@ h2 {
 
   .accounts-table td::before {
     content: attr(data-label);
-    color: var(--color-text-muted);
-    font-size: 11px;
+    color: var(--text-muted);
+    font-size: 12px;
   }
 
   .account-actions {

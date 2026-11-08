@@ -20,7 +20,7 @@ withDefaults(defineProps<{ size?: number }>(), { size: 32 })
   display: inline-grid;
   flex: none;
   place-items: center;
-  color: var(--color-primary);
+  color: var(--action-primary);
 }
 .brand-mark svg {
   width: 100%;

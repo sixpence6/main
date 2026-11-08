@@ -245,9 +245,9 @@ function onCompositionEnd(): void {
 .composer {
   margin-top: 0;
   padding: var(--space-3);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--line-hairline);
   border-radius: 20px;
-  background: var(--color-panel);
+  background: var(--surface-panel);
   box-shadow: 0 10px 30px rgba(31, 36, 56, 0.08);
 }
 
@@ -261,13 +261,13 @@ function onCompositionEnd(): void {
 }
 
 .composer-label {
-  color: var(--color-text);
+  color: var(--text-primary);
   font-size: var(--text-body);
   font-weight: 650;
 }
 
 .composer-label-hint {
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -275,7 +275,7 @@ function onCompositionEnd(): void {
   max-height: 240px;
   overflow-y: hidden;
   border-radius: 20px;
-  background: var(--color-panel);
+  background: var(--surface-panel);
   resize: none;
 }
 
