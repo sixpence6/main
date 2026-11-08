@@ -18,6 +18,7 @@ const {
   currentProject,
   projectParam,
   draft,
+  isMobile,
 } = workspace
 const {
   busy,
@@ -105,6 +106,104 @@ const promptStateLabel = computed(() => {
   if (!promptPreview.value) return ''
   return promptPreview.value.can_confirm ? '' : '提示词正在检查，确认按钮暂不可用。'
 })
+
+interface PromptCardSnapshot {
+  positive: string
+  negative: string
+  output: string
+  reference: string
+  version: string
+}
+
+const promptSnapshot = ref<PromptCardSnapshot | null>(null)
+const promptConfirmed = ref(false)
+const promptConfirming = ref(false)
+const promptConfirmedId = ref('')
+let promptHoldTimer: ReturnType<typeof setTimeout> | null = null
+
+function promptVersionFromRequest(request: Record<string, unknown> | undefined): string {
+  const raw = request?.contract_version
+  if (typeof raw !== 'string') return ''
+  const match = raw.match(/(\d+)\.(\d+)/)
+  return match ? 'v' + match[1] + '.' + match[2] : ''
+}
+
+const promptVersionLabel = computed(() =>
+  promptSnapshot.value?.version || promptVersionFromRequest(promptPreview.value?.request) || 'v1'
+)
+const promptCardPositive = computed(() => promptSnapshot.value?.positive ?? positivePrompt.value)
+const promptCardNegative = computed(() => promptSnapshot.value?.negative ?? negativePrompt.value)
+const promptCardOutput = computed(() => promptSnapshot.value?.output ?? promptOutput.value)
+const promptCardReference = computed(() => promptSnapshot.value?.reference ?? referenceInfo.value)
+const promptCardVisible = computed(() => Boolean(promptPreview.value || promptSnapshot.value))
+const promptStatus = computed<'pending' | 'checking' | 'confirmed'>(() => {
+  if (promptConfirmed.value) return 'confirmed'
+  return promptPreview.value?.can_confirm === false ? 'checking' : 'pending'
+})
+const promptStatusLabel = computed(() => {
+  if (promptStatus.value === 'confirmed') return '已确认'
+  return promptStatus.value === 'checking' ? '检查中' : '待确认'
+})
+const promptCanConfirm = computed(() =>
+  Boolean(promptPreview.value?.can_confirm) &&
+  !promptConfirmed.value &&
+  !promptConfirming.value &&
+  !busy.value
+)
+const promptCtaLabel = computed(() =>
+  promptPreview.value && promptPreview.value.can_confirm === false
+    ? '提示词检查中…'
+    : '确认使用以上提示词生成'
+)
+const promptExecutionStatus = computed(() => taskStatusText.value || '已确认，正在执行…')
+
+function clearPromptHoldTimer(): void {
+  if (promptHoldTimer !== null) {
+    clearTimeout(promptHoldTimer)
+    promptHoldTimer = null
+  }
+}
+
+function resetPromptCard(): void {
+  clearPromptHoldTimer()
+  promptSnapshot.value = null
+  promptConfirmed.value = false
+  promptConfirming.value = false
+  promptConfirmedId.value = ''
+}
+
+function onConfirmPrompt(): void {
+  if (promptConfirmed.value || promptConfirming.value) return
+  const preview = promptPreview.value
+  if (!preview?.can_confirm || busy.value) return
+  const hasAction = flow.workflow.view.value?.available_actions.some((item) => item.id === 'confirm_prompt')
+  if (!hasAction) return
+  promptSnapshot.value = {
+    positive: positivePrompt.value,
+    negative: negativePrompt.value,
+    output: promptOutput.value,
+    reference: referenceInfo.value,
+    version: promptVersionLabel.value,
+  }
+  promptConfirmedId.value = preview.id
+  promptConfirmed.value = true
+  promptConfirming.value = true
+  clearPromptHoldTimer()
+  promptHoldTimer = setTimeout(() => {
+    promptHoldTimer = null
+    promptSnapshot.value = null
+  }, 3000)
+  void confirmPrompt().then(
+    () => {
+      promptConfirming.value = false
+      if (flowError.value && promptPreview.value?.can_confirm) resetPromptCard()
+    },
+    () => {
+      promptConfirming.value = false
+      resetPromptCard()
+    },
+  )
+}
 
 function openAttachmentPicker(): void {
   attachmentInput.value?.click()
@@ -244,12 +343,20 @@ watch(
 watch(
   () => projectParam.value,
   async () => {
+    resetPromptCard()
     stickToBottom.value = true
     newContentAvailable.value = false
     await nextTick()
     scrollToLatest()
   },
   { flush: 'post' },
+)
+
+watch(
+  () => promptPreview.value?.id,
+  (id) => {
+    if (id && promptConfirmed.value && id !== promptConfirmedId.value) resetPromptCard()
+  },
 )
 
 watch(
@@ -284,6 +391,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearPromptHoldTimer()
   if (composerFrame) cancelAnimationFrame(composerFrame)
   if (bottomFrame) cancelAnimationFrame(bottomFrame)
   contentObserver?.disconnect()
@@ -676,43 +784,122 @@ watch(
           </section>
 
           <section
-            v-if="promptPreview"
+            v-if="promptCardVisible"
             class="assistant-turn prompt-turn"
             aria-label="提示词确认"
           >
-            <div class="message-bubble">
-              <p class="message-role">智能生图助手</p>
-              <p class="assistant-lead">提示词已经准备好。下面就是实际会交给图片模型的内容，确认后才会生成图片。</p>
-              <div class="prompt-block">
-                <div class="prompt-heading">
-                  <h3>实际提示词</h3>
-                  <button type="button" class="text-button" @click="copyPrompt">
+            <p class="message-role">智能生图助手</p>
+            <p class="assistant-lead">提示词已经准备好。下面就是实际会交给图片模型的内容，确认后才会生成图片。</p>
+            <div
+              class="prompt-card"
+              :class="{ 'is-narrow': isMobile, 'is-confirmed': promptConfirmed }"
+            >
+              <header class="prompt-card-head">
+                <h3 class="prompt-card-title">实际提示词</h3>
+                <span class="prompt-card-version">{{ promptVersionLabel }}</span>
+                <span class="prompt-card-pill" :class="'is-' + promptStatus">
+                  <svg
+                    v-if="promptStatus === 'confirmed'"
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  >
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3 2" />
+                  </svg>
+                  <svg
+                    v-else-if="promptStatus === 'checking'"
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  >
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 11v5" />
+                    <path d="M12 8h.01" />
+                  </svg>
+                  <svg
+                    v-else
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  >
+                    <path d="M12 3 2.5 20h19L12 3Z" />
+                    <path d="M12 9v5" />
+                    <path d="M12 17h.01" />
+                  </svg>
+                  <span>{{ promptStatusLabel }}</span>
+                </span>
+              </header>
+
+              <div class="prompt-card-body">
+                <blockquote class="prompt-card-quote">{{ promptCardPositive }}</blockquote>
+
+                <div v-if="promptCardNegative" class="prompt-card-negative">
+                  <svg
+                    class="prompt-card-danger-icon"
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  >
+                    <path d="M12 3 2.5 20h19L12 3Z" />
+                    <path d="M12 9v5" />
+                    <path d="M12 17h.01" />
+                  </svg>
+                  <div class="prompt-card-negative-body">
+                    <span class="prompt-card-negative-label">避免</span>
+                    <p class="prompt-card-negative-text">{{ promptCardNegative }}</p>
+                  </div>
+                </div>
+
+                <dl v-if="promptCardOutput || promptCardReference" class="prompt-card-facts">
+                  <div v-if="promptCardOutput" class="prompt-card-fact">
+                    <dt>输出</dt>
+                    <dd>{{ promptCardOutput }}</dd>
+                  </div>
+                  <div v-if="promptCardReference" class="prompt-card-fact">
+                    <dt>参考图</dt>
+                    <dd>{{ promptCardReference }}</dd>
+                  </div>
+                </dl>
+
+                <p v-if="promptStateLabel && !promptConfirmed" class="prompt-card-note">{{ promptStateLabel }}</p>
+
+                <div v-if="!promptConfirmed" class="prompt-card-actions">
+                  <button type="button" class="prompt-copy" @click="copyPrompt">
                     {{ copied ? '已复制' : '复制提示词' }}
                   </button>
+                  <button
+                    type="button"
+                    class="prompt-cta"
+                    :disabled="!promptCanConfirm"
+                    @click="onConfirmPrompt"
+                  >
+                    {{ promptCtaLabel }}
+                  </button>
                 </div>
-                <pre class="prompt-text">{{ positivePrompt }}</pre>
-                <template v-if="negativePrompt">
-                  <h3>需要避免</h3>
-                  <pre class="prompt-text prompt-negative">{{ negativePrompt }}</pre>
-                </template>
-                <dl class="prompt-meta">
-                  <template v-if="promptOutput">
-                    <dt>输出</dt><dd>{{ promptOutput }}</dd>
-                  </template>
-                  <template v-if="referenceInfo">
-                    <dt>参考图</dt><dd>{{ referenceInfo }}</dd>
-                  </template>
-                </dl>
               </div>
-              <p v-if="promptStateLabel" class="usage-note">{{ promptStateLabel }}</p>
-              <button
-                type="button"
-                class="primary-action"
-                :disabled="busy || !promptPreview?.can_confirm"
-                @click="confirmPrompt"
-              >
-                {{ promptPreview?.can_confirm ? '确认使用以上提示词生成' : '提示词检查中…' }}
-              </button>
+              <p v-if="promptConfirmed" class="prompt-card-execution" role="status">
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 11v5" />
+                  <path d="M12 8h.01" />
+                </svg>
+                <span>{{ promptExecutionStatus }}</span>
+              </p>
             </div>
           </section>
 
@@ -1195,13 +1382,163 @@ watch(
 .primary-action:hover:not(:disabled) { background: var(--action-primary-hover); }
 .primary-action:active:not(:disabled) { transform: scale(.975); }
 .primary-action:disabled { cursor: not-allowed; opacity: .55; }
-.prompt-block { margin: 0 0 18px; padding: 18px; border: 1px solid var(--line-hairline); border-radius: 14px; background: var(--surface-panel); }
-.prompt-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
-.prompt-heading h3, .prompt-block h3 { margin: 0; font-size: 14px; }
-.prompt-block h3 + .prompt-text { margin-top: 8px; }
-.prompt-text { max-height: none; margin: 0 0 16px; padding: 14px; border-radius: 10px; background: var(--surface-inset); white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.65 var(--font-mono); }
-.prompt-negative { background: color-mix(in srgb, var(--state-danger) 6%, var(--surface-panel)); }
-.prompt-meta { margin-bottom: 0; }
+.prompt-card {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+}
+.prompt-card-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.prompt-card-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-section);
+  line-height: var(--text-section-line);
+  font-weight: 600;
+}
+.prompt-card-version {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: calc(var(--text-caption) + 1px);
+  line-height: calc(var(--text-caption-line) + 2px);
+}
+.prompt-card-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--state-warning) 9%, var(--surface-panel));
+  color: var(--state-warning);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.prompt-card-pill svg { flex: none; width: var(--icon-sm); height: var(--icon-sm); }
+.prompt-card-pill.is-confirmed {
+  background: color-mix(in srgb, var(--state-success) 9%, var(--surface-panel));
+  color: var(--state-success);
+}
+.prompt-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 480px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-hover) transparent;
+}
+.prompt-card-body::-webkit-scrollbar { width: var(--space-2); }
+.prompt-card-body::-webkit-scrollbar-thumb { border-radius: var(--radius-pill); background: var(--line-hover); }
+.prompt-card-quote {
+  margin: 0;
+  padding: calc(var(--space-3) + 2px) var(--space-4);
+  border-left: 2px solid var(--line-hover);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface-inset);
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--text-reading);
+  line-height: var(--text-reading-line);
+}
+.prompt-card-negative {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+}
+.prompt-card-danger-icon { flex: none; width: var(--icon-sm); height: var(--icon-sm); margin-top: var(--space-1); color: var(--state-danger); }
+.prompt-card-negative-body { min-width: 0; }
+.prompt-card-negative-label { color: var(--text-muted); font-size: var(--text-caption); line-height: var(--text-caption-line); font-weight: 600; }
+.prompt-card-negative-text {
+  margin: var(--space-1) 0 0;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--text-reading);
+  line-height: var(--text-reading-line);
+}
+.prompt-card-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr);
+  gap: var(--space-4);
+  margin: 0;
+}
+.prompt-card.is-narrow .prompt-card-facts { grid-template-columns: max-content minmax(0, 1fr); }
+.prompt-card-fact { display: contents; }
+.prompt-card-facts dt { color: var(--text-muted); font-size: var(--text-caption); line-height: var(--text-caption-line); }
+.prompt-card-facts dd { margin: 0; overflow-wrap: anywhere; color: var(--text-primary); font-size: var(--text-body); line-height: var(--text-body-line); }
+.prompt-card-note { margin: 0; color: var(--text-muted); font-size: var(--text-caption); line-height: var(--text-caption-line); }
+.prompt-card-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  background: var(--surface-panel);
+}
+.prompt-card.is-narrow .prompt-card-actions { flex-direction: column; align-items: stretch; }
+.prompt-card.is-narrow .prompt-copy { align-self: flex-start; }
+.prompt-card.is-narrow .prompt-cta { width: 100%; }
+.prompt-copy {
+  min-height: calc(var(--space-8) + var(--space-1));
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--action-primary);
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
+}
+.prompt-copy:hover:not(:disabled) { background: var(--action-soft); }
+.prompt-copy:disabled { cursor: not-allowed; color: var(--text-muted); }
+.prompt-cta {
+  min-height: calc(var(--space-8) + var(--space-1));
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--action-primary);
+  color: var(--action-primary-text);
+  font-size: var(--text-body);
+  font-weight: 600;
+  transition: background-color var(--dur-base) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.prompt-cta:hover:not(:disabled) { background: var(--action-primary-hover); }
+.prompt-cta:active:not(:disabled) { transform: scale(.98); }
+.prompt-cta:disabled { cursor: not-allowed; background: var(--surface-inset); color: var(--text-muted); opacity: 1; }
+.prompt-copy:focus-visible, .prompt-cta:focus-visible { outline: 2px solid var(--focus-ring-light); outline-offset: 2px; }
+.prompt-card-execution {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
+}
+.prompt-card-execution svg { flex: none; width: var(--icon-sm); height: var(--icon-sm); color: var(--state-info); }
 .text-button { padding: 2px 0; border: 0; background: transparent; color: var(--action-primary); font-size: 13px; }
 .text-button:hover:not(:disabled) { text-decoration: underline; }
 .text-button:disabled { cursor: not-allowed; color: var(--text-muted); }
