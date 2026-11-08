@@ -286,8 +286,13 @@ describe('T13 轻量任务状态、失败与真实恢复动作', () => {
       }))
 
       const region = await taskRegion()
-      expect(within(region).getByText(item.label)).toBeVisible()
-      expect(within(region).getByText(item.message)).toBeVisible()
+      const expectedLabel = item.severity === 'unknown' ? item.label + '，正在核实' : item.label
+      expect(within(region).getByText(expectedLabel)).toBeVisible()
+      if (item.severity === 'failed' || item.severity === 'unknown') {
+        expect(within(region).queryByText(item.message)).not.toBeInTheDocument()
+      } else {
+        expect(within(region).getByText(item.message)).toBeVisible()
+      }
       expect(screen.queryByText('RAW_ISSUE_SENTINEL_SHOULD_NOT_RENDER')).not.toBeInTheDocument()
       harness?.dispose()
       harness = undefined
@@ -327,7 +332,7 @@ describe('T13 轻量任务状态、失败与真实恢复动作', () => {
     expect(screen.queryByText('正在整理需求…')).not.toBeInTheDocument()
   })
 
-  it('只显示服务端实际提供的恢复动作，只读核实与可能调用模型清晰区分，并需明确确认计数动作', async () => {
+  it('结果未知时只保留只读核实动作；正常状态下的计数动作仍需明确确认', async () => {
     const verify = action('verify_generation', '核实原任务', {
       effect: 'read_only',
       read_only: true,
@@ -341,14 +346,14 @@ describe('T13 轻量任务状态、失败与真实恢复动作', () => {
       retry_mode: 'manual_only',
     })
     const unknown = action('unexpected_action', '不应出现的动作')
-    let actionBody: unknown
+    let verifyBody: unknown
     await mountTask(workflow({
       status: 'blocked',
       task_state: taskState(reason('remote_unknown', '远端状态尚未确认，系统不会自动重发。', 'unknown'), 'blocked'),
       available_actions: [verify, retry, unknown],
     }), (fetch) => {
       fetch.route('POST', ACTIONS_ROUTE, (request) => {
-        actionBody = request.body
+        verifyBody = request.body
         return {
           body: workflow({
             status: 'blocked',
@@ -362,18 +367,50 @@ describe('T13 轻量任务状态、失败与真实恢复动作', () => {
     const region = await taskRegion()
     expect(within(region).getByRole('button', { name: '核实原任务' })).toBeVisible()
     expect(within(region).getByText('只读核实')).toBeVisible()
-    expect(within(region).getByText('可能调用模型')).toBeVisible()
+    expect(within(region).queryByRole('button', { name: '重新生成' })).not.toBeInTheDocument()
+    expect(within(region).queryByText('可能调用模型')).not.toBeInTheDocument()
     expect(within(region).queryByRole('button', { name: '不应出现的动作' })).not.toBeInTheDocument()
     expect(harness!.fetch.writes).toEqual([])
 
-    const retryButton = within(region).getByRole('button', { name: '重新生成' })
+    await harness!.user.click(within(region).getByRole('button', { name: '核实原任务' }))
+    await waitFor(() => expect(harness!.fetch.writes).toHaveLength(1))
+    expect(verifyBody).toMatchObject({
+      expected_revision: 3,
+      text: null,
+      payload: null,
+    })
+    expect(String(harness!.fetch.writes[0].path)).toContain('/workflow/actions/verify_generation')
+
+    harness?.dispose()
+    harness = undefined
+    let retryBody: unknown
+    await mountTask(workflow({
+      status: 'blocked',
+      task_state: taskState(reason('missing_information', '还需要补充信息后才能继续。', 'needs_input'), 'blocked'),
+      available_actions: [retry],
+    }), (fetch) => {
+      fetch.route('POST', ACTIONS_ROUTE, (request) => {
+        retryBody = request.body
+        return {
+          body: workflow({
+            status: 'active',
+            task_state: taskState(null, 'active'),
+            available_actions: [],
+          }),
+        }
+      })
+    })
+
+    const normalRegion = await taskRegion()
+    expect(within(normalRegion).getByText('可能调用模型')).toBeVisible()
+    const retryButton = within(normalRegion).getByRole('button', { name: '重新生成' })
     expect(retryButton).toBeDisabled()
-    await harness!.user.click(within(region).getByLabelText('我确认重新生成会新增一次受理计数并占用生成槽位'))
+    await harness!.user.click(within(normalRegion).getByLabelText('我确认重新生成会新增一次受理计数并占用生成槽位'))
     expect(retryButton).toBeEnabled()
     await harness!.user.click(retryButton)
 
     await waitFor(() => expect(harness!.fetch.writes).toHaveLength(1))
-    expect(actionBody).toMatchObject({
+    expect(retryBody).toMatchObject({
       expected_revision: 3,
       text: null,
       payload: { acknowledge_new_attempt: true },
@@ -566,6 +603,7 @@ describe('T13 轻量任务状态、失败与真实恢复动作', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('账号已禁用，当前操作未执行。')
     expect(harness!.fetch.writes).toHaveLength(1)
     expect(screen.queryByText(/图片已经生成，可以保存使用了/)).not.toBeInTheDocument()
-    expect(within(region).getByText('处理服务暂不可用，本次未自动重试。')).toBeVisible()
+    expect(within(region).getByText('技术故障')).toBeVisible()
+    expect(within(region).queryByText('处理服务暂不可用，本次未自动重试。')).not.toBeInTheDocument()
   })
 })

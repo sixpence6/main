@@ -418,13 +418,13 @@ h2 {
   max-width: 560px;
   margin: 10px 0 0;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--text-caption);
   line-height: 1.75;
 }
 .security-back {
   flex: none;
   color: var(--action-primary);
-  font-size: 13px;
+  font-size: var(--text-body);
 }
 .security-panel {
   padding: 24px;
@@ -467,7 +467,7 @@ h2 {
   margin: 8px 0;
   color: var(--text-muted);
   line-height: 1.7;
-  font-size: 13px;
+  font-size: var(--text-caption);
 }
 .security-note-inline {
   margin: 0;
@@ -632,7 +632,7 @@ h2 {
   font-size: 12px;
   line-height: 1.7;
 }
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .security-page {
     padding: 22px 12px 42px;
   }

@@ -55,6 +55,7 @@ const {
   confirmRequirements,
   confirmPrompt,
   copyPrompt,
+  cancelPendingTaskAction,
   retry,
   taskActionEffectLabel,
   taskActionHelp,
@@ -120,7 +121,6 @@ const promptSnapshot = ref<PromptCardSnapshot | null>(null)
 const promptConfirmed = ref(false)
 const promptConfirming = ref(false)
 const promptConfirmedId = ref('')
-let promptHoldTimer: ReturnType<typeof setTimeout> | null = null
 
 function promptVersionFromRequest(request: Record<string, unknown> | undefined): string {
   const raw = request?.contract_version
@@ -183,13 +183,32 @@ const taskVisualState = computed<TaskVisualState>(() => {
 })
 const taskTurnVisible = computed(() =>
   Boolean(
-    (taskStatusText.value || taskActions.value.length || taskRecovered.value) &&
+    (taskStatusText.value || taskVisibleActions.value.length || taskRecovered.value) &&
       (!publishedAssetId.value || taskRecovered.value),
   ),
 )
 const taskDisplayText = computed(() =>
   taskActionPending.value ? taskPendingLabel.value : taskStatusText.value,
 )
+// Unknown results must never expose actions that could create, retry, or revise
+// work. Only server-declared verify/recover actions (or read-only inspection)
+// stay available; normal states keep the full action list.
+const taskVisibleActions = computed(() => {
+  if (!taskUnknown.value) return taskActions.value
+  return taskActions.value.filter(
+    (action) => RECOVERY_ACTION_IDS.has(action.id) || action.effect === 'read_only',
+  )
+})
+const taskReasonLine = computed(() => {
+  if (taskVisualState.value === 'executing' || taskVisualState.value === 'recovered') return ''
+  const label = taskReasonLabel.value || (taskUnknown.value ? '结果未知' : '')
+  if (!label) return ''
+  return taskUnknown.value ? label + '，正在核实' : label
+})
+const taskStatusLine = computed(() => {
+  if (taskVisualState.value === 'executing') return taskDisplayText.value
+  return (taskUnknown.value || taskFailed.value) && taskReasonLine.value ? '' : taskDisplayText.value
+})
 
 watch(
   () => flow.workflow.view.value?.run_id,
@@ -228,15 +247,7 @@ async function onTaskAction(action: WorkflowAction): Promise<void> {
   }
 }
 
-function clearPromptHoldTimer(): void {
-  if (promptHoldTimer !== null) {
-    clearTimeout(promptHoldTimer)
-    promptHoldTimer = null
-  }
-}
-
 function resetPromptCard(): void {
-  clearPromptHoldTimer()
   promptSnapshot.value = null
   promptConfirmed.value = false
   promptConfirming.value = false
@@ -259,11 +270,8 @@ function onConfirmPrompt(): void {
   promptConfirmedId.value = preview.id
   promptConfirmed.value = true
   promptConfirming.value = true
-  clearPromptHoldTimer()
-  promptHoldTimer = setTimeout(() => {
-    promptHoldTimer = null
-    promptSnapshot.value = null
-  }, 3000)
+  // The confirmed card is a frozen receipt: keep it until the preview id
+  // genuinely changes or the project resets, even when promptPreview clears.
   void confirmPrompt().then(
     () => {
       promptConfirming.value = false
@@ -394,17 +402,6 @@ function onResultCardClick(
   openLightbox(item, event)
 }
 
-function onResultCardKeydown(
-  item: { assetId: string | null; caption: string },
-  event: KeyboardEvent,
-): void {
-  // 只有焦点在卡片本身时才拦截，内部链接/按钮保留原生键盘行为。
-  if (event.target !== event.currentTarget) return
-  if (event.key !== 'Enter' && event.key !== ' ') return
-  event.preventDefault()
-  openLightbox(item, event)
-}
-
 function closeLightbox(): void {
   lightboxOpen.value = false
 }
@@ -483,7 +480,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  clearPromptHoldTimer()
   if (composerFrame) cancelAnimationFrame(composerFrame)
   if (bottomFrame) cancelAnimationFrame(bottomFrame)
   contentObserver?.disconnect()
@@ -827,21 +823,15 @@ watch(
                 <div class="task-status-copy">
                   <p v-if="taskVisualState === 'recovered'" class="task-status-heading">已恢复</p>
                   <p
-                    v-else-if="taskVisualState === 'unknown'"
+                    v-else-if="taskReasonLine"
                     class="task-reason-label"
                     :data-category="taskReason?.category"
-                  ><span class="task-reason-label-text">{{ taskReasonLabel || '结果未知' }}</span><span>，正在核实</span></p>
-                  <p
-                    v-else-if="taskReasonLabel"
-                    class="task-reason-label"
-                    :data-category="taskReason?.category"
-                  >{{ taskReasonLabel }}</p>
-                  <p v-if="taskDisplayText" class="task-status-text">{{ taskDisplayText }}</p>
+                  >{{ taskReasonLine }}</p>
+                  <p v-if="taskStatusLine" class="task-status-text">{{ taskStatusLine }}</p>
                 </div>
               </div>
-              <div v-if="taskActions.length" class="task-actions">
-                <p v-if="!isWorkingStatus && !taskActionPending" class="task-actions-note">安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。</p>
-                <div v-for="action in taskActions" :key="action.id" class="task-action">
+              <div v-if="taskVisibleActions.length" class="task-actions">
+                <div v-for="action in taskVisibleActions" :key="action.id" class="task-action">
                   <div class="task-action-head">
                     <button
                       type="button"
@@ -999,7 +989,7 @@ watch(
                 <p v-if="promptStateLabel && !promptConfirmed" class="prompt-card-note">{{ promptStateLabel }}</p>
 
                 <div v-if="!promptConfirmed" class="prompt-card-actions">
-                  <button type="button" class="prompt-copy" @click="copyPrompt">
+                  <button type="button" class="prompt-copy" @click="copyPrompt(promptCardPositive)">
                     {{ copied ? '已复制' : '复制提示词' }}
                   </button>
                   <button
@@ -1063,9 +1053,7 @@ watch(
                 class="message-bubble result-card"
                 :class="{ 'is-clickable': item.assetId }"
                 :aria-label="'版本 ' + item.sequenceNo + ' 结果'"
-                :tabindex="item.assetId ? 0 : undefined"
                 @click="onResultCardClick(item, $event)"
-                @keydown="onResultCardKeydown(item, $event)"
               >
                 <a
                   v-if="item.assetId"
@@ -1151,16 +1139,46 @@ watch(
     </div>
 
     <footer ref="composerArea" class="composer-area">
-      <div v-if="flowError" class="chat-error composer-error" role="alert">
-        <p>{{ flowError }}</p>
-        <button type="button" class="text-button" @click="retry">重试</button>
+      <div v-if="flowError" class="composer-banner is-danger" role="alert">
+        <svg class="composer-banner-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 3 2.5 20h19L12 3Z" />
+          <path d="M12 9v5" />
+          <path d="M12 17h.01" />
+        </svg>
+        <p class="composer-banner-text">{{ flowError }}</p>
+        <button
+          type="button"
+          class="text-button composer-banner-action"
+          :disabled="retryingProject"
+          @click="retryProjectError"
+        >重试</button>
       </div>
-      <div v-if="attachmentError" class="chat-error composer-error" role="alert">
-        <p>{{ attachmentError }}</p>
+      <div v-if="attachmentError" class="composer-banner is-danger" role="alert">
+        <svg class="composer-banner-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 3 2.5 20h19L12 3Z" />
+          <path d="M12 9v5" />
+          <path d="M12 17h.01" />
+        </svg>
+        <p class="composer-banner-text">{{ attachmentError }}</p>
+        <button
+          type="button"
+          class="text-button composer-banner-action"
+          @click="openAttachmentPicker"
+        >重试</button>
       </div>
-      <p v-if="pendingTaskAction" class="pending-task-note" role="status">
-        正在修改：{{ pendingTaskAction.label }}。填写{{ pendingTaskAction.text_label || '补充内容' }}后点击发送。
-      </p>
+      <div v-if="pendingTaskAction" class="composer-banner is-info pending-task-note" role="status">
+        <svg class="composer-banner-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 11v5" />
+          <path d="M12 8h.01" />
+        </svg>
+        <p class="composer-banner-text">正在修改「{{ pendingTaskAction.label }}」：请在下方填写{{ pendingTaskAction.text_label || '补充内容' }}后发送。</p>
+        <button
+          type="button"
+          class="text-button composer-banner-action"
+          @click="cancelPendingTaskAction"
+        >取消</button>
+      </div>
       <div v-if="pendingAttachment" class="attachment-preview" aria-label="待发送的图片">
         <img
           v-if="!attachmentBusy"
@@ -1239,6 +1257,7 @@ watch(
           @compositionstart="composing = true"
           @compositionend="composing = false"
         />
+        <span v-if="busy" class="send-busy-label" role="status">处理中…</span>
         <button
           type="button"
           class="send-button"
@@ -1544,9 +1563,9 @@ watch(
 .requirement-status-text { color: var(--state-success); }
 .requirement-status-note { color: var(--text-muted); }
 .requirement-list, .prompt-meta { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 18px; margin: 0 0 18px; }
-.requirement-list dt, .prompt-meta dt { color: var(--text-muted); font-size: 13px; }
+.requirement-list dt, .prompt-meta dt { color: var(--text-muted); font-size: var(--text-caption); line-height: var(--text-caption-line); }
 .requirement-list dd, .prompt-meta dd { margin: 0; overflow-wrap: anywhere; }
-.usage-note { margin: 0 0 14px; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+.usage-note { margin: 0 0 14px; color: var(--text-muted); font-size: var(--text-caption); line-height: var(--text-caption-line); }
 .primary-action {
   min-height: 44px;
   padding: 0 22px;
@@ -1717,7 +1736,7 @@ watch(
   line-height: var(--text-body-line);
 }
 .prompt-card-execution svg { flex: none; width: var(--icon-sm); height: var(--icon-sm); color: var(--state-info); }
-.text-button { padding: 2px 0; border: 0; background: transparent; color: var(--action-primary); font-size: 13px; }
+.text-button { padding: 2px 0; border: 0; background: transparent; color: var(--action-primary); font-size: var(--text-body); line-height: var(--text-body-line); }
 .text-button:hover:not(:disabled) { text-decoration: underline; }
 .text-button:disabled { cursor: not-allowed; color: var(--text-muted); }
 .task-status-card {
@@ -1792,7 +1811,7 @@ watch(
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5 6.5 12 13 4.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
 }
 .task-confirm-box:focus-visible { outline: 2px solid var(--focus-ring-light); outline-offset: 2px; }
-.pending-task-note { width: min(var(--conversation-max), 100%); margin: 0 auto 8px; color: var(--action-primary); font-size: 13px; }
+.pending-task-note { width: min(var(--conversation-max), 100%); margin: 0 auto var(--space-2); color: var(--text-primary); font-size: var(--text-body); line-height: var(--text-body-line); }
 .result-unavailable-card { flex-direction: row; align-items: flex-start; gap: var(--space-2); }
 .result-unavailable-card .task-status-icon { margin-top: 3px; color: var(--state-danger); }
 .result-unavailable-card-text { margin: 0; color: var(--text-secondary); font-size: var(--text-body); line-height: var(--text-body-line); }
@@ -1804,7 +1823,7 @@ watch(
 }
 .image-history { display: flex; flex-direction: column; gap: var(--space-4); }
 .history-bubble { width: 100%; }
-.history-lead { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+.history-lead { margin: 0; color: var(--text-muted); font-size: var(--text-caption); line-height: var(--text-caption-line); }
 .result-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; width: 100%; }
 .result-card {
   box-sizing: border-box;
@@ -1858,17 +1877,17 @@ watch(
 .result-title { margin: var(--space-2) 0 0; color: var(--text-primary); font-size: var(--text-body); line-height: var(--text-body-line); font-weight: 500; overflow-wrap: anywhere; }
 .result-caption { margin: 2px 0 0; color: var(--text-muted); font-size: var(--text-caption); line-height: var(--text-caption-line); overflow-wrap: anywhere; }
 .result-status { margin-top: 10px; }
-.result-prompt { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line-hairline); border-radius: 10px; background: var(--surface-panel); }
-.result-prompt summary { cursor: pointer; font-size: 13px; font-weight: 600; }
-.result-prompt pre { margin: 10px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono); }
-.result-prompt h4 { margin: 12px 0 4px; font-size: 12px; color: var(--text-muted); }
-.result-prompt p { margin: 8px 0 0; color: var(--text-muted); font-size: 13px; }
+.result-prompt { margin-top: var(--space-3); padding: var(--space-3); border: 1px solid var(--line-hairline); border-radius: var(--radius-sm); background: var(--surface-panel); }
+.result-prompt summary { cursor: pointer; font-size: var(--text-body); line-height: var(--text-body-line); font-weight: 600; }
+.result-prompt pre { margin: var(--space-2) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono); }
+.result-prompt h4 { margin: var(--space-3) 0 var(--space-1); font-size: var(--text-caption); line-height: var(--text-caption-line); color: var(--text-muted); }
+.result-prompt p { margin: var(--space-2) 0 0; color: var(--text-muted); font-size: var(--text-body); line-height: var(--text-body-line); }
 .result-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: var(--space-3); }
 .result-download { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; font-size: var(--text-body); text-decoration: none; }
 .result-download-disabled { border: 1px solid var(--line-hairline); border-radius: var(--radius-pill); background: var(--surface-inset); color: var(--text-muted); opacity: 1; cursor: not-allowed; }
 .result-download:disabled { border: 1px solid var(--line-hairline); border-radius: var(--radius-pill); background: var(--surface-inset); color: var(--text-muted); opacity: 1; cursor: not-allowed; }
 .result-download-disabled:disabled { opacity: 1; color: var(--text-muted); }
-.result-time { margin: 10px 0 0; color: var(--text-muted); font-size: 12px; }
+.result-time { margin: 10px 0 0; color: var(--text-muted); font-size: var(--text-caption); line-height: var(--text-caption-line); }
 .result-unavailable {
   display: flex;
   flex-direction: column;
@@ -1887,8 +1906,8 @@ watch(
 @media (min-width: 768px) {
   .result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 }
-figcaption { color: var(--text-muted); font-size: 13px; }
-.chat-error { width: min(var(--conversation-max), 100%); margin: 0 auto 20px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--state-danger) 35%, var(--line-hairline)); border-radius: 12px; background: color-mix(in srgb, var(--state-danger) 6%, var(--surface-panel)); color: var(--state-danger); }
+figcaption { color: var(--text-muted); font-size: var(--text-caption); line-height: var(--text-caption-line); }
+.chat-error { width: min(var(--conversation-max), 100%); margin: 0 auto 20px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--state-danger) 35%, var(--line-hairline)); border-radius: var(--radius-md); background: color-mix(in srgb, var(--state-danger) 6%, var(--surface-panel)); color: var(--state-danger); }
 .chat-error p { margin: 0 0 4px; }
 .chat-load-error {
   display: grid;
@@ -1975,7 +1994,12 @@ figcaption { color: var(--text-muted); font-size: 13px; }
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--state-danger);
+  opacity: 0;
+  transition: opacity var(--dur-fast) ease, background-color var(--dur-fast) ease;
 }
+.attachment-preview:hover .attachment-remove,
+.attachment-preview:focus-within .attachment-remove,
+.attachment-remove:focus-visible { opacity: 1; }
 .attachment-action:hover:not(:disabled) { background: var(--surface-panel); color: var(--text-primary); }
 .attachment-remove:hover:not(:disabled) { background: var(--surface-panel); }
 .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
@@ -2036,7 +2060,27 @@ figcaption { color: var(--text-muted); font-size: 13px; }
 .float-pop-enter-from,
 .float-pop-leave-to { opacity: 0; transform: translateX(-50%) translateY(9px) scale(.9); }
 
-.composer-error { margin-bottom: 10px; }
+.composer-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: min(var(--conversation-max), 100%);
+  margin: 0 auto var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
+}
+.composer-banner.is-info { background: var(--action-soft); }
+.composer-banner-icon { flex: none; width: 18px; height: 18px; margin-top: 2px; }
+.composer-banner.is-danger .composer-banner-icon { color: var(--state-danger); }
+.composer-banner.is-info .composer-banner-icon { color: var(--action-primary); }
+.composer-banner-text { flex: 1; min-width: 0; margin: 0; }
+.composer-banner-action { flex: none; font-size: var(--text-body); line-height: var(--text-body-line); white-space: nowrap; }
+.composer-banner-action:disabled { cursor: not-allowed; color: var(--text-muted); }
 .composer-shell {
   display: flex;
   align-items: flex-end;
@@ -2072,6 +2116,14 @@ figcaption { color: var(--text-muted); font-size: 13px; }
   line-height: 24px;
 }
 .composer-input:disabled { opacity: 1; color: var(--text-muted); }
+.send-busy-label {
+  flex: none;
+  align-self: center;
+  color: var(--text-muted);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
+  white-space: nowrap;
+}
 .send-button {
   display: inline-flex;
   flex: none;
@@ -2111,5 +2163,6 @@ figcaption { color: var(--text-muted); font-size: 13px; }
   .welcome { padding-top: max(0px, calc(30vh - 24px)); }
   .composer-area { padding: 10px var(--space-4) max(var(--space-3), env(safe-area-inset-bottom, 0px)); }
   .message-bubble:not(.result-card) { padding: var(--space-3) var(--space-4); }
+  .attachment-remove { opacity: 1; }
 }
 </style>

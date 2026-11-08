@@ -275,7 +275,7 @@ h1 {
   line-height: 1.7;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1023px) {
   .auth-frame {
     padding: 20px;
   }
@@ -306,7 +306,7 @@ h1 {
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 767px) {
   .auth-frame {
     padding: 0;
     place-items: stretch;

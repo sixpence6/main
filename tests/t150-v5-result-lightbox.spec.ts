@@ -411,6 +411,7 @@ describe('T150 V5 结果卡与居中灯箱', () => {
     await historyRegion()
     const card = resultCard(2)
     const summary = within(card).getByText('该版本实际使用的已批准提示词')
+    expect(card).not.toHaveAttribute('tabindex')
 
     await harness!.user.click(summary)
     expect(within(card).getByText('当前版本的已批准提示词')).toBeVisible()
@@ -425,7 +426,8 @@ describe('T150 V5 结果卡与居中灯箱', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: '图片大图' })).not.toBeInTheDocument()
     })
-    expect(card).toHaveFocus()
+    // 整卡只是鼠标便利入口，不进入键盘 Tab 顺序，关闭后焦点不被卡片劫持。
+    expect(card).not.toHaveFocus()
   })
 
   it('背景 inert + 滚动锁，关闭后恢复', async () => {

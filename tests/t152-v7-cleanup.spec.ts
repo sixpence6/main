@@ -135,4 +135,27 @@ describe('V7 cleanup regression (issue #152)', () => {
       expect(file.text, relative(repoRoot, file.path)).not.toContain('var(--color-')
     }
   })
+
+  it('allows 13px only inside monospace rules', () => {
+    for (const file of sourceFiles) {
+      for (const match of file.text.matchAll(/font-size\s*:\s*13px/g)) {
+        const index = match.index ?? 0
+        const ruleOpen = file.text.lastIndexOf('{', index)
+        const ruleClose = file.text.indexOf('}', index)
+        const selector = file.text.slice(file.text.lastIndexOf('}', ruleOpen) + 1, ruleOpen)
+        const body = file.text.slice(ruleOpen, ruleClose)
+        const monospace = /var\(--font-mono\)/.test(body) || /monospace/.test(selector)
+        expect(monospace, `${relative(repoRoot, file.path)}: ${selector.trim()}`).toBe(true)
+      }
+    }
+  })
+
+  it('uses only the documented responsive breakpoints', () => {
+    const allowed = new Set(['767px', '768px', '1023px', '1024px', '1279px', '1280px'])
+    for (const file of sourceFiles) {
+      for (const match of file.text.matchAll(/@media[^{]*\((?:min|max)-width:\s*(\d+px)\)/g)) {
+        expect(allowed.has(match[1]!), `${relative(repoRoot, file.path)}: ${match[0]}`).toBe(true)
+      }
+    }
+  })
 })
