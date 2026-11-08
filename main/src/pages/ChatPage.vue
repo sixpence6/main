@@ -2010,19 +2010,19 @@ figcaption { color: var(--text-muted); font-size: 13px; }
   max-width: calc(100% - 32px);
   margin: 0;
   padding: 8px 14px;
-  border: 1px solid rgba(88, 70, 232, .2);
+  border: 1px solid var(--line-hairline);
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, .94);
-  box-shadow: 0 9px 24px rgba(42, 45, 78, .13), inset 0 1px 0 var(--surface-panel);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-overlay), inset 0 1px 0 var(--surface-panel);
   color: var(--action-primary);
-  font-size: 12.5px;
+  font-size: var(--text-caption);
   font-weight: 600;
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   transform: translateX(-50%);
   transition: transform .22s var(--ease-out), box-shadow .22s ease, background-color .2s ease;
 }
-.new-content-button:hover { box-shadow: 0 12px 28px rgba(42, 45, 78, .18), inset 0 1px 0 var(--surface-panel); }
+.new-content-button:hover { box-shadow: var(--shadow-overlay), inset 0 1px 0 var(--surface-panel); }
 .new-content-button:active { transform: translateX(-50%) scale(.96); }
 .new-content-dot {
   width: 6px;
