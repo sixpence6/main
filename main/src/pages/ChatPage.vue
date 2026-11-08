@@ -1551,7 +1551,7 @@ watch(
   min-height: 44px;
   padding: 0 22px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--action-primary);
   color: var(--action-primary-text);
   font-weight: 600;
@@ -2011,7 +2011,7 @@ figcaption { color: var(--text-muted); font-size: 13px; }
   margin: 0;
   padding: 8px 14px;
   border: 1px solid rgba(88, 70, 232, .2);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, .94);
   box-shadow: 0 9px 24px rgba(42, 45, 78, .13), inset 0 1px 0 var(--surface-panel);
   color: var(--action-primary);

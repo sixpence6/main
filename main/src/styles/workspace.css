@@ -406,7 +406,7 @@ body:has(.pure-shell) {
   margin: var(--space-2) auto 0;
   padding: 6px 14px;
   border: 1px solid var(--action-primary);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--action-primary);
   color: var(--action-primary-text);
   font: inherit;

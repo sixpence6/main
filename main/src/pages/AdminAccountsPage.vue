@@ -804,7 +804,7 @@ h2 {
 .accounts-admin-tag {
   margin-left: 8px;
   padding: 2px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-canvas);
   color: var(--text-muted);
   font-size: 12px;
@@ -919,7 +919,7 @@ h2 {
   align-items: center;
   min-height: 24px;
   padding: 2px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-canvas);
   color: var(--text-muted);
   font-size: 12px;

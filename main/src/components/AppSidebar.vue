@@ -462,7 +462,7 @@ onMounted(() => {
   bottom: 8px;
   left: 4px;
   width: 2px;
-  border-radius: 1px;
+  border-radius: var(--radius-pill);
   background: var(--text-inverse-secondary);
 }
 .conversation-title {
