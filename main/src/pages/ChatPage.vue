@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import AccessibleDrawer from '@/components/AccessibleDrawer.vue'
 import { assetUrl } from '@/api/client'
@@ -73,7 +73,17 @@ const newContentAvailable = ref(false)
 const footerHeight = ref(132)
 const lightboxOpen = ref(false)
 const lightboxItem = ref<{ assetId: string; caption: string } | null>(null)
-let scrollFrame = 0
+const pendingSend = ref<{ text: string; sentAt: string } | null>(null)
+const retryingProject = ref(false)
+const requirementSubmitting = ref(false)
+const requirementConfirmed = ref(false)
+const suggestions = [
+  '把这张产品图换成秋日户外场景，保留包装质感',
+  '为这组新品生成一张极简台面主图，冷白背景',
+  '做一张 1:1 促销主视觉，石墨黑底，留出价格位置',
+]
+const ATTACHMENT_CAPTION = '参考图'
+let initialComposerFocused = false
 let composerFrame = 0
 let bottomFrame = 0
 let ignoreScrollUntil = 0
@@ -138,9 +148,10 @@ function onDrop(event: DragEvent): void {
 function scrollToLatest(behavior: ScrollBehavior = 'auto'): void {
   const element = scrollRegion.value
   if (!element) return
-  // Programmatic scrolling also emits scroll events. Keep those events from
-  // being mistaken for the user scrolling away from the live edge.
-  ignoreScrollUntil = performance.now() + (behavior === 'smooth' ? 700 : 140)
+  // Smooth scrolling emits a stream of intermediate scroll events; ignore them
+  // until the animation settles. An instant scroll lands on the live edge and
+  // its single event already reports distance 0, so it needs no suppression.
+  ignoreScrollUntil = behavior === 'smooth' ? performance.now() + 700 : 0
   if (behavior === 'smooth' && typeof element.scrollTo === 'function') {
     element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' })
   } else {
@@ -163,16 +174,12 @@ function scheduleStickToBottom(): void {
 }
 
 function onScroll(): void {
-  if (scrollFrame) return
-  scrollFrame = requestAnimationFrame(() => {
-    scrollFrame = 0
-    if (performance.now() < ignoreScrollUntil) return
-    const element = scrollRegion.value
-    if (!element) return
-    const distance = element.scrollHeight - element.scrollTop - element.clientHeight
-    stickToBottom.value = distance <= 48
-    if (stickToBottom.value) newContentAvailable.value = false
-  })
+  if (performance.now() < ignoreScrollUntil) return
+  const element = scrollRegion.value
+  if (!element) return
+  const distance = element.scrollHeight - element.scrollTop - element.clientHeight
+  stickToBottom.value = distance <= 48
+  if (stickToBottom.value) newContentAvailable.value = false
 }
 
 function resizeComposerNow(): void {
@@ -273,10 +280,10 @@ onMounted(() => {
     }
   }
   scheduleComposerResize()
+  focusComposerOnFirstLoad()
 })
 
 onBeforeUnmount(() => {
-  if (scrollFrame) cancelAnimationFrame(scrollFrame)
   if (composerFrame) cancelAnimationFrame(composerFrame)
   if (bottomFrame) cancelAnimationFrame(bottomFrame)
   contentObserver?.disconnect()
@@ -286,7 +293,12 @@ onBeforeUnmount(() => {
 async function submit(): Promise<void> {
   const value = draft.value
   if (sendDisabled.value) return
-  await send(value)
+  pendingSend.value = { text: value.trim(), sentAt: new Date().toISOString() }
+  try {
+    await send(value)
+  } finally {
+    pendingSend.value = null
+  }
 }
 
 function onComposerKeydown(event: KeyboardEvent): void {
@@ -307,6 +319,108 @@ function resultPageRoute(runId: string): { name: string; params?: { projectId: s
 function roleLabel(role: string): string {
   return role === 'user' ? '你' : '智能生图助手'
 }
+
+function formatMessageTime(createdAt: string): string {
+  const date = new Date(createdAt)
+  if (Number.isNaN(date.getTime())) return ''
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return hours + ':' + minutes
+}
+
+interface MessageSegment {
+  type: 'text' | 'code'
+  content: string
+}
+
+function messageSegments(content: string): MessageSegment[] {
+  if (!content.includes('```')) return [{ type: 'text', content }]
+  const segments: MessageSegment[] = []
+  const fence = /```([^\n`]*)\n([\s\S]*?)```/g
+  let cursor = 0
+  let match: RegExpExecArray | null
+  while ((match = fence.exec(content)) !== null) {
+    if (match.index > cursor) {
+      segments.push({ type: 'text', content: content.slice(cursor, match.index) })
+    }
+    segments.push({ type: 'code', content: match[2]!.replace(/\n$/, '') })
+    cursor = match.index + match[0].length
+  }
+  if (cursor < content.length) {
+    segments.push({ type: 'text', content: content.slice(cursor) })
+  }
+  return segments.length ? segments : [{ type: 'text', content }]
+}
+
+function attachmentAlt(attachment: { usage: string }): string {
+  return `随消息发送的图片，用途：${attachment.usage}`
+}
+
+function applySuggestion(text: string): void {
+  draft.value = text
+  void nextTick(() => composerInput.value?.focus({ preventScroll: true }))
+}
+
+async function withBusyFlag(flag: Ref<boolean>, run: () => Promise<void>): Promise<void> {
+  if (flag.value) return
+  flag.value = true
+  try {
+    await run()
+  } finally {
+    flag.value = false
+  }
+}
+
+async function retryProjectError(): Promise<void> {
+  await withBusyFlag(retryingProject, () => retry())
+}
+
+async function confirmRequirementCard(): Promise<void> {
+  if (busy.value || requirementSubmitting.value) return
+  const projectAtStart = projectParam.value
+  await withBusyFlag(requirementSubmitting, async () => {
+    await confirmRequirements()
+    if (projectParam.value === projectAtStart && !flowError.value && !canConfirmRequirements.value) {
+      requirementConfirmed.value = true
+    }
+  })
+}
+
+function focusComposerOnFirstLoad(): void {
+  if (initialComposerFocused) return
+  if (projectParam.value || route.hash === '#composer') return
+  initialComposerFocused = true
+  void nextTick(() => composerInput.value?.focus({ preventScroll: true }))
+}
+
+watch(
+  () => canConfirmRequirements.value,
+  (available) => {
+    if (available) requirementConfirmed.value = false
+  },
+  { flush: 'sync' },
+)
+
+watch(
+  () => projectParam.value,
+  () => {
+    requirementConfirmed.value = false
+    requirementSubmitting.value = false
+  },
+  { flush: 'sync' },
+)
+
+watch(
+  () => projectMessages.value.map((message) => message.id),
+  (_ids, previousIds) => {
+    if (!pendingSend.value) return
+    const known = new Set(previousIds ?? [])
+    const arrived = projectMessages.value.some(
+      (message) => message.role === 'user' && !known.has(message.id),
+    )
+    if (arrived) pendingSend.value = null
+  },
+)
 
 const liveStatusInput = computed<LiveStatusInput>(() => {
   const projectId = projectParam.value
@@ -390,41 +504,89 @@ watch(
     <div ref="scrollRegion" class="chat-scroll" aria-label="对话内容" @scroll.passive="onScroll">
       <div ref="chatContent" class="chat-content">
       <div v-if="!hasConversation" class="welcome">
-        <p class="welcome-mark" aria-hidden="true">✦</p>
-        <h1>发来商品图片，或告诉我你想做什么样的电商图片</h1>
-        <p class="welcome-note">用一句话描述商品、用途和画面感觉即可。需要确认时，我会把要点整理给你。</p>
+        <div class="welcome-inner">
+          <h1>发来商品图片，或告诉我你想做什么样的电商图片</h1>
+          <p class="welcome-note">用一句话描述商品、用途和画面感觉即可。需要确认时，我会把要点整理给你。</p>
+          <div v-if="!draft.trim()" class="suggestion-list" aria-label="推荐提示词">
+            <button
+              v-for="suggestion in suggestions"
+              :key="suggestion"
+              type="button"
+              class="suggestion-button"
+              @click="applySuggestion(suggestion)"
+            >
+              {{ suggestion }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <template v-else>
         <div v-if="projectLoading" class="chat-loading" role="status">正在读取对话…</div>
-        <div v-else-if="projectError" class="chat-error" role="alert">
+        <div v-else-if="projectError" class="chat-error chat-load-error" role="alert">
+          <svg class="chat-error-icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7.5v5.5M12 16.5v.5" />
+          </svg>
           <p>{{ projectError }}</p>
-          <button type="button" class="text-button" @click="retry">重试</button>
+          <button
+            type="button"
+            class="text-button"
+            :disabled="retryingProject"
+            :aria-busy="retryingProject"
+            @click="retryProjectError"
+          >
+            重试
+          </button>
         </div>
 
         <template v-else>
-          <ol v-if="projectMessages.length" class="message-list" aria-label="对话记录">
+          <ol v-if="projectMessages.length || pendingSend" class="message-list" aria-label="对话记录">
             <li
               v-for="message in projectMessages"
               :key="message.id"
-              v-memo="[message.id, message.content, message.attachment?.preview_url]"
+              v-memo="[message.id, message.content, message.attachment?.asset_id, message.attachment?.preview_url]"
               class="message-row"
               :class="message.role === 'user' ? 'is-user' : 'is-assistant'"
             >
-              <div class="message-bubble">
-                <p class="message-role">{{ roleLabel(message.role) }}</p>
-                <img
-                  v-if="message.attachment"
-                  class="message-attachment"
-                  :src="message.attachment.preview_url"
-                  :alt="'随消息发送的图片，用途：' + message.attachment.usage"
-                  :width="message.attachment.width"
-                  :height="message.attachment.height"
-                  loading="lazy"
-                  decoding="async"
-                  @load="onMediaLoad"
-                >
-                <p class="message-content">{{ message.content }}</p>
+              <div class="message-stack">
+                <p class="message-meta">{{ roleLabel(message.role) }} · {{ formatMessageTime(message.created_at) }}</p>
+                <div :class="message.role === 'user' ? 'message-bubble' : 'message-assistant'">
+                  <template v-for="(segment, index) in messageSegments(message.content)" :key="index">
+                    <p v-if="segment.type === 'text'" class="message-content">{{ segment.content }}</p>
+                    <pre v-else class="message-code"><code>{{ segment.content }}</code></pre>
+                  </template>
+                  <div v-if="message.attachment" class="message-attachments">
+                    <button
+                      type="button"
+                      class="message-attachment"
+                      :aria-label="'查看' + ATTACHMENT_CAPTION"
+                      @click="openLightbox({ assetId: message.attachment.asset_id, caption: ATTACHMENT_CAPTION }, $event)"
+                    >
+                      <img
+                        class="message-attachment-thumb"
+                        :src="message.attachment.preview_url"
+                        :alt="attachmentAlt(message.attachment)"
+                        width="34"
+                        height="42"
+                        loading="lazy"
+                        decoding="async"
+                        @load="onMediaLoad"
+                      >
+                      <span class="message-attachment-name">{{ ATTACHMENT_CAPTION }}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </li>
+            <li v-if="pendingSend" class="message-row is-user is-pending">
+              <div class="message-stack">
+                <p class="message-meta">
+                  你 · {{ formatMessageTime(pendingSend?.sentAt) }}<span class="pending-send-label"> · 发送中…</span>
+                </p>
+                <div class="message-bubble">
+                  <p class="message-content">{{ pendingSend?.text }}</p>
+                </div>
               </div>
             </li>
           </ol>
@@ -472,24 +634,45 @@ watch(
           </section>
 
           <section
-            v-if="canConfirmRequirements"
+            v-if="canConfirmRequirements || requirementConfirmed || requirementSubmitting"
             class="assistant-turn requirement-turn"
             aria-label="需求确认"
           >
-            <div class="message-bubble">
-              <p class="message-role">智能生图助手</p>
-              <p class="assistant-lead">我先把你的描述整理成了这份需求，确认后我会准备提示词。</p>
-              <dl class="requirement-list">
-                <template v-for="row in requirementRows" :key="row.label">
-                  <dt>{{ row.label }}</dt>
-                  <dd>{{ row.value }}</dd>
-                </template>
-              </dl>
-              <p class="usage-note">{{ usageText }}</p>
-              <button type="button" class="primary-action" :disabled="busy" @click="confirmRequirements">
-                确认需求并生成提示词
-              </button>
-            </div>
+            <h2 class="requirement-title">需求确认</h2>
+            <p class="assistant-lead">我先把你的描述整理成了这份需求，确认后我会准备提示词。</p>
+            <dl class="requirement-list">
+              <template v-for="row in requirementRows" :key="row.label">
+                <dt>{{ row.label }}</dt>
+                <dd>{{ row.value }}</dd>
+              </template>
+            </dl>
+            <p class="usage-note">{{ usageText }}</p>
+            <button
+              v-if="!requirementConfirmed"
+              type="button"
+              class="requirement-cta"
+              :disabled="busy || requirementSubmitting"
+              @click="confirmRequirementCard"
+            >
+              确认需求并生成提示词
+            </button>
+            <p v-else class="requirement-status" role="status">
+              <svg
+                class="requirement-status-icon"
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="m8.5 12 2.5 2.5 4.5-5" />
+              </svg>
+              <span class="requirement-status-text">需求已确认</span>
+              <span class="requirement-status-note">正在准备提示词…</span>
+            </p>
           </section>
 
           <section
@@ -689,7 +872,7 @@ watch(
         <button
           type="button"
           class="send-button"
-          :aria-label="busy ? '正在发送' : '发送'"
+          aria-label="发送"
           :aria-busy="busy"
           :disabled="sendDisabled"
           @click="submit"
@@ -767,52 +950,234 @@ watch(
   display: flex;
   flex: 1 0 auto;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  align-items: stretch;
   min-height: 100%;
-  padding-bottom: 8vh;
-  text-align: center;
+  padding-top: max(0px, calc(38vh - 82px));
 }
-.welcome-mark {
-  display: grid;
-  place-items: center;
-  width: 54px;
-  height: 54px;
-  margin: 0 0 22px;
-  border-radius: 18px;
-  background: var(--action-soft);
-  color: var(--action-primary);
-  font-size: 28px;
+.welcome-inner {
+  width: min(var(--conversation-max), 100%);
+  margin: 0 auto;
 }
 .welcome h1 {
-  max-width: 720px;
   margin: 0;
-  font-size: clamp(26px, 3.2vw, 42px);
-  line-height: 1.25;
+  color: var(--text-primary);
+  font-size: var(--text-display);
+  font-weight: 600;
+  line-height: var(--text-display-line);
   letter-spacing: -.025em;
 }
-.welcome-note { max-width: 560px; margin: 18px 0 0; color: var(--text-muted); font-size: 15px; line-height: 1.7; }
-.chat-loading { padding: 48px 0; color: var(--text-muted); text-align: center; }
-.message-list { display: flex; flex-direction: column; gap: 24px; width: min(var(--conversation-width), 100%); margin: 0 auto; padding: 0; list-style: none; }
-.message-row { display: flex; }
+.welcome-note {
+  margin: var(--space-3) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-reading);
+  line-height: var(--text-reading-line);
+}
+.suggestion-list {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-8);
+}
+.suggestion-button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: calc(var(--space-10) + var(--space-1));
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  font-size: var(--text-body);
+  font-weight: 500;
+  line-height: var(--text-body-line);
+  text-align: left;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.suggestion-button:hover { border-color: var(--line-hover); }
+.suggestion-button:focus-visible {
+  outline: 2px solid var(--focus-ring-light);
+  outline-offset: 2px;
+}
+@media (min-width: 768px) {
+  .suggestion-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+}
+.chat-loading {
+  padding: var(--space-12) 0;
+  color: var(--text-muted);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
+  text-align: center;
+}
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: min(var(--conversation-width), 100%);
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+.message-row { display: flex; min-width: 0; width: 100%; }
 .message-row.is-user { justify-content: flex-end; }
 .message-row.is-assistant { justify-content: flex-start; }
-.message-bubble {
-  max-width: min(760px, 100%);
+.message-row + .message-row { margin-top: var(--space-3); }
+.message-row.is-user + .message-row.is-assistant,
+.message-row.is-assistant + .message-row.is-user { margin-top: var(--space-6); }
+.message-stack {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  padding: 17px 20px;
-  border-radius: 18px;
-  background: var(--surface-inset);
 }
-.is-user .message-bubble { background: var(--action-primary); color: var(--action-primary-text); border-bottom-right-radius: 5px; }
-.is-assistant .message-bubble { border-bottom-left-radius: 5px; }
-.message-role { margin: 0 0 6px; color: var(--text-muted); font-size: 12px; }
-.is-user .message-role { color: var(--action-primary-text); }
-.message-content { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
-.message-attachment { display: block; max-width: min(360px, 100%); max-height: 260px; margin: 0 0 12px; border-radius: 12px; object-fit: cover; }
+.is-user .message-stack {
+  align-items: flex-end;
+  width: auto;
+  max-width: 78%;
+}
+.is-assistant .message-stack {
+  align-items: flex-start;
+  width: 92%;
+  max-width: 92%;
+}
+.message-meta {
+  margin: 0 0 calc(var(--space-3) / 2);
+  color: var(--text-muted);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--text-caption-line);
+}
+.is-user .message-meta { text-align: right; }
+.message-bubble {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+}
+.message-assistant {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+}
+.message-content {
+  margin: 0;
+  font-size: var(--text-reading);
+  line-height: var(--text-reading-line);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.message-code {
+  box-sizing: border-box;
+  max-width: 100%;
+  margin: var(--space-2) 0;
+  padding: var(--space-3) var(--space-4);
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+  font-family: var(--font-mono);
+  font-size: calc(var(--text-caption) + 1px);
+  line-height: calc(var(--text-caption-line) + 2px);
+  white-space: pre;
+}
+.message-code code { font: inherit; }
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space-3) / 2);
+  max-width: 100%;
+  margin: var(--space-2) 0 0;
+}
+.message-attachment {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: calc(var(--space-3) / 2);
+  max-width: calc((100% - 3 * (var(--space-3) / 2)) / 4);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+}
+.message-attachment-thumb {
+  flex: none;
+  width: calc(var(--space-8) + var(--space-1) / 2);
+  height: calc(var(--space-10) + var(--space-1) / 2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-media);
+  object-fit: cover;
+}
+.message-attachment-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pending-send-label { color: var(--text-muted); }
 .assistant-turn { width: min(var(--conversation-width), 100%); margin: 24px auto 0; }
-.assistant-turn .message-bubble { max-width: 100%; }
 .assistant-lead { margin: 0 0 16px; line-height: 1.7; }
+.requirement-turn {
+  box-sizing: border-box;
+  margin: var(--space-6) auto;
+  padding: var(--space-4);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+}
+.requirement-title {
+  margin: 0 0 8px;
+  color: var(--text-primary);
+  font-size: var(--text-section);
+  font-weight: 600;
+  line-height: var(--text-section-line);
+}
+.requirement-turn .assistant-lead {
+  color: var(--text-secondary);
+  font-size: var(--text-reading);
+  line-height: var(--text-reading-line);
+}
+.requirement-cta {
+  height: calc(var(--space-8) + var(--space-1));
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--action-primary);
+  color: var(--action-primary-text);
+  font-size: var(--text-body);
+  font-weight: 500;
+  line-height: var(--text-body-line);
+}
+.requirement-cta:hover:not(:disabled) { background: var(--action-primary-hover); }
+.requirement-cta:disabled {
+  cursor: not-allowed;
+  background: var(--surface-inset);
+  color: var(--text-muted);
+}
+.requirement-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-height: calc(var(--space-8) + var(--space-1));
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
+}
+.requirement-status-icon { flex: none; color: var(--state-success); }
+.requirement-status-text { color: var(--state-success); }
+.requirement-status-note { color: var(--text-muted); }
 .requirement-list, .prompt-meta { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 18px; margin: 0 0 18px; }
 .requirement-list dt, .prompt-meta dt { color: var(--text-muted); font-size: 13px; }
 .requirement-list dd, .prompt-meta dd { margin: 0; overflow-wrap: anywhere; }
@@ -838,7 +1203,8 @@ watch(
 .prompt-negative { background: color-mix(in srgb, var(--state-danger) 6%, var(--surface-panel)); }
 .prompt-meta { margin-bottom: 0; }
 .text-button { padding: 2px 0; border: 0; background: transparent; color: var(--action-primary); font-size: 13px; }
-.text-button:hover { text-decoration: underline; }
+.text-button:hover:not(:disabled) { text-decoration: underline; }
+.text-button:disabled { cursor: not-allowed; color: var(--text-muted); }
 .status-bubble {
   display: flex;
   flex-direction: column;
@@ -904,6 +1270,37 @@ watch(
 figcaption { color: var(--text-muted); font-size: 13px; }
 .chat-error { width: min(var(--conversation-width), 100%); margin: 0 auto 20px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--state-danger) 35%, var(--line-hairline)); border-radius: 12px; background: color-mix(in srgb, var(--state-danger) 6%, var(--surface-panel)); color: var(--state-danger); }
 .chat-error p { margin: 0 0 4px; }
+.chat-load-error {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+}
+.chat-load-error p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
+}
+.chat-error-icon { flex: none; color: var(--state-danger); }
+.chat-load-error .text-button {
+  color: var(--action-link);
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
+  white-space: nowrap;
+}
+.chat-load-error .text-button:disabled {
+  cursor: not-allowed;
+  color: var(--text-muted);
+}
 .attachment-preview {
   display: flex;
   align-items: center;
@@ -1018,11 +1415,14 @@ figcaption { color: var(--text-muted); font-size: 13px; }
 .send-button:active:not(:disabled) { transform: scale(.96); }
 .send-button:disabled { cursor: not-allowed; opacity: .45; }
 .composer-hint { width: min(var(--conversation-width), 100%); margin: 8px auto 0; color: var(--text-muted); font-size: 12px; text-align: center; }
+@media (min-width: 768px) and (max-width: 1023px) {
+  .welcome { padding-top: max(0px, calc(30vh - 82px)); }
+}
 @media (max-width: 767px) {
   .chat-scroll { padding: 24px 16px 16px; }
-  .welcome h1 { font-size: 28px; }
+  .welcome { padding-top: max(0px, calc(30vh - 24px)); }
   .composer-area { padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
   .composer-shell { border-radius: 18px; }
-  .message-bubble { padding: 15px 16px; }
+  .message-bubble { padding: var(--space-3) var(--space-4); }
 }
 </style>
