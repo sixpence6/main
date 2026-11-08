@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } 
 import { RouterLink, useRoute } from 'vue-router'
 import AccessibleDrawer from '@/components/AccessibleDrawer.vue'
 import { assetUrl } from '@/api/client'
+import type { WorkflowAction } from '@/api/workflow'
 import { useChatFlow } from '@/composables/useChatFlow'
 import { publishLiveStatus, type LiveStatusInput } from '@/composables/useLiveStatus'
 import { useWorkspace } from '@/composables/useWorkspace'
@@ -156,6 +157,76 @@ const promptCtaLabel = computed(() =>
     : '确认使用以上提示词生成'
 )
 const promptExecutionStatus = computed(() => taskStatusText.value || '已确认，正在执行…')
+
+type TaskVisualState = 'executing' | 'failed' | 'unknown' | 'recovered' | 'waiting'
+const RECOVERY_ACTION_IDS = new Set([
+  'verify_generation',
+  'recover_generation',
+  'retrieve_original_result',
+  'recover_submission',
+  'resume_after_restart',
+  'continue_workflow',
+])
+const taskActionPending = ref(false)
+const taskPendingLabel = ref('')
+const taskRecovered = ref(false)
+let taskRecoveredRunId: string | null = null
+
+const taskUnknown = computed(() => taskReason.value?.category === 'remote_unknown')
+const taskFailed = computed(() => taskReason.value?.severity === 'failed')
+const taskVisualState = computed<TaskVisualState>(() => {
+  if (taskActionPending.value || isWorkingStatus.value) return 'executing'
+  if (taskRecovered.value) return 'recovered'
+  if (taskUnknown.value) return 'unknown'
+  if (taskFailed.value) return 'failed'
+  return 'waiting'
+})
+const taskTurnVisible = computed(() =>
+  Boolean(
+    (taskStatusText.value || taskActions.value.length || taskRecovered.value) &&
+      (!publishedAssetId.value || taskRecovered.value),
+  ),
+)
+const taskDisplayText = computed(() =>
+  taskActionPending.value ? taskPendingLabel.value : taskStatusText.value,
+)
+
+watch(
+  () => flow.workflow.view.value?.run_id,
+  (runId) => {
+    if (taskRecovered.value && taskRecoveredRunId && runId !== taskRecoveredRunId) {
+      taskRecovered.value = false
+      taskRecoveredRunId = null
+    }
+  },
+)
+
+function markTaskRecovered(): void {
+  taskRecovered.value = true
+  taskRecoveredRunId = flow.workflow.view.value?.run_id ?? null
+}
+
+async function onTaskAction(action: WorkflowAction): Promise<void> {
+  if (taskActionDisabled(action)) return
+  const isRecovery = RECOVERY_ACTION_IDS.has(action.id) && !action.requires_text
+  if (isRecovery) {
+    taskRecovered.value = false
+    taskActionPending.value = true
+    taskPendingLabel.value =
+      action.id === 'verify_generation' || action.id === 'retrieve_original_result'
+        ? '正在核实…'
+        : '正在恢复…'
+  }
+  try {
+    await runTaskAction(action)
+  } finally {
+    if (isRecovery) {
+      taskActionPending.value = false
+      taskPendingLabel.value = ''
+      if (flow.workflow.view.value?.status === 'completed') markTaskRecovered()
+    }
+  }
+}
 
 function clearPromptHoldTimer(): void {
   if (promptHoldTimer !== null) {
@@ -700,28 +771,62 @@ watch(
           </ol>
 
           <section
-            v-if="(taskStatusText || taskActions.length) && !publishedAssetId"
+            v-if="taskTurnVisible"
             class="assistant-turn task-turn"
+            :class="'is-' + taskVisualState"
+            :data-state="taskVisualState"
             aria-label="任务状态"
           >
-            <div class="message-bubble status-bubble">
-              <p class="message-role">智能生图助手</p>
-              <p v-if="taskReasonLabel" class="task-reason-label" :data-category="taskReason?.category">
-                {{ taskReasonLabel }}
-              </p>
-              <div v-if="taskStatusText || isWorkingStatus" class="status-line">
-                <p v-if="taskStatusText" class="message-content">{{ taskStatusText }}</p>
-                <span v-if="isWorkingStatus" class="typing-dots" aria-hidden="true"><i /><i /><i /></span>
+            <div class="task-status-card">
+              <div class="task-status-line">
+                <svg
+                  class="task-status-icon"
+                  :class="'is-' + taskVisualState"
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <template v-if="taskVisualState === 'failed'">
+                    <path d="M12 3 2.5 20h19L12 3Z" />
+                    <path d="M12 9v5" />
+                    <path d="M12 17h.01" />
+                  </template>
+                  <template v-else-if="taskVisualState === 'recovered'">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="m8.5 12 2.5 2.5 4.5-5" />
+                  </template>
+                  <template v-else>
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 11v5" />
+                    <path d="M12 8h.01" />
+                  </template>
+                </svg>
+                <div class="task-status-copy">
+                  <p v-if="taskVisualState === 'recovered'" class="task-status-heading">已恢复</p>
+                  <p
+                    v-else-if="taskVisualState === 'unknown'"
+                    class="task-reason-label"
+                    :data-category="taskReason?.category"
+                  ><span class="task-reason-label-text">{{ taskReasonLabel || '结果未知' }}</span><span>，正在核实</span></p>
+                  <p
+                    v-else-if="taskReasonLabel"
+                    class="task-reason-label"
+                    :data-category="taskReason?.category"
+                  >{{ taskReasonLabel }}</p>
+                  <p v-if="taskDisplayText" class="task-status-text">{{ taskDisplayText }}</p>
+                </div>
               </div>
               <div v-if="taskActions.length" class="task-actions">
-                <p v-if="!isWorkingStatus" class="task-actions-note">安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。</p>
+                <p v-if="!isWorkingStatus && !taskActionPending" class="task-actions-note">安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。</p>
                 <div v-for="action in taskActions" :key="action.id" class="task-action">
                   <div class="task-action-head">
                     <button
                       type="button"
                       class="task-action-button"
                       :disabled="taskActionDisabled(action)"
-                      @click="runTaskAction(action)"
+                      @click="onTaskAction(action)"
                     >
                       {{ action.label }}
                     </button>
@@ -733,7 +838,7 @@ watch(
                     请在下方输入框说明{{ action.text_label || '补充内容' }}，然后点击发送。
                   </p>
                   <label v-if="action.requires_confirmation" class="task-confirm">
-                    <input v-model="taskConfirmations[action.id]" type="checkbox">
+                    <input v-model="taskConfirmations[action.id]" class="task-confirm-box" type="checkbox">
                     <span>{{ taskConfirmationText(action) }}</span>
                   </label>
                 </div>
@@ -908,9 +1013,20 @@ watch(
             class="assistant-turn result-turn"
             aria-label="当前结果不可用"
           >
-            <div class="message-bubble">
-              <p class="message-role">智能生图助手</p>
-              <p class="message-content">{{ resultUnavailableText }}</p>
+            <div class="task-status-card result-unavailable-card" role="status">
+              <svg
+                class="task-status-icon is-failed"
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path d="M12 3 2.5 20h19L12 3Z" />
+                <path d="M12 9v5" />
+                <path d="M12 17h.01" />
+              </svg>
+              <p class="result-unavailable-card-text">{{ resultUnavailableText }}</p>
             </div>
           </section>
 
@@ -1542,36 +1658,88 @@ watch(
 .text-button { padding: 2px 0; border: 0; background: transparent; color: var(--action-primary); font-size: 13px; }
 .text-button:hover:not(:disabled) { text-decoration: underline; }
 .text-button:disabled { cursor: not-allowed; color: var(--text-muted); }
-.status-bubble {
+.task-status-card {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 7px;
-  color: var(--text-muted);
+  align-items: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
 }
-.status-bubble .message-content { color: var(--text-muted); }
-.status-line { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.status-line .message-content { min-width: 0; }
-.task-reason-label { margin: 0 0 6px; color: var(--action-primary); font-size: 13px; font-weight: 600; }
-.task-actions { display: flex; align-self: stretch; flex-direction: column; gap: 14px; width: 100%; margin-top: 9px; }
-.task-actions-note { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
-.task-action { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line-hairline); }
-.task-action-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.task-action-button { min-height: 34px; padding: 0 14px; border: 1px solid var(--line-hairline); border-radius: 999px; background: var(--surface-panel); color: var(--text-primary); font-size: 13px; transition: border-color .2s ease, color .2s ease, transform .18s var(--ease-out), background-color .2s ease; }
+.task-status-line { display: flex; align-items: flex-start; gap: var(--space-2); min-width: 0; }
+.task-status-icon { flex: none; width: var(--icon-sm); height: var(--icon-sm); margin-top: 3px; color: var(--state-info); }
+.task-status-icon.is-executing { color: var(--state-info); }
+.task-status-icon.is-unknown { color: var(--state-info); }
+.task-status-icon.is-failed { color: var(--state-danger); }
+.task-status-icon.is-recovered { color: var(--state-success); }
+.task-status-copy { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.task-status-heading { margin: 0; color: var(--state-success); font-size: var(--text-body); line-height: var(--text-body-line); font-weight: 600; }
+.task-status-text { margin: 0; color: var(--text-secondary); font-size: var(--text-body); line-height: var(--text-body-line); overflow-wrap: anywhere; }
+.task-reason-label { margin: 0; color: var(--text-primary); font-size: var(--text-body); line-height: var(--text-body-line); font-weight: 600; }
+.task-actions { display: flex; align-self: stretch; flex-direction: column; gap: var(--space-3); width: 100%; margin-top: var(--space-3); }
+.task-actions-note { margin: 0; color: var(--text-muted); font-size: var(--text-caption); line-height: var(--text-caption-line); }
+.task-action { display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--line-hairline); }
+.task-action-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.task-action-button {
+  min-height: calc(var(--space-8) + var(--space-1));
+  padding: 0 var(--space-4);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-pill);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  font-size: var(--text-body);
+  transition: border-color var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out), background-color var(--dur-base) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
 .task-action-button:hover:not(:disabled) { border-color: var(--action-primary); color: var(--action-primary); background: var(--action-soft); }
 .task-action-button:active:not(:disabled) { transform: scale(.97); }
 .task-action-button:disabled { cursor: not-allowed; opacity: .5; }
-.task-effect { padding: 2px 8px; border-radius: 999px; background: var(--action-soft); color: var(--action-primary); font-size: 12px; }
-.task-help, .task-count, .task-text-note { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.55; }
+.task-effect { padding: 2px var(--space-2); border-radius: var(--radius-pill); background: var(--action-soft); color: var(--action-primary); font-size: var(--text-caption); }
+.task-help, .task-count, .task-text-note { margin: 0; color: var(--text-muted); font-size: var(--text-caption); line-height: var(--text-caption-line); }
 .task-count { color: var(--text-primary); }
-.task-confirm { display: flex; align-items: flex-start; gap: 8px; color: var(--text-primary); font-size: 13px; line-height: 1.5; }
-.task-confirm input { margin-top: 2px; }
+.task-confirm { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--text-primary); font-size: var(--text-body); line-height: var(--text-body-line); }
+.task-confirm-box {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.task-confirm-box:checked {
+  border-color: var(--action-primary);
+  background: var(--action-primary);
+}
+.task-confirm-box:checked::after {
+  content: '';
+  display: block;
+  width: 16px;
+  height: 16px;
+  background: var(--action-primary-text);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5 6.5 12 13 4.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5 6.5 12 13 4.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
+}
+.task-confirm-box:focus-visible { outline: 2px solid var(--focus-ring-light); outline-offset: 2px; }
 .pending-task-note { width: min(var(--conversation-width), 100%); margin: 0 auto 8px; color: var(--action-primary); font-size: 13px; }
-.typing-dots { display: inline-flex; gap: 4px; }
-.typing-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--action-primary); animation: typing 1s infinite ease-in-out; }
-.typing-dots i:nth-child(2) { animation-delay: .15s; }
-.typing-dots i:nth-child(3) { animation-delay: .3s; }
-@keyframes typing { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+.result-unavailable-card { flex-direction: row; align-items: flex-start; gap: var(--space-2); }
+.result-unavailable-card .task-status-icon { margin-top: 3px; color: var(--state-danger); }
+.result-unavailable-card-text { margin: 0; color: var(--text-secondary); font-size: var(--text-body); line-height: var(--text-body-line); }
+@media (prefers-reduced-motion: reduce) {
+  .task-status-card,
+  .task-status-icon,
+  .task-action-button,
+  .task-confirm-box { transition: none; animation: none; }
+}
 .image-history { display: flex; flex-direction: column; gap: 14px; }
 .history-bubble { width: 100%; }
 .history-lead { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
