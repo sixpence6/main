@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import AccessibleDrawer from '@/components/AccessibleDrawer.vue'
+import ImageLightbox from '@/components/ImageLightbox.vue'
 import { assetUrl } from '@/api/client'
 import type { WorkflowAction } from '@/api/workflow'
 import { useChatFlow } from '@/composables/useChatFlow'
@@ -376,12 +376,33 @@ function onMediaLoad(): void {
   if (stickToBottom.value) scheduleStickToBottom()
 }
 
-function openLightbox(item: { assetId: string | null; caption: string }, event: MouseEvent): void {
+function openLightbox(item: { assetId: string | null; caption: string }, event: Event): void {
   if (!item.assetId) return
   const trigger = event.currentTarget as HTMLElement | null
   trigger?.focus()
   lightboxItem.value = { assetId: item.assetId, caption: item.caption }
   lightboxOpen.value = true
+}
+
+function onResultCardClick(
+  item: { assetId: string | null; caption: string },
+  event: MouseEvent,
+): void {
+  const target = event.target as HTMLElement | null
+  // 卡片内真实的链接、按钮和提示词折叠区优先，不劫持它们的点击。
+  if (target?.closest('a, button, summary, details, input, textarea, select, label')) return
+  openLightbox(item, event)
+}
+
+function onResultCardKeydown(
+  item: { assetId: string | null; caption: string },
+  event: KeyboardEvent,
+): void {
+  // 只有焦点在卡片本身时才拦截，内部链接/按钮保留原生键盘行为。
+  if (event.target !== event.currentTarget) return
+  if (event.key !== 'Enter' && event.key !== ' ') return
+  event.preventDefault()
+  openLightbox(item, event)
 }
 
 function closeLightbox(): void {
@@ -1035,75 +1056,94 @@ watch(
               <p class="message-role">智能生图助手</p>
               <p class="history-lead">图片和当时实际使用的提示词都按版本保留。默认继续使用最新版本，查看旧版本不会改变修改基准。</p>
             </div>
-            <article
-              v-for="item in imageHistory"
-              :key="item.runId"
-              class="message-bubble result-card"
-              :aria-label="'版本 ' + item.sequenceNo + ' 结果'"
-            >
-              <p class="result-heading">
-                <span class="result-badge" :class="{ 'is-current': item.isCurrent }">
-                  {{ item.isCurrent ? '当前版本' : item.isLatest ? '最新已发布' : '历史版本' }}
-                </span>
-                <span>版本 {{ item.sequenceNo }} · 需求 v{{ item.requirementRevision }}</span>
-              </p>
-              <a
-                v-if="item.assetId"
-                class="result-image-link"
-                :href="assetUrl(item.assetId)"
-                target="_blank"
-                rel="noopener"
-                :aria-label="'查看大图：' + item.caption"
-                @click.prevent="openLightbox(item, $event)"
+            <div class="result-grid">
+              <article
+                v-for="item in imageHistory"
+                :key="item.runId"
+                class="message-bubble result-card"
+                :class="{ 'is-clickable': item.assetId }"
+                :aria-label="'版本 ' + item.sequenceNo + ' 结果'"
+                :tabindex="item.assetId ? 0 : undefined"
+                @click="onResultCardClick(item, $event)"
+                @keydown="onResultCardKeydown(item, $event)"
               >
-                <img
-                  class="result-image"
-                  :src="assetUrl(item.assetId)"
-                  :alt="item.caption"
-                  :width="item.width ?? undefined"
-                  :height="item.height ?? undefined"
-                  :style="item.width && item.height ? { aspectRatio: item.width + ' / ' + item.height } : undefined"
-                  loading="lazy"
-                  decoding="async"
-                  @load="onMediaLoad"
-                >
-                <span class="image-zoom-label">查看大图</span>
-              </a>
-              <div v-else class="result-unavailable" role="status">
-                <strong>该版本图片不可用</strong>
-                <p>该版本图片已撤销、过期、文件缺失或未通过内容门禁，系统不会用其他版本替代。</p>
-              </div>
-              <p v-if="item.isCurrent && item.assetId" class="message-content result-status">图片已经生成，可以保存使用了。</p>
-              <p class="result-caption">{{ item.caption }}</p>
-              <details v-if="item.prompt" class="result-prompt">
-                <summary>该版本实际使用的已批准提示词</summary>
-                <pre v-if="item.prompt.positive">{{ item.prompt.positive }}</pre>
-                <template v-if="item.prompt.negative">
-                  <h4>需要避免</h4>
-                  <pre>{{ item.prompt.negative }}</pre>
-                </template>
-              </details>
-              <details v-else class="result-prompt">
-                <summary>该版本提示词不可用</summary>
-                <p>该版本未保存可展示的已批准提示词；系统不会用当前提示词替代。</p>
-              </details>
-              <div class="result-actions">
                 <a
-                  v-if="item.canDownload && item.assetId"
-                  class="primary-action result-download"
-                  :href="assetUrl(item.assetId) + '?download=true'"
-                  download
+                  v-if="item.assetId"
+                  class="result-media-link"
+                  :href="assetUrl(item.assetId)"
+                  target="_blank"
+                  rel="noopener"
+                  :aria-label="'查看大图：' + item.caption"
+                  @click.prevent="openLightbox(item, $event)"
+                  @keydown.space.prevent="openLightbox(item, $event)"
                 >
-                  下载原图
+                  <img
+                    class="result-media"
+                    :src="assetUrl(item.assetId)"
+                    :alt="item.caption"
+                    :width="item.width ?? undefined"
+                    :height="item.height ?? undefined"
+                    loading="lazy"
+                    decoding="async"
+                    @load="onMediaLoad"
+                  >
+                  <span class="result-media-hint">查看大图</span>
                 </a>
-                <RouterLink class="text-button" :to="resultPageRoute(item.runId)">
-                  在结果页只读查看
-                </RouterLink>
-              </div>
-              <p class="result-time">
-                发布于 <time :datetime="item.publishedAt || item.createdAt">{{ formatDateTime(item.publishedAt || item.createdAt) }}</time>
-              </p>
-            </article>
+                <div v-else class="result-unavailable" role="status">
+                  <svg class="result-unavailable-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <path d="m4 16 5-5 4 4 2-2 5 5M4 6l16 12" />
+                  </svg>
+                  <p class="result-unavailable-text">该版本图片不可用</p>
+                </div>
+                <p class="result-heading">
+                  <span class="result-badge" :class="{ 'is-current': item.isCurrent, 'is-latest': !item.isCurrent && item.isLatest }">
+                    {{ item.isCurrent ? '当前版本' : item.isLatest ? '最新已发布' : '历史版本' }}
+                  </span>
+                  <span class="result-heading-text">版本 {{ item.sequenceNo }} · 需求 v{{ item.requirementRevision }}</span>
+                </p>
+                <p class="result-title">{{ item.caption }}</p>
+                <p v-if="item.width && item.height" class="result-caption">{{ item.width }}×{{ item.height }}</p>
+                <p v-if="item.isCurrent && item.assetId" class="message-content result-status">图片已经生成，可以保存使用了。</p>
+                <details v-if="item.prompt" class="result-prompt">
+                  <summary>该版本实际使用的已批准提示词</summary>
+                  <pre v-if="item.prompt.positive">{{ item.prompt.positive }}</pre>
+                  <template v-if="item.prompt.negative">
+                    <h4>需要避免</h4>
+                    <pre>{{ item.prompt.negative }}</pre>
+                  </template>
+                </details>
+                <details v-else class="result-prompt">
+                  <summary>该版本提示词不可用</summary>
+                  <p>该版本未保存可展示的已批准提示词；系统不会用当前提示词替代。</p>
+                </details>
+                <div class="result-actions">
+                  <a
+                    v-if="item.canDownload && item.assetId"
+                    class="primary-action result-download"
+                    :href="assetUrl(item.assetId) + '?download=true'"
+                    download
+                  >
+                    下载原图
+                  </a>
+                  <button
+                    v-else
+                    type="button"
+                    class="result-download result-download-disabled"
+                    disabled
+                    aria-disabled="true"
+                  >
+                    下载原图
+                  </button>
+                  <RouterLink class="text-button" :to="resultPageRoute(item.runId)">
+                    在结果页只读查看
+                  </RouterLink>
+                </div>
+                <p class="result-time">
+                  发布于 <time :datetime="item.publishedAt || item.createdAt">{{ formatDateTime(item.publishedAt || item.createdAt) }}</time>
+                </p>
+              </article>
+            </div>
           </section>
         </template>
       </template>
@@ -1198,21 +1238,12 @@ watch(
         有新内容，回到底部
       </button>
     </Transition>
-    <AccessibleDrawer
+    <ImageLightbox
       :open="lightboxOpen"
-      title="图片大图"
-      :description="lightboxItem?.caption ?? ''"
-      close-label="关闭大图"
-      width="min(960px, calc(100vw - 32px))"
+      :src="lightboxItem ? assetUrl(lightboxItem.assetId) : ''"
+      :alt="lightboxItem?.caption ?? ''"
       @close="closeLightbox"
-    >
-      <img
-        v-if="lightboxItem"
-        class="lightbox-image"
-        :src="assetUrl(lightboxItem.assetId)"
-        :alt="lightboxItem.caption"
-      >
-    </AccessibleDrawer>
+    />
   </section>
 </template>
 
@@ -1740,38 +1771,91 @@ watch(
   .task-action-button,
   .task-confirm-box { transition: none; animation: none; }
 }
-.image-history { display: flex; flex-direction: column; gap: 14px; }
+.image-history { display: flex; flex-direction: column; gap: var(--space-4); }
 .history-bubble { width: 100%; }
 .history-lead { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
-.result-card { width: 100%; padding: 16px 18px; }
-.result-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; color: var(--text-muted); font-size: 13px; }
-.result-badge { padding: 2px 8px; border-radius: 999px; background: var(--surface-panel); color: var(--text-muted); font-size: 12px; }
-.result-badge.is-current { background: var(--action-soft); color: var(--action-primary); }
-.result-image-link { position: relative; display: block; }
-.image-zoom-label {
+.result-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; width: 100%; }
+.result-card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.result-card.is-clickable { cursor: pointer; }
+.result-card:hover { border-color: var(--line-hover); }
+.result-card:focus-within { outline: 2px solid var(--focus-ring-light); outline-offset: 2px; }
+.result-card:focus-visible { outline: 2px solid var(--focus-ring-light); outline-offset: 2px; }
+.result-media-link { position: relative; display: block; overflow: hidden; border-radius: var(--radius-sm); background: var(--surface-media); }
+.result-media { display: block; width: 100%; aspect-ratio: 3 / 4; border-radius: var(--radius-sm); background: var(--surface-media); object-fit: cover; }
+.result-media-hint {
   position: absolute;
   right: 10px;
-  bottom: 22px;
+  bottom: 10px;
   padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(31, 36, 56, .78);
-  color: var(--action-primary-text);
-  font-size: 12px;
-  line-height: 1.4;
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-pill);
+  background: var(--surface-panel);
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
 }
-.result-image { display: block; width: min(640px, 100%); max-height: 620px; margin: 4px 0 10px; border-radius: 16px; object-fit: contain; background: var(--surface-panel); }
-.result-caption { margin: 8px 0 0; color: var(--text-muted); font-size: 13px; }
+.result-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0 0; color: var(--text-secondary); font-size: var(--text-caption); line-height: var(--text-caption-line); font-weight: 500; }
+.result-heading-text { min-width: 0; }
+.result-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-pill);
+  background: var(--surface-panel);
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.result-badge.is-current { border-color: var(--line-hover); background: var(--action-soft); color: var(--action-primary); }
+.result-badge.is-latest { border-color: var(--line-hover); color: var(--text-primary); }
+.result-title { margin: var(--space-2) 0 0; color: var(--text-primary); font-size: var(--text-body); line-height: var(--text-body-line); font-weight: 500; overflow-wrap: anywhere; }
+.result-caption { margin: 2px 0 0; color: var(--text-muted); font-size: var(--text-caption); line-height: var(--text-caption-line); overflow-wrap: anywhere; }
 .result-status { margin-top: 10px; }
 .result-prompt { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line-hairline); border-radius: 10px; background: var(--surface-panel); }
 .result-prompt summary { cursor: pointer; font-size: 13px; font-weight: 600; }
 .result-prompt pre { margin: 10px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono); }
 .result-prompt h4 { margin: 12px 0 4px; font-size: 12px; color: var(--text-muted); }
 .result-prompt p { margin: 8px 0 0; color: var(--text-muted); font-size: 13px; }
-.result-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
-.result-download { min-height: 36px; padding: 0 14px; font-size: 13px; text-decoration: none; }
+.result-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: var(--space-3); }
+.result-download { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; font-size: var(--text-body); text-decoration: none; }
+.result-download-disabled { border: 1px solid var(--line-hairline); border-radius: var(--radius-pill); background: var(--surface-inset); color: var(--text-muted); opacity: 1; cursor: not-allowed; }
+.result-download:disabled { border: 1px solid var(--line-hairline); border-radius: var(--radius-pill); background: var(--surface-inset); color: var(--text-muted); opacity: 1; cursor: not-allowed; }
+.result-download-disabled:disabled { opacity: 1; color: var(--text-muted); }
 .result-time { margin: 10px 0 0; color: var(--text-muted); font-size: 12px; }
-.result-unavailable { margin: 8px 0 0; padding: 12px; border: 1px solid color-mix(in srgb, var(--state-danger) 35%, var(--line-hairline)); border-radius: 10px; background: color-mix(in srgb, var(--state-danger) 6%, var(--surface-panel)); color: var(--state-danger); }
-.result-unavailable p { margin: 6px 0 0; font-size: 13px; line-height: 1.6; }
+.result-unavailable {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  aspect-ratio: 3 / 4;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+  text-align: center;
+}
+.result-unavailable-icon { width: 32px; height: 32px; color: var(--text-muted); }
+.result-unavailable-text { margin: 0; color: var(--text-secondary); font-size: var(--text-caption); line-height: var(--text-caption-line); }
+@media (min-width: 768px) {
+  .result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+}
 figcaption { color: var(--text-muted); font-size: 13px; }
 .chat-error { width: min(var(--conversation-width), 100%); margin: 0 auto 20px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--state-danger) 35%, var(--line-hairline)); border-radius: 12px; background: color-mix(in srgb, var(--state-danger) 6%, var(--surface-panel)); color: var(--state-danger); }
 .chat-error p { margin: 0 0 4px; }
@@ -1881,7 +1965,7 @@ figcaption { color: var(--text-muted); font-size: 13px; }
 .float-pop-leave-active { transition: opacity .2s ease, transform .3s var(--ease-out); }
 .float-pop-enter-from,
 .float-pop-leave-to { opacity: 0; transform: translateX(-50%) translateY(9px) scale(.9); }
-.lightbox-image { display: block; max-width: 100%; max-height: calc(100vh - 160px); margin: 0 auto; border-radius: 12px; object-fit: contain; }
+
 .composer-error { margin-bottom: 10px; }
 .composer-shell {
   display: flex;
