@@ -881,7 +881,7 @@ export function useChatFlow() {
       await navigator.clipboard.writeText(value)
       copied.value = true
       if (copyTimer) clearTimeout(copyTimer)
-      copyTimer = setTimeout(() => { copied.value = false }, 2500)
+      copyTimer = setTimeout(() => { copied.value = false }, 2000)
     } catch {
       flowError.value = '复制失败，请手动选择提示词文本。'
     }
