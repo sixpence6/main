@@ -142,13 +142,6 @@ export interface WorkspaceStore {
 
 const WORKSPACE_KEY: InjectionKey<WorkspaceStore> = Symbol('workspace')
 
-function currentProjectParam(): string | null {
-  if (typeof window === 'undefined') return null
-  const params = new URLSearchParams(window.location.search)
-  if (!params.has('project')) return null
-  return (params.get('project') ?? '').trim()
-}
-
 function routeProjectId(routeParams: unknown, query: unknown): string | null {
   const params = routeParams && typeof routeParams === 'object' ? routeParams as Record<string, unknown> : null
   const queryObject = query && typeof query === 'object' ? query as Record<string, unknown> : null
