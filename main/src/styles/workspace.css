@@ -51,7 +51,7 @@ body:has(.pure-shell) {
   margin: 0;
   color: var(--text-primary);
   font-size: var(--text-page);
-  font-weight: 650;
+  font-weight: 600;
   line-height: var(--text-page-line);
   letter-spacing: 0.04em;
 }
@@ -212,7 +212,8 @@ body:has(.pure-shell) {
 
 .unsaved-hint {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
 }
 
 .unsaved-actions {
@@ -239,7 +240,7 @@ body:has(.pure-shell) {
   inset: 0;
   z-index: 100;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .drawer-backdrop {
@@ -256,8 +257,10 @@ body:has(.pure-shell) {
   height: 100%;
   max-width: 100vw;
   overflow: hidden;
-  border-left: 1px solid var(--line-hairline);
-  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  border-right: 1px solid var(--line-hairline);
+  border-left: 0;
+  /* Ticket #151 overrides screen-spec §8's 272px with a 264px drawer. */
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
   background: var(--surface-panel);
   box-shadow: var(--shadow-overlay);
 }
@@ -279,7 +282,7 @@ body:has(.pure-shell) {
 
 .drawer-slide-enter-from .drawer-panel,
 .drawer-slide-leave-to .drawer-panel {
-  transform: translateX(100%);
+  transform: translateX(-100%);
 }
 
 .drawer-head {
@@ -347,71 +350,6 @@ body:has(.pure-shell) {
   .drawer-slide-leave-active .drawer-panel {
     transition: none;
   }
-}
-
-
-/* T02 project list and read-only recovery */
-
-.message-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.message-role {
-  margin: 0 0 4px;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.message-content {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.text-button {
-  padding: 2px 4px;
-  border: 0;
-  background: transparent;
-  color: var(--action-primary);
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-/* T03 对话发送、整理状态与错误恢复 */
-
-.composer-error {
-  margin: 0 0 var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--state-danger) 35%, var(--line-hairline));
-  border-radius: var(--radius-sm);
-  background: var(--surface-panel);
-  color: var(--state-danger);
-}
-
-.composer-error p {
-  margin: 4px 0 var(--space-2);
-}
-
-.new-content-button {
-  position: sticky;
-  bottom: var(--space-2);
-  display: block;
-  margin: var(--space-2) auto 0;
-  padding: 6px 14px;
-  border: 1px solid var(--action-primary);
-  border-radius: var(--radius-pill);
-  background: var(--action-primary);
-  color: var(--action-primary-text);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
 }
 
 

@@ -215,7 +215,7 @@ describe('V3 提示词确认卡', () => {
     expect(harness!.fetch.count('POST', ACTIONS_PATH + 'confirm_prompt')).toBe(0)
   })
 
-  it('复制写入卡片正文原文，按钮显示已复制并在 2000ms 后复原', async () => {
+  it('复制写入卡片当前显示的正文，按钮显示已复制并在 2000ms 后复原', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     await mountPromptCard({ fakeClock: true })
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
@@ -223,11 +223,11 @@ describe('V3 提示词确认卡', () => {
     const copy = await screen.findByRole('button', { name: '复制提示词' })
     const quote = document.querySelector('.prompt-card-quote')
     expect(quote).not.toBeNull()
+    expect(quote?.textContent).toBe(POSITIVE_PROMPT)
     await harness!.user.click(copy)
     await harness!.clock.advance(0)
 
     expect(writeText).toHaveBeenCalledWith(quote?.textContent)
-    expect(writeText).toHaveBeenCalledWith(POSITIVE_PROMPT)
     expect(screen.getByRole('button', { name: '已复制' })).toBeVisible()
     await harness!.clock.advance(1999)
     expect(screen.getByRole('button', { name: '已复制' })).toBeVisible()
@@ -235,7 +235,7 @@ describe('V3 提示词确认卡', () => {
     expect(screen.getByRole('button', { name: '复制提示词' })).toBeVisible()
   })
 
-  it('确认后只提交一次，动作区收起并保留三秒执行状态行', async () => {
+  it('确认后只提交一次，动作区收起并持续保留冻结正文与执行状态', async () => {
     await mountPromptCard({ fakeClock: true, confirmDelayMs: 500 })
     const card = await promptCard()
     const cta = within(card).getByRole('button', { name: '确认使用以上提示词生成' })
@@ -249,17 +249,18 @@ describe('V3 提示词确认卡', () => {
     const execution = within(card).getByRole('status')
     expect(execution).toHaveTextContent('已确认，正在执行…')
     expect(execution.parentElement).toBe(card)
+    expect(card.querySelector('.prompt-card-quote')?.textContent).toBe(POSITIVE_PROMPT)
 
     cta.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await harness!.clock.advance(0)
     expect(harness!.fetch.count('POST', ACTIONS_PATH + 'confirm_prompt')).toBe(1)
 
-    await harness!.clock.advance(2500)
+    // The frozen receipt must survive the preview being cleared by the server.
+    await harness!.clock.advance(3500)
     expect(screen.getByRole('region', { name: '提示词确认' })).toBeVisible()
-    await harness!.clock.advance(499)
-    expect(screen.getByRole('region', { name: '提示词确认' })).toBeVisible()
-    await harness!.clock.advance(1)
-    expect(screen.queryByRole('region', { name: '提示词确认' })).not.toBeInTheDocument()
+    expect(card.querySelector('.prompt-card-quote')?.textContent).toBe(POSITIVE_PROMPT)
+    expect(within(card).getByRole('status')).toBeVisible()
+    expect(within(card).queryAllByRole('button')).toHaveLength(0)
   })
 
   it('无负面提示词时不渲染避免块，版本号回退为 v1', async () => {

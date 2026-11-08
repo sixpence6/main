@@ -144,7 +144,7 @@ async function submit(): Promise<void> {
 }
 .login-field > label {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--text-body);
 }
 .login-field input {
   width: 100%;

@@ -671,7 +671,8 @@ onBeforeUnmount(() => {
 .accounts-brand {
   margin: 0 0 8px;
   color: var(--action-link);
-  font-size: 13px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
   letter-spacing: 0.12em;
 }
 
@@ -702,7 +703,7 @@ h2 {
   margin: 8px 0;
   color: var(--text-muted);
   line-height: 1.7;
-  font-size: 13px;
+  font-size: var(--text-caption);
 }
 
 .accounts-create {
@@ -717,7 +718,8 @@ h2 {
   display: grid;
   gap: 8px;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
 }
 
 .accounts-field input {
@@ -840,7 +842,8 @@ h2 {
 }
 
 .events-table td {
-  font-size: 13px;
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
 }
 
 .accounts-event-detail,
@@ -851,7 +854,7 @@ h2 {
   font-size: 12px;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .accounts-page {
     padding: 20px 12px 40px;
   }
@@ -881,7 +884,7 @@ h2 {
   max-width: 620px;
   margin: 10px 0 0;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--text-caption);
   line-height: 1.75;
 }
 
@@ -949,7 +952,7 @@ h2 {
   color: var(--state-warning);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 767px) {
   .accounts-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -988,7 +991,7 @@ h2 {
     gap: 8px;
     padding: 5px 0;
     border: 0;
-    font-size: 13px;
+    font-size: var(--text-body);
   }
 
   .accounts-table td::before {

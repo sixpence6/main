@@ -284,6 +284,50 @@ describe('V4 执行、失败与恢复状态', () => {
     expect(checkboxRule).toContain('border-radius: var(--radius-sm)')
   })
 
+  it('待补充说明提示显示为一行信息横幅，取消后恢复普通输入', async () => {
+    await mountTask(
+      workflow({
+        stage: 'S07',
+        status: 'blocked',
+        task_state: taskState(
+          reason('authorization_invalid', '当前授权已失效，不能访问此内容。', 'blocked'),
+          'blocked',
+        ),
+        available_actions: [
+          action('revise_prompt', '修改提示词', {
+            kind: 'text',
+            requires_text: true,
+            text_label: '修改说明',
+            effect: 'model_call',
+            requires_model_call: true,
+          }),
+        ],
+      }),
+    )
+
+    const region = await taskRegion()
+    await harness!.user.click(within(region).getByRole('button', { name: '修改提示词' }))
+
+    const note = screen.getByText(/正在修改「修改提示词」/)
+    const banner = note.closest('.composer-banner') as HTMLElement
+    expect(banner).not.toBeNull()
+    expect(banner).toHaveClass('is-info')
+    expect(banner).toHaveAttribute('role', 'status')
+    expect(note.textContent).toBe('正在修改「修改提示词」：请在下方填写修改说明后发送。')
+    expect(banner.querySelector('.composer-banner-icon')).not.toBeNull()
+    expect(screen.getByRole('textbox', { name: '描述商品与图片需求' })).toHaveAttribute(
+      'placeholder',
+      '说明要修改的地方，然后发送…',
+    )
+
+    await harness!.user.click(within(banner).getByRole('button', { name: '取消' }))
+    expect(screen.queryByText(/正在修改「修改提示词」/)).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '描述商品与图片需求' })).toHaveAttribute(
+      'placeholder',
+      '描述商品、用途和画面感觉…',
+    )
+  })
+
   it('失败在原位显示原因；只有服务端允许时才出现恢复动作，点击后转为执行中', async () => {
     const failed = workflow({
       status: 'failed',
@@ -298,8 +342,10 @@ describe('V4 执行、失败与恢复状态', () => {
     let region = await taskRegion()
     expect(region).toHaveClass('is-failed')
     expect(region.querySelector('.message-bubble')).toBeNull()
-    expect(within(region).getByText('硬约束不满足')).toBeVisible()
-    expect(within(region).getByText('本次结果未通过必须满足项检查，未放行且不会自动重试。')).toBeVisible()
+    const reasonLine = region.querySelector('.task-reason-label')
+    expect(reasonLine).not.toBeNull()
+    expect(reasonLine).toHaveTextContent('硬约束不满足')
+    expect(region.querySelector('.task-status-text')).toBeNull()
     expect(region.querySelector('.task-status-icon')).toHaveClass('is-failed')
     expect(within(region).queryByRole('button')).not.toBeInTheDocument()
     expect(chatStyle).toMatch(/\.task-status-icon\.is-failed\s*\{[^}]*color:\s*var\(--state-danger\)/)
@@ -313,7 +359,10 @@ describe('V4 执行、失败与恢复状态', () => {
           reason('technical_failure', '处理服务暂不可用，本次未自动重试。', 'failed'),
           'failed',
         ),
-        available_actions: [action('recover_generation', '恢复原任务')],
+        available_actions: [
+          action('recover_generation', '恢复原任务'),
+          action('retry_generation', '重新生成'),
+        ],
       }),
       (fetch) => {
         fetch.route('POST', ACTIONS_ROUTE, () => ({
@@ -331,6 +380,7 @@ describe('V4 执行、失败与恢复状态', () => {
     region = await taskRegion()
     const recover = within(region).getByRole('button', { name: '恢复原任务' })
     expect(recover).toBeVisible()
+    expect(within(region).getByRole('button', { name: '重新生成' })).toBeVisible()
     await harness!.user.click(recover)
     expect(region).toHaveClass('is-executing')
     expect(within(region).getByText('正在恢复…')).toBeVisible()
@@ -351,6 +401,13 @@ describe('V4 执行、失败与恢复状态', () => {
         available_actions: [
           action('verify_generation', '核实原任务', { effect: 'read_only', read_only: true }),
           action('retrieve_original_result', '获取原结果', { effect: 'read_only', read_only: true }),
+          action('start_new_generation', '重新生成', { effect: 'write' }),
+          action('retry_generation', '再试一次', { effect: 'write' }),
+          action('revise_prompt', '修改提示词', {
+            kind: 'text',
+            requires_text: true,
+            effect: 'model_call',
+          }),
         ],
       }),
     )
@@ -358,7 +415,8 @@ describe('V4 执行、失败与恢复状态', () => {
     const region = await taskRegion()
     expect(region).toHaveClass('is-unknown')
     expect(region).toHaveTextContent('结果未知，正在核实')
-    expect(within(region).getByText('远端状态尚未确认，系统不会自动重发。')).toBeVisible()
+    expect(region.querySelector('.task-reason-label')).toHaveTextContent('结果未知，正在核实')
+    expect(region.querySelector('.task-status-text')).toBeNull()
     const buttons = within(region).getAllByRole('button')
     expect(buttons.map((button) => button.textContent?.trim())).toEqual(['核实原任务', '获取原结果'])
     expect(within(region).queryByText(/已取消/)).not.toBeInTheDocument()

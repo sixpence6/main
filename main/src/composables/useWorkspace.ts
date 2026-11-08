@@ -1404,6 +1404,8 @@ function createWorkspace(): WorkspaceStore {
       ) {
         return false
       }
+      projectError.value = ''
+      projectErrorKind.value = null
       adoptProjectDetail(response)
       return true
     } catch {

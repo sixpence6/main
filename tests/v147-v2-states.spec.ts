@@ -235,9 +235,12 @@ describe('V2 空态与连接状态', () => {
     await harness.user.click(retry)
 
     await harness.waitFor(() => expect(harness!.fetch.count('GET', DETAIL_PATH)).toBe(2))
-    await harness.waitFor(() => expect(retry).not.toBeDisabled())
     expect(harness.fetch.count('GET', DETAIL_PATH)).toBe(2)
     expect(harness.fetch.count('POST')).toBe(0)
+    await harness.waitFor(() => expect(screen.getByText('已恢复的对话')).toBeVisible())
+    expect(screen.queryByText('暂时无法读取对话。')).not.toBeInTheDocument()
+    expect(screen.queryByText('正在读取对话…')).not.toBeInTheDocument()
+    expect(screen.queryByText('重试')).not.toBeInTheDocument()
   })
 })
 

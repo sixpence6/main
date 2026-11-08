@@ -873,8 +873,8 @@ export function useChatFlow() {
     }
   }
 
-  async function copyPrompt(): Promise<void> {
-    const value = positivePrompt.value
+  async function copyPrompt(text?: string): Promise<void> {
+    const value = text ?? positivePrompt.value
     if (!value) return
     try {
       if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
@@ -885,6 +885,10 @@ export function useChatFlow() {
     } catch {
       flowError.value = '复制失败，请手动选择提示词文本。'
     }
+  }
+
+  function cancelPendingTaskAction(): void {
+    pendingTaskAction.value = null
   }
 
   async function retry(): Promise<void> {
@@ -995,6 +999,7 @@ export function useChatFlow() {
     confirmRequirements,
     confirmPrompt,
     copyPrompt,
+    cancelPendingTaskAction,
     retry,
     taskActionEffectLabel,
     taskActionHelp,

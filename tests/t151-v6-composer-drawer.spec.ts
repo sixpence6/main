@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, within } from '@testing-library/vue'
 import type {
   MessageView,
@@ -187,10 +187,19 @@ describe('T151 V6 输入区与移动抽屉', () => {
     expect(remove).toContain('width: 24px')
     expect(remove).toContain('height: 24px')
     expect(remove).toContain('color: var(--state-danger)')
+    expect(remove).toContain('opacity: 0')
+    expect(chatStyle).toMatch(/\.attachment-preview:hover \.attachment-remove[^{]*\{[^}]*opacity:\s*1/)
+    expect(chatStyle).toMatch(/\.attachment-preview:focus-within \.attachment-remove[^{]*\{[^}]*opacity:\s*1/)
+    expect(chatStyle).toMatch(/\.attachment-remove:focus-visible[^{]*\{[^}]*opacity:\s*1/)
+    expect(chatStyle).toMatch(/@media \(max-width: 767px\)[\s\S]*?\.attachment-remove[^{]*\{[^}]*opacity:\s*1/)
 
     expect(sideDrawerSource).toContain('width="min(264px, calc(100vw - 32px))"')
+    const drawerLayer = cssRule(workspaceSource, '.drawer-layer')
+    expect(drawerLayer).toContain('justify-content: flex-start')
     const panel = cssRule(workspaceSource, '.drawer-panel')
-    expect(panel).toContain('border-radius: var(--radius-lg) 0 0 var(--radius-lg)')
+    expect(panel).toContain('border-right: 1px solid var(--line-hairline)')
+    expect(panel).toContain('border-left: 0')
+    expect(panel).toContain('border-radius: 0 var(--radius-lg) var(--radius-lg) 0')
     expect(panel).not.toContain('!important')
     expect(workspaceSource).not.toMatch(/width:\s*calc\(100vw - 32px\)\s*!important/)
     expect(cssRule(workspaceSource, '.drawer-backdrop')).toContain('background: var(--scrim)')
@@ -199,6 +208,18 @@ describe('T151 V6 输入区与移动抽屉', () => {
     expect(accessibleDrawerSource).toContain('setBackgroundInert')
     expect(accessibleDrawerSource).toContain("setAttribute('inert'")
     expect(accessibleDrawerSource).toContain('name="drawer-slide"')
+  })
+
+  it('错误横幅与待处理提示使用 v3 内联样式', () => {
+    const banner = cssRule(chatStyle, '.composer-banner')
+    expect(banner).toContain('background: var(--surface-inset)')
+    expect(banner).toContain('border: 1px solid var(--line-hairline)')
+    expect(banner).toContain('border-radius: var(--radius-md)')
+    expect(banner).toContain('padding: var(--space-2) var(--space-3)')
+    expect(banner).toContain('font-size: var(--text-body)')
+    expect(cssRule(chatStyle, '.composer-banner.is-info')).toContain('background: var(--action-soft)')
+    expect(cssRule(chatStyle, '.composer-banner-action')).toContain('font-size: var(--text-body)')
+    expect(chatStyle).not.toContain('.composer-error')
   })
 
   it('320 下发送键始终可见，运行时可输入并封顶 8 行高度', async () => {
@@ -330,6 +351,9 @@ describe('T151 V6 输入区与移动抽屉', () => {
     expect(send).toHaveAttribute('aria-busy', 'true')
     expect(send).toHaveAttribute('title', '处理中…')
     expect(send).toHaveAttribute('data-label', '处理中…')
+    const busyLabel = screen.getByText('处理中…')
+    expect(busyLabel).toBeVisible()
+    expect(busyLabel).toHaveClass('send-busy-label')
     expect(screen.getByText('正在生成，完成后可发送')).toBeVisible()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
@@ -337,6 +361,51 @@ describe('T151 V6 输入区与移动抽屉', () => {
     await harness!.user.type(input, '，补充一句')
     expect(input.value).toContain('补充一句')
     await harness!.waitFor(() => expect(send).toHaveAttribute('aria-busy', 'false'))
+  })
+
+  it('发送失败显示内联错误横幅，重试刷新工作流并清除错误', async () => {
+    await mountChat((fetch) => {
+      fetch.route('POST', MESSAGES_A, () => ({
+        status: 500,
+        body: { error: { code: 'INTERNAL', message: '发送没有完成，请稍后重试。' } },
+      }))
+    })
+    expect(await screen.findByRole('heading', { name: '项目甲' })).toBeVisible()
+
+    await harness!.user.type(composer(), '生成主图')
+    await harness!.user.click(screen.getByRole('button', { name: '发送' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveClass('composer-banner', 'is-danger')
+    expect(within(alert).getByText('发送没有完成，请稍后重试。')).toBeVisible()
+    expect(alert.querySelector('.composer-banner-icon')).not.toBeNull()
+
+    const before = harness!.fetch.count('GET', WORKFLOW_A)
+    await harness!.user.click(within(alert).getByRole('button', { name: '重试' }))
+    await harness!.waitFor(() => {
+      expect(harness!.fetch.count('GET', WORKFLOW_A)).toBeGreaterThan(before)
+    })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('附件上传失败显示错误横幅并可重新选择文件', async () => {
+    await mountChat((fetch) => {
+      fetch.route('POST', STAGE_A, () => ({
+        status: 422,
+        body: { error: { code: 'INVALID_IMAGE', message: '图片内容无法识别，请重新选择。' } },
+      }))
+    })
+    expect(await screen.findByRole('heading', { name: '项目甲' })).toBeVisible()
+
+    await upload('损坏.png')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveClass('composer-banner', 'is-danger')
+    expect(alert).toHaveTextContent('图片内容无法识别，请重新选择。')
+
+    const input = screen.getByLabelText('选择参考图文件') as HTMLInputElement
+    const openPicker = vi.spyOn(input, 'click')
+    await harness!.user.click(within(alert).getByRole('button', { name: '重试' }))
+    expect(openPicker).toHaveBeenCalled()
   })
 
   it('320/768 使用单层 264 抽屉，焦点进入/陷阱/回焦，Esc/遮罩/关闭可用，背景 inert 且滚动锁定；1024 常驻侧栏', async () => {
