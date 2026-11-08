@@ -1,0 +1,4662 @@
+{
+  "ok": true,
+  "base": "http://127.0.0.1:8101",
+  "api": "http://127.0.0.1:8796",
+  "startedAt": "2026-11-08T13:51:29.757Z",
+  "screenshots": [
+    {
+      "file": "v6-320-composer-idle.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-320-composer-idle.png",
+      "bytes": 12876,
+      "sha256": "1e47b8a75b3252a1498f7adf7f3a4fd440beae1a35ab534c061e55bdad332e9c",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-320-composer-focus.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-320-composer-focus.png",
+      "bytes": 14026,
+      "sha256": "04cd970b8de9a3f72b5b7e016df6e46cc72f3f2c2e5d496cafc1dd7bed922e4b",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-320-composer-blocked.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-320-composer-blocked.png",
+      "bytes": 17230,
+      "sha256": "d3f934046eae51b50a109a87c6c04b9d14d282060ce5118677c18a5798d845ab",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-320-composer-attachment-error.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-320-composer-attachment-error.png",
+      "bytes": 18916,
+      "sha256": "230943b1d6f721e009c2377ab03fd581958d1a2a7179ea2b5fa777431a1e273d",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-768-composer-idle.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-768-composer-idle.png",
+      "bytes": 15541,
+      "sha256": "b475a7870b58d565f887faf0d0624d1062c310fccf71f59f62794769989564eb",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "viewportLabel": "768x1024",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-768-composer-focus.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-768-composer-focus.png",
+      "bytes": 16723,
+      "sha256": "ab1fdc71861ac3815113b6062d065e6010c1be5e05d1d78a2221e4731038e8bb",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "viewportLabel": "768x1024",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-768-composer-blocked.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-768-composer-blocked.png",
+      "bytes": 20218,
+      "sha256": "b374b97b714c470eb85c0f8d789e19f2ec476e879525821356ac20b304d6cb24",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "viewportLabel": "768x1024",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-768-composer-attachment-error.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-768-composer-attachment-error.png",
+      "bytes": 22118,
+      "sha256": "47c094528cd1b9607365defe43c3bcd4782e9dbccffbc1fe347231ef95d54347",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "viewportLabel": "768x1024",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-1440-composer-idle.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-1440-composer-idle.png",
+      "bytes": 30669,
+      "sha256": "7a8884718453d6f2f837196ce774ae361a3a661ba435068f0c7856d4a6a62035",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "viewportLabel": "1440x900",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-1440-composer-focus.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-1440-composer-focus.png",
+      "bytes": 31745,
+      "sha256": "9525469cb0db0169e5e23af2627a2416ff1a7d3ca910d1d54ae7d632241d6e90",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "viewportLabel": "1440x900",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-1440-composer-blocked.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-1440-composer-blocked.png",
+      "bytes": 35331,
+      "sha256": "a3ed3ea9c2f96a4592b8545ad954932f00d404672ff41337be4767ecaed0e9f6",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "viewportLabel": "1440x900",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-1440-composer-attachment-error.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-1440-composer-attachment-error.png",
+      "bytes": 37343,
+      "sha256": "a43ee5501c1d387062ddfb557f704d0341784a8961257f0b3042be80a4d28d55",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "viewportLabel": "1440x900",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-320-composer-eight-lines.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-320-composer-eight-lines.png",
+      "bytes": 14032,
+      "sha256": "146ec2c9a1cd3c278fb8d7599c5fddd55c1f3c80d8721c6f6da7c492228c4116",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-320-drawer-open.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-320-drawer-open.png",
+      "bytes": 30150,
+      "sha256": "ec469027ae3e52d6ffe0120231c5d446acee2c9317c17a214c7cadaf09ec75e0",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-768-drawer-open.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-768-drawer-open.png",
+      "bytes": 53084,
+      "sha256": "c1d17b7c8f3cf397e09eb205e1312d4a7c82c5e5636af86895f4dc5dbb87dbfd",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "viewportLabel": "768x1024",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v6-1024-no-drawer.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v6-1024-no-drawer.png",
+      "bytes": 58874,
+      "sha256": "f3ae41c413c9ba11064c2d98df81e84cbb250cb8933a136f7e7a4decebf94705",
+      "viewport": {
+        "width": 1024,
+        "height": 900,
+        "dpr": 1
+      },
+      "viewportLabel": "1024x900",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    }
+  ],
+  "scenarios": {
+    "idle-320": {
+      "doc": {
+        "scrollWidth": 320,
+        "clientWidth": 320,
+        "scrollHeight": 800
+      },
+      "chat": {
+        "x": 0,
+        "y": 76,
+        "top": 76,
+        "bottom": 658,
+        "width": 320,
+        "height": 582,
+        "centerX": 160
+      },
+      "shell": {
+        "rect": {
+          "x": 16,
+          "y": 668,
+          "top": 668,
+          "bottom": 762,
+          "width": 288,
+          "height": 94,
+          "centerX": 160
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px",
+          "background": "rgb(252, 251, 247)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(223, 221, 213)",
+          "borderColor": "rgb(223, 221, 213)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "288px",
+          "height": "94px",
+          "maxHeight": "none",
+          "minHeight": "0px",
+          "overflowY": "visible",
+          "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "input": {
+        "rect": {
+          "x": 77,
+          "y": 681,
+          "top": 681,
+          "bottom": 749,
+          "width": 166,
+          "height": 68,
+          "centerX": 160
+        },
+        "style": {
+          "display": "block",
+          "padding": "10px 0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "15px",
+          "lineHeight": "24px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "166px",
+          "height": "68px",
+          "maxHeight": "212px",
+          "minHeight": "44px",
+          "overflowY": "auto",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "pre-wrap"
+        },
+        "value": "",
+        "scrollHeight": 68,
+        "clientHeight": 68,
+        "styleHeight": "68px",
+        "disabled": false
+      },
+      "send": {
+        "rect": {
+          "x": 251,
+          "y": 713,
+          "top": 713,
+          "bottom": 749,
+          "width": 36,
+          "height": 36,
+          "centerX": 269
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "false",
+        "title": "发送",
+        "dataLabel": "发送",
+        "text": "",
+        "label": "发送"
+      },
+      "preview": null,
+      "thumb": null,
+      "remove": null,
+      "alert": null,
+      "hint": {
+        "text": "Enter 发送，Shift + Enter 换行",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 0px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "288px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "active": {
+        "tag": "BODY",
+        "id": "",
+        "label": null,
+        "cls": ""
+      },
+      "topbars": 1
+    },
+    "focus-320": {
+      "doc": {
+        "scrollWidth": 320,
+        "clientWidth": 320,
+        "scrollHeight": 800
+      },
+      "chat": {
+        "x": 0,
+        "y": 76,
+        "top": 76,
+        "bottom": 658,
+        "width": 320,
+        "height": 582,
+        "centerX": 160
+      },
+      "shell": {
+        "rect": {
+          "x": 16,
+          "y": 668,
+          "top": 668,
+          "bottom": 762,
+          "width": 288,
+          "height": 94,
+          "centerX": 160
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px",
+          "background": "rgb(252, 251, 247)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(143, 140, 132)",
+          "borderColor": "rgb(143, 140, 132)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+          "outline": "rgb(30, 90, 115) solid 2px",
+          "outlineWidth": "2px",
+          "outlineColor": "rgb(30, 90, 115)",
+          "outlineOffset": "2px",
+          "width": "288px",
+          "height": "94px",
+          "maxHeight": "none",
+          "minHeight": "0px",
+          "overflowY": "visible",
+          "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "input": {
+        "rect": {
+          "x": 77,
+          "y": 681,
+          "top": 681,
+          "bottom": 749,
+          "width": 166,
+          "height": 68,
+          "centerX": 160
+        },
+        "style": {
+          "display": "block",
+          "padding": "10px 0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "15px",
+          "lineHeight": "24px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "166px",
+          "height": "68px",
+          "maxHeight": "212px",
+          "minHeight": "44px",
+          "overflowY": "auto",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "pre-wrap"
+        },
+        "value": "",
+        "scrollHeight": 68,
+        "clientHeight": 68,
+        "styleHeight": "68px",
+        "disabled": false
+      },
+      "send": {
+        "rect": {
+          "x": 251,
+          "y": 713,
+          "top": 713,
+          "bottom": 749,
+          "width": 36,
+          "height": 36,
+          "centerX": 269
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "false",
+        "title": "发送",
+        "dataLabel": "发送",
+        "text": "",
+        "label": "发送"
+      },
+      "preview": null,
+      "thumb": null,
+      "remove": null,
+      "alert": null,
+      "hint": {
+        "text": "Enter 发送，Shift + Enter 换行",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 0px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "288px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "active": {
+        "tag": "TEXTAREA",
+        "id": "workspace-prompt",
+        "label": "描述商品与图片需求",
+        "cls": "composer-input"
+      },
+      "topbars": 1
+    },
+    "blocked-320": {
+      "doc": {
+        "scrollWidth": 320,
+        "clientWidth": 320,
+        "scrollHeight": 800
+      },
+      "chat": {
+        "x": 0,
+        "y": 76,
+        "top": 76,
+        "bottom": 658,
+        "width": 320,
+        "height": 582,
+        "centerX": 160
+      },
+      "shell": {
+        "rect": {
+          "x": 16,
+          "y": 668,
+          "top": 668,
+          "bottom": 762,
+          "width": 288,
+          "height": 94,
+          "centerX": 160
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px",
+          "background": "rgb(252, 251, 247)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(143, 140, 132)",
+          "borderColor": "rgb(143, 140, 132)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+          "outline": "rgb(30, 90, 115) solid 2px",
+          "outlineWidth": "2px",
+          "outlineColor": "rgb(30, 90, 115)",
+          "outlineOffset": "2px",
+          "width": "288px",
+          "height": "94px",
+          "maxHeight": "none",
+          "minHeight": "0px",
+          "overflowY": "visible",
+          "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "input": {
+        "rect": {
+          "x": 77,
+          "y": 681,
+          "top": 681,
+          "bottom": 749,
+          "width": 166,
+          "height": 68,
+          "centerX": 160
+        },
+        "style": {
+          "display": "block",
+          "padding": "10px 0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "15px",
+          "lineHeight": "24px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "166px",
+          "height": "68px",
+          "maxHeight": "212px",
+          "minHeight": "44px",
+          "overflowY": "auto",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "pre-wrap"
+        },
+        "value": "为托特包生成一张春季主图",
+        "scrollHeight": 68,
+        "clientHeight": 68,
+        "styleHeight": "68px",
+        "disabled": false
+      },
+      "send": {
+        "rect": {
+          "x": 251,
+          "y": 713,
+          "top": 713,
+          "bottom": 749,
+          "width": 36,
+          "height": 36,
+          "centerX": 269
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "true",
+        "title": "处理中…",
+        "dataLabel": "处理中…",
+        "text": "",
+        "label": "发送"
+      },
+      "preview": null,
+      "thumb": null,
+      "remove": null,
+      "alert": null,
+      "hint": {
+        "text": "正在生成，完成后可发送",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 0px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "288px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "active": {
+        "tag": "TEXTAREA",
+        "id": "workspace-prompt",
+        "label": "描述商品与图片需求",
+        "cls": "composer-input"
+      },
+      "topbars": 1
+    },
+    "attachment-error-320": {
+      "doc": {
+        "scrollWidth": 320,
+        "clientWidth": 320,
+        "scrollHeight": 800
+      },
+      "chat": {
+        "x": 0,
+        "y": 76,
+        "top": 76,
+        "bottom": 528,
+        "width": 320,
+        "height": 452,
+        "centerX": 160
+      },
+      "shell": {
+        "rect": {
+          "x": 16,
+          "y": 668,
+          "top": 668,
+          "bottom": 762,
+          "width": 288,
+          "height": 94,
+          "centerX": 160
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px",
+          "background": "rgb(252, 251, 247)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(223, 221, 213)",
+          "borderColor": "rgb(223, 221, 213)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "288px",
+          "height": "94px",
+          "maxHeight": "none",
+          "minHeight": "0px",
+          "overflowY": "visible",
+          "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "input": {
+        "rect": {
+          "x": 77,
+          "y": 681,
+          "top": 681,
+          "bottom": 749,
+          "width": 166,
+          "height": 68,
+          "centerX": 160
+        },
+        "style": {
+          "display": "block",
+          "padding": "10px 0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "15px",
+          "lineHeight": "24px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "166px",
+          "height": "68px",
+          "maxHeight": "212px",
+          "minHeight": "44px",
+          "overflowY": "auto",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "pre-wrap"
+        },
+        "value": "",
+        "scrollHeight": 68,
+        "clientHeight": 68,
+        "styleHeight": "68px",
+        "disabled": false
+      },
+      "send": {
+        "rect": {
+          "x": 251,
+          "y": 713,
+          "top": 713,
+          "bottom": 749,
+          "width": 36,
+          "height": 36,
+          "centerX": 269
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "false",
+        "title": "发送",
+        "dataLabel": "发送",
+        "text": "",
+        "label": "发送"
+      },
+      "preview": {
+        "rect": {
+          "x": 16,
+          "y": 600,
+          "top": 600,
+          "bottom": 660,
+          "width": 288,
+          "height": 60,
+          "centerX": 160
+        },
+        "style": {
+          "display": "flex",
+          "padding": "8px 12px",
+          "margin": "0px 0px 8px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(223, 221, 213)",
+          "borderColor": "rgb(223, 221, 213)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "288px",
+          "height": "60px",
+          "maxHeight": "none",
+          "minHeight": "58px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "text": "fixture.png\n将随这条消息一起发送"
+      },
+      "thumb": {
+        "rect": {
+          "x": 29,
+          "y": 609,
+          "top": 609,
+          "bottom": 651,
+          "width": 34,
+          "height": 42,
+          "centerX": 46
+        },
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(233, 230, 222)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "34px",
+          "height": "42px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "clip",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "alt": "待发送的图片预览",
+        "src": "blob:http://127.0.0.1:8101/8ecee26c-5df7-4ed8-bff3-564d1d8c06bd"
+      },
+      "remove": {
+        "rect": {
+          "x": 267,
+          "y": 618,
+          "top": 618,
+          "bottom": 642,
+          "width": 24,
+          "height": 24,
+          "centerX": 279
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(178, 59, 75)",
+          "border": "0px none rgb(178, 59, 75)",
+          "borderColor": "rgb(178, 59, 75)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(178, 59, 75) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(178, 59, 75)",
+          "outlineOffset": "0px",
+          "width": "24px",
+          "height": "24px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "label": "移除图片"
+      },
+      "alert": {
+        "text": "参考图上传失败，请重试。",
+        "role": "alert"
+      },
+      "hint": {
+        "text": "Enter 发送，Shift + Enter 换行",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 0px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "288px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "active": {
+        "tag": "BODY",
+        "id": "",
+        "label": null,
+        "cls": ""
+      },
+      "topbars": 1
+    },
+    "idle-768": {
+      "doc": {
+        "scrollWidth": 768,
+        "clientWidth": 768,
+        "scrollHeight": 1024
+      },
+      "chat": {
+        "x": 0,
+        "y": 48,
+        "top": 48,
+        "bottom": 896,
+        "width": 768,
+        "height": 848,
+        "centerX": 384
+      },
+      "shell": {
+        "rect": {
+          "x": 24,
+          "y": 908,
+          "top": 908,
+          "bottom": 978,
+          "width": 720,
+          "height": 70,
+          "centerX": 384
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px",
+          "background": "rgb(252, 251, 247)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(223, 221, 213)",
+          "borderColor": "rgb(223, 221, 213)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "720px",
+          "height": "70px",
+          "maxHeight": "none",
+          "minHeight": "0px",
+          "overflowY": "visible",
+          "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "input": {
+        "rect": {
+          "x": 85,
+          "y": 921,
+          "top": 921,
+          "bottom": 965,
+          "width": 598,
+          "height": 44,
+          "centerX": 384
+        },
+        "style": {
+          "display": "block",
+          "padding": "10px 0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "15px",
+          "lineHeight": "24px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "598px",
+          "height": "44px",
+          "maxHeight": "212px",
+          "minHeight": "44px",
+          "overflowY": "auto",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "pre-wrap"
+        },
+        "value": "",
+        "scrollHeight": 44,
+        "clientHeight": 44,
+        "styleHeight": "44px",
+        "disabled": false
+      },
+      "send": {
+        "rect": {
+          "x": 691,
+          "y": 929,
+          "top": 929,
+          "bottom": 965,
+          "width": 36,
+          "height": 36,
+          "centerX": 709
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "false",
+        "title": "发送",
+        "dataLabel": "发送",
+        "text": "",
+        "label": "发送"
+      },
+      "preview": null,
+      "thumb": null,
+      "remove": null,
+      "alert": null,
+      "hint": {
+        "text": "Enter 发送，Shift + Enter 换行",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 0px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "720px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "active": {
+        "tag": "BODY",
+        "id": "",
+        "label": null,
+        "cls": ""
+      },
+      "topbars": 1
+    },
+    "focus-768": {
+      "doc": {
+        "scrollWidth": 768,
+        "clientWidth": 768,
+        "scrollHeight": 1024
+      },
+      "chat": {
+        "x": 0,
+        "y": 48,
+        "top": 48,
+        "bottom": 896,
+        "width": 768,
+        "height": 848,
+        "centerX": 384
+      },
+      "shell": {
+        "rect": {
+          "x": 24,
+          "y": 908,
+          "top": 908,
+          "bottom": 978,
+          "width": 720,
+          "height": 70,
+          "centerX": 384
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px",
+          "background": "rgb(252, 251, 247)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(143, 140, 132)",
+          "borderColor": "rgb(143, 140, 132)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+          "outline": "rgb(30, 90, 115) solid 2px",
+          "outlineWidth": "2px",
+          "outlineColor": "rgb(30, 90, 115)",
+          "outlineOffset": "2px",
+          "width": "720px",
+          "height": "70px",
+          "maxHeight": "none",
+          "minHeight": "0px",
+          "overflowY": "visible",
+          "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "input": {
+        "rect": {
+          "x": 85,
+          "y": 921,
+          "top": 921,
+          "bottom": 965,
+          "width": 598,
+          "height": 44,
+          "centerX": 384
+        },
+        "style": {
+          "display": "block",
+          "padding": "10px 0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "15px",
+          "lineHeight": "24px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "598px",
+          "height": "44px",
+          "maxHeight": "212px",
+          "minHeight": "44px",
+          "overflowY": "auto",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "pre-wrap"
+        },
+        "value": "",
+        "scrollHeight": 44,
+        "clientHeight": 44,
+        "styleHeight": "44px",
+        "disabled": false
+      },
+      "send": {
+        "rect": {
+          "x": 691,
+          "y": 929,
+          "top": 929,
+          "bottom": 965,
+          "width": 36,
+          "height": 36,
+          "centerX": 709
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "false",
+        "title": "发送",
+        "dataLabel": "发送",
+        "text": "",
+        "label": "发送"
+      },
+      "preview": null,
+      "thumb": null,
+      "remove": null,
+      "alert": null,
+      "hint": {
+        "text": "Enter 发送，Shift + Enter 换行",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 0px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "720px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "active": {
+        "tag": "TEXTAREA",
+        "id": "workspace-prompt",
+        "label": "描述商品与图片需求",
+        "cls": "composer-input"
+      },
+      "topbars": 1
+    },
+    "blocked-768": {
+      "doc": {
+        "scrollWidth": 768,
+        "clientWidth": 768,
+        "scrollHeight": 1024
+      },
+      "chat": {
+        "x": 0,
+        "y": 48,
+        "top": 48,
+        "bottom": 896,
+        "width": 768,
+        "height": 848,
+        "centerX": 384
+      },
+      "shell": {
+        "rect": {
+          "x": 24,
+          "y": 908,
+          "top": 908,
+          "bottom": 978,
+          "width": 720,
+          "height": 70,
+          "centerX": 384
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px",
+          "background": "rgb(252, 251, 247)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(143, 140, 132)",
+          "borderColor": "rgb(143, 140, 132)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+          "outline": "rgb(30, 90, 115) solid 2px",
+          "outlineWidth": "2px",
+          "outlineColor": "rgb(30, 90, 115)",
+          "outlineOffset": "2px",
+          "width": "720px",
+          "height": "70px",
+          "maxHeight": "none",
+          "minHeight": "0px",
+          "overflowY": "visible",
+          "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "input": {
+        "rect": {
+          "x": 85,
+          "y": 921,
+          "top": 921,
+          "bottom": 965,
+          "width": 598,
+          "height": 44,
+          "centerX": 384
+        },
+        "style": {
+          "display": "block",
+          "padding": "10px 0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "15px",
+          "lineHeight": "24px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "598px",
+          "height": "44px",
+          "maxHeight": "212px",
+          "minHeight": "44px",
+          "overflowY": "auto",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "pre-wrap"
+        },
+        "value": "为托特包生成一张春季主图",
+        "scrollHeight": 44,
+        "clientHeight": 44,
+        "styleHeight": "44px",
+        "disabled": false
+      },
+      "send": {
+        "rect": {
+          "x": 691,
+          "y": 929,
+          "top": 929,
+          "bottom": 965,
+          "width": 36,
+          "height": 36,
+          "centerX": 709
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "true",
+        "title": "处理中…",
+        "dataLabel": "处理中…",
+        "text": "",
+        "label": "发送"
+      },
+      "preview": null,
+      "thumb": null,
+      "remove": null,
+      "alert": null,
+      "hint": {
+        "text": "正在生成，完成后可发送",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 0px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "720px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "active": {
+        "tag": "TEXTAREA",
+        "id": "workspace-prompt",
+        "label": "描述商品与图片需求",
+        "cls": "composer-input"
+      },
+      "topbars": 1
+    },
+    "attachment-error-768": {
+      "doc": {
+        "scrollWidth": 768,
+        "clientWidth": 768,
+        "scrollHeight": 1024
+      },
+      "chat": {
+        "x": 0,
+        "y": 48,
+        "top": 48,
+        "bottom": 766,
+        "width": 768,
+        "height": 718,
+        "centerX": 384
+      },
+      "shell": {
+        "rect": {
+          "x": 24,
+          "y": 908,
+          "top": 908,
+          "bottom": 978,
+          "width": 720,
+          "height": 70,
+          "centerX": 384
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px",
+          "background": "rgb(252, 251, 247)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(223, 221, 213)",
+          "borderColor": "rgb(223, 221, 213)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "720px",
+          "height": "70px",
+          "maxHeight": "none",
+          "minHeight": "0px",
+          "overflowY": "visible",
+          "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "input": {
+        "rect": {
+          "x": 85,
+          "y": 921,
+          "top": 921,
+          "bottom": 965,
+          "width": 598,
+          "height": 44,
+          "centerX": 384
+        },
+        "style": {
+          "display": "block",
+          "padding": "10px 0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "15px",
+          "lineHeight": "24px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "598px",
+          "height": "44px",
+          "maxHeight": "212px",
+          "minHeight": "44px",
+          "overflowY": "auto",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "pre-wrap"
+        },
+        "value": "",
+        "scrollHeight": 44,
+        "clientHeight": 44,
+        "styleHeight": "44px",
+        "disabled": false
+      },
+      "send": {
+        "rect": {
+          "x": 691,
+          "y": 929,
+          "top": 929,
+          "bottom": 965,
+          "width": 36,
+          "height": 36,
+          "centerX": 709
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "false",
+        "title": "发送",
+        "dataLabel": "发送",
+        "text": "",
+        "label": "发送"
+      },
+      "preview": {
+        "rect": {
+          "x": 24,
+          "y": 840,
+          "top": 840,
+          "bottom": 900,
+          "width": 720,
+          "height": 60,
+          "centerX": 384
+        },
+        "style": {
+          "display": "flex",
+          "padding": "8px 12px",
+          "margin": "0px 0px 8px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(223, 221, 213)",
+          "borderColor": "rgb(223, 221, 213)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "720px",
+          "height": "60px",
+          "maxHeight": "none",
+          "minHeight": "58px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "text": "fixture.png\n将随这条消息一起发送"
+      },
+      "thumb": {
+        "rect": {
+          "x": 37,
+          "y": 849,
+          "top": 849,
+          "bottom": 891,
+          "width": 34,
+          "height": 42,
+          "centerX": 54
+        },
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(233, 230, 222)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "34px",
+          "height": "42px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "clip",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "alt": "待发送的图片预览",
+        "src": "blob:http://127.0.0.1:8101/7eff1839-545d-4e87-b4fd-5cf51f18cfbb"
+      },
+      "remove": {
+        "rect": {
+          "x": 707,
+          "y": 858,
+          "top": 858,
+          "bottom": 882,
+          "width": 24,
+          "height": 24,
+          "centerX": 719
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(178, 59, 75)",
+          "border": "0px none rgb(178, 59, 75)",
+          "borderColor": "rgb(178, 59, 75)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(178, 59, 75) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(178, 59, 75)",
+          "outlineOffset": "0px",
+          "width": "24px",
+          "height": "24px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "label": "移除图片"
+      },
+      "alert": {
+        "text": "参考图上传失败，请重试。",
+        "role": "alert"
+      },
+      "hint": {
+        "text": "Enter 发送，Shift + Enter 换行",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 0px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "720px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "active": {
+        "tag": "BODY",
+        "id": "",
+        "label": null,
+        "cls": ""
+      },
+      "topbars": 1
+    },
+    "idle-1440": {
+      "doc": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 900
+      },
+      "chat": {
+        "x": 264,
+        "y": 48,
+        "top": 48,
+        "bottom": 772,
+        "width": 1176,
+        "height": 724,
+        "centerX": 852
+      },
+      "shell": {
+        "rect": {
+          "x": 472,
+          "y": 784,
+          "top": 784,
+          "bottom": 854,
+          "width": 760,
+          "height": 70,
+          "centerX": 852
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px 176px",
+          "background": "rgb(252, 251, 247)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(223, 221, 213)",
+          "borderColor": "rgb(223, 221, 213)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "760px",
+          "height": "70px",
+          "maxHeight": "none",
+          "minHeight": "0px",
+          "overflowY": "visible",
+          "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "input": {
+        "rect": {
+          "x": 533,
+          "y": 797,
+          "top": 797,
+          "bottom": 841,
+          "width": 638,
+          "height": 44,
+          "centerX": 852
+        },
+        "style": {
+          "display": "block",
+          "padding": "10px 0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "15px",
+          "lineHeight": "24px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "638px",
+          "height": "44px",
+          "maxHeight": "212px",
+          "minHeight": "44px",
+          "overflowY": "auto",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "pre-wrap"
+        },
+        "value": "",
+        "scrollHeight": 44,
+        "clientHeight": 44,
+        "styleHeight": "44px",
+        "disabled": false
+      },
+      "send": {
+        "rect": {
+          "x": 1179,
+          "y": 805,
+          "top": 805,
+          "bottom": 841,
+          "width": 36,
+          "height": 36,
+          "centerX": 1197
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "false",
+        "title": "发送",
+        "dataLabel": "发送",
+        "text": "",
+        "label": "发送"
+      },
+      "preview": null,
+      "thumb": null,
+      "remove": null,
+      "alert": null,
+      "hint": {
+        "text": "Enter 发送，Shift + Enter 换行",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 176px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "760px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "active": {
+        "tag": "BODY",
+        "id": "",
+        "label": null,
+        "cls": ""
+      },
+      "topbars": 1
+    },
+    "focus-1440": {
+      "doc": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 900
+      },
+      "chat": {
+        "x": 264,
+        "y": 48,
+        "top": 48,
+        "bottom": 772,
+        "width": 1176,
+        "height": 724,
+        "centerX": 852
+      },
+      "shell": {
+        "rect": {
+          "x": 472,
+          "y": 784,
+          "top": 784,
+          "bottom": 854,
+          "width": 760,
+          "height": 70,
+          "centerX": 852
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px 176px",
+          "background": "rgb(252, 251, 247)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(143, 140, 132)",
+          "borderColor": "rgb(143, 140, 132)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+          "outline": "rgb(30, 90, 115) solid 2px",
+          "outlineWidth": "2px",
+          "outlineColor": "rgb(30, 90, 115)",
+          "outlineOffset": "2px",
+          "width": "760px",
+          "height": "70px",
+          "maxHeight": "none",
+          "minHeight": "0px",
+          "overflowY": "visible",
+          "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "input": {
+        "rect": {
+          "x": 533,
+          "y": 797,
+          "top": 797,
+          "bottom": 841,
+          "width": 638,
+          "height": 44,
+          "centerX": 852
+        },
+        "style": {
+          "display": "block",
+          "padding": "10px 0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "15px",
+          "lineHeight": "24px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "638px",
+          "height": "44px",
+          "maxHeight": "212px",
+          "minHeight": "44px",
+          "overflowY": "auto",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "pre-wrap"
+        },
+        "value": "",
+        "scrollHeight": 44,
+        "clientHeight": 44,
+        "styleHeight": "44px",
+        "disabled": false
+      },
+      "send": {
+        "rect": {
+          "x": 1179,
+          "y": 805,
+          "top": 805,
+          "bottom": 841,
+          "width": 36,
+          "height": 36,
+          "centerX": 1197
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "false",
+        "title": "发送",
+        "dataLabel": "发送",
+        "text": "",
+        "label": "发送"
+      },
+      "preview": null,
+      "thumb": null,
+      "remove": null,
+      "alert": null,
+      "hint": {
+        "text": "Enter 发送，Shift + Enter 换行",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 176px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "760px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "active": {
+        "tag": "TEXTAREA",
+        "id": "workspace-prompt",
+        "label": "描述商品与图片需求",
+        "cls": "composer-input"
+      },
+      "topbars": 1
+    },
+    "blocked-1440": {
+      "doc": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 900
+      },
+      "chat": {
+        "x": 264,
+        "y": 48,
+        "top": 48,
+        "bottom": 772,
+        "width": 1176,
+        "height": 724,
+        "centerX": 852
+      },
+      "shell": {
+        "rect": {
+          "x": 472,
+          "y": 784,
+          "top": 784,
+          "bottom": 854,
+          "width": 760,
+          "height": 70,
+          "centerX": 852
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px 176px",
+          "background": "rgb(252, 251, 247)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(143, 140, 132)",
+          "borderColor": "rgb(143, 140, 132)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+          "outline": "rgb(30, 90, 115) solid 2px",
+          "outlineWidth": "2px",
+          "outlineColor": "rgb(30, 90, 115)",
+          "outlineOffset": "2px",
+          "width": "760px",
+          "height": "70px",
+          "maxHeight": "none",
+          "minHeight": "0px",
+          "overflowY": "visible",
+          "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "input": {
+        "rect": {
+          "x": 533,
+          "y": 797,
+          "top": 797,
+          "bottom": 841,
+          "width": 638,
+          "height": 44,
+          "centerX": 852
+        },
+        "style": {
+          "display": "block",
+          "padding": "10px 0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "15px",
+          "lineHeight": "24px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "638px",
+          "height": "44px",
+          "maxHeight": "212px",
+          "minHeight": "44px",
+          "overflowY": "auto",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "pre-wrap"
+        },
+        "value": "为托特包生成一张春季主图",
+        "scrollHeight": 44,
+        "clientHeight": 44,
+        "styleHeight": "44px",
+        "disabled": false
+      },
+      "send": {
+        "rect": {
+          "x": 1179,
+          "y": 805,
+          "top": 805,
+          "bottom": 841,
+          "width": 36,
+          "height": 36,
+          "centerX": 1197
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "true",
+        "title": "处理中…",
+        "dataLabel": "处理中…",
+        "text": "",
+        "label": "发送"
+      },
+      "preview": null,
+      "thumb": null,
+      "remove": null,
+      "alert": null,
+      "hint": {
+        "text": "正在生成，完成后可发送",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 176px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "760px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "active": {
+        "tag": "TEXTAREA",
+        "id": "workspace-prompt",
+        "label": "描述商品与图片需求",
+        "cls": "composer-input"
+      },
+      "topbars": 1
+    },
+    "attachment-error-1440": {
+      "doc": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 900
+      },
+      "chat": {
+        "x": 264,
+        "y": 48,
+        "top": 48,
+        "bottom": 642,
+        "width": 1176,
+        "height": 594,
+        "centerX": 852
+      },
+      "shell": {
+        "rect": {
+          "x": 472,
+          "y": 784,
+          "top": 784,
+          "bottom": 854,
+          "width": 760,
+          "height": 70,
+          "centerX": 852
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px 176px",
+          "background": "rgb(252, 251, 247)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(223, 221, 213)",
+          "borderColor": "rgb(223, 221, 213)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "760px",
+          "height": "70px",
+          "maxHeight": "none",
+          "minHeight": "0px",
+          "overflowY": "visible",
+          "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "input": {
+        "rect": {
+          "x": 533,
+          "y": 797,
+          "top": 797,
+          "bottom": 841,
+          "width": 638,
+          "height": 44,
+          "centerX": 852
+        },
+        "style": {
+          "display": "block",
+          "padding": "10px 0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "15px",
+          "lineHeight": "24px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "638px",
+          "height": "44px",
+          "maxHeight": "212px",
+          "minHeight": "44px",
+          "overflowY": "auto",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "pre-wrap"
+        },
+        "value": "",
+        "scrollHeight": 44,
+        "clientHeight": 44,
+        "styleHeight": "44px",
+        "disabled": false
+      },
+      "send": {
+        "rect": {
+          "x": 1179,
+          "y": 805,
+          "top": 805,
+          "bottom": 841,
+          "width": 36,
+          "height": 36,
+          "centerX": 1197
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "false",
+        "title": "发送",
+        "dataLabel": "发送",
+        "text": "",
+        "label": "发送"
+      },
+      "preview": {
+        "rect": {
+          "x": 472,
+          "y": 716,
+          "top": 716,
+          "bottom": 776,
+          "width": 760,
+          "height": 60,
+          "centerX": 852
+        },
+        "style": {
+          "display": "flex",
+          "padding": "8px 12px",
+          "margin": "0px 176px 8px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(223, 221, 213)",
+          "borderColor": "rgb(223, 221, 213)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "760px",
+          "height": "60px",
+          "maxHeight": "none",
+          "minHeight": "58px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "text": "fixture.png\n将随这条消息一起发送"
+      },
+      "thumb": {
+        "rect": {
+          "x": 485,
+          "y": 725,
+          "top": 725,
+          "bottom": 767,
+          "width": 34,
+          "height": 42,
+          "centerX": 502
+        },
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(233, 230, 222)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "34px",
+          "height": "42px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "clip",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "alt": "待发送的图片预览",
+        "src": "blob:http://127.0.0.1:8101/8c56bca3-d539-402f-b0ab-b9e668d20502"
+      },
+      "remove": {
+        "rect": {
+          "x": 1195,
+          "y": 734,
+          "top": 734,
+          "bottom": 758,
+          "width": 24,
+          "height": 24,
+          "centerX": 1207
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(178, 59, 75)",
+          "border": "0px none rgb(178, 59, 75)",
+          "borderColor": "rgb(178, 59, 75)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(178, 59, 75) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(178, 59, 75)",
+          "outlineOffset": "0px",
+          "width": "24px",
+          "height": "24px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "label": "移除图片"
+      },
+      "alert": {
+        "text": "参考图上传失败，请重试。",
+        "role": "alert"
+      },
+      "hint": {
+        "text": "Enter 发送，Shift + Enter 换行",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 176px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "760px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "active": {
+        "tag": "BODY",
+        "id": "",
+        "label": null,
+        "cls": ""
+      },
+      "topbars": 1
+    },
+    "eight-lines-320": {
+      "doc": {
+        "scrollWidth": 320,
+        "clientWidth": 320,
+        "scrollHeight": 800
+      },
+      "chat": {
+        "x": 0,
+        "y": 76,
+        "top": 76,
+        "bottom": 514,
+        "width": 320,
+        "height": 438,
+        "centerX": 160
+      },
+      "shell": {
+        "rect": {
+          "x": 16,
+          "y": 524,
+          "top": 524,
+          "bottom": 762,
+          "width": 288,
+          "height": 238,
+          "centerX": 160
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px",
+          "background": "rgb(252, 251, 247)",
+          "color": "rgb(27, 29, 33)",
+          "border": "1px solid rgb(223, 221, 213)",
+          "borderColor": "rgb(223, 221, 213)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "288px",
+          "height": "238px",
+          "maxHeight": "none",
+          "minHeight": "0px",
+          "overflowY": "visible",
+          "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "input": {
+        "rect": {
+          "x": 77,
+          "y": 537,
+          "top": 537,
+          "bottom": 749,
+          "width": 166,
+          "height": 212,
+          "centerX": 160
+        },
+        "style": {
+          "display": "block",
+          "padding": "10px 0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "15px",
+          "lineHeight": "24px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(27, 29, 33) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(27, 29, 33)",
+          "outlineOffset": "0px",
+          "width": "166px",
+          "height": "212px",
+          "maxHeight": "212px",
+          "minHeight": "44px",
+          "overflowY": "auto",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "pre-wrap"
+        },
+        "value": "第1行\n第2行\n第3行\n第4行\n第5行\n第6行\n第7行\n第8行\n第9行\n第10行",
+        "scrollHeight": 260,
+        "clientHeight": 212,
+        "styleHeight": "212px",
+        "disabled": false
+      },
+      "send": {
+        "rect": {
+          "x": 251,
+          "y": 713,
+          "top": 713,
+          "bottom": 749,
+          "width": 36,
+          "height": 36,
+          "centerX": 269
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(27, 29, 33)",
+          "color": "rgb(244, 241, 233)",
+          "border": "0px none rgb(244, 241, 233)",
+          "borderColor": "rgb(244, 241, 233)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(244, 241, 233) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(244, 241, 233)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": false,
+        "ariaBusy": "false",
+        "title": "发送",
+        "dataLabel": "发送",
+        "text": "",
+        "label": "发送"
+      },
+      "preview": null,
+      "thumb": null,
+      "remove": null,
+      "alert": null,
+      "hint": {
+        "text": "Enter 发送，Shift + Enter 换行",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 0px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "288px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      },
+      "active": {
+        "tag": "BODY",
+        "id": "",
+        "label": null,
+        "cls": ""
+      },
+      "topbars": 1
+    },
+    "drawer-320": {
+      "open": true,
+      "panel": {
+        "role": "dialog",
+        "ariaModal": "true",
+        "label": "drawer-title-v-0",
+        "text": "工作区菜单\n↗\n电商生图工作台\n＋\n新对话\n⌕\n秋季托特包主图\n2026/11/8 18:00:00\nV\nv6@example.com\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录",
+        "rect": {
+          "x": 56,
+          "y": 0,
+          "width": 264,
+          "height": 800
+        },
+        "style": {
+          "background": "rgb(252, 251, 247)",
+          "borderRadius": "19px 0px 0px 19px",
+          "padding": "0px",
+          "width": "264px",
+          "height": "800px",
+          "opacity": "1",
+          "transition": "all"
+        }
+      },
+      "layer": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 800
+        },
+        "style": {
+          "background": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "padding": "0px",
+          "width": "320px",
+          "height": "800px",
+          "opacity": "1",
+          "transition": "all"
+        }
+      },
+      "backdrop": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 800
+        },
+        "style": {
+          "background": "rgba(12, 14, 17, 0.4)",
+          "borderRadius": "0px",
+          "padding": "0px",
+          "width": "320px",
+          "height": "800px",
+          "opacity": "1",
+          "transition": "all"
+        }
+      },
+      "close": {
+        "rect": {
+          "x": 260,
+          "y": 16,
+          "width": 44,
+          "height": 44
+        },
+        "style": {
+          "background": "rgba(0, 0, 0, 0)",
+          "borderRadius": "8px",
+          "padding": "0px",
+          "width": "44px",
+          "height": "44px",
+          "opacity": "1",
+          "transition": "all"
+        },
+        "label": "关闭侧栏"
+      },
+      "bodyOverflow": "hidden",
+      "appInert": true,
+      "shellInert": true,
+      "active": {
+        "tag": "BUTTON",
+        "label": "关闭侧栏",
+        "cls": "icon-button drawer-close"
+      },
+      "topbars": 1,
+      "menu": true,
+      "sidebar": true
+    },
+    "drawer-768": {
+      "open": true,
+      "panel": {
+        "role": "dialog",
+        "ariaModal": "true",
+        "label": "drawer-title-v-0",
+        "text": "工作区菜单\n↗\n电商生图工作台\n＋\n新对话\n⌕\n秋季托特包主图\n2026/11/8 18:00:00\nV\nv6@example.com\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录",
+        "rect": {
+          "x": 504,
+          "y": 0,
+          "width": 264,
+          "height": 1024
+        },
+        "style": {
+          "background": "rgb(252, 251, 247)",
+          "borderRadius": "19px 0px 0px 19px",
+          "padding": "0px",
+          "width": "264px",
+          "height": "1024px",
+          "opacity": "1",
+          "transition": "all"
+        }
+      },
+      "layer": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1024
+        },
+        "style": {
+          "background": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "padding": "0px",
+          "width": "768px",
+          "height": "1024px",
+          "opacity": "1",
+          "transition": "all"
+        }
+      },
+      "backdrop": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1024
+        },
+        "style": {
+          "background": "rgba(12, 14, 17, 0.4)",
+          "borderRadius": "0px",
+          "padding": "0px",
+          "width": "768px",
+          "height": "1024px",
+          "opacity": "1",
+          "transition": "all"
+        }
+      },
+      "close": {
+        "rect": {
+          "x": 708,
+          "y": 16,
+          "width": 44,
+          "height": 44
+        },
+        "style": {
+          "background": "rgba(0, 0, 0, 0)",
+          "borderRadius": "8px",
+          "padding": "0px",
+          "width": "44px",
+          "height": "44px",
+          "opacity": "1",
+          "transition": "all"
+        },
+        "label": "关闭侧栏"
+      },
+      "bodyOverflow": "hidden",
+      "appInert": true,
+      "shellInert": true,
+      "active": {
+        "tag": "BUTTON",
+        "label": "关闭侧栏",
+        "cls": "icon-button drawer-close"
+      },
+      "topbars": 1,
+      "menu": true,
+      "sidebar": true
+    },
+    "no-drawer-1024": {
+      "open": false,
+      "panel": null,
+      "layer": null,
+      "backdrop": null,
+      "close": null,
+      "bodyOverflow": "",
+      "appInert": false,
+      "shellInert": false,
+      "active": {
+        "tag": "TEXTAREA",
+        "label": "描述商品与图片需求",
+        "cls": "composer-input"
+      },
+      "topbars": 1,
+      "menu": false,
+      "sidebar": true
+    }
+  },
+  "checks": [
+    {
+      "name": "composer visible 320",
+      "ok": true,
+      "detail": {
+        "doc": {
+          "scrollWidth": 320,
+          "clientWidth": 320,
+          "scrollHeight": 800
+        },
+        "chat": {
+          "x": 0,
+          "y": 76,
+          "top": 76,
+          "bottom": 658,
+          "width": 320,
+          "height": 582,
+          "centerX": 160
+        },
+        "shell": {
+          "rect": {
+            "x": 16,
+            "y": 668,
+            "top": 668,
+            "bottom": 762,
+            "width": 288,
+            "height": 94,
+            "centerX": 160
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+            "outline": "rgb(27, 29, 33) none 3px",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(27, 29, 33)",
+            "outlineOffset": "0px",
+            "width": "288px",
+            "height": "94px",
+            "maxHeight": "none",
+            "minHeight": "0px",
+            "overflowY": "visible",
+            "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "textOverflow": "clip",
+            "whiteSpace": "normal"
+          }
+        },
+        "input": {
+          "rect": {
+            "x": 77,
+            "y": 681,
+            "top": 681,
+            "bottom": 749,
+            "width": 166,
+            "height": 68,
+            "centerX": 160
+          },
+          "style": {
+            "display": "block",
+            "padding": "10px 0px",
+            "margin": "0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(27, 29, 33)",
+            "border": "0px none rgb(27, 29, 33)",
+            "borderColor": "rgb(27, 29, 33)",
+            "borderRadius": "0px",
+            "fontSize": "15px",
+            "lineHeight": "24px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "outline": "rgb(27, 29, 33) none 3px",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(27, 29, 33)",
+            "outlineOffset": "0px",
+            "width": "166px",
+            "height": "68px",
+            "maxHeight": "212px",
+            "minHeight": "44px",
+            "overflowY": "auto",
+            "transition": "all",
+            "textOverflow": "clip",
+            "whiteSpace": "pre-wrap"
+          },
+          "value": "",
+          "scrollHeight": 68,
+          "clientHeight": 68,
+          "styleHeight": "68px",
+          "disabled": false
+        },
+        "send": {
+          "rect": {
+            "x": 251,
+            "y": 713,
+            "top": 713,
+            "bottom": 749,
+            "width": 36,
+            "height": 36,
+            "centerX": 269
+          },
+          "style": {
+            "display": "flex",
+            "padding": "0px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(99, 104, 112)",
+            "border": "0px none rgb(99, 104, 112)",
+            "borderColor": "rgb(99, 104, 112)",
+            "borderRadius": "8px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "outline": "rgb(99, 104, 112) none 3px",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(99, 104, 112)",
+            "outlineOffset": "0px",
+            "width": "36px",
+            "height": "36px",
+            "maxHeight": "none",
+            "minHeight": "auto",
+            "overflowY": "visible",
+            "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "textOverflow": "clip",
+            "whiteSpace": "normal"
+          },
+          "disabled": true,
+          "ariaBusy": "false",
+          "title": "发送",
+          "dataLabel": "发送",
+          "text": "",
+          "label": "发送"
+        },
+        "preview": null,
+        "thumb": null,
+        "remove": null,
+        "alert": null,
+        "hint": {
+          "text": "Enter 发送，Shift + Enter 换行",
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "8px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(99, 104, 112)",
+            "border": "0px none rgb(99, 104, 112)",
+            "borderColor": "rgb(99, 104, 112)",
+            "borderRadius": "0px",
+            "fontSize": "12px",
+            "lineHeight": "18px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "outline": "rgb(99, 104, 112) none 3px",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(99, 104, 112)",
+            "outlineOffset": "0px",
+            "width": "288px",
+            "height": "18px",
+            "maxHeight": "none",
+            "minHeight": "18px",
+            "overflowY": "visible",
+            "transition": "all",
+            "textOverflow": "clip",
+            "whiteSpace": "normal"
+          }
+        },
+        "active": {
+          "tag": "BODY",
+          "id": "",
+          "label": null,
+          "cls": ""
+        },
+        "topbars": 1
+      }
+    },
+    {
+      "name": "composer width 320",
+      "ok": true,
+      "detail": {
+        "x": 16,
+        "y": 668,
+        "top": 668,
+        "bottom": 762,
+        "width": 288,
+        "height": 94,
+        "centerX": 160
+      }
+    },
+    {
+      "name": "composer padding 320",
+      "ok": true,
+      "detail": "12px 16px"
+    },
+    {
+      "name": "composer radius 320",
+      "ok": true,
+      "detail": "14px"
+    },
+    {
+      "name": "composer border 320",
+      "ok": true,
+      "detail": "1px solid rgb(223, 221, 213)"
+    },
+    {
+      "name": "composer send 320",
+      "ok": true,
+      "detail": {
+        "x": 251,
+        "y": 713,
+        "top": 713,
+        "bottom": 749,
+        "width": 36,
+        "height": 36,
+        "centerX": 269
+      }
+    },
+    {
+      "name": "composer send disabled 320",
+      "ok": true,
+      "detail": {
+        "display": "flex",
+        "padding": "0px",
+        "margin": "0px",
+        "background": "rgb(239, 237, 230)",
+        "color": "rgb(99, 104, 112)",
+        "border": "0px none rgb(99, 104, 112)",
+        "borderColor": "rgb(99, 104, 112)",
+        "borderRadius": "8px",
+        "fontSize": "14px",
+        "lineHeight": "22px",
+        "fontWeight": "400",
+        "opacity": "1",
+        "boxShadow": "none",
+        "outline": "rgb(99, 104, 112) none 3px",
+        "outlineWidth": "3px",
+        "outlineColor": "rgb(99, 104, 112)",
+        "outlineOffset": "0px",
+        "width": "36px",
+        "height": "36px",
+        "maxHeight": "none",
+        "minHeight": "auto",
+        "overflowY": "visible",
+        "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
+      }
+    },
+    {
+      "name": "composer input typography 320",
+      "ok": true,
+      "detail": {
+        "fontSize": "15px",
+        "lineHeight": "24px",
+        "overflowY": "auto"
+      }
+    },
+    {
+      "name": "composer no hscroll 320",
+      "ok": true,
+      "detail": {
+        "scrollWidth": 320,
+        "clientWidth": 320,
+        "scrollHeight": 800
+      }
+    },
+    {
+      "name": "one topbar 320",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "name": "focus ring 320",
+      "ok": true,
+      "detail": {
+        "outline": "rgb(30, 90, 115) solid 2px",
+        "offset": "2px",
+        "border": "rgb(143, 140, 132)"
+      }
+    },
+    {
+      "name": "focus input 320",
+      "ok": true,
+      "detail": {
+        "tag": "TEXTAREA",
+        "id": "workspace-prompt",
+        "label": "描述商品与图片需求",
+        "cls": "composer-input"
+      }
+    },
+    {
+      "name": "blocked busy 320",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 251,
+          "y": 713,
+          "top": 713,
+          "bottom": 749,
+          "width": 36,
+          "height": 36,
+          "centerX": 269
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "true",
+        "title": "处理中…",
+        "dataLabel": "处理中…",
+        "text": "",
+        "label": "发送"
+      }
+    },
+    {
+      "name": "blocked hint 320",
+      "ok": true,
+      "detail": {
+        "text": "正在生成，完成后可发送",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 0px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "288px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      }
+    },
+    {
+      "name": "blocked input editable 320",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "name": "attachment alert 320",
+      "ok": true,
+      "detail": {
+        "text": "参考图上传失败，请重试。",
+        "role": "alert"
+      }
+    },
+    {
+      "name": "attachment thumb 320",
+      "ok": true,
+      "detail": {
+        "x": 29,
+        "y": 609,
+        "top": 609,
+        "bottom": 651,
+        "width": 34,
+        "height": 42,
+        "centerX": 46
+      }
+    },
+    {
+      "name": "attachment remove 320",
+      "ok": true,
+      "detail": {
+        "x": 267,
+        "y": 618,
+        "top": 618,
+        "bottom": 642,
+        "width": 24,
+        "height": 24,
+        "centerX": 279
+      }
+    },
+    {
+      "name": "attachment filename 320",
+      "ok": true,
+      "detail": "fixture.png\n将随这条消息一起发送"
+    },
+    {
+      "name": "composer visible 768",
+      "ok": true,
+      "detail": {
+        "doc": {
+          "scrollWidth": 768,
+          "clientWidth": 768,
+          "scrollHeight": 1024
+        },
+        "chat": {
+          "x": 0,
+          "y": 48,
+          "top": 48,
+          "bottom": 896,
+          "width": 768,
+          "height": 848,
+          "centerX": 384
+        },
+        "shell": {
+          "rect": {
+            "x": 24,
+            "y": 908,
+            "top": 908,
+            "bottom": 978,
+            "width": 720,
+            "height": 70,
+            "centerX": 384
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+            "outline": "rgb(27, 29, 33) none 3px",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(27, 29, 33)",
+            "outlineOffset": "0px",
+            "width": "720px",
+            "height": "70px",
+            "maxHeight": "none",
+            "minHeight": "0px",
+            "overflowY": "visible",
+            "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "textOverflow": "clip",
+            "whiteSpace": "normal"
+          }
+        },
+        "input": {
+          "rect": {
+            "x": 85,
+            "y": 921,
+            "top": 921,
+            "bottom": 965,
+            "width": 598,
+            "height": 44,
+            "centerX": 384
+          },
+          "style": {
+            "display": "block",
+            "padding": "10px 0px",
+            "margin": "0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(27, 29, 33)",
+            "border": "0px none rgb(27, 29, 33)",
+            "borderColor": "rgb(27, 29, 33)",
+            "borderRadius": "0px",
+            "fontSize": "15px",
+            "lineHeight": "24px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "outline": "rgb(27, 29, 33) none 3px",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(27, 29, 33)",
+            "outlineOffset": "0px",
+            "width": "598px",
+            "height": "44px",
+            "maxHeight": "212px",
+            "minHeight": "44px",
+            "overflowY": "auto",
+            "transition": "all",
+            "textOverflow": "clip",
+            "whiteSpace": "pre-wrap"
+          },
+          "value": "",
+          "scrollHeight": 44,
+          "clientHeight": 44,
+          "styleHeight": "44px",
+          "disabled": false
+        },
+        "send": {
+          "rect": {
+            "x": 691,
+            "y": 929,
+            "top": 929,
+            "bottom": 965,
+            "width": 36,
+            "height": 36,
+            "centerX": 709
+          },
+          "style": {
+            "display": "flex",
+            "padding": "0px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(99, 104, 112)",
+            "border": "0px none rgb(99, 104, 112)",
+            "borderColor": "rgb(99, 104, 112)",
+            "borderRadius": "8px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "outline": "rgb(99, 104, 112) none 3px",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(99, 104, 112)",
+            "outlineOffset": "0px",
+            "width": "36px",
+            "height": "36px",
+            "maxHeight": "none",
+            "minHeight": "auto",
+            "overflowY": "visible",
+            "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "textOverflow": "clip",
+            "whiteSpace": "normal"
+          },
+          "disabled": true,
+          "ariaBusy": "false",
+          "title": "发送",
+          "dataLabel": "发送",
+          "text": "",
+          "label": "发送"
+        },
+        "preview": null,
+        "thumb": null,
+        "remove": null,
+        "alert": null,
+        "hint": {
+          "text": "Enter 发送，Shift + Enter 换行",
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "8px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(99, 104, 112)",
+            "border": "0px none rgb(99, 104, 112)",
+            "borderColor": "rgb(99, 104, 112)",
+            "borderRadius": "0px",
+            "fontSize": "12px",
+            "lineHeight": "18px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "outline": "rgb(99, 104, 112) none 3px",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(99, 104, 112)",
+            "outlineOffset": "0px",
+            "width": "720px",
+            "height": "18px",
+            "maxHeight": "none",
+            "minHeight": "18px",
+            "overflowY": "visible",
+            "transition": "all",
+            "textOverflow": "clip",
+            "whiteSpace": "normal"
+          }
+        },
+        "active": {
+          "tag": "BODY",
+          "id": "",
+          "label": null,
+          "cls": ""
+        },
+        "topbars": 1
+      }
+    },
+    {
+      "name": "composer width 768",
+      "ok": true,
+      "detail": {
+        "x": 24,
+        "y": 908,
+        "top": 908,
+        "bottom": 978,
+        "width": 720,
+        "height": 70,
+        "centerX": 384
+      }
+    },
+    {
+      "name": "composer padding 768",
+      "ok": true,
+      "detail": "12px 16px"
+    },
+    {
+      "name": "composer radius 768",
+      "ok": true,
+      "detail": "14px"
+    },
+    {
+      "name": "composer border 768",
+      "ok": true,
+      "detail": "1px solid rgb(223, 221, 213)"
+    },
+    {
+      "name": "composer send 768",
+      "ok": true,
+      "detail": {
+        "x": 691,
+        "y": 929,
+        "top": 929,
+        "bottom": 965,
+        "width": 36,
+        "height": 36,
+        "centerX": 709
+      }
+    },
+    {
+      "name": "composer send disabled 768",
+      "ok": true,
+      "detail": {
+        "display": "flex",
+        "padding": "0px",
+        "margin": "0px",
+        "background": "rgb(239, 237, 230)",
+        "color": "rgb(99, 104, 112)",
+        "border": "0px none rgb(99, 104, 112)",
+        "borderColor": "rgb(99, 104, 112)",
+        "borderRadius": "8px",
+        "fontSize": "14px",
+        "lineHeight": "22px",
+        "fontWeight": "400",
+        "opacity": "1",
+        "boxShadow": "none",
+        "outline": "rgb(99, 104, 112) none 3px",
+        "outlineWidth": "3px",
+        "outlineColor": "rgb(99, 104, 112)",
+        "outlineOffset": "0px",
+        "width": "36px",
+        "height": "36px",
+        "maxHeight": "none",
+        "minHeight": "auto",
+        "overflowY": "visible",
+        "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
+      }
+    },
+    {
+      "name": "composer input typography 768",
+      "ok": true,
+      "detail": {
+        "fontSize": "15px",
+        "lineHeight": "24px",
+        "overflowY": "auto"
+      }
+    },
+    {
+      "name": "composer no hscroll 768",
+      "ok": true,
+      "detail": {
+        "scrollWidth": 768,
+        "clientWidth": 768,
+        "scrollHeight": 1024
+      }
+    },
+    {
+      "name": "one topbar 768",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "name": "focus ring 768",
+      "ok": true,
+      "detail": {
+        "outline": "rgb(30, 90, 115) solid 2px",
+        "offset": "2px",
+        "border": "rgb(143, 140, 132)"
+      }
+    },
+    {
+      "name": "focus input 768",
+      "ok": true,
+      "detail": {
+        "tag": "TEXTAREA",
+        "id": "workspace-prompt",
+        "label": "描述商品与图片需求",
+        "cls": "composer-input"
+      }
+    },
+    {
+      "name": "blocked busy 768",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 691,
+          "y": 929,
+          "top": 929,
+          "bottom": 965,
+          "width": 36,
+          "height": 36,
+          "centerX": 709
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "true",
+        "title": "处理中…",
+        "dataLabel": "处理中…",
+        "text": "",
+        "label": "发送"
+      }
+    },
+    {
+      "name": "blocked hint 768",
+      "ok": true,
+      "detail": {
+        "text": "正在生成，完成后可发送",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 0px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "720px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      }
+    },
+    {
+      "name": "blocked input editable 768",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "name": "attachment alert 768",
+      "ok": true,
+      "detail": {
+        "text": "参考图上传失败，请重试。",
+        "role": "alert"
+      }
+    },
+    {
+      "name": "attachment thumb 768",
+      "ok": true,
+      "detail": {
+        "x": 37,
+        "y": 849,
+        "top": 849,
+        "bottom": 891,
+        "width": 34,
+        "height": 42,
+        "centerX": 54
+      }
+    },
+    {
+      "name": "attachment remove 768",
+      "ok": true,
+      "detail": {
+        "x": 707,
+        "y": 858,
+        "top": 858,
+        "bottom": 882,
+        "width": 24,
+        "height": 24,
+        "centerX": 719
+      }
+    },
+    {
+      "name": "attachment filename 768",
+      "ok": true,
+      "detail": "fixture.png\n将随这条消息一起发送"
+    },
+    {
+      "name": "composer visible 1440",
+      "ok": true,
+      "detail": {
+        "doc": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440,
+          "scrollHeight": 900
+        },
+        "chat": {
+          "x": 264,
+          "y": 48,
+          "top": 48,
+          "bottom": 772,
+          "width": 1176,
+          "height": 724,
+          "centerX": 852
+        },
+        "shell": {
+          "rect": {
+            "x": 472,
+            "y": 784,
+            "top": 784,
+            "bottom": 854,
+            "width": 760,
+            "height": 70,
+            "centerX": 852
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px 176px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "rgba(23, 25, 29, 0.06) 0px 10px 30px 0px",
+            "outline": "rgb(27, 29, 33) none 3px",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(27, 29, 33)",
+            "outlineOffset": "0px",
+            "width": "760px",
+            "height": "70px",
+            "maxHeight": "none",
+            "minHeight": "0px",
+            "overflowY": "visible",
+            "transition": "border-color 0.18s, box-shadow 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "textOverflow": "clip",
+            "whiteSpace": "normal"
+          }
+        },
+        "input": {
+          "rect": {
+            "x": 533,
+            "y": 797,
+            "top": 797,
+            "bottom": 841,
+            "width": 638,
+            "height": 44,
+            "centerX": 852
+          },
+          "style": {
+            "display": "block",
+            "padding": "10px 0px",
+            "margin": "0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(27, 29, 33)",
+            "border": "0px none rgb(27, 29, 33)",
+            "borderColor": "rgb(27, 29, 33)",
+            "borderRadius": "0px",
+            "fontSize": "15px",
+            "lineHeight": "24px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "outline": "rgb(27, 29, 33) none 3px",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(27, 29, 33)",
+            "outlineOffset": "0px",
+            "width": "638px",
+            "height": "44px",
+            "maxHeight": "212px",
+            "minHeight": "44px",
+            "overflowY": "auto",
+            "transition": "all",
+            "textOverflow": "clip",
+            "whiteSpace": "pre-wrap"
+          },
+          "value": "",
+          "scrollHeight": 44,
+          "clientHeight": 44,
+          "styleHeight": "44px",
+          "disabled": false
+        },
+        "send": {
+          "rect": {
+            "x": 1179,
+            "y": 805,
+            "top": 805,
+            "bottom": 841,
+            "width": 36,
+            "height": 36,
+            "centerX": 1197
+          },
+          "style": {
+            "display": "flex",
+            "padding": "0px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(99, 104, 112)",
+            "border": "0px none rgb(99, 104, 112)",
+            "borderColor": "rgb(99, 104, 112)",
+            "borderRadius": "8px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "outline": "rgb(99, 104, 112) none 3px",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(99, 104, 112)",
+            "outlineOffset": "0px",
+            "width": "36px",
+            "height": "36px",
+            "maxHeight": "none",
+            "minHeight": "auto",
+            "overflowY": "visible",
+            "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "textOverflow": "clip",
+            "whiteSpace": "normal"
+          },
+          "disabled": true,
+          "ariaBusy": "false",
+          "title": "发送",
+          "dataLabel": "发送",
+          "text": "",
+          "label": "发送"
+        },
+        "preview": null,
+        "thumb": null,
+        "remove": null,
+        "alert": null,
+        "hint": {
+          "text": "Enter 发送，Shift + Enter 换行",
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "8px 176px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(99, 104, 112)",
+            "border": "0px none rgb(99, 104, 112)",
+            "borderColor": "rgb(99, 104, 112)",
+            "borderRadius": "0px",
+            "fontSize": "12px",
+            "lineHeight": "18px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "outline": "rgb(99, 104, 112) none 3px",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(99, 104, 112)",
+            "outlineOffset": "0px",
+            "width": "760px",
+            "height": "18px",
+            "maxHeight": "none",
+            "minHeight": "18px",
+            "overflowY": "visible",
+            "transition": "all",
+            "textOverflow": "clip",
+            "whiteSpace": "normal"
+          }
+        },
+        "active": {
+          "tag": "BODY",
+          "id": "",
+          "label": null,
+          "cls": ""
+        },
+        "topbars": 1
+      }
+    },
+    {
+      "name": "composer width 1440",
+      "ok": true,
+      "detail": {
+        "x": 472,
+        "y": 784,
+        "top": 784,
+        "bottom": 854,
+        "width": 760,
+        "height": 70,
+        "centerX": 852
+      }
+    },
+    {
+      "name": "composer padding 1440",
+      "ok": true,
+      "detail": "12px 16px"
+    },
+    {
+      "name": "composer radius 1440",
+      "ok": true,
+      "detail": "14px"
+    },
+    {
+      "name": "composer border 1440",
+      "ok": true,
+      "detail": "1px solid rgb(223, 221, 213)"
+    },
+    {
+      "name": "composer send 1440",
+      "ok": true,
+      "detail": {
+        "x": 1179,
+        "y": 805,
+        "top": 805,
+        "bottom": 841,
+        "width": 36,
+        "height": 36,
+        "centerX": 1197
+      }
+    },
+    {
+      "name": "composer send disabled 1440",
+      "ok": true,
+      "detail": {
+        "display": "flex",
+        "padding": "0px",
+        "margin": "0px",
+        "background": "rgb(239, 237, 230)",
+        "color": "rgb(99, 104, 112)",
+        "border": "0px none rgb(99, 104, 112)",
+        "borderColor": "rgb(99, 104, 112)",
+        "borderRadius": "8px",
+        "fontSize": "14px",
+        "lineHeight": "22px",
+        "fontWeight": "400",
+        "opacity": "1",
+        "boxShadow": "none",
+        "outline": "rgb(99, 104, 112) none 3px",
+        "outlineWidth": "3px",
+        "outlineColor": "rgb(99, 104, 112)",
+        "outlineOffset": "0px",
+        "width": "36px",
+        "height": "36px",
+        "maxHeight": "none",
+        "minHeight": "auto",
+        "overflowY": "visible",
+        "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+        "textOverflow": "clip",
+        "whiteSpace": "normal"
+      }
+    },
+    {
+      "name": "composer input typography 1440",
+      "ok": true,
+      "detail": {
+        "fontSize": "15px",
+        "lineHeight": "24px",
+        "overflowY": "auto"
+      }
+    },
+    {
+      "name": "composer no hscroll 1440",
+      "ok": true,
+      "detail": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 900
+      }
+    },
+    {
+      "name": "one topbar 1440",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "name": "focus ring 1440",
+      "ok": true,
+      "detail": {
+        "outline": "rgb(30, 90, 115) solid 2px",
+        "offset": "2px",
+        "border": "rgb(143, 140, 132)"
+      }
+    },
+    {
+      "name": "focus input 1440",
+      "ok": true,
+      "detail": {
+        "tag": "TEXTAREA",
+        "id": "workspace-prompt",
+        "label": "描述商品与图片需求",
+        "cls": "composer-input"
+      }
+    },
+    {
+      "name": "blocked busy 1440",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 1179,
+          "y": 805,
+          "top": 805,
+          "bottom": 841,
+          "width": 36,
+          "height": 36,
+          "centerX": 1197
+        },
+        "style": {
+          "display": "flex",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "36px",
+          "height": "36px",
+          "maxHeight": "none",
+          "minHeight": "auto",
+          "overflowY": "visible",
+          "transition": "background-color 0.12s, transform 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        },
+        "disabled": true,
+        "ariaBusy": "true",
+        "title": "处理中…",
+        "dataLabel": "处理中…",
+        "text": "",
+        "label": "发送"
+      }
+    },
+    {
+      "name": "blocked hint 1440",
+      "ok": true,
+      "detail": {
+        "text": "正在生成，完成后可发送",
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "8px 176px 0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(99, 104, 112)",
+          "border": "0px none rgb(99, 104, 112)",
+          "borderColor": "rgb(99, 104, 112)",
+          "borderRadius": "0px",
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "outline": "rgb(99, 104, 112) none 3px",
+          "outlineWidth": "3px",
+          "outlineColor": "rgb(99, 104, 112)",
+          "outlineOffset": "0px",
+          "width": "760px",
+          "height": "18px",
+          "maxHeight": "none",
+          "minHeight": "18px",
+          "overflowY": "visible",
+          "transition": "all",
+          "textOverflow": "clip",
+          "whiteSpace": "normal"
+        }
+      }
+    },
+    {
+      "name": "blocked input editable 1440",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "name": "attachment alert 1440",
+      "ok": true,
+      "detail": {
+        "text": "参考图上传失败，请重试。",
+        "role": "alert"
+      }
+    },
+    {
+      "name": "attachment thumb 1440",
+      "ok": true,
+      "detail": {
+        "x": 485,
+        "y": 725,
+        "top": 725,
+        "bottom": 767,
+        "width": 34,
+        "height": 42,
+        "centerX": 502
+      }
+    },
+    {
+      "name": "attachment remove 1440",
+      "ok": true,
+      "detail": {
+        "x": 1195,
+        "y": 734,
+        "top": 734,
+        "bottom": 758,
+        "width": 24,
+        "height": 24,
+        "centerX": 1207
+      }
+    },
+    {
+      "name": "attachment filename 1440",
+      "ok": true,
+      "detail": "fixture.png\n将随这条消息一起发送"
+    },
+    {
+      "name": "eight line cap 320",
+      "ok": true,
+      "detail": {
+        "scrollHeight": 260,
+        "clientHeight": 212,
+        "styleHeight": "212px"
+      }
+    },
+    {
+      "name": "IME enter no send",
+      "ok": true,
+      "detail": {
+        "before": 3,
+        "during": 3
+      }
+    },
+    {
+      "name": "plain enter sends",
+      "ok": true,
+      "detail": {
+        "before": 3,
+        "after": 4
+      }
+    },
+    {
+      "name": "drawer width 320",
+      "ok": true,
+      "detail": {
+        "x": 56,
+        "y": 0,
+        "width": 264,
+        "height": 800
+      }
+    },
+    {
+      "name": "drawer radius 320",
+      "ok": true,
+      "detail": "19px 0px 0px 19px"
+    },
+    {
+      "name": "drawer scrim 320",
+      "ok": true,
+      "detail": "rgba(12, 14, 17, 0.4)"
+    },
+    {
+      "name": "drawer close 320",
+      "ok": true,
+      "detail": {
+        "x": 260,
+        "y": 16,
+        "width": 44,
+        "height": 44
+      }
+    },
+    {
+      "name": "drawer a11y 320",
+      "ok": true,
+      "detail": {
+        "role": "dialog",
+        "ariaModal": "true",
+        "appInert": true,
+        "overflow": "hidden"
+      }
+    },
+    {
+      "name": "drawer focus 320",
+      "ok": true,
+      "detail": {
+        "tag": "BUTTON",
+        "label": "关闭侧栏",
+        "cls": "icon-button drawer-close"
+      }
+    },
+    {
+      "name": "drawer one topbar 320",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "name": "drawer close restores 320",
+      "ok": true,
+      "detail": {
+        "appInert": false,
+        "overflow": "",
+        "active": {
+          "tag": "BUTTON",
+          "label": "打开侧栏",
+          "cls": "topbar-menu"
+        }
+      }
+    },
+    {
+      "name": "drawer width 768",
+      "ok": true,
+      "detail": {
+        "x": 504,
+        "y": 0,
+        "width": 264,
+        "height": 1024
+      }
+    },
+    {
+      "name": "drawer radius 768",
+      "ok": true,
+      "detail": "19px 0px 0px 19px"
+    },
+    {
+      "name": "drawer scrim 768",
+      "ok": true,
+      "detail": "rgba(12, 14, 17, 0.4)"
+    },
+    {
+      "name": "drawer close 768",
+      "ok": true,
+      "detail": {
+        "x": 708,
+        "y": 16,
+        "width": 44,
+        "height": 44
+      }
+    },
+    {
+      "name": "drawer a11y 768",
+      "ok": true,
+      "detail": {
+        "role": "dialog",
+        "ariaModal": "true",
+        "appInert": true,
+        "overflow": "hidden"
+      }
+    },
+    {
+      "name": "drawer focus 768",
+      "ok": true,
+      "detail": {
+        "tag": "BUTTON",
+        "label": "关闭侧栏",
+        "cls": "icon-button drawer-close"
+      }
+    },
+    {
+      "name": "drawer one topbar 768",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "name": "drawer close restores 768",
+      "ok": true,
+      "detail": {
+        "appInert": false,
+        "overflow": "",
+        "active": {
+          "tag": "BUTTON",
+          "label": "打开侧栏",
+          "cls": "topbar-menu"
+        }
+      }
+    },
+    {
+      "name": "1024 sidebar persistent",
+      "ok": true,
+      "detail": {
+        "sidebar": true,
+        "menu": false,
+        "open": false,
+        "topbars": 1
+      }
+    }
+  ],
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+    "platform": "Win32",
+    "language": "zh-CN",
+    "timezone": "Asia/Shanghai",
+    "dpr": 1,
+    "screen": {
+      "width": 800,
+      "height": 600
+    },
+    "fonts": "\"Noto Sans SC\""
+  },
+  "browser": {
+    "Browser": "Edg/156.0.4314.58",
+    "File-Path-Style": "windows",
+    "Protocol-Version": "1.3",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+    "V8-Version": "15.6.12.10",
+    "WebKit-Version": "537.36 (@7806b68d20d1c1273d5b07b4f4de18e8f5852581)",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:8968/devtools/browser/e1d16599-f199-4336-91f9-cae49e08c7f2"
+  },
+  "ime": {
+    "before": 3,
+    "during": 3,
+    "after": 4
+  },
+  "stats": {
+    "detailGets": 9,
+    "actions": 0,
+    "uploads": 3,
+    "messages": 4
+  },
+  "completedAt": "2026-11-08T13:52:09.366Z",
+  "steps": [
+    "构建 visual/v3 539f696 并启动 V6 mock 8796 与静态服务 8101",
+    "320x800：加载项目对话，核对 composer idle 几何与禁用发送",
+    "320x800：聚焦 textarea，核对整体焦点环与输入焦点",
+    "320x800：输入文案并发送，核对 busy 态「处理中…」与 caption，无 toast",
+    "320x800：选择参考图，核对上传失败 role=alert、34×42 预览、文件名与 24px 移除按钮",
+    "768x1024：重复 idle/focus/blocked/attachment-error 场景",
+    "1440x900：重复 idle/focus/blocked/attachment-error 场景",
+    "320x800：输入 10 行，核对 8 行封顶（212px）与内部滚动",
+    "320x800：模拟 IME composition Enter 不发送、普通 Enter 发送",
+    "320x800：打开移动抽屉，核对 264px、scrim、dialog/inert/滚动锁/焦点进入与 Esc 回焦",
+    "768x1024：重复抽屉检查",
+    "1024x900：核对常驻侧栏、无抽屉入口、仅一个 topbar",
+    "汇总 mock 请求统计并写入 v6-browser-result.json"
+  ],
+  "notes": {
+    "acceptanceHead": "539f696a877762ae8be2a16e7b498ae991332fe2",
+    "implementation": "9e52e587e2772db448d95db90e03a578d747c4f6",
+    "merge": "539f696a877762ae8be2a16e7b498ae991332fe2",
+    "base": "5245362",
+    "app": "http://127.0.0.1:8101",
+    "mock": "http://127.0.0.1:8796",
+    "browser": "Microsoft Edge Edg/156.0.4314.58 (headless CDP)",
+    "os": "Windows 10, DPR 1, OS scale 100%",
+    "viewports": [
+      "320x800",
+      "768x1024",
+      "1440x900"
+    ],
+    "fontStack": "\"Noto Sans SC\"",
+    "screenshots": 16,
+    "checks": 77,
+    "statsNote": "3 次附件上传（每个点击视口一次）、4 次消息发送（3 次 blocked + 1 次 IME 普通 Enter）"
+  }
+}
