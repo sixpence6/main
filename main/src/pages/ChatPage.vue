@@ -1409,9 +1409,11 @@ figcaption { color: var(--text-muted); font-size: 13px; }
 .send-button:active:not(:disabled) { transform: scale(.96); }
 .send-button:disabled { cursor: not-allowed; opacity: .45; }
 .composer-hint { width: min(var(--conversation-width), 100%); margin: 8px auto 0; color: var(--text-muted); font-size: 12px; text-align: center; }
+@media (max-width: 1023px) {
+  .welcome { padding-top: max(0px, calc(30vh - 24px)); }
+}
 @media (max-width: 767px) {
   .chat-scroll { padding: 24px 16px 16px; }
-  .welcome { padding-top: max(0px, calc(30vh - 24px)); }
   .composer-area { padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
   .composer-shell { border-radius: 18px; }
   .message-bubble { padding: 12px 16px; }
