@@ -76,7 +76,7 @@ const titleId = useId()
   background:
     radial-gradient(circle at 12% 8%, rgba(184, 154, 104, 0.2), transparent 34%),
     radial-gradient(circle at 88% 92%, rgba(112, 82, 57, 0.14), transparent 32%),
-    var(--color-page);
+    var(--surface-canvas);
 }
 
 .auth-frame-shell {
@@ -85,9 +85,9 @@ const titleId = useId()
   display: grid;
   grid-template-columns: minmax(0, 1.06fr) minmax(420px, 0.94fr);
   overflow: hidden;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--line-hairline);
   border-radius: 24px;
-  background: var(--color-panel);
+  background: var(--surface-panel);
   box-shadow: 0 28px 80px rgba(70, 50, 34, 0.13);
 }
 
@@ -99,10 +99,10 @@ const titleId = useId()
   gap: 26px;
   padding: 38px 42px 34px;
   overflow: hidden;
-  color: #f9f4ea;
+  color: var(--text-inverse-primary);
   background:
     linear-gradient(145deg, rgba(44, 39, 35, 0.98), rgba(66, 52, 40, 0.96)),
-    var(--color-text);
+    var(--text-primary);
 }
 
 .auth-story::before {
@@ -130,7 +130,7 @@ const titleId = useId()
   margin: 0;
 }
 .auth-lockup :deep(.brand-mark) {
-  color: #d8bd8e;
+  color: var(--text-inverse-muted);
 }
 .auth-lockup span {
   display: grid;
@@ -142,8 +142,8 @@ const titleId = useId()
   letter-spacing: 0.04em;
 }
 .auth-lockup small {
-  color: rgba(249, 244, 234, 0.58);
-  font-size: 9px;
+  color: var(--text-inverse-secondary);
+  font-size: 12px;
   letter-spacing: 0.19em;
 }
 
@@ -153,7 +153,7 @@ const titleId = useId()
 }
 .auth-story-kicker {
   margin: 0 0 12px;
-  color: #d8bd8e;
+  color: var(--text-inverse-muted);
   font-size: 12px;
   letter-spacing: 0.12em;
 }
@@ -168,7 +168,7 @@ const titleId = useId()
 .auth-story-text {
   margin: 18px 0 0;
   max-width: 410px;
-  color: rgba(249, 244, 234, 0.7);
+  color: var(--text-inverse-secondary);
   font-size: 13px;
   line-height: 1.85;
 }
@@ -179,7 +179,7 @@ const titleId = useId()
   margin: 0;
   padding: 0;
   list-style: none;
-  color: rgba(249, 244, 234, 0.76);
+  color: var(--text-inverse-secondary);
   font-size: 12px;
 }
 .auth-points li {
@@ -188,8 +188,8 @@ const titleId = useId()
   gap: 10px;
 }
 .auth-points span {
-  color: #d8bd8e;
-  font-size: 10px;
+  color: var(--text-inverse-muted);
+  font-size: 12px;
   letter-spacing: 0.08em;
 }
 
@@ -220,7 +220,7 @@ const titleId = useId()
   width: 105px;
   height: 105px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 32%, #ead7b4, #b89a68 52%, #705239 100%);
+  background: radial-gradient(circle at 35% 32%, var(--surface-shell-raised), var(--line-inverse-control) 52%, var(--surface-shell) 100%);
   box-shadow: 0 18px 34px rgba(25, 17, 10, 0.3);
 }
 .auth-canvas-card {
@@ -247,15 +247,15 @@ const titleId = useId()
   position: absolute;
   left: 14px;
   bottom: 12px;
-  color: rgba(249, 244, 234, 0.5);
-  font-size: 8px;
+  color: var(--text-inverse-secondary);
+  font-size: 12px;
   letter-spacing: 0.18em;
 }
 
 .auth-local {
   margin: 0;
-  color: rgba(249, 244, 234, 0.42);
-  font-size: 10px;
+  color: var(--text-inverse-secondary);
+  font-size: 12px;
   letter-spacing: 0.1em;
 }
 
@@ -266,15 +266,15 @@ const titleId = useId()
   padding: 48px 48px 36px;
   background:
     radial-gradient(circle at 100% 0, rgba(184, 154, 104, 0.12), transparent 28%),
-    var(--color-panel);
+    var(--surface-panel);
 }
 .auth-card-head {
   margin-bottom: 28px;
 }
 .auth-eyebrow {
   margin: 0 0 10px;
-  color: var(--color-accent);
-  font-size: 10px;
+  color: var(--action-link);
+  font-size: 12px;
   letter-spacing: 0.2em;
 }
 h1 {
@@ -287,19 +287,19 @@ h1 {
 .auth-description {
   margin: 12px 0 0;
   max-width: 390px;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   font-size: 13px;
   line-height: 1.75;
 }
 .auth-card-footer {
   margin-top: 26px;
   padding-top: 18px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--line-hairline);
 }
 .auth-card-footer :deep(p) {
   margin: 0;
-  color: var(--color-text-muted);
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: 12px;
   line-height: 1.7;
 }
 
@@ -350,7 +350,7 @@ h1 {
   }
   .auth-story-kicker {
     margin-bottom: 6px;
-    font-size: 10px;
+    font-size: 12px;
   }
   .auth-story-title {
     font-size: 21px;
