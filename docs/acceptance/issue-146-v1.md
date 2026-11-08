@@ -3,13 +3,14 @@
 > 本报告与 `docs/acceptance/evidence/` 下的 5 张截图、1 份原始结果共同构成 V1 验收证据集。
 
 - 验收分支：`codex/issue-146-integration`
-- 验收 HEAD：`baea5cca6b30eda642b445550c1abceaf6f8e2bd`（父提交 `d42ef88` + `73abb46`）
-- 修复/归档分支：`codex/issue-146-review-fixes`（基于上述验收 HEAD）
-- 修复 HEAD：本分支最新提交（提交信息 `fix(v3): address V1 shell review findings (#146)`）
+- 验收 HEAD：`fa506d55ec0e875c2d5b72d396c923a505ef0aea`（合并 `codex/issue-146-review-fixes` 后的最终提交）
+- 初验 HEAD：`baea5cca6b30eda642b445550c1abceaf6f8e2bd`（V1 首轮合并，`d42ef88` + `73abb46`）
+- 修复分支：`codex/issue-146-review-fixes`（`88b66329bb829d6301a53754772528311ddf9ccc`，基于 `baea5cc`）
 - 应用：`http://127.0.0.1:8090`（Docker `ecommerce-image-workspace:local`，前端由 `main/docker/Dockerfile` 构建）
 - 浏览器：Microsoft Edge `Edg/156.0.4314.58`（headless，CDP）
 - 采集脚本：`.scratch/v1-browser-check.mjs`（采集用临时脚本，未入库）
 - 原始结果：`docs/acceptance/evidence/v1-browser-result.json`（`ok: true`，16/16 检查通过）
+- 采集说明：以下截图与指标均于最终 HEAD `fa506d5` 重建镜像并重建 frontend 容器后重新采集；初验截图已由最终证据覆盖。
 
 ## 操作步骤
 
