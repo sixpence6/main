@@ -170,6 +170,7 @@ onBeforeUnmount(() => {
 @media (max-width: 767px) {
   .lightbox-layer { padding: 16px; }
   .lightbox-panel { padding: 8px; }
+  .lightbox-image { max-width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .lightbox-layer,
