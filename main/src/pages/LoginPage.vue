@@ -154,7 +154,7 @@ async function submit(): Promise<void> {
   border-radius: var(--radius-sm);
   background: var(--surface-panel);
   color: var(--text-primary);
-  font-size: var(--text-input);
+  font-size: var(--text-reading);
   transition: border-color var(--dur-base) var(--ease-out);
 }
 .login-field input:focus {

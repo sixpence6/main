@@ -71,8 +71,6 @@ export interface WorkspaceStore {
   healthStatus: Ref<'ok' | 'error' | null>
   sidebarExpanded: Ref<boolean>
   sideDrawerOpen: Ref<boolean>
-  modelDrawerOpen: Ref<boolean>
-  projectDrawerOpen: Ref<boolean>
   announcement: Ref<string>
   breakpoint: ComputedRef<'narrow' | 'medium' | 'wide'>
   isMobile: ComputedRef<boolean>
@@ -131,10 +129,6 @@ export interface WorkspaceStore {
   toggleSidebar: () => void
   openSideDrawer: () => void
   closeSideDrawer: () => void
-  openModelDrawer: () => void
-  closeModelDrawer: () => void
-  openProjectDrawer: () => void
-  closeProjectDrawer: () => void
   loadProjects: () => Promise<void>
   loadMoreProjects: () => Promise<void>
   retryLoadMore: () => Promise<void>
@@ -204,8 +198,6 @@ function createWorkspace(): WorkspaceStore {
   const projectRenameError = ref('')
   const sidebarExpanded = ref(breakpoint.value !== 'narrow')
   const sideDrawerOpen = ref(false)
-  const modelDrawerOpen = ref(false)
-  const projectDrawerOpen = ref(false)
   const announcement = ref('')
   const navigationConfirmOpen = ref(false)
   const navigationIntent = ref<NavigationIntent | null>(null)
@@ -418,7 +410,6 @@ function createWorkspace(): WorkspaceStore {
   }
 
   function openNavigationConfirm(intent: NavigationIntent): void {
-    closeProjectDrawer()
     closeSideDrawer()
     navigationIntent.value = intent
     navigationConfirmOpen.value = true
@@ -478,8 +469,6 @@ function createWorkspace(): WorkspaceStore {
     navigationConfirmOpen.value = false
     navigationIntent.value = null
     sideDrawerOpen.value = false
-    projectDrawerOpen.value = false
-    modelDrawerOpen.value = false
     creationUnknown.value = false
     sendBusy.value = false
     sendError.value = ''
@@ -536,7 +525,6 @@ function createWorkspace(): WorkspaceStore {
     projectParam.value = null
     drafts.delete('__new__')
     sideDrawerOpen.value = false
-    projectDrawerOpen.value = false
     updateProjectUrl(null, 'replace')
     announce('已新建空白工作台，请输入商品与图片需求。')
   }
@@ -555,28 +543,10 @@ function createWorkspace(): WorkspaceStore {
   }
 
   function openSideDrawer(): void {
-    projectDrawerOpen.value = false
     sideDrawerOpen.value = true
   }
   function closeSideDrawer(): void {
     sideDrawerOpen.value = false
-  }
-  function openModelDrawer(): void {
-    sideDrawerOpen.value = false
-    projectDrawerOpen.value = false
-    modelDrawerOpen.value = true
-  }
-  function closeModelDrawer(): void {
-    modelDrawerOpen.value = false
-  }
-  function openProjectDrawer(): void {
-    sideDrawerOpen.value = false
-    modelDrawerOpen.value = false
-    projectDrawerOpen.value = true
-    void loadProjects()
-  }
-  function closeProjectDrawer(): void {
-    projectDrawerOpen.value = false
   }
 
   async function loadProjects(): Promise<void> {
@@ -1470,7 +1440,6 @@ function createWorkspace(): WorkspaceStore {
   function performSelectProject(id: string): void {
     creationUnknown.value = false
     sendError.value = ''
-    closeProjectDrawer()
     closeSideDrawer()
     projectParam.value = id
     updateProjectUrl(id, 'push')
@@ -1511,7 +1480,6 @@ function createWorkspace(): WorkspaceStore {
       clearProjectDetail()
       projectParam.value = null
       sideDrawerOpen.value = false
-      projectDrawerOpen.value = false
       updateProjectUrl(null, 'push')
       announce('已切换到空白工作台。')
       return
@@ -1639,8 +1607,6 @@ function createWorkspace(): WorkspaceStore {
     healthStatus,
     sidebarExpanded,
     sideDrawerOpen,
-    modelDrawerOpen,
-    projectDrawerOpen,
     announcement,
     breakpoint,
     isMobile,
@@ -1699,10 +1665,6 @@ function createWorkspace(): WorkspaceStore {
     toggleSidebar,
     openSideDrawer,
     closeSideDrawer,
-    openModelDrawer,
-    closeModelDrawer,
-    openProjectDrawer,
-    closeProjectDrawer,
     loadProjects,
     loadMoreProjects,
     retryLoadMore,

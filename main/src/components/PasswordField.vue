@@ -126,7 +126,7 @@ function update(event: Event): void {
   border: 0;
   background: transparent;
   color: var(--text-primary);
-  font-size: var(--text-input);
+  font-size: var(--text-reading);
 }
 .password-toggle {
   flex: none;

@@ -690,7 +690,7 @@ h1 {
   border: 1px solid var(--line-hairline);
   border-radius: var(--radius-md);
   background: var(--surface-panel);
-  box-shadow: var(--shadow-panel);
+  box-shadow: var(--shadow-composer);
 }
 
 h2 {
@@ -728,7 +728,7 @@ h2 {
   border-radius: var(--radius-sm);
   background: var(--surface-panel);
   color: var(--text-primary);
-  font-size: var(--text-input);
+  font-size: var(--text-reading);
 }
 
 .accounts-primary,

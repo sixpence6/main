@@ -121,48 +121,6 @@ describe('V1 tokens.css contract (Appendix A)', () => {
     expect(tokensCss).toMatch(/--text-display-line:\s*1\.15;/)
   })
 
-  it('保留 V7 兼容别名', () => {
-    const aliases: Record<string, string> = {
-      '--font-family': 'var(--font-sans)',
-      '--text-input': 'var(--text-reading)',
-      '--text-input-line': 'var(--text-reading-line)',
-      '--text-product': 'var(--text-page)',
-      '--text-product-line': 'var(--text-page-line)',
-      '--text-small': 'var(--text-caption)',
-      '--text-heading': 'var(--text-section)',
-      '--color-page': 'var(--surface-canvas)',
-      '--color-panel': 'var(--surface-panel)',
-      '--color-panel-soft': 'var(--surface-inset)',
-      '--color-glass': 'var(--surface-glass)',
-      '--color-text': 'var(--text-primary)',
-      '--color-text-muted': 'var(--text-muted)',
-      '--color-primary': 'var(--action-primary)',
-      '--color-primary-hover': 'var(--action-primary-hover)',
-      '--color-primary-soft': 'var(--action-soft)',
-      '--color-border': 'var(--line-hairline)',
-      '--color-border-soft': 'var(--line-hairline)',
-      '--color-code': 'var(--surface-inset)',
-      '--color-accent': 'var(--action-link)',
-      '--color-success': 'var(--state-success)',
-      '--color-warning': 'var(--state-warning)',
-      '--color-danger': 'var(--state-danger)',
-      '--color-info': 'var(--state-info)',
-      '--color-error': 'var(--state-danger)',
-      '--color-muted': 'var(--text-muted)',
-      '--radius-control': 'var(--radius-sm)',
-      '--radius-panel': 'var(--radius-md)',
-      '--radius-card': 'var(--radius-md)',
-      '--radius-image': 'var(--radius-sm)',
-      '--shadow-panel': 'var(--shadow-composer)',
-      '--conversation-width': 'var(--conversation-max)',
-    }
-    for (const [name, value] of Object.entries(aliases)) {
-      expect(tokensCss, `${name} alias`).toMatch(
-        new RegExp(`${name}\\s*:\\s*${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*;`),
-      )
-    }
-  })
-
   it('删除已淘汰令牌并保留响应式覆盖', () => {
     for (const retired of ['--ease-spring', '--radius-shell', '--body-padding', '--head-height']) {
       expect(tokensCss.includes(`${retired}:`), retired).toBe(false)
