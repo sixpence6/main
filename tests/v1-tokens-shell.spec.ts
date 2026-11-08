@@ -245,6 +245,13 @@ describe('V1 壳体、侧栏、顶栏与状态胶囊结构', () => {
     expect(layout).toMatch(/--shell-pad-x/)
   })
 
+  it('移动端状态胶囊在非对话工作区路由也进入文档流', () => {
+    expect(layout).toMatch(/<div v-if="isMobile" class="capsule-inline">\s*<CurrentStatusCapsule\s+variant="inline"\s*\/>/)
+    const inlineIndex = layout.indexOf('<div v-if="isMobile" class="capsule-inline">')
+    expect(inlineIndex).toBeGreaterThan(layout.indexOf('class="workspace-topbar"'))
+    expect(inlineIndex).toBeLessThan(layout.indexOf('class="main-panel"'))
+  })
+
   it('ChatPage 不再自带旧顶栏', () => {
     expect(chatPage.includes('chat-topbar')).toBe(false)
     expect(chatPage.includes('chat-heading')).toBe(false)

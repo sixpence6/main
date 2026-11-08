@@ -94,7 +94,7 @@ function update(event: Event): void {
 }
 .password-label {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--text-body);
 }
 .password-control {
   display: flex;
@@ -103,18 +103,20 @@ function update(event: Event): void {
   border: 1px solid var(--line-hairline);
   border-radius: var(--radius-sm);
   background: var(--surface-panel);
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  transition: border-color var(--dur-base) var(--ease-out);
 }
 .password-control:focus-within {
   border-color: var(--action-primary);
-  box-shadow: 0 0 0 3px rgba(112, 82, 57, 0.12);
+  outline: 2px solid var(--focus-ring-light);
+  outline-offset: 2px;
 }
 .password-control-invalid {
   border-color: var(--state-danger);
 }
 .password-control-invalid:focus-within {
   border-color: var(--state-danger);
-  box-shadow: 0 0 0 3px rgba(164, 61, 53, 0.12);
+  outline: 2px solid var(--focus-ring-light);
+  outline-offset: 2px;
 }
 .password-control input {
   width: 100%;
@@ -137,7 +139,7 @@ function update(event: Event): void {
   font-size: 12px;
 }
 .password-toggle:hover:not(:disabled) {
-  background: rgba(184, 154, 104, 0.1);
+  background: var(--action-soft);
 }
 .password-toggle:disabled {
   cursor: not-allowed;

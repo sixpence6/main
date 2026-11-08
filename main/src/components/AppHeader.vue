@@ -35,10 +35,10 @@ async function signOut(): Promise<void> {
 .account-area {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   margin-left: auto;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--text-caption);
 }
 
 .account-admin,
@@ -62,7 +62,7 @@ async function signOut(): Promise<void> {
 .account-logout {
   padding: 5px 10px;
   border: 1px solid var(--line-hairline);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--text-muted);
 }

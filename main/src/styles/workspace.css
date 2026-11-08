@@ -40,7 +40,7 @@ body:has(.pure-shell) {
   background: var(--line-hover);
 }
 
-/* Head：默认实色回退；只有支持时才启用磨砂。 */
+/* Head：全宽实色顶栏，直接贴齐页面边缘。 */
 .app-header {
   position: relative;
   z-index: 20;
@@ -49,19 +49,12 @@ body:has(.pure-shell) {
   align-items: center;
   justify-content: flex-start;
   height: var(--topbar-height);
-  margin: var(--space-3) var(--space-3) 0;
+  margin: 0;
   padding: 0 var(--space-4);
-  border: 1px solid var(--line-hairline);
-  border-radius: 24px;
+  border: 0;
+  border-bottom: 1px solid var(--line-hairline);
+  border-radius: 0;
   background: var(--surface-panel);
-}
-
-@supports ((-webkit-backdrop-filter: blur(16px)) or (backdrop-filter: blur(16px))) {
-  .app-header {
-    background: var(--surface-glass);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
-  }
 }
 
 .app-title {
@@ -96,7 +89,7 @@ body:has(.pure-shell) {
   border-right: 1px solid var(--line-inverse);
   border-radius: 0;
   background: var(--surface-shell);
-  transition: width 160ms ease;
+  transition: width var(--dur-base) var(--ease-out);
 }
 
 .app-sidebar.is-collapsed {
@@ -213,7 +206,7 @@ body:has(.pure-shell) {
   border-radius: var(--radius-sm);
   background: var(--text-primary);
   color: var(--surface-panel);
-  box-shadow: var(--shadow-panel);
+  box-shadow: var(--shadow-overlay);
   font-size: 12px;
   line-height: 18px;
   opacity: 0;
@@ -259,9 +252,9 @@ body:has(.pure-shell) {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  border: 1px solid var(--line-hairline);
-  border-radius: 28px;
-  background: var(--surface-panel);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   scroll-behavior: smooth;
 }
 
@@ -297,7 +290,6 @@ body:has(.pure-shell) {
   border: 1px solid var(--line-hairline);
   border-radius: var(--radius-md);
   background: var(--surface-panel);
-  box-shadow: var(--shadow-panel);
 }
 
 .project-placeholder {
@@ -538,7 +530,7 @@ body:has(.pure-shell) {
   border: 1px solid var(--line-hairline);
   border-radius: var(--radius-md);
   background: var(--surface-panel);
-  box-shadow: 0 20px 56px rgba(44, 39, 35, 0.28);
+  box-shadow: var(--shadow-overlay);
 }
 
 .unsaved-dialog h2 {
@@ -635,7 +627,7 @@ body:has(.pure-shell) {
   overflow: hidden;
   border-left: 1px solid var(--line-hairline);
   background: var(--surface-panel);
-  box-shadow: -12px 0 32px rgba(44, 39, 35, 0.14);
+  box-shadow: var(--shadow-overlay);
 }
 
 .drawer-head {
@@ -1985,7 +1977,7 @@ body:has(.pure-shell) {
   border: 1px solid var(--line-hairline);
   border-radius: var(--radius-md);
   background: var(--surface-panel);
-  box-shadow: 0 20px 56px rgba(44, 39, 35, 0.28);
+  box-shadow: var(--shadow-overlay);
 }
 
 .risk-dialog h2 {
@@ -2106,7 +2098,6 @@ body:has(.pure-shell) {
   border: 1px solid var(--line-hairline);
   border-radius: var(--radius-md);
   background: var(--surface-panel);
-  box-shadow: var(--shadow-panel);
 }
 
 .page-heading h2 {
@@ -2199,7 +2190,6 @@ body:has(.pure-shell) {
   border: 1px solid var(--line-hairline);
   border-radius: var(--radius-md);
   background: var(--surface-panel);
-  box-shadow: var(--shadow-panel);
 }
 
 .workflow-panel-header,
@@ -2568,7 +2558,6 @@ body:has(.pure-shell) {
   border: 1px solid var(--line-hairline);
   border-radius: var(--radius-md);
   background: var(--surface-panel);
-  box-shadow: var(--shadow-panel);
 }
 
 .history-preview h3,
@@ -2659,7 +2648,7 @@ body:has(.pure-shell) {
 
 .execution-step-unknown,
 .execution-step-failed {
-  border-color: var(--state-danger, var(--state-danger));
+  border-color: var(--state-danger);
 }
 
 .workflow-execution-heading {
@@ -2728,8 +2717,8 @@ body:has(.pure-shell) {
 
 /* T23 U3 当前交付、历史预览与反馈新版本 */
 .workflow-delivery-blocked {
-  border-color: var(--state-danger, var(--state-danger));
-  background: color-mix(in srgb, var(--state-danger, var(--state-danger)) 6%, var(--surface-panel));
+  border-color: var(--state-danger);
+  background: color-mix(in srgb, var(--state-danger) 6%, var(--surface-panel));
 }
 
 .workflow-delivery-meta {

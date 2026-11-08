@@ -73,10 +73,7 @@ const titleId = useId()
   display: grid;
   place-items: center;
   padding: 32px 24px;
-  background:
-    radial-gradient(circle at 12% 8%, rgba(184, 154, 104, 0.2), transparent 34%),
-    radial-gradient(circle at 88% 92%, rgba(112, 82, 57, 0.14), transparent 32%),
-    var(--surface-canvas);
+  background: var(--surface-canvas);
 }
 
 .auth-frame-shell {
@@ -86,9 +83,9 @@ const titleId = useId()
   grid-template-columns: minmax(0, 1.06fr) minmax(420px, 0.94fr);
   overflow: hidden;
   border: 1px solid var(--line-hairline);
-  border-radius: 24px;
+  border-radius: var(--radius-lg);
   background: var(--surface-panel);
-  box-shadow: 0 28px 80px rgba(70, 50, 34, 0.13);
+  box-shadow: var(--shadow-overlay);
 }
 
 .auth-story {
@@ -100,27 +97,7 @@ const titleId = useId()
   padding: 38px 42px 34px;
   overflow: hidden;
   color: var(--text-inverse-primary);
-  background:
-    linear-gradient(145deg, rgba(44, 39, 35, 0.98), rgba(66, 52, 40, 0.96)),
-    var(--text-primary);
-}
-
-.auth-story::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: -30% 28% 45% -35%;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(184, 154, 104, 0.34), transparent 62%);
-}
-
-.auth-story::after {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: 40% -30% -35% 35%;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(112, 82, 57, 0.42), transparent 64%);
+  background: var(--surface-shell);
 }
 
 .auth-lockup {
@@ -159,7 +136,7 @@ const titleId = useId()
 }
 .auth-story-title {
   margin: 0;
-  font-family: 'Songti SC', 'STSong', 'Noto Serif SC', serif;
+  font-family: var(--font-sans);
   font-size: clamp(28px, 3.2vw, 43px);
   line-height: 1.28;
   font-weight: 600;
@@ -169,8 +146,8 @@ const titleId = useId()
   margin: 18px 0 0;
   max-width: 410px;
   color: var(--text-inverse-secondary);
-  font-size: 13px;
-  line-height: 1.85;
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
 }
 
 .auth-points {
@@ -206,12 +183,9 @@ const titleId = useId()
   aspect-ratio: 4 / 3;
   margin-left: auto;
   overflow: hidden;
-  border: 1px solid rgba(216, 189, 142, 0.34);
-  border-radius: 18px;
-  background:
-    linear-gradient(135deg, rgba(255, 252, 247, 0.11), rgba(255, 252, 247, 0.03)),
-    repeating-linear-gradient(90deg, transparent 0 31px, rgba(216, 189, 142, 0.09) 31px 32px),
-    repeating-linear-gradient(0deg, transparent 0 31px, rgba(216, 189, 142, 0.09) 31px 32px);
+  border: 1px solid var(--line-inverse);
+  border-radius: var(--radius-lg);
+  background: var(--surface-shell-raised);
   transform: rotate(-3deg);
 }
 .auth-canvas-glow {
@@ -220,15 +194,14 @@ const titleId = useId()
   width: 105px;
   height: 105px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 32%, var(--surface-shell-raised), var(--line-inverse-control) 52%, var(--surface-shell) 100%);
-  box-shadow: 0 18px 34px rgba(25, 17, 10, 0.3);
+  background: var(--surface-shell-raised);
+  box-shadow: var(--shadow-overlay);
 }
 .auth-canvas-card {
   position: absolute;
-  border: 1px solid rgba(249, 244, 234, 0.44);
-  border-radius: 12px;
-  background: rgba(249, 244, 234, 0.09);
-  backdrop-filter: blur(3px);
+  border: 1px solid var(--line-inverse);
+  border-radius: var(--radius-sm);
+  background: var(--surface-shell-active);
 }
 .auth-canvas-card-a {
   inset: auto auto 18% 12%;
@@ -240,7 +213,7 @@ const titleId = useId()
   inset: 17% auto auto 41%;
   width: 21%;
   height: 46%;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   transform: rotate(18deg);
 }
 .auth-canvas-caption {
@@ -264,9 +237,7 @@ const titleId = useId()
   flex-direction: column;
   justify-content: center;
   padding: 48px 48px 36px;
-  background:
-    radial-gradient(circle at 100% 0, rgba(184, 154, 104, 0.12), transparent 28%),
-    var(--surface-panel);
+  background: var(--surface-panel);
 }
 .auth-card-head {
   margin-bottom: 28px;
@@ -279,6 +250,7 @@ const titleId = useId()
 }
 h1 {
   margin: 0;
+  font-family: var(--font-sans);
   font-size: clamp(28px, 3vw, 34px);
   line-height: 1.2;
   font-weight: 600;
@@ -288,8 +260,8 @@ h1 {
   margin: 12px 0 0;
   max-width: 390px;
   color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.75;
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
 }
 .auth-card-footer {
   margin-top: 26px;

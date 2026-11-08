@@ -254,7 +254,7 @@ describe('T10 纯对话入口与首次文生图闭环', () => {
     expect(screen.getByRole('textbox', { name: '描述商品与图片需求' })).toBeVisible()
     expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
     expect(screen.getByText('电商生图工作台')).toBeVisible()
-    expect(screen.getByText('账号与用量')).toBeVisible()
+    expect(screen.getByRole('link', { name: /未登录/ })).toBeVisible()
     expect(screen.getByText('数据使用说明')).toBeVisible()
     expect(screen.queryByRole('region', { name: '需求工作台' })).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: '提示词确认' })).not.toBeInTheDocument()
