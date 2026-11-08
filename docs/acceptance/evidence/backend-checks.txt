@@ -1,6 +1,0 @@
-Ruff + Alembic (2026-10-30):
-All checks passed!
-0001 (head)
-
-INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
-INFO  [alembic.runtime.migration] Will assume non-transactional DDL.

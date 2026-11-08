@@ -1,0 +1,1832 @@
+{
+  "startedAt": "2026-11-06T13:49:08.574Z",
+  "states": {
+    "viewport-320": {
+      "login": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\01-login-320.png",
+      "chatEmpty": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\02-chat-empty-320.png",
+      "chatMessages": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\03-chat-messages-320.png",
+      "composer": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\04-composer-320.png",
+      "promptConfirm": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\05-prompt-confirm-320.png",
+      "promptConfirmText": "对话\n\n智能生图助手\n\n秋季新款保温杯主图\n\n你\n\n帮我做一张保温杯的电商主图，风格要高端沉稳一些，背景不要太花哨。\n\n智能生图助手\n\n已记录需求：316 不锈钢保温杯，樱花粉磨砂外壳，浅灰象牙色背景，产品居中。还需要补充卖点文案吗？\n\n你\n\n卖点写“12h 长效保温”，画面右上角留白。\n\n智能生图助手\n\n好的，需求已整理完成。确认提示词后即可生成 3840x2160 的成品图。\n\n智能生图助手\n\n提示词已经准备好。下面就是实际会交给图片模型的内容，确认后才会生成图片。\n\n实际提示词\n复制提示词\n高端电商产品主图：316 不锈钢真空保温杯，樱花粉磨砂哑光外壳，杯身极简几何纹样，浅灰象牙色无缝背景，柔和自然光从左上角入射，产品居中占画面 65%，右上角留白用于文案「12h 长效保温」，影棚级质感，8k 细节，无多余装饰。\n输出\n1 张\n确认使用以上提示词生成\n+\n描述商品与图片需求\n发送\n\n",
+      "image": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\06-image-state-320.png"
+    },
+    "viewport-768": {
+      "login": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\01-login-768.png",
+      "chatEmpty": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\02-chat-empty-768.png",
+      "chatMessages": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\03-chat-messages-768.png",
+      "composer": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\04-composer-768.png",
+      "promptConfirm": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\05-prompt-confirm-768.png",
+      "promptConfirmText": "对话\n\n智能生图助手\n\n秋季新款保温杯主图\n\n你\n\n帮我做一张保温杯的电商主图，风格要高端沉稳一些，背景不要太花哨。\n\n智能生图助手\n\n已记录需求：316 不锈钢保温杯，樱花粉磨砂外壳，浅灰象牙色背景，产品居中。还需要补充卖点文案吗？\n\n你\n\n卖点写“12h 长效保温”，画面右上角留白。\n\n智能生图助手\n\n好的，需求已整理完成。确认提示词后即可生成 3840x2160 的成品图。\n\n智能生图助手\n\n提示词已经准备好。下面就是实际会交给图片模型的内容，确认后才会生成图片。\n\n实际提示词\n复制提示词\n高端电商产品主图：316 不锈钢真空保温杯，樱花粉磨砂哑光外壳，杯身极简几何纹样，浅灰象牙色无缝背景，柔和自然光从左上角入射，产品居中占画面 65%，右上角留白用于文案「12h 长效保温」，影棚级质感，8k 细节，无多余装饰。\n输出\n1 张\n确认使用以上提示词生成\n+\n描述商品与图片需求\n发送\n\n",
+      "image": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\06-image-state-768.png"
+    },
+    "viewport-1440": {
+      "login": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\01-login-1440.png",
+      "chatEmpty": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\02-chat-empty-1440.png",
+      "chatMessages": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\03-chat-messages-1440.png",
+      "composer": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\04-composer-1440.png",
+      "promptConfirm": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\05-prompt-confirm-1440.png",
+      "promptConfirmText": "↗\n电商生图工作台\n＋\n新对话\n⌕\n秋季新款保温杯主图\n待确认\n2026/11/6 21:36:36\n◯\n账号与用量\nbaseline@example.test\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录\n\n智能生图助手\n\n秋季新款保温杯主图\n\n你\n\n帮我做一张保温杯的电商主图，风格要高端沉稳一些，背景不要太花哨。\n\n智能生图助手\n\n已记录需求：316 不锈钢保温杯，樱花粉磨砂外壳，浅灰象牙色背景，产品居中。还需要补充卖点文案吗？\n\n你\n\n卖点写“12h 长效保温”，画面右上角留白。\n\n智能生图助手\n\n好的，需求已整理完成。确认提示词后即可生成 3840x2160 的成品图。\n\n智能生图助手\n\n提示词已经准备好。下面就是实际会交给图片模型的内容，确认后才会生成图片。\n\n实际提示词\n复制提示词\n高端电商产品主图：316 不锈钢真空保温杯，樱花粉磨砂哑光外壳，杯身极简几何纹样，浅灰象",
+      "image": "D:\\Desktop\\新建文件夹\\.tmp\\wayfinder\\evidence\\a5\\06-image-state-1440.png"
+    }
+  },
+  "metrics": {
+    "login-320": {
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "overflowX": 0,
+      "mediaQueries": {
+        "max767": true,
+        "min768": false,
+        "min1024": false
+      },
+      "fontFaces": [],
+      "distinct": {
+        "fontFamily": [
+          {
+            "value": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+            "count": 57
+          },
+          {
+            "value": "\"Times New Roman\"",
+            "count": 23
+          },
+          {
+            "value": "\"Songti SC\", STSong, \"Noto Serif SC\", serif",
+            "count": 1
+          }
+        ],
+        "fontSize": [
+          {
+            "value": "14px",
+            "count": 30
+          },
+          {
+            "value": "16px",
+            "count": 26
+          },
+          {
+            "value": "10px",
+            "count": 6
+          },
+          {
+            "value": "12px",
+            "count": 6
+          },
+          {
+            "value": "13px",
+            "count": 4
+          },
+          {
+            "value": "11px",
+            "count": 4
+          },
+          {
+            "value": "9px",
+            "count": 1
+          },
+          {
+            "value": "21px",
+            "count": 1
+          },
+          {
+            "value": "8px",
+            "count": 1
+          },
+          {
+            "value": "28px",
+            "count": 1
+          },
+          {
+            "value": "15px",
+            "count": 1
+          }
+        ],
+        "fontWeight": [
+          {
+            "value": "400",
+            "count": 77
+          },
+          {
+            "value": "600",
+            "count": 4
+          }
+        ],
+        "borderRadius": [
+          {
+            "value": "0px",
+            "count": 73
+          },
+          {
+            "value": "10px",
+            "count": 3
+          },
+          {
+            "value": "18px",
+            "count": 1
+          },
+          {
+            "value": "50%",
+            "count": 1
+          },
+          {
+            "value": "12px",
+            "count": 1
+          },
+          {
+            "value": "999px",
+            "count": 1
+          },
+          {
+            "value": "0px 10px 10px 0px",
+            "count": 1
+          }
+        ],
+        "color": [
+          {
+            "value": "rgb(0, 0, 0)",
+            "count": 23
+          },
+          {
+            "value": "rgb(31, 36, 56)",
+            "count": 17
+          },
+          {
+            "value": "rgb(216, 189, 142)",
+            "count": 12
+          },
+          {
+            "value": "rgb(249, 244, 234)",
+            "count": 11
+          },
+          {
+            "value": "rgb(98, 109, 136)",
+            "count": 7
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.76)",
+            "count": 4
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.58)",
+            "count": 1
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.7)",
+            "count": 1
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.5)",
+            "count": 1
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.42)",
+            "count": 1
+          },
+          {
+            "value": "rgb(122, 103, 240)",
+            "count": 1
+          },
+          {
+            "value": "rgb(88, 70, 232)",
+            "count": 1
+          }
+        ],
+        "backgroundColor": [
+          {
+            "value": "rgba(0, 0, 0, 0)",
+            "count": 70
+          },
+          {
+            "value": "rgb(255, 255, 255)",
+            "count": 4
+          },
+          {
+            "value": "rgb(238, 240, 248)",
+            "count": 2
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.09)",
+            "count": 2
+          },
+          {
+            "value": "rgb(31, 36, 56)",
+            "count": 1
+          },
+          {
+            "value": "rgb(88, 70, 232)",
+            "count": 1
+          },
+          {
+            "value": "rgba(184, 154, 104, 0.08)",
+            "count": 1
+          }
+        ]
+      },
+      "probes": {
+        "body": {
+          "selector": "body",
+          "tag": "body",
+          "class": "",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgb(238, 240, 248)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "0px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 320,
+            "h": 800
+          }
+        },
+        "sidebar": {
+          "selector": "aside, .app-sidebar, .sidebar, nav",
+          "tag": "aside",
+          "class": "auth-story",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(249, 244, 234)",
+          "backgroundColor": "rgb(31, 36, 56)",
+          "borderRadius": "0px",
+          "paddingTop": "20px",
+          "paddingLeft": "20px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 320,
+            "h": 186
+          }
+        },
+        "header": {
+          "selector": "header, .topbar, .app-header",
+          "tag": "header",
+          "class": "auth-card-head",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "0px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 20,
+            "y": 214,
+            "w": 280,
+            "h": 123
+          }
+        },
+        "composer": null,
+        "message": null,
+        "button": {
+          "selector": "button",
+          "tag": "button",
+          "class": "password-toggle",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "12px",
+          "fontWeight": "400",
+          "color": "rgb(88, 70, 232)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "12px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 241,
+            "y": 515,
+            "w": 58,
+            "h": 46
+          }
+        }
+      },
+      "viewportName": "320"
+    },
+    "chat-320": {
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "overflowX": 0,
+      "mediaQueries": {
+        "max767": true,
+        "min768": false,
+        "min1024": false
+      },
+      "fontFaces": [],
+      "distinct": {
+        "fontFamily": [
+          {
+            "value": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+            "count": 58
+          },
+          {
+            "value": "\"Times New Roman\"",
+            "count": 23
+          }
+        ],
+        "fontSize": [
+          {
+            "value": "14px",
+            "count": 44
+          },
+          {
+            "value": "16px",
+            "count": 24
+          },
+          {
+            "value": "12px",
+            "count": 6
+          },
+          {
+            "value": "26px",
+            "count": 2
+          },
+          {
+            "value": "17px",
+            "count": 1
+          },
+          {
+            "value": "8px",
+            "count": 1
+          },
+          {
+            "value": "11.5px",
+            "count": 1
+          },
+          {
+            "value": "10.5px",
+            "count": 1
+          },
+          {
+            "value": "9.5px",
+            "count": 1
+          }
+        ],
+        "fontWeight": [
+          {
+            "value": "400",
+            "count": 74
+          },
+          {
+            "value": "600",
+            "count": 5
+          },
+          {
+            "value": "700",
+            "count": 1
+          },
+          {
+            "value": "650",
+            "count": 1
+          }
+        ],
+        "borderRadius": [
+          {
+            "value": "0px",
+            "count": 68
+          },
+          {
+            "value": "28px",
+            "count": 2
+          },
+          {
+            "value": "18px 18px 5px",
+            "count": 2
+          },
+          {
+            "value": "18px 18px 18px 5px",
+            "count": 2
+          },
+          {
+            "value": "11px",
+            "count": 1
+          },
+          {
+            "value": "18px",
+            "count": 1
+          },
+          {
+            "value": "16px",
+            "count": 1
+          },
+          {
+            "value": "17px",
+            "count": 1
+          },
+          {
+            "value": "10px",
+            "count": 1
+          },
+          {
+            "value": "50%",
+            "count": 1
+          },
+          {
+            "value": "999px",
+            "count": 1
+          }
+        ],
+        "color": [
+          {
+            "value": "rgb(31, 36, 56)",
+            "count": 38
+          },
+          {
+            "value": "rgb(0, 0, 0)",
+            "count": 23
+          },
+          {
+            "value": "rgb(98, 109, 136)",
+            "count": 13
+          },
+          {
+            "value": "rgb(255, 255, 255)",
+            "count": 5
+          },
+          {
+            "value": "rgba(255, 255, 255, 0.72)",
+            "count": 2
+          }
+        ],
+        "backgroundColor": [
+          {
+            "value": "rgba(0, 0, 0, 0)",
+            "count": 68
+          },
+          {
+            "value": "rgb(255, 255, 255)",
+            "count": 3
+          },
+          {
+            "value": "rgb(88, 70, 232)",
+            "count": 3
+          },
+          {
+            "value": "rgb(238, 240, 248)",
+            "count": 2
+          },
+          {
+            "value": "rgb(245, 246, 250)",
+            "count": 2
+          },
+          {
+            "value": "rgb(240, 241, 247)",
+            "count": 1
+          },
+          {
+            "value": "rgb(98, 109, 136)",
+            "count": 1
+          },
+          {
+            "value": "rgba(247, 247, 252, 0.78)",
+            "count": 1
+          }
+        ]
+      },
+      "probes": {
+        "body": {
+          "selector": "body",
+          "tag": "body",
+          "class": "",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgb(238, 240, 248)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "0px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 320,
+            "h": 800
+          }
+        },
+        "sidebar": null,
+        "header": {
+          "selector": "header, .topbar, .app-header",
+          "tag": "header",
+          "class": "chat-topbar",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "18px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 6,
+            "y": 58,
+            "w": 308,
+            "h": 58
+          }
+        },
+        "composer": {
+          "selector": "textarea, .composer, form.composer",
+          "tag": "textarea",
+          "class": "composer-input",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "10px",
+          "paddingLeft": "0px",
+          "lineHeight": "24px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 83,
+            "y": 673,
+            "w": 130,
+            "h": 68
+          }
+        },
+        "message": {
+          "selector": ".message, .bubble, [class*=message]",
+          "tag": "ol",
+          "class": "message-list",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "0px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 22,
+            "y": 120,
+            "w": 276,
+            "h": 518
+          }
+        },
+        "button": {
+          "selector": "button",
+          "tag": "button",
+          "class": "mobile-menu",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "borderRadius": "11px",
+          "paddingTop": "0px",
+          "paddingLeft": "12px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 10,
+            "y": 14,
+            "w": 81,
+            "h": 36
+          }
+        }
+      },
+      "viewportName": "320"
+    },
+    "login-768": {
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "overflowX": 0,
+      "mediaQueries": {
+        "max767": false,
+        "min768": true,
+        "min1024": false
+      },
+      "fontFaces": [],
+      "distinct": {
+        "fontFamily": [
+          {
+            "value": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+            "count": 57
+          },
+          {
+            "value": "\"Times New Roman\"",
+            "count": 23
+          },
+          {
+            "value": "\"Songti SC\", STSong, \"Noto Serif SC\", serif",
+            "count": 1
+          }
+        ],
+        "fontSize": [
+          {
+            "value": "14px",
+            "count": 30
+          },
+          {
+            "value": "16px",
+            "count": 26
+          },
+          {
+            "value": "12px",
+            "count": 7
+          },
+          {
+            "value": "10px",
+            "count": 5
+          },
+          {
+            "value": "13px",
+            "count": 4
+          },
+          {
+            "value": "11px",
+            "count": 4
+          },
+          {
+            "value": "9px",
+            "count": 1
+          },
+          {
+            "value": "26px",
+            "count": 1
+          },
+          {
+            "value": "8px",
+            "count": 1
+          },
+          {
+            "value": "28px",
+            "count": 1
+          },
+          {
+            "value": "15px",
+            "count": 1
+          }
+        ],
+        "fontWeight": [
+          {
+            "value": "400",
+            "count": 77
+          },
+          {
+            "value": "600",
+            "count": 4
+          }
+        ],
+        "borderRadius": [
+          {
+            "value": "0px",
+            "count": 72
+          },
+          {
+            "value": "10px",
+            "count": 3
+          },
+          {
+            "value": "24px",
+            "count": 1
+          },
+          {
+            "value": "18px",
+            "count": 1
+          },
+          {
+            "value": "50%",
+            "count": 1
+          },
+          {
+            "value": "12px",
+            "count": 1
+          },
+          {
+            "value": "999px",
+            "count": 1
+          },
+          {
+            "value": "0px 10px 10px 0px",
+            "count": 1
+          }
+        ],
+        "color": [
+          {
+            "value": "rgb(0, 0, 0)",
+            "count": 23
+          },
+          {
+            "value": "rgb(31, 36, 56)",
+            "count": 17
+          },
+          {
+            "value": "rgb(216, 189, 142)",
+            "count": 12
+          },
+          {
+            "value": "rgb(249, 244, 234)",
+            "count": 11
+          },
+          {
+            "value": "rgb(98, 109, 136)",
+            "count": 7
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.76)",
+            "count": 4
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.58)",
+            "count": 1
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.7)",
+            "count": 1
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.5)",
+            "count": 1
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.42)",
+            "count": 1
+          },
+          {
+            "value": "rgb(122, 103, 240)",
+            "count": 1
+          },
+          {
+            "value": "rgb(88, 70, 232)",
+            "count": 1
+          }
+        ],
+        "backgroundColor": [
+          {
+            "value": "rgba(0, 0, 0, 0)",
+            "count": 70
+          },
+          {
+            "value": "rgb(255, 255, 255)",
+            "count": 4
+          },
+          {
+            "value": "rgb(238, 240, 248)",
+            "count": 2
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.09)",
+            "count": 2
+          },
+          {
+            "value": "rgb(31, 36, 56)",
+            "count": 1
+          },
+          {
+            "value": "rgb(88, 70, 232)",
+            "count": 1
+          },
+          {
+            "value": "rgba(184, 154, 104, 0.08)",
+            "count": 1
+          }
+        ]
+      },
+      "probes": {
+        "body": {
+          "selector": "body",
+          "tag": "body",
+          "class": "",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgb(238, 240, 248)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "0px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 768,
+            "h": 1024
+          }
+        },
+        "sidebar": {
+          "selector": "aside, .app-sidebar, .sidebar, nav",
+          "tag": "aside",
+          "class": "auth-story",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(249, 244, 234)",
+          "backgroundColor": "rgb(31, 36, 56)",
+          "borderRadius": "0px",
+          "paddingTop": "24px",
+          "paddingLeft": "26px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 21,
+            "y": 73,
+            "w": 726,
+            "h": 215
+          }
+        },
+        "header": {
+          "selector": "header, .topbar, .app-header",
+          "tag": "header",
+          "class": "auth-card-head",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "0px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 51,
+            "y": 322,
+            "w": 666,
+            "h": 123
+          }
+        },
+        "composer": null,
+        "message": null,
+        "button": {
+          "selector": "button",
+          "tag": "button",
+          "class": "password-toggle",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "12px",
+          "fontWeight": "400",
+          "color": "rgb(88, 70, 232)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "12px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 658,
+            "y": 623,
+            "w": 58,
+            "h": 46
+          }
+        }
+      },
+      "viewportName": "768"
+    },
+    "chat-768": {
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "overflowX": 0,
+      "mediaQueries": {
+        "max767": false,
+        "min768": true,
+        "min1024": false
+      },
+      "fontFaces": [],
+      "distinct": {
+        "fontFamily": [
+          {
+            "value": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+            "count": 58
+          },
+          {
+            "value": "\"Times New Roman\"",
+            "count": 23
+          }
+        ],
+        "fontSize": [
+          {
+            "value": "14px",
+            "count": 44
+          },
+          {
+            "value": "16px",
+            "count": 24
+          },
+          {
+            "value": "12px",
+            "count": 6
+          },
+          {
+            "value": "26px",
+            "count": 2
+          },
+          {
+            "value": "17px",
+            "count": 1
+          },
+          {
+            "value": "9px",
+            "count": 1
+          },
+          {
+            "value": "12.5px",
+            "count": 1
+          },
+          {
+            "value": "10.5px",
+            "count": 1
+          },
+          {
+            "value": "9.5px",
+            "count": 1
+          }
+        ],
+        "fontWeight": [
+          {
+            "value": "400",
+            "count": 74
+          },
+          {
+            "value": "600",
+            "count": 5
+          },
+          {
+            "value": "700",
+            "count": 1
+          },
+          {
+            "value": "650",
+            "count": 1
+          }
+        ],
+        "borderRadius": [
+          {
+            "value": "0px",
+            "count": 68
+          },
+          {
+            "value": "28px",
+            "count": 2
+          },
+          {
+            "value": "18px 18px 5px",
+            "count": 2
+          },
+          {
+            "value": "18px 18px 18px 5px",
+            "count": 2
+          },
+          {
+            "value": "11px",
+            "count": 1
+          },
+          {
+            "value": "22px",
+            "count": 1
+          },
+          {
+            "value": "16px",
+            "count": 1
+          },
+          {
+            "value": "17px",
+            "count": 1
+          },
+          {
+            "value": "10px",
+            "count": 1
+          },
+          {
+            "value": "50%",
+            "count": 1
+          },
+          {
+            "value": "999px",
+            "count": 1
+          }
+        ],
+        "color": [
+          {
+            "value": "rgb(31, 36, 56)",
+            "count": 38
+          },
+          {
+            "value": "rgb(0, 0, 0)",
+            "count": 23
+          },
+          {
+            "value": "rgb(98, 109, 136)",
+            "count": 13
+          },
+          {
+            "value": "rgb(255, 255, 255)",
+            "count": 5
+          },
+          {
+            "value": "rgba(255, 255, 255, 0.72)",
+            "count": 2
+          }
+        ],
+        "backgroundColor": [
+          {
+            "value": "rgba(0, 0, 0, 0)",
+            "count": 68
+          },
+          {
+            "value": "rgb(255, 255, 255)",
+            "count": 3
+          },
+          {
+            "value": "rgb(88, 70, 232)",
+            "count": 3
+          },
+          {
+            "value": "rgb(238, 240, 248)",
+            "count": 2
+          },
+          {
+            "value": "rgb(245, 246, 250)",
+            "count": 2
+          },
+          {
+            "value": "rgb(240, 241, 247)",
+            "count": 1
+          },
+          {
+            "value": "rgb(98, 109, 136)",
+            "count": 1
+          },
+          {
+            "value": "rgba(247, 247, 252, 0.78)",
+            "count": 1
+          }
+        ]
+      },
+      "probes": {
+        "body": {
+          "selector": "body",
+          "tag": "body",
+          "class": "",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgb(238, 240, 248)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "0px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 768,
+            "h": 1024
+          }
+        },
+        "sidebar": null,
+        "header": {
+          "selector": "header, .topbar, .app-header",
+          "tag": "header",
+          "class": "chat-topbar",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "30.72px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 12,
+            "y": 64,
+            "w": 744,
+            "h": 68
+          }
+        },
+        "composer": {
+          "selector": "textarea, .composer, form.composer",
+          "tag": "textarea",
+          "class": "composer-input",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "10px",
+          "paddingLeft": "0px",
+          "lineHeight": "24px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 113,
+            "y": 909,
+            "w": 517,
+            "h": 44
+          }
+        },
+        "message": {
+          "selector": ".message, .bubble, [class*=message]",
+          "tag": "ol",
+          "class": "message-list",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "0px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 50,
+            "y": 166,
+            "w": 667,
+            "h": 439
+          }
+        },
+        "button": {
+          "selector": "button",
+          "tag": "button",
+          "class": "mobile-menu",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "borderRadius": "11px",
+          "paddingTop": "0px",
+          "paddingLeft": "12px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 16,
+            "y": 20,
+            "w": 81,
+            "h": 36
+          }
+        }
+      },
+      "viewportName": "768"
+    },
+    "login-1440": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "overflowX": 0,
+      "mediaQueries": {
+        "max767": false,
+        "min768": true,
+        "min1024": true
+      },
+      "fontFaces": [],
+      "distinct": {
+        "fontFamily": [
+          {
+            "value": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+            "count": 57
+          },
+          {
+            "value": "\"Times New Roman\"",
+            "count": 23
+          },
+          {
+            "value": "\"Songti SC\", STSong, \"Noto Serif SC\", serif",
+            "count": 1
+          }
+        ],
+        "fontSize": [
+          {
+            "value": "14px",
+            "count": 30
+          },
+          {
+            "value": "16px",
+            "count": 26
+          },
+          {
+            "value": "12px",
+            "count": 7
+          },
+          {
+            "value": "10px",
+            "count": 5
+          },
+          {
+            "value": "13px",
+            "count": 4
+          },
+          {
+            "value": "11px",
+            "count": 4
+          },
+          {
+            "value": "9px",
+            "count": 1
+          },
+          {
+            "value": "43px",
+            "count": 1
+          },
+          {
+            "value": "8px",
+            "count": 1
+          },
+          {
+            "value": "34px",
+            "count": 1
+          },
+          {
+            "value": "15px",
+            "count": 1
+          }
+        ],
+        "fontWeight": [
+          {
+            "value": "400",
+            "count": 77
+          },
+          {
+            "value": "600",
+            "count": 4
+          }
+        ],
+        "borderRadius": [
+          {
+            "value": "0px",
+            "count": 72
+          },
+          {
+            "value": "10px",
+            "count": 3
+          },
+          {
+            "value": "24px",
+            "count": 1
+          },
+          {
+            "value": "18px",
+            "count": 1
+          },
+          {
+            "value": "50%",
+            "count": 1
+          },
+          {
+            "value": "12px",
+            "count": 1
+          },
+          {
+            "value": "999px",
+            "count": 1
+          },
+          {
+            "value": "0px 10px 10px 0px",
+            "count": 1
+          }
+        ],
+        "color": [
+          {
+            "value": "rgb(0, 0, 0)",
+            "count": 23
+          },
+          {
+            "value": "rgb(31, 36, 56)",
+            "count": 17
+          },
+          {
+            "value": "rgb(216, 189, 142)",
+            "count": 12
+          },
+          {
+            "value": "rgb(249, 244, 234)",
+            "count": 11
+          },
+          {
+            "value": "rgb(98, 109, 136)",
+            "count": 7
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.76)",
+            "count": 4
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.58)",
+            "count": 1
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.7)",
+            "count": 1
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.5)",
+            "count": 1
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.42)",
+            "count": 1
+          },
+          {
+            "value": "rgb(122, 103, 240)",
+            "count": 1
+          },
+          {
+            "value": "rgb(88, 70, 232)",
+            "count": 1
+          }
+        ],
+        "backgroundColor": [
+          {
+            "value": "rgba(0, 0, 0, 0)",
+            "count": 70
+          },
+          {
+            "value": "rgb(255, 255, 255)",
+            "count": 4
+          },
+          {
+            "value": "rgb(238, 240, 248)",
+            "count": 2
+          },
+          {
+            "value": "rgba(249, 244, 234, 0.09)",
+            "count": 2
+          },
+          {
+            "value": "rgb(31, 36, 56)",
+            "count": 1
+          },
+          {
+            "value": "rgb(88, 70, 232)",
+            "count": 1
+          },
+          {
+            "value": "rgba(184, 154, 104, 0.08)",
+            "count": 1
+          }
+        ]
+      },
+      "probes": {
+        "body": {
+          "selector": "body",
+          "tag": "body",
+          "class": "",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgb(238, 240, 248)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "0px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 1440,
+            "h": 1000
+          }
+        },
+        "sidebar": {
+          "selector": "aside, .app-sidebar, .sidebar, nav",
+          "tag": "aside",
+          "class": "auth-story",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(249, 244, 234)",
+          "backgroundColor": "rgb(31, 36, 56)",
+          "borderRadius": "0px",
+          "paddingTop": "38px",
+          "paddingLeft": "42px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 161,
+            "y": 99,
+            "w": 593,
+            "h": 802
+          }
+        },
+        "header": {
+          "selector": "header, .topbar, .app-header",
+          "tag": "header",
+          "class": "auth-card-head",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "0px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 802,
+            "y": 192,
+            "w": 429,
+            "h": 130
+          }
+        },
+        "composer": null,
+        "message": null,
+        "button": {
+          "selector": "button",
+          "tag": "button",
+          "class": "password-toggle",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "12px",
+          "fontWeight": "400",
+          "color": "rgb(88, 70, 232)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "12px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 1172,
+            "y": 501,
+            "w": 58,
+            "h": 46
+          }
+        }
+      },
+      "viewportName": "1440"
+    },
+    "chat-1440": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "dpr": 1
+      },
+      "overflowX": 0,
+      "mediaQueries": {
+        "max767": false,
+        "min768": true,
+        "min1024": true
+      },
+      "fontFaces": [],
+      "distinct": {
+        "fontFamily": [
+          {
+            "value": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+            "count": 86
+          },
+          {
+            "value": "\"Times New Roman\"",
+            "count": 23
+          }
+        ],
+        "fontSize": [
+          {
+            "value": "14px",
+            "count": 54
+          },
+          {
+            "value": "16px",
+            "count": 25
+          },
+          {
+            "value": "12px",
+            "count": 10
+          },
+          {
+            "value": "13px",
+            "count": 4
+          },
+          {
+            "value": "15px",
+            "count": 3
+          },
+          {
+            "value": "10px",
+            "count": 3
+          },
+          {
+            "value": "17px",
+            "count": 2
+          },
+          {
+            "value": "11px",
+            "count": 2
+          },
+          {
+            "value": "26px",
+            "count": 2
+          },
+          {
+            "value": "9px",
+            "count": 1
+          },
+          {
+            "value": "12.5px",
+            "count": 1
+          },
+          {
+            "value": "10.5px",
+            "count": 1
+          }
+        ],
+        "fontWeight": [
+          {
+            "value": "400",
+            "count": 95
+          },
+          {
+            "value": "600",
+            "count": 8
+          },
+          {
+            "value": "700",
+            "count": 3
+          },
+          {
+            "value": "500",
+            "count": 2
+          },
+          {
+            "value": "650",
+            "count": 1
+          }
+        ],
+        "borderRadius": [
+          {
+            "value": "0px",
+            "count": 86
+          },
+          {
+            "value": "10px",
+            "count": 4
+          },
+          {
+            "value": "28px",
+            "count": 3
+          },
+          {
+            "value": "11px",
+            "count": 3
+          },
+          {
+            "value": "9px",
+            "count": 2
+          },
+          {
+            "value": "18px 18px 5px",
+            "count": 2
+          },
+          {
+            "value": "18px 18px 18px 5px",
+            "count": 2
+          },
+          {
+            "value": "14px",
+            "count": 1
+          },
+          {
+            "value": "8px",
+            "count": 1
+          },
+          {
+            "value": "22px",
+            "count": 1
+          },
+          {
+            "value": "16px",
+            "count": 1
+          },
+          {
+            "value": "17px",
+            "count": 1
+          }
+        ],
+        "color": [
+          {
+            "value": "rgb(31, 36, 56)",
+            "count": 48
+          },
+          {
+            "value": "rgb(98, 109, 136)",
+            "count": 24
+          },
+          {
+            "value": "rgb(0, 0, 0)",
+            "count": 23
+          },
+          {
+            "value": "rgb(255, 255, 255)",
+            "count": 8
+          },
+          {
+            "value": "rgb(88, 70, 232)",
+            "count": 4
+          },
+          {
+            "value": "rgba(255, 255, 255, 0.72)",
+            "count": 2
+          }
+        ],
+        "backgroundColor": [
+          {
+            "value": "rgba(0, 0, 0, 0)",
+            "count": 90
+          },
+          {
+            "value": "rgb(88, 70, 232)",
+            "count": 5
+          },
+          {
+            "value": "rgb(255, 255, 255)",
+            "count": 3
+          },
+          {
+            "value": "rgb(245, 246, 250)",
+            "count": 3
+          },
+          {
+            "value": "rgb(238, 234, 255)",
+            "count": 3
+          },
+          {
+            "value": "rgb(238, 240, 248)",
+            "count": 2
+          },
+          {
+            "value": "rgb(240, 241, 247)",
+            "count": 1
+          },
+          {
+            "value": "rgb(98, 109, 136)",
+            "count": 1
+          },
+          {
+            "value": "rgba(247, 247, 252, 0.78)",
+            "count": 1
+          }
+        ]
+      },
+      "probes": {
+        "body": {
+          "selector": "body",
+          "tag": "body",
+          "class": "",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgb(238, 240, 248)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "0px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 1440,
+            "h": 1000
+          }
+        },
+        "sidebar": {
+          "selector": "aside, .app-sidebar, .sidebar, nav",
+          "tag": "aside",
+          "class": "app-sidebar",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "borderRadius": "28px",
+          "paddingTop": "24px",
+          "paddingLeft": "16px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 12,
+            "y": 12,
+            "w": 288,
+            "h": 976
+          }
+        },
+        "header": {
+          "selector": "header, .topbar, .app-header",
+          "tag": "header",
+          "class": "chat-topbar",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "44px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 312,
+            "y": 12,
+            "w": 1116,
+            "h": 68
+          }
+        },
+        "composer": {
+          "selector": "textarea, .composer, form.composer",
+          "tag": "textarea",
+          "class": "composer-input",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "10px",
+          "paddingLeft": "0px",
+          "lineHeight": "24px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 493,
+            "y": 885,
+            "w": 730,
+            "h": 44
+          }
+        },
+        "message": {
+          "selector": ".message, .bubble, [class*=message]",
+          "tag": "ol",
+          "class": "message-list",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "400",
+          "color": "rgb(31, 36, 56)",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "paddingTop": "0px",
+          "paddingLeft": "0px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 430,
+            "y": 114,
+            "w": 880,
+            "h": 415
+          }
+        },
+        "button": {
+          "selector": "button",
+          "tag": "button",
+          "class": "new-chat-button",
+          "fontFamily": "\"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Segoe UI\", system-ui, sans-serif",
+          "fontSize": "14px",
+          "fontWeight": "600",
+          "color": "rgb(255, 255, 255)",
+          "backgroundColor": "rgb(88, 70, 232)",
+          "borderRadius": "14px",
+          "paddingTop": "1px",
+          "paddingLeft": "6px",
+          "lineHeight": "22px",
+          "letterSpacing": "normal",
+          "box": {
+            "x": 29,
+            "y": 89,
+            "w": 254,
+            "h": 44
+          }
+        }
+      },
+      "viewportName": "1440"
+    }
+  },
+  "errors": [
+    "320 console: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "320 console: Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "768 console: Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "1440 console: Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "browserVersion": "156.0.4314.58",
+  "finishedAt": "2026-11-06T13:49:43.419Z"
+}
