@@ -1793,7 +1793,7 @@ watch(
 .result-card:focus-within { outline: 2px solid var(--focus-ring-light); outline-offset: 2px; }
 .result-card:focus-visible { outline: 2px solid var(--focus-ring-light); outline-offset: 2px; }
 .result-media-link { position: relative; display: block; overflow: hidden; border-radius: var(--radius-sm); background: var(--surface-media); }
-.result-media { display: block; width: 100%; aspect-ratio: 3 / 4; border-radius: var(--radius-sm); background: var(--surface-media); object-fit: cover; }
+.result-media { display: block; width: 100%; height: auto; aspect-ratio: 3 / 4; border-radius: var(--radius-sm); background: var(--surface-media); object-fit: cover; }
 .result-media-hint {
   position: absolute;
   right: 10px;
