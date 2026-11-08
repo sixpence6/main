@@ -364,9 +364,7 @@ onBeforeUnmount(() => {
 .security-shell-page {
   min-height: 100vh;
   min-height: 100dvh;
-  background:
-    radial-gradient(circle at 8% 0, rgba(184, 154, 104, 0.1), transparent 26%),
-    var(--surface-canvas);
+  background: var(--surface-canvas);
 }
 .security-page {
   padding: 34px 20px 60px;
@@ -439,9 +437,7 @@ h2 {
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  background:
-    linear-gradient(135deg, rgba(184, 154, 104, 0.1), transparent 42%),
-    var(--surface-panel);
+  background: var(--surface-panel);
 }
 .security-panel-icon {
   display: grid;
@@ -497,8 +493,8 @@ h2 {
 .security-chip {
   flex: none;
   padding: 4px 9px;
-  border-radius: 999px;
-  background: rgba(184, 154, 104, 0.12);
+  border-radius: var(--radius-pill);
+  background: var(--action-soft);
   color: var(--action-link);
   font-size: 12px;
 }
@@ -554,7 +550,7 @@ h2 {
   padding: 15px;
   border: 1px solid var(--line-hairline);
   border-radius: var(--radius-sm);
-  background: rgba(255, 252, 247, 0.5);
+  background: var(--surface-panel);
 }
 .session-main {
   min-width: 0;
@@ -573,8 +569,8 @@ h2 {
 .session-current {
   flex: none;
   padding: 2px 7px;
-  border-radius: 999px;
-  background: rgba(66, 102, 76, 0.1);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--state-success) 10%, var(--surface-panel));
   color: var(--state-success);
   font-size: 12px;
 }
@@ -591,7 +587,7 @@ h2 {
   padding: 15px;
   border: 1px solid var(--line-hairline);
   border-radius: var(--radius-sm);
-  background: rgba(255, 252, 247, 0.5);
+  background: var(--surface-panel);
 }
 .event-title {
   margin: 0 0 6px;
@@ -601,29 +597,29 @@ h2 {
 }
 .event-result {
   padding: 2px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-canvas);
   color: var(--text-muted);
   font-size: 12px;
 }
 .event-result-success {
-  background: rgba(66, 102, 76, 0.1);
+  background: color-mix(in srgb, var(--state-success) 10%, var(--surface-panel));
   color: var(--state-success);
 }
 .event-result-failure,
 .event-result-denied {
-  background: rgba(164, 61, 53, 0.08);
+  background: color-mix(in srgb, var(--state-danger) 8%, var(--surface-panel));
   color: var(--state-danger);
 }
 .event-result-limited {
-  background: rgba(124, 90, 34, 0.1);
+  background: color-mix(in srgb, var(--state-warning) 10%, var(--surface-panel));
   color: var(--state-warning);
 }
 .security-help {
   padding: 16px 18px;
   border-left: 2px solid var(--action-link);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: rgba(184, 154, 104, 0.08);
+  background: var(--surface-inset);
 }
 .security-help strong {
   display: block;

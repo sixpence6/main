@@ -25,7 +25,12 @@ const {
   setProjectQuery,
 } = workspace
 
-const accountLabel = computed(() => currentAccount.value?.email ?? '登录后查看用量')
+const accountEmail = computed(() => currentAccount.value?.email ?? '未登录')
+const accountInitial = computed(() => accountEmail.value.slice(0, 1).toUpperCase())
+const accountMeta = computed(() => {
+  if (!currentAccount.value) return '登录后查看'
+  return currentAccount.value.is_admin ? '管理员 · 本地部署' : '本地账号'
+})
 const activeProjectId = computed(() => workspace.currentProject.value?.id ?? workspace.projectParam.value)
 const searchInput = ref(workspace.projectQuery.value)
 const renamingId = ref<string | null>(null)
@@ -245,11 +250,11 @@ onMounted(() => {
     </div>
 
     <div class="side-bottom">
-      <RouterLink class="side-meta-link" :to="{ name: 'account-security' }">
-        <span class="meta-icon" aria-hidden="true">◯</span>
-        <span class="meta-copy">
-          <strong>账号与用量</strong>
-          <small>{{ accountLabel }}</small>
+      <RouterLink class="side-user" :to="{ name: 'account-security' }">
+        <span class="side-avatar" aria-hidden="true">{{ accountInitial }}</span>
+        <span class="side-user-copy">
+          <strong>{{ accountEmail }}</strong>
+          <small>{{ accountMeta }}</small>
         </span>
       </RouterLink>
       <RouterLink class="side-meta-link" :to="{ name: 'account-security' }">
@@ -300,7 +305,7 @@ onMounted(() => {
   place-items: center;
   width: 24px;
   height: 24px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface-shell-active);
   color: var(--text-inverse-secondary);
   font-size: var(--text-body);
@@ -340,12 +345,15 @@ onMounted(() => {
   gap: var(--space-2);
   height: 36px;
   margin: 0 var(--space-3) var(--space-2);
-  padding: 0 10px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--line-inverse-control);
   border-radius: var(--radius-sm);
   background: var(--surface-shell-raised);
 }
-.side-search:focus-within { border-color: var(--focus-ring-dark); }
+.side-search:focus-within {
+  outline: 2px solid var(--focus-ring-dark);
+  outline-offset: 2px;
+}
 .search-icon { flex: none; color: var(--text-inverse-meta); font-size: var(--icon-sm); line-height: 1; }
 .search-input {
   min-width: 0;
@@ -367,7 +375,7 @@ onMounted(() => {
   width: 22px;
   height: 22px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-inverse-meta);
   font-size: 16px;
@@ -470,7 +478,7 @@ onMounted(() => {
 .conversation-meta {
   display: flex;
   flex: none;
-  gap: 6px;
+  gap: var(--space-1);
   max-width: 48%;
   overflow: hidden;
   color: var(--text-inverse-meta);
@@ -488,7 +496,7 @@ onMounted(() => {
   height: 24px;
   margin-right: var(--space-1);
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-inverse-meta);
   opacity: 0;
@@ -513,7 +521,7 @@ onMounted(() => {
   height: 28px;
   padding: 0 var(--space-2);
   border: 1px solid var(--line-inverse-control);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface-shell-raised);
   color: var(--text-inverse-primary);
   font: inherit;
@@ -525,7 +533,7 @@ onMounted(() => {
   height: 24px;
   padding: 0 var(--space-2);
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: var(--text-caption);
 }
 .rename-save { background: var(--action-primary); color: var(--action-primary-text); }
@@ -534,8 +542,8 @@ onMounted(() => {
 .load-more {
   display: block;
   width: calc(100% - var(--space-3));
-  margin: var(--space-2) 6px;
-  padding: 6px;
+  margin: var(--space-2) var(--space-1);
+  padding: var(--space-1);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -551,11 +559,52 @@ onMounted(() => {
   padding: var(--space-2) 0;
   border-top: 1px solid var(--line-inverse);
 }
+.side-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-inverse-secondary);
+  text-decoration: none;
+}
+.side-user:hover { background: var(--surface-shell-hover); }
+.side-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-shell-active);
+  color: var(--text-inverse-primary);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.side-user-copy { display: grid; min-width: 0; }
+.side-user-copy strong {
+  overflow: hidden;
+  color: var(--text-inverse-primary);
+  font-size: var(--text-body);
+  font-weight: 500;
+  line-height: var(--text-body-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side-user-copy small {
+  overflow: hidden;
+  color: var(--text-inverse-meta);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .side-meta-link {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 6px var(--space-3);
+  padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-sm);
   color: var(--text-inverse-secondary);
   text-decoration: none;
@@ -567,7 +616,7 @@ onMounted(() => {
   place-items: center;
   width: 24px;
   height: 24px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface-shell-active);
   color: var(--text-inverse-secondary);
   font-size: var(--icon-sm);

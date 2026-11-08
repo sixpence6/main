@@ -35,19 +35,18 @@ const {
   currentProject,
 } = workspace
 
+const ROUTE_TITLES: Record<string, string> = {
+  'project-results': '生成结果',
+  'account-security': '账号与用量',
+  'admin-accounts': '账号管理',
+}
+
 const pageTitle = computed(() => {
-  switch (route.name) {
-    case 'project-results':
-      return '生成结果'
-    case 'account-security':
-      return '账号与用量'
-    case 'admin-accounts':
-      return '账号管理'
-    default:
-      break
-  }
+  const routeName = typeof route.name === 'string' ? route.name : ''
+  const fixedTitle = ROUTE_TITLES[routeName]
+  if (fixedTitle) return fixedTitle
   if (currentProject.value) return displayProjectTitle(currentProject.value.title)
-  return route.name === 'project-chat' ? '对话' : '新对话'
+  return routeName === 'project-chat' ? '对话' : '新对话'
 })
 
 // Status text can include a project title. Never let it survive an account or
@@ -79,12 +78,12 @@ onBeforeUnmount(() => clearLiveStatus())
             </button>
             <span v-if="isCompact" class="topbar-brand">电商生图工作台</span>
             <span v-if="isCompact" class="topbar-divider" aria-hidden="true"></span>
-            <h1 class="topbar-title">{{ pageTitle }}</h1>
+            <component :is="chatView ? 'h1' : 'span'" class="topbar-title">{{ pageTitle }}</component>
           </div>
           <CurrentStatusCapsule v-if="!isMobile" variant="topbar" />
         </header>
 
-        <div v-if="isMobile && chatView" class="capsule-inline">
+        <div v-if="isMobile" class="capsule-inline">
           <CurrentStatusCapsule variant="inline" />
         </div>
 

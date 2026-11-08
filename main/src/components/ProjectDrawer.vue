@@ -242,7 +242,7 @@ async function submitRename(projectId: string): Promise<void> {
   border-radius: var(--radius-sm);
 }
 .project-list-entry.is-current {
-  background: var(--action-soft, var(--action-soft));
+  background: var(--action-soft);
 }
 .project-list-entry .project-list-item {
   flex: 1;

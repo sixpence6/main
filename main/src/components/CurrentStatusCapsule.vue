@@ -174,10 +174,10 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
 }
 .status-capsule-anchor.is-inline .status-icon { color: var(--text-secondary); }
-.status-capsule-anchor.is-inline .is-working .status-icon { color: var(--action-link); }
-.status-capsule-anchor.is-inline .is-waiting .status-icon { color: var(--state-warning); }
-.status-capsule-anchor.is-inline .is-success .status-icon { color: var(--state-success); }
-.status-capsule-anchor.is-inline .is-error .status-icon { color: var(--state-danger); }
+.status-capsule-anchor.is-inline .status-capsule.is-working .status-icon { color: var(--action-link); }
+.status-capsule-anchor.is-inline .status-capsule.is-waiting .status-icon { color: var(--state-warning); }
+.status-capsule-anchor.is-inline .status-capsule.is-success .status-icon { color: var(--state-success); }
+.status-capsule-anchor.is-inline .status-capsule.is-error .status-icon { color: var(--state-danger); }
 .status-capsule-anchor.is-inline .status-time { color: var(--text-muted); }
 
 @media (prefers-reduced-motion: reduce) {

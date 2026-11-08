@@ -155,11 +155,12 @@ async function submit(): Promise<void> {
   background: var(--surface-panel);
   color: var(--text-primary);
   font-size: var(--text-input);
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  transition: border-color var(--dur-base) var(--ease-out);
 }
 .login-field input:focus {
   border-color: var(--action-primary);
-  box-shadow: 0 0 0 3px rgba(112, 82, 57, 0.12);
+  outline: 2px solid var(--focus-ring-light);
+  outline-offset: 2px;
 }
 .login-field input[aria-invalid='true'] {
   border-color: var(--state-danger);
@@ -179,9 +180,9 @@ async function submit(): Promise<void> {
 .login-error {
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid rgba(164, 61, 53, 0.24);
+  border: 1px solid color-mix(in srgb, var(--state-danger) 35%, var(--line-hairline));
   border-radius: var(--radius-sm);
-  background: rgba(164, 61, 53, 0.06);
+  background: color-mix(in srgb, var(--state-danger) 7%, var(--surface-panel));
   color: var(--state-danger);
   font-size: 12px;
   line-height: 1.6;
@@ -208,7 +209,7 @@ async function submit(): Promise<void> {
   padding: 14px 16px;
   border-left: 2px solid var(--action-link);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: rgba(184, 154, 104, 0.08);
+  background: var(--surface-inset);
 }
 .login-help strong {
   display: block;

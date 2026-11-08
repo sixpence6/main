@@ -835,7 +835,7 @@ watch(
 .prompt-heading h3, .prompt-block h3 { margin: 0; font-size: 14px; }
 .prompt-block h3 + .prompt-text { margin-top: 8px; }
 .prompt-text { max-height: none; margin: 0 0 16px; padding: 14px; border-radius: 10px; background: var(--surface-inset); white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.65 var(--font-mono); }
-.prompt-negative { background: var(--surface-panel); }
+.prompt-negative { background: color-mix(in srgb, var(--state-danger) 6%, var(--surface-panel)); }
 .prompt-meta { margin-bottom: 0; }
 .text-button { padding: 2px 0; border: 0; background: transparent; color: var(--action-primary); font-size: 13px; }
 .text-button:hover { text-decoration: underline; }
@@ -899,10 +899,10 @@ watch(
 .result-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
 .result-download { min-height: 36px; padding: 0 14px; font-size: 13px; text-decoration: none; }
 .result-time { margin: 10px 0 0; color: var(--text-muted); font-size: 12px; }
-.result-unavailable { margin: 8px 0 0; padding: 12px; border: 1px solid color-mix(in srgb, var(--state-danger) 35%, var(--line-hairline)); border-radius: 10px; background: var(--surface-panel); color: var(--state-danger); }
+.result-unavailable { margin: 8px 0 0; padding: 12px; border: 1px solid color-mix(in srgb, var(--state-danger) 35%, var(--line-hairline)); border-radius: 10px; background: color-mix(in srgb, var(--state-danger) 6%, var(--surface-panel)); color: var(--state-danger); }
 .result-unavailable p { margin: 6px 0 0; font-size: 13px; line-height: 1.6; }
 figcaption { color: var(--text-muted); font-size: 13px; }
-.chat-error { width: min(var(--conversation-width), 100%); margin: 0 auto 20px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--state-danger) 35%, var(--line-hairline)); border-radius: 12px; background: var(--surface-panel); color: var(--state-danger); }
+.chat-error { width: min(var(--conversation-width), 100%); margin: 0 auto 20px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--state-danger) 35%, var(--line-hairline)); border-radius: 12px; background: color-mix(in srgb, var(--state-danger) 6%, var(--surface-panel)); color: var(--state-danger); }
 .chat-error p { margin: 0 0 4px; }
 .attachment-preview {
   display: flex;
@@ -992,12 +992,13 @@ figcaption { color: var(--text-muted); font-size: 13px; }
   border: 1px solid var(--line-hairline);
   border-radius: 22px;
   background: var(--surface-panel);
-  box-shadow: 0 10px 30px rgba(40, 44, 72, .08);
+  box-shadow: var(--shadow-composer);
   transition: border-color .22s ease, box-shadow .28s var(--ease-out), transform .28s var(--ease-out);
 }
 .composer-shell:focus-within {
   border-color: var(--text-muted);
-  box-shadow: 0 0 0 4px rgba(88, 70, 232, .08), 0 16px 38px rgba(40, 44, 72, .12);
+  outline: 2px solid var(--focus-ring-light);
+  outline-offset: 2px;
 }
 .composer-input {
   flex: 1;
