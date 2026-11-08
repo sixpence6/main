@@ -1,6 +1,5 @@
 import { render, screen, waitFor, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
-import ElementPlus from 'element-plus'
 import { createWebHistory } from 'vue-router'
 import { nextTick } from 'vue'
 import { vi } from 'vitest'
@@ -74,7 +73,7 @@ export async function mountWorkspace(options: MountWorkspaceOptions = {}) {
   )
   const router = createAppRouter(createWebHistory())
   const rendered = render(App, {
-    global: { plugins: [ElementPlus, router] },
+    global: { plugins: [router] },
   })
   await router.isReady()
 

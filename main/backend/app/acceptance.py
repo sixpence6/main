@@ -647,6 +647,139 @@ async def abandon_intent(
     return changed
 
 
+async def reopen_unsubmitted_intent(
+    factory: async_sessionmaker[AsyncSession],
+    *,
+    settings: Settings,
+    intent_id: str,
+    operator_account_id: str | None = None,
+    reason: str = "prompt_retry",
+    now: datetime | None = None,
+) -> bool:
+    """Reopen one abandoned intent that provably never reached image execution.
+
+    A prompt rejected before submission still has a counted usage row and three
+    released occupancy slots. Recompiling the prompt must reuse that same
+    authorization instead of creating another counted acceptance. A persisted
+    GenerationJob is proof that execution may exist, so it is never reopened.
+    """
+
+    from app.db import write_transaction
+
+    changed = False
+    async with write_transaction(factory) as session:
+        intent = await session.get(GenerationIntent, intent_id)
+        if intent is None or intent.status != "abandoned":
+            return False
+        if operator_account_id and intent.owner_account_id != operator_account_id:
+            raise conflict("OWNERSHIP_MISMATCH", "生成授权与当前账号不一致。")
+        if (
+            operator_account_id
+            and intent.operator_account_id not in {None, operator_account_id}
+        ):
+            raise conflict("OWNERSHIP_MISMATCH", "生成授权与当前账号不一致。")
+        attempt_id = await session.scalar(
+            select(GenerationJob.id)
+            .where(GenerationJob.intent_id == intent.id)
+            .limit(1)
+        )
+        if attempt_id is not None:
+            return False
+        slots = (
+            await session.scalars(
+                select(GenerationSlot).where(GenerationSlot.intent_id == intent.id)
+            )
+        ).all()
+        by_scope = {slot.scope: slot for slot in slots}
+        if set(by_scope) != {"personal", "instance", "project"}:
+            return False
+        if any(slot.released_at is None for slot in slots):
+            return False
+
+        now_dt = now or utc_now()
+        limits = await effective_limits(
+            session, settings=settings, account_id=intent.owner_account_id
+        )
+        personal_active = await _active_count(
+            session, scope="personal", scope_id=intent.owner_account_id
+        )
+        personal_active += slot_floor_count(
+            settings.resolved_data_dir(),
+            scope="personal",
+            scope_id=intent.owner_account_id,
+            now=now_dt,
+        )
+        if personal_active >= limits.personal_slots:
+            raise _limit_error(
+                "GENERATION_SLOT_BUSY",
+                "你已有进行中的生成任务，请等待其结束。",
+                limit=limits.personal_slots,
+                used=personal_active,
+            )
+        instance_active = await _active_count(
+            session, scope="instance", scope_id="instance"
+        )
+        instance_active += slot_floor_count(
+            settings.resolved_data_dir(),
+            scope="instance",
+            scope_id="instance",
+            now=now_dt,
+        )
+        if instance_active >= limits.instance_slots:
+            raise _limit_error(
+                "GENERATION_SLOT_BUSY",
+                "实例当前生成任务已满，请稍后重试。",
+                limit=limits.instance_slots,
+                used=instance_active,
+            )
+        project_active = await _active_count(
+            session, scope="project", scope_id=intent.project_id
+        )
+        project_active += slot_floor_count(
+            settings.resolved_data_dir(),
+            scope="project",
+            scope_id=intent.project_id,
+            now=now_dt,
+        )
+        if project_active >= limits.project_slots:
+            raise _limit_error(
+                "GENERATION_SLOT_BUSY",
+                "该项目已有进行中的生成任务，请等待其结束。",
+                limit=limits.project_slots,
+                used=project_active,
+            )
+
+        timestamp = format_timestamp(now_dt)
+        for slot in slots:
+            slot.released_at = None
+            slot.release_reason = None
+        intent.status = "accepted"
+        intent.updated_at = timestamp
+        write_audit(
+            session,
+            event_type="generation_intent_reopened",
+            result="success",
+            now=now_dt,
+            actor_kind="account" if operator_account_id else "system",
+            actor_account_id=operator_account_id,
+            target_account_id=intent.owner_account_id,
+            target_kind="generation_intent",
+            target_id=intent.id,
+            reason_code=reason[:64],
+            before={"status": "abandoned", "active_slots": 0},
+            after={"status": "accepted", "active_slots": 3},
+            detail={
+                "intent_id": intent.id,
+                "reason": reason[:120],
+                "reused_usage": True,
+                "image_attempt_exists": False,
+            },
+        )
+        await session.flush()
+        changed = True
+    return changed
+
+
 async def settle_unsubmitted_intent(
     factory: async_sessionmaker[AsyncSession],
     *,

@@ -122,6 +122,11 @@ async def load_context(
             .order_by(WorkflowRun.sequence_no.desc())
             .limit(1)
         )
+    from app.workflow import adjudication
+
+    adjudication.set_gate_mode(
+        getattr(app.state.settings, "workflow_gate_mode", "strict")
+    )
     return WorkflowContext(
         app=app,
         project=project,

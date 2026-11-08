@@ -356,8 +356,11 @@ async def test_revise_requirements_invalidates_confirmation_and_reruns_s03(full_
         assert visual.submit_calls == []
 
         project = (await client.get(f"/api/projects/{project_id}")).json()
-        assert project["messages"][-1]["role"] == "user"
-        assert project["messages"][-1]["content"] == edit_text
+        assert project["messages"][-2]["role"] == "user"
+        assert project["messages"][-2]["content"] == edit_text
+        assert project["messages"][-1]["role"] == "assistant"
+        assert "需求对齐情况" in project["messages"][-1]["content"]
+        assert "需求信息已对齐" in project["messages"][-1]["content"]
 
         # 旧卡不能借新版本重新确认，确认也不会触发任何生成。
         late = await client.post(

@@ -139,7 +139,7 @@ def classify_issue_code(code: str | None) -> ReasonCode:
         "MIXED_SCOPE",
     }:
         return ReasonCode.CONTENT_REJECTION
-    if code == "REVIEW_REVISE":
+    if code in {"REVIEW_REVISE", "PROMPT_INVALID", "REVISION_BUDGET_EXHAUSTED"}:
         return ReasonCode.REPAIRABLE_COMPOSITION
     if code in {
         "MISSING_INPUT",

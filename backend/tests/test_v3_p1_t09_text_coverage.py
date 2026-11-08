@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from app.adapters.base import ProviderOutcome
 from app.workflow.reasons import ReasonCode
+from app.workflow.stages.s07 import _assess_requirement
 from app.workflow.tables import (
     Artifact,
     DiagnosticEvent,
@@ -468,3 +469,22 @@ async def test_dangerous_numeric_drift_returns_to_new_version(full_settings) -> 
         reasons = [item["reason"] for item in diags if item["action"] == "reconfirm_requirements"]
         assert reasons == [ReasonCode.TRUE_DRIFT]
         assert visual.submit_calls == []
+
+
+def test_negative_prompt_list_suffix_still_covers_forbidden_requirement() -> None:
+    assessment = _assess_requirement(
+        "任何文字",
+        "任何文字，包括标签、水印、字母、数字或品牌标识",
+        binding="negative_prompt",
+    )
+    assert assessment["covered"] is True
+    assert assessment["content_intact"] is True
+
+
+def test_negative_prompt_qualifier_does_not_count_as_coverage() -> None:
+    assessment = _assess_requirement(
+        "任何文字",
+        "杯子四周不要文字",
+        binding="negative_prompt",
+    )
+    assert assessment["covered"] is False

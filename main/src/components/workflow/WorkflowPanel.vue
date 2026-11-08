@@ -555,7 +555,7 @@ function confirmationText(action: WorkflowAction): string {
 
 function actionLabel(action: WorkflowAction): string {
   if (action.id === 'confirm_requirements' && usage.value) {
-    return '确认以上需求并生成图片'
+    return '确认以上需求，生成提示词'
   }
   return action.label
 }

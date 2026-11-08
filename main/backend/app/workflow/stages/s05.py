@@ -14,6 +14,7 @@ from app.workflow import templates
 from app.workflow.adjudication import (
     RULESET_VERSION,
     ProtocolIssue,
+    gate_mode_for_target,
     governance_ruleset,
     review_output,
 )
@@ -86,6 +87,19 @@ def _ruleset_for(required_rules: tuple[str, ...]) -> Any:
 _VISUAL_KINDS = ("brief_draft", "creative_direction")
 _CARD_KINDS = ("brief_draft", "creative_direction", "visual_plan")
 _URL_MARKERS = ("://", "http:", "https:", "data:")
+# When no on-image copy is approved, a plan may still quote the requirement
+# itself (for example the user's words "no text"). Such meta references are
+# not layout copy and must not be mistaken for invented screen text.
+_TEXT_LAYOUT_META_MARKERS = (
+    "文字",
+    "文案",
+    "标题",
+    "副标题",
+    "字幕",
+    "水印",
+    "标识",
+    "logo",
+)
 
 
 def _latest_status(ctx: WorkflowContext, kind: str) -> str | None:
@@ -347,6 +361,11 @@ def _drift() -> ApiError:
     return conflict("REQUIREMENT_DRIFT", templates.render("ACTION_UNAVAILABLE"))
 
 
+def _is_text_control_quote(value: str) -> bool:
+    lowered = value.casefold()
+    return any(marker in lowered for marker in _TEXT_LAYOUT_META_MARKERS)
+
+
 def _check_text_layout(
     visual: dict[str, Any], brief: dict[str, Any], creative: dict[str, Any]
 ) -> None:
@@ -372,7 +391,7 @@ def _check_text_layout(
         )
         if not says_no_text:
             raise _drift()
-        if quoted:
+        if any(not _is_text_control_quote(item) for item in quoted):
             raise _drift()
         return
     for text in expected_texts:
@@ -653,6 +672,15 @@ async def _review_artifact(
     allowed.update(extra_evidence or set())
     ruleset = _ruleset_for(required_rules)
     try:
+        if gate_mode_for_target(target_kind) == "off":
+            # Gate disabled: keep dependency/staleness safety checks, but do
+            # not spend a reviewer model call on this target.
+            await _verify_dependencies(ctx, dependencies, expected_revision)
+            latest_target = await latest_artifact(ctx, artifact.kind)
+            if latest_target is None or latest_target.id != artifact.id:
+                await set_artifact_status(ctx, artifact.id, "superseded")
+                raise _stale()
+            return "pass", []
         output = await run_role(
             ctx,
             "output_reviewer",

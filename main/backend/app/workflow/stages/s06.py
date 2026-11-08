@@ -30,8 +30,9 @@ from app.workflow.state import (
     record_diagnostic,
     referenced_material_digest,
     set_stage,
+    start_new_run,
 )
-from app.workflow.tables import Approval, Artifact, ArtifactReview, WorkflowRun
+from app.workflow.tables import Approval, Artifact, RevisionBudget, WorkflowRun
 
 STAGE = "S06"
 ACTIONS = ["confirm_requirements", "revise_requirements"]
@@ -95,22 +96,6 @@ def _unresolved_error() -> ApiError:
     )
 
 
-async def _latest_review(
-    ctx: WorkflowContext, artifact_id: str
-) -> ArtifactReview | None:
-    async with read_session(ctx.session_factory) as session:
-        return await session.scalar(
-            select(ArtifactReview)
-            .where(
-                ArtifactReview.artifact_id == artifact_id,
-                ArtifactReview.project_id == ctx.project_id,
-                ArtifactReview.target_kind == "artifact",
-            )
-            .order_by(ArtifactReview.created_at.desc(), ArtifactReview.id.desc())
-            .limit(1)
-        )
-
-
 def _payload(artifact: Artifact) -> dict[str, Any] | None:
     try:
         value = json.loads(artifact.payload_json)
@@ -122,17 +107,15 @@ def _payload(artifact: Artifact) -> dict[str, Any] | None:
 async def _require_approved_card(
     ctx: WorkflowContext,
 ) -> tuple[Artifact, dict[str, Any]]:
-    """Return the latest final brief only when its latest review is a pass.
+    """Return the current final brief once S05 review has approved it.
 
-    Artifact.status alone is not enough: a later revise/reject review can
-    leave an old approved status behind, so the latest independent review is
-    checked explicitly. No model is called here; the review already exists.
+    The independent review already happened when S05 published the card; only
+    a passing review sets Artifact.status to approved. Re-checking a separate
+    review row here made an otherwise completed card look unconfirmed. No
+    model is called here.
     """
     artifact = await latest_artifact(ctx, "final_brief")
     if artifact is None or artifact.status != "approved":
-        raise _artifact_error()
-    review = await _latest_review(ctx, artifact.id)
-    if review is None or review.decision != "pass":
         raise _artifact_error()
     data = _payload(artifact)
     if data is None:
@@ -141,8 +124,6 @@ async def _require_approved_card(
     if isinstance(unresolved, list) and unresolved:
         raise _unresolved_error()
     return artifact, data
-
-
 
 
 def _execution_snapshot(
@@ -367,6 +348,13 @@ async def _reject_stale_existing(
     return False
 
 
+async def _prompt_budget(ctx: WorkflowContext) -> RevisionBudget | None:
+    if ctx.run is None:
+        return None
+    async with read_session(ctx.session_factory) as session:
+        return await session.get(RevisionBudget, (ctx.run.id, "prompt_plan"))
+
+
 async def _revise_requirements(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
     """Start a fresh S03 requirements version from an explicit user edit.
 
@@ -435,6 +423,14 @@ async def _revise_requirements(ctx: WorkflowContext, payload: dict[str, Any]) ->
             "confirmation_id": confirmation.id if confirmation is not None else None,
         },
     )
+    # A prompt-candidate budget belongs to one immutable workflow run. Once it
+    # is exhausted, a further requirements revision cannot make progress on
+    # that run, so the revision starts a fresh run instead of silently
+    # resetting or overshooting the old run's three-candidate cap. The old run
+    # and all of its artifacts stay intact for history.
+    budget = await _prompt_budget(ctx)
+    if budget is not None and budget.used >= budget.max_allowed:
+        await start_new_run(ctx, "S03")
     await s03.start_requirements_revision(
         ctx,
         text,

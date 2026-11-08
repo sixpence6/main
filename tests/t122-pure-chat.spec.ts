@@ -362,6 +362,30 @@ describe('T10 纯对话入口与首次文生图闭环', () => {
     expect(harness.fetch.count('POST', ACTIONS_PATH + 'confirm_prompt')).toBe(0)
   })
 
+  it('需求审查失败时展示错误与恢复动作，不再显示正在整理', async () => {
+    harness = await mountWorkspace({
+      config: configuredConfig(),
+      viewportWidth: 1440,
+      url: '/projects/' + PROJECT_A + '/chat',
+      setup: (fetch) => {
+        fetch.route('GET', '/api/health', () => ({ body: { status: 'ok' } }))
+        fetch.route('GET', DETAIL_PATH, () => ({ body: detail(1, []) }))
+        fetch.route('GET', WORKFLOW_PATH, () => ({
+          body: view({
+            status: 'failed',
+            issue: { code: 'REVIEW_UNAVAILABLE', message: '审查暂不可用，内容尚未放行。', template_id: 'REVIEW_UNAVAILABLE', params: {} },
+            available_actions: [action('continue_workflow', '继续流程')],
+          }),
+        }))
+      },
+    })
+
+    expect(await screen.findByText('审查暂不可用，内容尚未放行。')).toBeVisible()
+    expect(screen.getByRole('button', { name: '继续流程' })).toBeVisible()
+    expect(screen.queryByText('正在整理需求…')).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '任务状态' }).querySelector('.typing-dots')).toBeNull()
+  })
+
   it('打开已有对话不会自动执行业务动作', async () => {
     harness = await mountWorkspace({
       config: configuredConfig(),

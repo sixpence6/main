@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from app.adapters.base import ProviderError
 from app.timeutil import format_timestamp, utc_now
-from app.workflow import adjudication
+from app.workflow import adjudication, prompts
 from app.workflow.stages import (
     s01,
     s02,
@@ -176,6 +178,97 @@ REVIEW_CATALOGUES = {
 }
 
 
+def test_four_personas_cover_every_work_unit_role() -> None:
+    labels = {
+        "appearance": "外观",
+        "planner": "策划",
+        "maker": "制图",
+        "inspector": "质检",
+    }
+    assert set(prompts.PERSONA_INCREMENTS) == set(labels)
+    assert set(prompts.PERSONA_BY_ROLE) == set(prompts.ROLE_INCREMENTS)
+    for role in prompts.ROLE_INCREMENTS:
+        system_prompt = prompts.build_system_prompt(role)
+        persona = prompts.PERSONA_BY_ROLE[role]
+        assert system_prompt.count("【团队角色：") == 1, role
+        assert f"【团队角色：{labels[persona]}】" in system_prompt, role
+
+
+def test_requirements_only_keeps_s03_strict_but_relaxes_other_gates() -> None:
+    adjudication.set_gate_mode("requirements_only")
+    try:
+        with pytest.raises(adjudication.ProtocolIssue) as strict:
+            adjudication.adjudicate(
+                s03._RULESET,
+                target_id="requirement:1",
+                result_target_id="requirement:1",
+                declared_decision="pass",
+                checks=[],
+                allowed_evidence={"requirement:1"},
+            )
+        assert strict.value.code == adjudication.MISSING_RESULT
+
+        relaxed = adjudication.review_output(
+            {
+                "results": [
+                    {
+                        "target_id": "prompt:1",
+                        "decision": "reject",
+                        "checks": [
+                            {
+                                "rule_id": "G03_CONFIRMATION",
+                                "outcome": "fail",
+                                "evidence_ids": [],
+                            }
+                        ],
+                    }
+                ]
+            },
+            target_id="prompt:1",
+            ruleset=adjudication.s07_rules(),
+            allowed_evidence=set(),
+        )
+        assert relaxed.decision == "pass"
+        assert relaxed.blocking_failures == ()
+    finally:
+        adjudication.set_gate_mode("strict")
+
+
+def test_off_mode_also_relaxes_the_requirements_gate() -> None:
+    adjudication.set_gate_mode("off")
+    try:
+        relaxed = adjudication.review_output(
+            {
+                "results": [
+                    {
+                        "target_id": "requirement:1",
+                        "decision": "revise",
+                        "checks": [
+                            {
+                                "rule_id": "G03_STRUCTURE",
+                                "outcome": "fail",
+                                "evidence_ids": [],
+                            }
+                        ],
+                    }
+                ]
+            },
+            target_id="requirement:1",
+            ruleset=s03._RULESET,
+            allowed_evidence=set(),
+        )
+        assert relaxed.decision == "pass"
+        assert relaxed.approved
+    finally:
+        adjudication.set_gate_mode("strict")
+
+
+def test_gate_mode_default_keeps_requirements_review_enabled() -> None:
+    from app.config import Settings
+
+    assert Settings.model_fields["workflow_gate_mode"].default == "requirements_only"
+
+
 def test_every_stage_action_inventory_is_complete() -> None:
     for stage, module in STAGE_MODULES.items():
         assert tuple(module.ACTIONS) == STAGE_ACTIONS[stage], stage
@@ -218,6 +311,97 @@ def _fail_first_reviewer(ids: Any) -> Any:
 
     return responder
 
+
+async def test_s10_off_gate_skips_reviewer_and_approves_manifest(
+    full_settings: Any,
+) -> None:
+    from tests.support.adapters import LLMStub
+
+    settings = full_settings.model_copy(update={"workflow_gate_mode": "requirements_only"})
+    stub = LLMStub()
+
+    async def seed(settings: Any, session: Any) -> Any:
+        ids = await _seed_ready_state(settings, session)
+        stub.role_responder = _role_responder(ids)
+        return ids
+
+    async with _delivery_env(settings, stub, seed) as env:
+        prepared = await _post_action(env, "prepare_delivery")
+        assert prepared.status_code == 200, prepared.text
+        view = prepared.json()
+        assert view["stage"] == "S10"
+        assert view["status"] == "needs_input"
+        assert view["issue"]["code"] == "DELIVERY_MANIFEST_READY"
+        manifest = next(
+            item for item in view["artifacts"] if item["kind"] == "delivery_manifest"
+        )
+        assert manifest["status"] == "approved"
+        approval = next(
+            item
+            for item in view["approvals"]
+            if item["approval_type"] == "delivery_manifest"
+        )
+        assert approval["artifact_id"] == manifest["id"]
+        roles = [call.payload["task"]["role"] for call in stub.role_calls_received]
+        assert roles == ["delivery_manager"]
+
+        approved = await env.client.post(
+            f"/api/projects/{env.ids.project_id}/workflow/actions/approve_delivery",
+            json={"expected_revision": view["project_revision"]},
+        )
+        assert approved.status_code == 200, approved.text
+        assert approved.json()["issue"]["code"] == "DELIVERY_APPROVED"
+
+
+async def test_s10_continue_after_review_outage_skips_reviewer_when_gate_off(
+    full_settings: Any,
+) -> None:
+    from tests.support.adapters import LLMStub
+
+    stub = LLMStub()
+
+    async def seed(settings: Any, session: Any) -> Any:
+        ids = await _seed_ready_state(settings, session)
+        stub.role_responder = _fail_first_reviewer(ids)
+        return ids
+
+    async with _delivery_env(full_settings, stub, seed) as env:
+        failed = await _post_action(env, "prepare_delivery")
+        assert failed.status_code == 503, failed.text
+        view = (
+            await env.client.get(f"/api/projects/{env.ids.project_id}/workflow")
+        ).json()
+        assert view["stage"] == "S10"
+        assert view["status"] == "failed"
+        assert view["issue"]["template_id"] == "REVIEW_UNAVAILABLE"
+        manifest = next(
+            item for item in view["artifacts"] if item["kind"] == "delivery_manifest"
+        )
+        assert manifest["status"] == "candidate"
+        calls_before = len(stub.role_calls_received)
+
+        env.settings.workflow_gate_mode = "requirements_only"
+        continued = await env.client.post(
+            f"/api/projects/{env.ids.project_id}/workflow/actions/continue_workflow",
+            json={"expected_revision": view["project_revision"]},
+        )
+        assert continued.status_code == 200, continued.text
+        recovered = continued.json()
+        assert recovered["stage"] == "S10"
+        assert recovered["status"] == "needs_input"
+        assert recovered["issue"]["code"] == "DELIVERY_MANIFEST_READY"
+        recovered_manifest = next(
+            item
+            for item in recovered["artifacts"]
+            if item["kind"] == "delivery_manifest"
+        )
+        assert recovered_manifest["id"] == manifest["id"]
+        assert recovered_manifest["status"] == "approved"
+        assert any(
+            item["approval_type"] == "delivery_manifest"
+            for item in recovered["approvals"]
+        )
+        assert len(stub.role_calls_received) == calls_before
 
 async def test_s10_recovery_replays_persisted_manifest_without_new_producer(
     full_settings: Any,

@@ -13,6 +13,7 @@ recorded and never changes a blocking gate that is already satisfied.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, Final, Literal
 
@@ -20,6 +21,33 @@ RULESET_VERSION = "v3.rules.1"
 
 SUPPORTED_RULESET_VERSIONS: Final[frozenset[str]] = frozenset({RULESET_VERSION})
 _MAX_PERSISTED_RULES = 256
+
+GateMode = Literal["strict", "requirements_only", "off"]
+_GATE_MODE: ContextVar[GateMode] = ContextVar("workflow_gate_mode", default="strict")
+
+
+def set_gate_mode(mode: str) -> None:
+    """Set the request/task-local gate policy before workflow work starts."""
+    if mode not in {"strict", "requirements_only", "off"}:
+        raise ValueError(f"unknown workflow gate mode: {mode}")
+    _GATE_MODE.set(mode)  # type: ignore[arg-type]
+
+
+def current_gate_mode() -> GateMode:
+    return _GATE_MODE.get()
+
+
+def gate_mode_for_target(target_kind: str) -> GateMode:
+    """Return the effective mode for one target kind.
+
+    The requirements stage keeps its independent review in every mode: its
+    output is immediately shown to the user and must not be garbled or
+    ungrounded. Other rule catalogues are bypassed until strict mode returns.
+    """
+    mode = current_gate_mode()
+    if mode == "requirements_only" and target_kind != "requirement_draft":
+        return "off"
+    return mode
 
 
 class RulesetCompatibilityError(ValueError):
@@ -263,6 +291,46 @@ def _check_evidence(check: Check, rule: Rule, allowed: set[str]) -> None:
             raise ProtocolIssue(ILLEGAL_EVIDENCE, f"规则 {rule.rule_id} 证据来源不匹配")
 
 
+def _relaxed_adjudication(
+    ruleset: RuleSet,
+    *,
+    target_id: str,
+    declared_decision: str,
+    checks: Iterable[Any],
+    allowed_evidence: Iterable[str],
+) -> Adjudication:
+    """Collect well-formed observations without letting the catalogue block.
+
+    The target and the declared decision still have to be structurally legal.
+    Unknown rules, duplicate instances and evidence-id mistakes are ignored
+    rather than promoted into hard stops; this is the deliberate soft-gate
+    rollout path.
+    """
+    allowed = set(allowed_evidence)
+    seen: dict[tuple[str, str], Check] = {}
+    for raw in checks:
+        try:
+            check = _as_check(raw, ruleset)
+            rule = next((item for item in ruleset.rules if item.slot == check.slot), None)
+            if rule is None:
+                continue
+            _check_evidence(check, rule, allowed)
+        except ProtocolIssue:
+            continue
+        seen.setdefault(check.slot, check)
+    ordered = tuple(seen[rule.slot] for rule in ruleset.rules if rule.slot in seen)
+    return Adjudication(
+        target_id=target_id,
+        decision="pass",
+        declared_decision=declared_decision,
+        checks=ordered,
+        blocking_failures=(),
+        blocking_unknowns=(),
+        advisory={check.rule_id: check.outcome for check in ordered},
+        ruleset_version=ruleset.version,
+    )
+
+
 def adjudicate(
     ruleset: RuleSet,
     *,
@@ -277,6 +345,14 @@ def adjudicate(
         raise ProtocolIssue(WRONG_TARGET, "审查目标与当前产物不一致")
     if declared_decision not in ruleset.decisions:
         raise ProtocolIssue(UNSUPPORTED_DECISION, "审查结论不在允许范围")
+    if gate_mode_for_target(ruleset.target_kind) == "off":
+        return _relaxed_adjudication(
+            ruleset,
+            target_id=target_id,
+            declared_decision=declared_decision,
+            checks=checks,
+            allowed_evidence=allowed_evidence,
+        )
     allowed = set(allowed_evidence)
     seen: dict[tuple[str, str], Check] = {}
     for raw in checks:
@@ -647,11 +723,14 @@ __all__ = [
     "RulesetCompatibilityError",
     "SUPPORTED_RULESET_VERSIONS",
     "adjudicate",
+    "current_gate_mode",
     "evidence_type",
+    "gate_mode_for_target",
     "governance_ruleset",
     "review_output",
     "recovery_ruleset",
     "review_results",
     "ruleset_from_payload",
     "s07_rules",
+    "set_gate_mode",
 ]

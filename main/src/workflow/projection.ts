@@ -192,7 +192,7 @@ export function nextStepForWorkflow(
   if (confirmation === 'pending') {
     return {
       title: '核对并确认当前需求卡',
-      detail: '当前需求卡已通过独立审查。核对商品、参考用途和尺寸后，点击确认按钮开始生成；每次只生成一张图。',
+      detail: '当前需求卡已通过独立审查。核对商品、参考用途和尺寸后，点击确认按钮生成图片提示词；你确认提示词后才会生成图片。',
       actionId: 'confirm_requirements',
     }
   }
@@ -207,6 +207,27 @@ export function nextStepForWorkflow(
     return {
       title: '需要重新确认需求',
       detail: '需求内容、参考图或版本已经变化，原确认不能继续使用。请核对最新需求卡后重新确认。',
+      actionId: null,
+    }
+  }
+  if (view.stage === 'S04') {
+    return {
+      title: '正在整理创意方向',
+      detail: '需求信息已对齐，系统正在整理创意方向；完成后会继续生成视觉方案和可确认的需求卡。',
+      actionId: null,
+    }
+  }
+  if (view.stage === 'S05') {
+    return {
+      title: '正在整理视觉方案',
+      detail: '创意方向已就绪，系统正在整理视觉方案；完成后会生成可确认的需求卡。',
+      actionId: null,
+    }
+  }
+  if (view.stage === 'S06') {
+    return {
+      title: '正在整理需求卡',
+      detail: '系统正在整理可确认的需求卡，请稍候；需求卡就绪后会显示确认按钮。',
       actionId: null,
     }
   }

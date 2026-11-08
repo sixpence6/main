@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { assetUrl } from '@/api/client'
 import type { GenerationView } from '@/api/types'
 import type { WorkflowVersion } from '@/api/workflow'
+import { publishLiveStatus, type LiveStatusInput } from '@/composables/useLiveStatus'
 import { useWorkflow } from '@/composables/useWorkflow'
 import { useWorkspace } from '@/composables/useWorkspace'
 import { currentPublishedVersion } from '@/workflow/projection'
@@ -14,6 +15,7 @@ const { currentProject, projectParam, projectGenerations, projectLoading } = wor
 const workflow = useWorkflow(projectParam)
 const route = useRoute()
 const router = useRouter()
+const resultsFigure = ref<HTMLElement | null>(null)
 
 const requestedRunId = computed(() =>
   typeof route.query.version === 'string' && route.query.version.trim()
@@ -106,6 +108,48 @@ function formatVersionSize(version: WorkflowVersion): string {
   if (item?.result_asset) return item.result_asset.width + ' × ' + item.result_asset.height
   return '尺寸信息不可用'
 }
+
+const liveStatusInput = computed<LiveStatusInput>(() => {
+  const projectTitle = currentProject.value ? displayProjectTitle(currentProject.value.title) : '生成结果'
+  const projectId = projectParam.value
+  const base = { projectId, projectTitle, detail: '', busy: false }
+  if (projectLoading.value || workflow.loading.value) {
+    return { ...base, label: '正在读取结果', detail: '正在恢复当前版本和历史版本…', tone: 'working', busy: true }
+  }
+  if (!displayedVersion.value) {
+    return { ...base, label: '结果暂不可用', detail: unavailableText.value, tone: 'waiting' }
+  }
+  if (isHistory.value) {
+    return {
+      ...base,
+      label: '正在查看历史版本',
+      detail: `${versionLabel(displayedVersion.value)}，修改仍基于当前交付。`,
+      tone: 'idle',
+    }
+  }
+  return {
+    ...base,
+    label: '结果已就绪',
+    detail: `${versionLabel(displayedVersion.value)} · 可以下载原图或返回对话修改。`,
+    tone: 'success',
+  }
+})
+
+watch(
+  liveStatusInput,
+  (next) => publishLiveStatus(next),
+  { immediate: true, flush: 'post' },
+)
+
+watch(
+  () => route.query.version,
+  async (version) => {
+    if (!version) return
+    await nextTick()
+    resultsFigure.value?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  },
+  { flush: 'post' },
+)
 </script>
 
 <template>
@@ -131,11 +175,18 @@ function formatVersionSize(version: WorkflowVersion): string {
     </div>
     <template v-else>
       <article class="results-current">
-        <figure class="results-figure">
+        <figure ref="resultsFigure" class="results-figure">
           <img
             :src="assetUrl(displayedVersion.asset_id!)"
             :alt="displayedVersion.caption || '生成结果图片'"
+            :width="displayedVersion.width ?? undefined"
+            :height="displayedVersion.height ?? undefined"
+            :style="displayedVersion.width && displayedVersion.height
+              ? { aspectRatio: displayedVersion.width + ' / ' + displayedVersion.height }
+              : undefined"
             class="results-image"
+            loading="eager"
+            decoding="async"
           />
           <figcaption>
             {{ isHistory ? '历史版本' : '当前版本' }} · {{ versionLabel(displayedVersion) }}
@@ -203,7 +254,14 @@ function formatVersionSize(version: WorkflowVersion): string {
             :aria-current="version.run_id === displayedVersion?.run_id ? 'true' : undefined"
             @click="selectVersion(version.run_id)"
           >
-            <img :src="assetUrl(version.asset_id!)" alt="" />
+            <img
+              :src="assetUrl(version.asset_id!)"
+              :width="version.width ?? undefined"
+              :height="version.height ?? undefined"
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
             <span>{{ versionLabel(version) }}</span>
             <time :datetime="version.published_at || version.created_at">
               {{ formatDateTime(version.published_at || version.created_at) }}

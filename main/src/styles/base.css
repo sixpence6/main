@@ -5,9 +5,14 @@
 }
 
 html,
-body,
-#app {
+body {
   height: 100%;
+}
+
+/* 用 min-height 而不是 height：独立路由页（账号安全、登录等）内容超出一屏时
+   由文档自然滚动，固定高度会让溢出内容被裁掉。 */
+#app {
+  min-height: 100%;
 }
 
 body {

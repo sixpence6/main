@@ -68,7 +68,8 @@ const titleId = useId()
 
 <style scoped>
 .auth-frame {
-  min-height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 32px 24px;

@@ -759,3 +759,37 @@ async def test_model_cannot_smuggle_provider_or_model_choice_into_candidate(full
         assert response.json()["error"]["code"] == "SERVICE_UNAVAILABLE"
         assert len(llm.role_calls_received) == 1
         assert visual.submit_calls == []
+
+@pytest.mark.asyncio
+async def test_compile_prompt_skips_reviewer_when_gates_off(full_settings):
+    settings = full_settings.model_copy(update={"workflow_gate_mode": "requirements_only"})
+    brief = base_brief()
+    engineer_data = candidate_data(brief)
+
+    def fail_reviewer(_request):
+        raise AssertionError("reviewer must not be called")
+
+    async with environment(
+        settings,
+        engineer=lambda _request: engineer_response(engineer_data),
+        reviewer=fail_reviewer,
+    ) as (app, client, llm, visual, _registry):
+        setup = await setup_confirmed_project(app, client)
+        response = await workflow_action(client, setup, "compile_prompt")
+        assert response.status_code == 200, response.text
+        view = response.json()
+        assert view["stage"] == "S08"
+        assert view["status"] == "active"
+        assert [request.payload["task"]["role"] for request in llm.role_calls_received] == [
+            "generation_engineer"
+        ]
+        prompt = next(
+            artifact for artifact in view["artifacts"] if artifact["kind"] == "prompt_plan"
+        )
+        assert prompt["status"] == "approved"
+        approvals = [
+            item for item in view["approvals"] if item["approval_type"] == "generation_prompt"
+        ]
+        assert len(approvals) == 1
+        assert approvals[0]["approved_by"] == "output_reviewer"
+        assert visual.submit_calls == []

@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
-import { currentAccount, sessionEstablished, sessionInvalidated, sessionRevalidating } from '@/auth/session'
+import { currentAccount, sessionEstablished, sessionInvalidated, sessionRevalidating, sessionRevision } from '@/auth/session'
+import { clearLiveStatus } from '@/composables/useLiveStatus'
 import AppSidebar from '@/components/AppSidebar.vue'
+import CurrentStatusCapsule from '@/components/CurrentStatusCapsule.vue'
 import SideDrawer from '@/components/SideDrawer.vue'
 import StatusAnnouncer from '@/components/StatusAnnouncer.vue'
 import UnsavedChangesDialog from '@/components/UnsavedChangesDialog.vue'
@@ -31,6 +33,11 @@ const {
   cancelNavigation,
   currentProject,
 } = workspace
+
+// Status text can include a project title. Never let it survive an account or
+// login-lifecycle change, even for the first frame of the next workspace.
+watch(sessionRevision, () => clearLiveStatus(), { flush: 'sync' })
+onBeforeUnmount(() => clearLiveStatus())
 </script>
 
 <template>
@@ -60,6 +67,7 @@ const {
           </section>
           <RouterView />
         </div>
+        <CurrentStatusCapsule />
       </main>
 
       <SideDrawer />
@@ -90,7 +98,7 @@ const {
   background: var(--color-page);
   overflow: hidden;
 }
-.pure-main { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; }
+.pure-main { position: relative; display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; }
 .mobile-bar { display: flex; align-items: center; flex: none; height: 52px; padding: 0 4px; }
 .mobile-menu { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 11px; background: var(--color-panel); color: var(--color-text); }
 .main-panel { position: relative; display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; border-radius: var(--radius-shell); }

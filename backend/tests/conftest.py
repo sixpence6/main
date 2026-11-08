@@ -51,6 +51,9 @@ def _test_settings(base: Settings, **overrides) -> Settings:
         "visual_api_key": None,
         "visual_model": None,
         "visual_image_size": None,
+        # Existing gate tests exercise the strict catalogue. New soft-gate
+        # behaviour is covered explicitly by its own tests.
+        "workflow_gate_mode": "strict",
     }
     values.update(overrides)
     return Settings(**values)
@@ -76,6 +79,7 @@ def settings(tmp_path: Path) -> Settings:
         visual_api_key=None,
         visual_model=None,
         visual_image_size=None,
+        workflow_gate_mode="strict",
     )
 
 

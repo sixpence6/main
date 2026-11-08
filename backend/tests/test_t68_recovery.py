@@ -11,7 +11,8 @@ from app.db import write_transaction
 from app.errors import ApiError
 from app.services.recovery import repair_leftover_state
 from app.workflow.stages import s08 as s08_module
-from app.workflow.tables import GenerationJob
+from app.workflow import templates
+from app.workflow.tables import GenerationJob, RevisionBudget, WorkflowRun
 from tests.support.adapters import LLMStub, VisualStub
 from tests.test_t65_generation_cycle import (
     _delivery_response,
@@ -99,6 +100,52 @@ async def test_prompt_failure_keeps_true_state_count_and_slot(full_settings):
         assert all(slot.released_at is None for slot in slots)
         assert visual.submit_calls == []
         assert len(llm.role_calls_received) == 1
+
+
+@pytest.mark.asyncio
+async def test_startup_repairs_active_s07_with_exhausted_prompt_budget(full_settings):
+    llm = LLMStub()
+    visual = VisualStub()
+    async with _environment(full_settings, llm, visual, _normal_responder) as (app, client):
+        setup = await _setup_s06(app, client)
+        async with write_transaction(app.state.session_factory) as session:
+            run = await session.scalar(
+                select(WorkflowRun)
+                .where(WorkflowRun.project_id == setup["project_id"])
+                .order_by(WorkflowRun.sequence_no.desc())
+                .limit(1)
+            )
+            assert run is not None
+            run.stage = "S07"
+            run.status = "active"
+            run.issue_code = None
+            run.template_id = None
+            session.add(
+                RevisionBudget(
+                    run_id=run.id,
+                    artifact_kind="prompt_plan",
+                    used=3,
+                    max_allowed=3,
+                )
+            )
+            await session.flush()
+
+        await repair_leftover_state(app)
+
+        view = (
+            await client.get(f"/api/projects/{setup['project_id']}/workflow")
+        ).json()
+        assert view["stage"] == "S07"
+        assert view["status"] == "blocked"
+        assert view["issue"]["code"] == "REVISION_BUDGET_EXHAUSTED"
+        assert view["task_state"]["reason"]["message"] == templates.render(
+            "REVISION_BUDGET_EXHAUSTED"
+        )
+        assert {item["id"] for item in view["available_actions"]} == {
+            "revise_requirements"
+        }
+        assert llm.role_calls_received == []
+        assert visual.submit_calls == []
 
 
 @pytest.mark.asyncio

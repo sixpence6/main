@@ -35,6 +35,7 @@ from app.workflow.adjudication import (
     RULESET_VERSION,
     Adjudication,
     ProtocolIssue,
+    gate_mode_for_target,
     governance_ruleset,
     review_output,
 )
@@ -390,6 +391,76 @@ async def _requirement_payload(ctx: WorkflowContext, job: GenerationJob) -> dict
     }
 
 
+async def _accept_manifest_without_content_review(
+    ctx: WorkflowContext,
+    *,
+    artifact: Artifact,
+    asset: Asset,
+    job: GenerationJob,
+    target_id: str,
+) -> None:
+    """Approve one locally validated manifest when the content gate is off.
+
+    The delivery file itself is still verified byte-for-byte against the
+    approved image before this helper is called. The audit row says content
+    review was skipped; it must never look like a model verdict.
+    """
+    checks = [
+        {
+            "rule_id": rule_id,
+            "outcome": "pass",
+            "evidence_ids": [asset.id, artifact.id],
+            "note": "门禁已关闭，仅执行本地交付校验",
+        }
+        for rule_id in _MANIFEST_RULES
+    ]
+    audit = {
+        "gate_mode": "off",
+        "content_review": "skipped",
+        "technical_check": "pass",
+        "asset_id": asset.id,
+        "asset_digest": asset.sha256,
+        "artifact_id": artifact.id,
+        "target_id": target_id,
+    }
+    await add_review(
+        ctx,
+        artifact,
+        reviewer_role="output_reviewer",
+        decision="pass",
+        checks=checks,
+        target_kind="artifact",
+        raw=audit,
+    )
+    artifact.status = "approved"
+    await add_approval(
+        ctx,
+        approval_type="delivery_manifest",
+        artifact=artifact,
+        approved_by="output_reviewer",
+        checks={
+            "asset_id": asset.id,
+            "asset_digest": asset.sha256,
+            "target_id": target_id,
+            "requirement_revision": ctx.run.requirement_revision,
+            "ruleset_version": RULESET_VERSION,
+            "gate_mode": "off",
+            "content_review": "skipped",
+        },
+        requirement_digest=job.confirmed_snapshot_digest,
+        model_fingerprint="gate-off:local-delivery-only",
+    )
+    await set_stage(
+        ctx,
+        STAGE,
+        "needs_input",
+        issue_code="DELIVERY_MANIFEST_READY",
+        message="交付清单已完成本地校验，请确认发布。",
+        template_id="WAIT_STAGE",
+        params={"stage_label": "准备交付"},
+    )
+
+
 async def _prepare(ctx: WorkflowContext) -> None:
     job, asset = await _load_job_and_asset(ctx)
     image_approval = await _require_image_approval(ctx, asset, job)
@@ -453,6 +524,15 @@ async def _prepare(ctx: WorkflowContext) -> None:
 
     artifact = await start_artifact(ctx, "delivery_manifest", model.model_dump(mode="json"))
     target_id = f"delivery_manifest:{artifact.id}"
+    if gate_mode_for_target("delivery_manifest") == "off":
+        await _accept_manifest_without_content_review(
+            ctx,
+            artifact=artifact,
+            asset=asset,
+            job=job,
+            target_id=target_id,
+        )
+        return
     allowed_evidence = (asset.id, image_approval.id, artifact.id)
     try:
         review = await run_role(

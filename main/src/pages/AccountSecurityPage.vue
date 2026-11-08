@@ -362,7 +362,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .security-shell-page {
-  min-height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(circle at 8% 0, rgba(184, 154, 104, 0.1), transparent 26%),
     var(--color-page);

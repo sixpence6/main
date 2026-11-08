@@ -14,6 +14,7 @@ from app.workflow import templates
 from app.workflow.adjudication import (
     RULESET_VERSION,
     RulesetCompatibilityError,
+    gate_mode_for_target,
     recovery_ruleset,
 )
 from app.workflow.roles import (
@@ -153,12 +154,27 @@ def _is_recoverable_checkpoint(ctx: WorkflowContext, checkpoint: dict[str, Any])
     # A review that completed at the provider but failed the stage's semantic
     # validation has no error checkpoint. Its completed request is still the
     # exact, safe unit to replay when the run is parked on REVIEW_UNAVAILABLE.
-    return (
+    if (
         status == "completed"
         and checkpoint.get("phase") == "review"
         and ctx.run is not None
         and ctx.run.status in {"failed", "blocked"}
         and ctx.run.issue_code in RETRYABLE_REVIEW_ISSUES
+    ):
+        return True
+    # S03 also performs server-side semantic validation after a successful
+    # requirements-consultant call. A no-product ready draft used to fail here
+    # without an error checkpoint, leaving "continue" permanently unavailable
+    # even though the completed producer request is the exact, safe unit to
+    # retry after the validator is fixed.
+    return (
+        status == "completed"
+        and checkpoint.get("phase") == "producer"
+        and checkpoint.get("stage") == "S03"
+        and checkpoint.get("role") == "requirements_consultant"
+        and ctx.run is not None
+        and ctx.run.status == "failed"
+        and ctx.run.issue_code == "SERVICE_UNAVAILABLE"
     )
 
 
@@ -1163,6 +1179,20 @@ async def _resume_s10_review(
             template_id=exc.code,
         )
         raise
+    if ctx.project.revision != checkpoint.get(
+        "project_revision"
+    ) or ctx.run.requirement_revision != checkpoint.get("requirement_revision"):
+        await set_artifact_status(ctx, artifact.id, "superseded")
+        raise _stale()
+    if gate_mode_for_target("delivery_manifest") == "off":
+        await s10._accept_manifest_without_content_review(
+            ctx,
+            artifact=artifact,
+            asset=asset,
+            job=job,
+            target_id=target_id,
+        )
+        return
     allowed = set(task.get("allowed_evidence_ids") or []) | {target_id}
     try:
         review = await run_role_request(

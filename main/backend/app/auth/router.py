@@ -15,9 +15,8 @@ from app.auth.principal import require_principal
 from app.auth.security_events import SecurityEventListResponse, list_personal_security_events
 from app.auth.service import login, logout
 from app.auth.sessions import (
-    PREAUTH_CSRF_COOKIE,
     SESSION_ABSOLUTE_SECONDS,
-    SESSION_COOKIE,
+    cookie_names,
 )
 from app.auth.tokens import constant_time_equals, new_token, source_ref, token_digest
 from app.auth.views import AccountView, SessionView, account_view, session_view
@@ -68,8 +67,9 @@ class SessionListResponse(BaseModel):
 
 
 def _set_session_cookie(response: Response, token: str, settings: Settings) -> None:
+    session_cookie, _ = cookie_names(settings.auth_cookie_secure)
     response.set_cookie(
-        key=SESSION_COOKIE,
+        key=session_cookie,
         value=token,
         max_age=SESSION_ABSOLUTE_SECONDS,
         path="/",
@@ -80,8 +80,9 @@ def _set_session_cookie(response: Response, token: str, settings: Settings) -> N
 
 
 def _clear_session_cookie(response: Response, settings: Settings) -> None:
+    session_cookie, _ = cookie_names(settings.auth_cookie_secure)
     response.delete_cookie(
-        key=SESSION_COOKIE,
+        key=session_cookie,
         path="/",
         secure=settings.auth_cookie_secure,
         httponly=True,
@@ -90,8 +91,9 @@ def _clear_session_cookie(response: Response, settings: Settings) -> None:
 
 
 def _clear_preauth_cookie(response: Response, settings: Settings) -> None:
+    _, csrf_cookie = cookie_names(settings.auth_cookie_secure)
     response.delete_cookie(
-        key=PREAUTH_CSRF_COOKIE,
+        key=csrf_cookie,
         path="/",
         secure=settings.auth_cookie_secure,
         httponly=False,
@@ -111,17 +113,18 @@ def _request_source(request: Request) -> str:
 @router.get("/csrf", response_model=CsrfResponse)
 async def csrf(request: Request) -> JSONResponse:
     settings: Settings = request.app.state.settings
+    _, csrf_cookie = cookie_names(settings.auth_cookie_secure)
     auth_session = getattr(request.state, "auth_session", None)
     if auth_session is not None:
         # GET must not rotate or clobber the session-bound CSRF token.
-        current = request.cookies.get(PREAUTH_CSRF_COOKIE)
+        current = request.cookies.get(csrf_cookie)
         if current and constant_time_equals(auth_session.csrf_digest, token_digest(current)):
             return JSONResponse(CsrfResponse(csrf_token=current).model_dump())
         raise ApiError(401, "AUTH_REQUIRED", "请先登录")
     token = new_token()
     response = JSONResponse(CsrfResponse(csrf_token=token).model_dump())
     response.set_cookie(
-        key=PREAUTH_CSRF_COOKIE,
+        key=csrf_cookie,
         value=token,
         max_age=PREAUTH_CSRF_MAX_AGE,
         path="/",
@@ -154,8 +157,9 @@ async def login_endpoint(request: Request, payload: LoginRequest) -> JSONRespons
         ).model_dump()
     )
     _set_session_cookie(response, result.raw_token, settings)
+    _, csrf_cookie = cookie_names(settings.auth_cookie_secure)
     response.set_cookie(
-        key=PREAUTH_CSRF_COOKIE,
+        key=csrf_cookie,
         value=result.csrf_token,
         max_age=SESSION_ABSOLUTE_SECONDS,
         path="/",
@@ -172,7 +176,9 @@ async def session_endpoint(request: Request) -> SessionResponse:
     auth_session = getattr(request.state, "auth_session", None)
     if account is None or auth_session is None:
         raise ApiError(401, "AUTH_REQUIRED", "请先登录")
-    csrf_token = request.cookies.get(PREAUTH_CSRF_COOKIE)
+    csrf_token = request.cookies.get(
+        cookie_names(request.app.state.settings.auth_cookie_secure)[1]
+    )
     if not csrf_token or not constant_time_equals(
         auth_session.csrf_digest, token_digest(csrf_token)
     ):

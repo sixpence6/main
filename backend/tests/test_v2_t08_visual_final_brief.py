@@ -484,6 +484,28 @@ async def test_visual_plan_must_match_requested_text_or_state_no_text(full_setti
         assert visual.submit_calls == []
 
 
+async def test_visual_plan_no_text_may_quote_the_requirement(full_settings):
+    """无文字时，引用用户“不需要文字”的原话只是需求说明，不是新增画面文案。"""
+    script = Script(
+        visual=[
+            visual_data(
+                text_layout=(
+                    "无画面文字。按用户“不需要文字”的要求，不安排标题、副标题、"
+                    "卖点、价格、标识、水印或任何可读字形；不预留文字框。"
+                )
+            )
+        ],
+        reviews=["pass"],
+    )
+    async with _environment(full_settings, script) as (application, client, _, _):
+        project = await _create_project(client)
+        await _seed_upstream(application, project["id"])
+
+        response = await _act(client, project["id"], "plan_visual")
+        assert response.status_code == 200, response.text
+        assert _artifact(response.json(), "visual_plan")["status"] == "approved"
+
+
 async def test_text_requirement_cannot_gain_unconfirmed_copy(full_settings):
     """AC-13：视觉方案只能布局已确认准确文字，不能新增文案。"""
     script = Script(
@@ -902,3 +924,31 @@ async def test_reference_usage_boundary_is_enforced(full_settings):
         second = await _act(client, rejected_project["id"], "plan_visual")
         assert second.status_code == 409, second.text
         assert second.json()["error"]["code"] == "REQUIREMENT_DRIFT"
+
+
+async def test_visual_and_final_reviews_are_skipped_when_gates_are_off(full_settings):
+    settings = full_settings.model_copy(update={"workflow_gate_mode": "requirements_only"})
+    script = Script(visual=[visual_data()], reviews=[])
+    async with _environment(settings, script) as (application, client, llm, visual):
+        project = await _create_project(client)
+        await _seed_upstream(application, project["id"])
+
+        planned = await _act(client, project["id"], "plan_visual")
+        assert planned.status_code == 200, planned.text
+        plan = _artifact(planned.json(), "visual_plan")
+        assert plan is not None
+        assert plan["status"] == "approved"
+
+        finalized = await _act(client, project["id"], "finalize_requirements")
+        assert finalized.status_code == 200, finalized.text
+        final_view = finalized.json()
+        assert final_view["stage"] == "S06"
+        assert final_view["status"] == "active"
+        card = _artifact(final_view, "final_brief")
+        assert card is not None
+        assert card["status"] == "approved"
+
+        assert [call.payload["task"]["role"] for call in llm.role_calls_received] == [
+            "visual_director"
+        ]
+        assert visual.submit_calls == []

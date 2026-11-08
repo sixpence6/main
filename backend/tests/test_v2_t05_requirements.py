@@ -64,6 +64,40 @@ def _ready(request: Any, **overrides: Any) -> dict[str, Any]:
     }
 
 
+def _ready_no_product(request: Any) -> dict[str, Any]:
+    evidence = request.payload["task"]["allowed_evidence_ids"][0]
+    return {
+        "role": "requirements_consultant",
+        "status": "ready",
+        "data": {
+            "product_description": None,
+            "purpose": "活动海报",
+            "facts": [
+                {
+                    "text": "画面不含商品，只呈现人物写真。",
+                    "basis": "user_declared",
+                    "evidence_ids": [evidence],
+                }
+            ],
+            "creative_direction": None,
+            "style_keywords": [],
+            "composition": None,
+            "lighting": None,
+            "texts": [],
+            "must_include": ["人物写真"],
+            "must_preserve": ["画面只呈现人物写真", "画面不含商品", "画面不含任何文案"],
+            "forbidden": ["任何商品", "任何文案或文字"],
+            "size": request.payload["capabilities"]["size"] or "1024x1024",
+            "reference_asset_id": None,
+            "reference_usage": "none",
+            "assumptions": [],
+            "unresolved": [],
+        },
+        "issues": [],
+        "questions": [],
+    }
+
+
 def _needs_input(
     request: Any,
     *,
@@ -375,7 +409,17 @@ async def test_complete_text_request_creates_reviewed_draft_without_generation(f
         assert payload["unresolved"] == []
 
         messages = await _messages(client, project["id"])
-        assert [message["content"] for message in messages] == [text]
+        assert [message["role"] for message in messages] == ["user", "assistant"]
+        assert messages[0]["content"] == text
+        report = messages[1]["content"]
+        assert report.startswith("需求对齐情况")
+        assert "基本信息：3/3 项已明确" in report
+        assert "商品主体：米色托特包" in report
+        assert "使用场景与目标：电商商品主图" in report
+        assert "输出尺寸：1024x1024" in report
+        assert "还缺少的信息\n- 无，需求信息已对齐。" in report
+        assert "确认需求后将生成图片提示词" in report
+        assert "只有你确认提示词后，系统才会生成图片" in report
         producer = stub.role_calls_received[2]
         assert producer.payload["task"]["role"] == "requirements_consultant"
         assert producer.payload["input_data"]["user_text"] == text
@@ -453,6 +497,11 @@ async def test_missing_subject_or_purpose_is_a_reviewed_central_question(
 
         roles = [request.payload["task"]["role"] for request in stub.role_calls_received]
         assert roles[-2:] == ["requirements_consultant", "output_reviewer"]
+        consultant_prompt = stub.role_calls_received[-2].system_prompt
+        assert "不得只写“需要补充需求”“信息不足”" in consultant_prompt
+        assert "商品主体 → 使用场景与目标 → 必须保留的商品特征" in consultant_prompt
+        assert "给出 2—3 个贴合当前商品的示例选项" in consultant_prompt
+        assert "用户已经回答的内容不得再次询问" in consultant_prompt
         assert stub.role_calls_received[-1].payload["review_targets"][0]["questions"] == [question]
 
         answered = await _act(
@@ -471,9 +520,80 @@ async def test_missing_subject_or_purpose_is_a_reviewed_central_question(
         assert approved and approved[0]["payload"]["product_description"] == "米色托特包"
 
         messages = await _messages(client, project["id"])
-        assert [message["role"] for message in messages] == ["user", "user"]
-        assert messages[-1]["content"] == "是一只米色托特包，用于电商商品主图。"
+        assert [message["role"] for message in messages] == [
+            "user",
+            "assistant",
+            "user",
+            "assistant",
+        ]
+        assert messages[1]["content"].startswith("需求对齐情况")
+        assert "请补充以下信息" in messages[1]["content"]
+        assert question in messages[1]["content"]
+        assert "推荐提示词（可直接复制后补充发送）" in messages[1]["content"]
+        assert "还需要补充：" in messages[1]["content"]
+        assert messages[2]["content"] == "是一只米色托特包，用于电商商品主图。"
+        assert "基本信息：3/3 项已明确" in messages[3]["content"]
+        assert "还缺少的信息\n- 无，需求信息已对齐。" in messages[3]["content"]
         _, jobs = await _table_counts(application, project["id"])
+        assert jobs == 0
+        assert visual.submit_calls == []
+
+
+async def test_corrupted_clarification_is_blocked_instead_of_displayed(full_settings):
+    question = "请说明商品主体是什么\ufffd"
+    first = _needs_input(
+        None,
+        question=question,
+        path="product_description",
+        detail="缺少必要信息",
+    )
+    script = Script([lambda request: first, _ready])
+    async with _environment(full_settings, script) as (application, client, stub, visual):
+        project = await _create_project(client)
+        started = await _start(client, project["id"], "做一张商品图")
+        response = await _act(
+            client,
+            project["id"],
+            "compose_brief",
+            expected_revision=started["project_revision"],
+        )
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "REVIEW_INVALID"
+        assert "\ufffd" not in response.text
+
+        view = await _view(client, project["id"])
+        assert view["stage"] == "S03"
+        assert view["status"] == "blocked"
+        assert view["issue"]["code"] == "REVIEW_INVALID"
+        assert "\ufffd" not in str(view)
+
+        messages = await _messages(client, project["id"])
+        assert [message["role"] for message in messages] == ["user"]
+        assert "\ufffd" not in str(messages)
+
+
+async def test_corrupted_ready_draft_is_rejected_before_any_candidate(full_settings):
+    script = Script([lambda request: _ready(request, product_description="米色托特包\ufffd")])
+    async with _environment(full_settings, script) as (application, client, stub, visual):
+        project = await _create_project(client)
+        started = await _start(client, project["id"], "做一张商品图")
+        response = await _act(
+            client,
+            project["id"],
+            "compose_brief",
+            expected_revision=started["project_revision"],
+        )
+        assert response.status_code == 503, response.text
+        assert response.json()["error"]["code"] == "SERVICE_UNAVAILABLE"
+        assert "\ufffd" not in response.text
+
+        view = await _view(client, project["id"])
+        assert view["stage"] == "S03"
+        assert view["status"] == "failed"
+        assert view["issue"]["code"] == "SERVICE_UNAVAILABLE"
+        assert "\ufffd" not in str(view)
+        artifacts, jobs = await _table_counts(application, project["id"])
+        assert artifacts == 0
         assert jobs == 0
         assert visual.submit_calls == []
 
@@ -540,6 +660,49 @@ async def test_price_ambiguity_is_centralized_and_never_invented(full_settings):
             .payload["input_data"]["user_text"]
             .startswith("做一个保温杯主图")
         )
+
+
+async def test_open_ended_style_question_is_not_blocked_by_wording(full_settings):
+    question = "请描述希望的整体风格与背景，例如：极简纯色背景、居家桌面场景、节日氛围布景。"
+    data = _ready_data_for_questions(
+        product_description="马克杯",
+        purpose="主页展示",
+        unresolved=["整体风格与背景未明确"],
+    )
+    script = Script(
+        [
+            lambda request: _needs_input(
+                request,
+                question=question,
+                path="style_keywords",
+                detail="用户希望制作马克杯主页展示图，但尚未说明整体风格与背景",
+                data=data,
+            )
+        ]
+    )
+    async with _environment(full_settings, script) as (application, client, stub, visual):
+        project = await _create_project(client)
+        started = await _start(client, project["id"], "我想生成一张马克杯电商图，用于主页展示")
+        response = await _act(
+            client,
+            project["id"],
+            "compose_brief",
+            expected_revision=started["project_revision"],
+        )
+        assert response.status_code == 200, response.text
+        view = response.json()
+        assert view["stage"] == "S03"
+        assert view["status"] == "needs_input"
+        assert view["issue"]["code"] == "MISSING_INPUT"
+        assert view["issue"]["template_id"] is None
+        assert view["issue"]["message"] == question
+        assert view["artifacts"] == []
+        assert stub.role_calls_received[-1].payload["review_targets"][0]["questions"] == [
+            question
+        ]
+        _, jobs = await _table_counts(application, project["id"])
+        assert jobs == 0
+        assert visual.submit_calls == []
 
 
 async def test_unrequested_text_stays_empty_and_authorized_copy_is_preserved(full_settings):
@@ -921,6 +1084,7 @@ async def test_technical_failure_is_not_retried(full_settings):
             ]
         },
         {"product_description": "   "},
+        {"product_description": None},
         {"purpose": ""},
         {"unresolved": ["价格未明确"]},
     ],
@@ -943,4 +1107,59 @@ async def test_business_source_and_size_validation_rejects_bad_drafts(full_setti
         artifacts, jobs = await _table_counts(application, project["id"])
         assert artifacts == 0
         assert jobs == 0
+        assert visual.submit_calls == []
+
+
+async def test_no_product_ready_brief_is_normalized_and_continue_recovers(full_settings):
+    def invalid(request):
+        return _ready(request, product_description=None)
+
+    script = Script([invalid, _ready_no_product])
+    async with _environment(full_settings, script) as (application, client, stub, visual):
+        project = await _create_project(client)
+        started = await _start(
+            client, project["id"], "做一个海边人物写真，画面不含商品，也不要文字"
+        )
+        response = await _act(
+            client,
+            project["id"],
+            "compose_brief",
+            expected_revision=started["project_revision"],
+        )
+        assert response.status_code == 503, response.text
+        assert response.json()["error"]["code"] == "SERVICE_UNAVAILABLE"
+        failed = await _view(client, project["id"])
+        assert failed["stage"] == "S03"
+        assert failed["status"] == "failed"
+        assert [item["id"] for item in failed["available_actions"]] == ["continue_workflow"]
+
+        continued = await _act(
+            client,
+            project["id"],
+            "continue_workflow",
+            expected_revision=failed["project_revision"],
+        )
+        assert continued.status_code == 200, continued.text
+        view = continued.json()
+        assert view["stage"] == "S04"
+        assert view["status"] == "active"
+        drafts = [item for item in view["artifacts"] if item["kind"] == "brief_draft"]
+        assert len(drafts) == 1
+        assert drafts[0]["status"] == "approved"
+        assert drafts[0]["payload"]["product_description"] == "画面不含商品，只呈现人物写真。"
+        assert drafts[0]["payload"]["purpose"] == "活动海报"
+        assert drafts[0]["payload"]["texts"] == []
+        messages = await _messages(client, project["id"])
+        report = messages[-1]["content"]
+        assert report.startswith("需求对齐情况")
+        assert "画面主体：画面不含商品，只呈现人物写真。" in report
+        assert "商品主体：" not in report
+        assert "必须保留的画面特征：" in report
+        assert "必须保留的商品特征" not in report
+        assert "还缺少的信息\n- 无，需求信息已对齐。" in report
+
+        artifacts, jobs = await _table_counts(application, project["id"])
+        assert artifacts == 1
+        assert jobs == 0
+        assert script.brief_calls == 2
         assert visual.submit_calls == []

@@ -24,6 +24,7 @@ from app.workflow.adjudication import (
     Rule,
     RuleSet,
     adjudicate,
+    gate_mode_for_target,
     governance_ruleset,
     review_results,
 )
@@ -1026,6 +1027,173 @@ def _with_local_technical_result(
     return result
 
 
+async def _approve_without_content_review(
+    ctx: WorkflowContext,
+    *,
+    candidate: _Candidate,
+    rules: list[_RuleSpec],
+    quality_target: str,
+    image_target: str,
+    size: str,
+    technical_evidence: str,
+    image_evidence: str,
+    artifact_kind: str,
+) -> None:
+    """Approve a durable candidate when the content-review gate is off.
+
+    Only the local technical check (mime type and confirmed size) remains. A
+    technical mismatch is still a hard block and never creates an approving
+    quality report. Audit rows state explicitly that content review was
+    skipped so an approval cannot be mistaken for a model verdict.
+    """
+    if not _local_technical_ok(candidate, size):
+        await _set_asset(
+            ctx,
+            candidate.asset,
+            "quarantined",
+            "local technical check failed",
+            candidate.sha256,
+        )
+        await _set_job(ctx, candidate.job, "rejected")
+        if candidate.job is not None:
+            await _mark_correction(ctx, candidate.job, "rejected")
+        await set_stage(
+            ctx,
+            STAGE,
+            "blocked",
+            issue_code="IMAGE_NOT_APPROVED",
+            template_id="IMAGE_NOT_APPROVED",
+            message="图片尺寸或格式与确认要求不一致，本次未放行。请调整需求后重新生成。",
+        )
+        return
+
+    quality_checks: list[dict[str, Any]] = []
+    image_checks: list[dict[str, Any]] = []
+    for rule in rules:
+        if not rule.applicable:
+            quality_checks.append(
+                {
+                    "rule_id": rule.rule_id,
+                    "outcome": "not_applicable",
+                    "evidence_ids": [],
+                    "note": "当前需求不适用",
+                }
+            )
+            continue
+        evidence = (
+            technical_evidence
+            if "technical" in rule.evidence_types
+            else image_evidence
+        )
+        quality_checks.append(
+            {
+                "rule_id": rule.rule_id,
+                "outcome": "pass",
+                "evidence_ids": [evidence],
+                "note": "门禁已关闭，仅执行本地技术校验",
+            }
+        )
+        image_checks.append(
+            {
+                "rule_id": rule.rule_id,
+                "outcome": "pass",
+                "evidence_ids": [evidence],
+                "note": "门禁已关闭，仅执行本地技术校验",
+            }
+        )
+    quality_data = {
+        "asset_id": candidate.asset.id,
+        "decision": "pass",
+        "checks": quality_checks,
+        "soft_feedback": [],
+        "limitations": ["内容审查门禁已关闭，仅执行本地尺寸与格式校验。"],
+        "user_summary": "内容审查门禁已关闭，图片已通过本地尺寸与格式校验。",
+    }
+    artifact = await start_artifact(ctx, artifact_kind, quality_data)
+    report_checks = [
+        {
+            "rule_id": _DEFAULT_REVIEW_RULE,
+            "outcome": "pass",
+            "evidence_ids": [f"report:{artifact.id}"],
+            "note": "内容审查门禁已关闭，仅记录本地技术校验结果。",
+        }
+    ]
+    audit = {
+        "gate_mode": "off",
+        "content_review": "skipped",
+        "technical_check": "pass",
+        "asset_id": candidate.asset.id,
+        "asset_digest": candidate.sha256,
+    }
+    await add_review(
+        ctx,
+        artifact,
+        reviewer_role="output_reviewer",
+        decision="pass",
+        checks=report_checks,
+        target_kind="artifact",
+        raw=audit,
+    )
+    approved_report = await latest_artifact(ctx, artifact.kind, status="approved")
+    if approved_report is None:
+        await _block_stage(ctx, "IMAGE_NOT_APPROVED", "IMAGE_NOT_APPROVED")
+        return
+    await add_approval(
+        ctx,
+        approval_type="quality_report",
+        artifact=approved_report,
+        approved_by="output_reviewer",
+        checks={
+            "target_id": quality_target,
+            "ruleset_version": RULESET_VERSION,
+            "checks": report_checks,
+        },
+        model_fingerprint="gate-off:local-technical-only",
+    )
+    await _add_image_review(
+        ctx,
+        artifact_id=approved_report.id,
+        decision="pass",
+        checks=image_checks,
+        raw=audit,
+        target_id=image_target,
+    )
+    await _set_asset(
+        ctx,
+        candidate.asset,
+        "approved",
+        "content review disabled; local technical check passed",
+        candidate.sha256,
+    )
+    await add_approval(
+        ctx,
+        approval_type="image",
+        artifact=approved_report,
+        approved_by="output_reviewer",
+        target_digest=candidate.sha256,
+        checks={
+            "asset_id": candidate.asset.id,
+            "asset_digest": candidate.sha256,
+            "quality_report_id": approved_report.id,
+            "quality_target_id": quality_target,
+            "image_target_id": image_target,
+            "report_target_id": quality_target,
+            "ruleset_version": RULESET_VERSION,
+            "review_model_fingerprint": "gate-off:local-technical-only",
+        },
+        model_fingerprint="gate-off:local-technical-only",
+    )
+    await _set_job(
+        ctx,
+        candidate.job,
+        "approved",
+        result_asset_id=candidate.asset.id,
+    )
+    if candidate.job is not None:
+        await _mark_correction(ctx, candidate.job, "approved", candidate.asset)
+    await set_stage(ctx, "S10", "active")
+
+
 async def _review_and_apply(
     ctx: WorkflowContext,
     *,
@@ -1547,6 +1715,19 @@ async def handle(
     rule_payload = _rule_payload(
         rules, snapshot, requirement_text, forbidden, size, execution_snapshot
     )
+    if gate_mode_for_target("image") == "off":
+        await _approve_without_content_review(
+            ctx,
+            candidate=candidate,
+            rules=rules,
+            quality_target=quality_target,
+            image_target=image_target,
+            size=size,
+            technical_evidence=technical_evidence,
+            image_evidence=image_evidence,
+            artifact_kind=artifact_kind,
+        )
+        return
     try:
         quality = await run_role(
             ctx,

@@ -180,7 +180,9 @@ export function installAuthGuard(router: Router): void {
   router.beforeEach(async (to) => {
     // 设置密码页是一次性链接入口，不能因为匿名访问被登录守卫拦截。
     if (to.meta.public) return true
-    const authenticated = await ensureSession(true)
+    // 普通路由切换复用当前会话快照；真正的失效由 401、跨标签信号和
+    // 浏览器前进/后退的专项复验处理，避免每次点击都额外阻塞一次网络请求。
+    const authenticated = await ensureSession(false)
     if (to.name === 'login') {
       return authenticated ? { name: 'describe' } : true
     }

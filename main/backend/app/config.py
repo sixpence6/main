@@ -4,6 +4,7 @@ import ipaddress
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
@@ -81,6 +82,10 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool = True
     app_public_url: str | None = None
     trusted_proxy_cidrs: list[str] = Field(default_factory=list)
+    # Gate rollout switch. "requirements_only" keeps the strict S03 requirement
+    # review and relaxes every other rule catalogue; "strict" restores all old
+    # gates; "off" relaxes all of them. Schema/evidence sanity stays in stages.
+    workflow_gate_mode: Literal["strict", "requirements_only", "off"] = "requirements_only"
 
     # Release backup scheduling. The scheduler is disabled when APP_BACKUP_DIR
     # is absent; manual CLI backup remains available either way.

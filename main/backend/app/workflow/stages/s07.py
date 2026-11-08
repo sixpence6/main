@@ -12,6 +12,7 @@ from app.acceptance import (
     GenerationIntent,
     abandon_intent,
     latest_intent,
+    reopen_unsubmitted_intent,
     settle_unsubmitted_intent,
 )
 from app.auth.models import AuditEvent
@@ -27,6 +28,7 @@ from app.workflow.adjudication import (
     ProtocolIssue,
     RuleSet,
     adjudicate,
+    gate_mode_for_target,
     s07_rules,
 )
 from app.workflow.contracts import ContractError, validate_data
@@ -61,7 +63,7 @@ ACTIONS = ["compile_prompt", "revise_prompt", "confirm_prompt", "abandon_generat
 # Coverage is clause-scoped and token-aware. Natural-language prompt writing
 # may add a small, explicit set of connective words, but it can never be used
 # to stitch characters across clauses or to hide a numeric/semantic change.
-_CLAUSE_SPLIT = re.compile(r"[；;。\n]+|(?<!\d)\.|\.(?!\d)|[!?！？]+")
+_CLAUSE_SPLIT = re.compile(r"[；;。\n，,、]+|(?<!\d)\.|\.(?!\d)|[!?！？]+")
 _COVERAGE_TOKEN = re.compile(
     r"\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百千万亿]+|[A-Za-z]+|[^\W\d_]",
     re.UNICODE,
@@ -88,6 +90,15 @@ def available(ctx: WorkflowContext) -> list[str]:
         return []
     if ctx.run.status == "needs_input":
         return ["revise_prompt", "abandon_generation"]
+    if (
+        ctx.run.status == "blocked"
+        and ctx.run.issue_code in {"PROMPT_REQUIRES_RECONFIRMATION", "PROMPT_INVALID"}
+    ):
+        # The rejection happened before image execution. The same counted
+        # intent can be reopened, so offer a safe recompile instead of forcing
+        # a requirements edit. An exhausted budget uses a separate issue code
+        # and only exposes revise_requirements through dispatch.
+        return ["compile_prompt"]
     if ctx.run.status != "active":
         return []
     return ["compile_prompt", "revise_prompt"]
@@ -103,6 +114,26 @@ def _drift_error() -> ApiError:
 
 def _invalid_prompt() -> ApiError:
     return ApiError(409, "PROMPT_INVALID", _INVALID_MESSAGE)
+
+
+async def _block_invalid_prompt(
+    ctx: WorkflowContext, reservation: state.RevisionReservation
+) -> None:
+    """Persist a recoverable blocked state when a prompt candidate is invalid."""
+    code = (
+        "REVISION_BUDGET_EXHAUSTED"
+        if reservation.revision_no >= reservation.max_allowed
+        else "PROMPT_INVALID"
+    )
+    if code == "REVISION_BUDGET_EXHAUSTED":
+        await _settle_exhausted_unsubmitted(ctx)
+    await state.set_stage(
+        ctx,
+        STAGE,
+        "blocked",
+        issue_code=code,
+        template_id=code,
+    )
 
 
 def _invalid_review() -> ApiError:
@@ -137,10 +168,48 @@ async def _producer_failed(
         await _mark_failed(ctx, exc.code)
 
 
+async def _settle_exhausted_unsubmitted(ctx: WorkflowContext) -> None:
+    """Release live occupancy when prompt compilation can no longer proceed.
+
+    An accepted intent that never produced a GenerationJob is provably
+    unsubmitted. Keeping its personal/instance/project slots after the prompt
+    budget is exhausted blocks every future generation until an operator steps
+    in, while no image task exists. The usage ledger stays counted exactly once.
+    """
+    if ctx.project.owner_account_id is None:
+        return
+    intent = await latest_intent(
+        ctx.session_factory, project_id=ctx.project_id, run_id=ctx.run_id
+    )
+    if intent is None or intent.status != "accepted":
+        return
+    await settle_unsubmitted_intent(
+        ctx.session_factory,
+        intent_id=intent.id,
+        reason="prompt_budget_exhausted",
+        detail={
+            "run_id": ctx.run_id,
+            "artifact_kind": "prompt_plan",
+            "release_source": "prompt_budget_exhausted",
+        },
+    )
+
+
 async def _ensure_budget(ctx: WorkflowContext) -> None:
     async with read_session(ctx.session_factory) as session:
         budget = await session.get(RevisionBudget, (ctx.run_id, "prompt_plan"))
     if budget is not None and budget.used >= budget.max_allowed:
+        # A compile can be entered manually or from the post-confirmation
+        # driver. Persist the exhausted state before returning the typed 409 so
+        # the UI cannot keep showing an active "preparing prompt" spinner.
+        await _settle_exhausted_unsubmitted(ctx)
+        await state.set_stage(
+            ctx,
+            STAGE,
+            "blocked",
+            issue_code="REVISION_BUDGET_EXHAUSTED",
+            template_id="REVISION_BUDGET_EXHAUSTED",
+        )
         raise conflict(
             "REVISION_BUDGET_EXHAUSTED",
             "该产物已达到最多三次候选的上限，请保留当前结果或重新开始流程",
@@ -188,6 +257,37 @@ async def _require_intent(ctx: WorkflowContext, artifact: Any) -> Any:
         # explicit retry action creates a fresh intent before submitting again.
         return intent
     raise _confirmed_error()
+
+
+async def _reopen_prompt_retry(ctx: WorkflowContext) -> None:
+    """Reuse the counted prompt authorization after a pre-submission rejection.
+
+    The prior S07 attempt only compiled a prompt; it never created a generation
+    job. Reopening that exact intent keeps the usage ledger unchanged while
+    restoring its three occupancy slots so the prompt can be compiled again.
+    """
+
+    intent = await latest_intent(
+        ctx.session_factory, project_id=ctx.project_id, run_id=ctx.run_id
+    )
+    if intent is None:
+        raise _confirmed_error()
+    if intent.status not in {"accepted", "executing"}:
+        if intent.status != "abandoned":
+            raise _confirmed_error()
+        reopened = await reopen_unsubmitted_intent(
+            ctx.session_factory,
+            settings=ctx.settings,
+            intent_id=intent.id,
+            operator_account_id=(
+                ctx.principal.account_id if ctx.principal is not None else None
+            ),
+            reason="prompt_recompiled_after_reconfirmation_gate",
+        )
+        if not reopened:
+            raise _confirmed_error()
+    await state.set_stage(ctx, STAGE, "active")
+
 
 
 async def _require_confirmed(
@@ -392,6 +492,17 @@ def _relevant_to_expected(
     return len(shared) >= 2 and len(shared) * 2 >= len(expected)
 
 
+def _contains_contiguous(actual: tuple[str, ...], expected: tuple[str, ...]) -> bool:
+    """True when the whole expected token sequence occurs inside one actual clause."""
+    if not expected or len(expected) > len(actual):
+        return False
+    width = len(expected)
+    return any(
+        actual[index : index + width] == expected
+        for index in range(len(actual) - width + 1)
+    )
+
+
 def _assess_requirement(
     requirement: str,
     field_value: str,
@@ -401,26 +512,37 @@ def _assess_requirement(
     """Assess one requirement against one prompt field.
 
     Each expected clause must be found as a contiguous token sequence in one
-    actual clause. The only tolerated insertions are the explicit connective
-    fillers above. A reordered but otherwise exact mapping is accepted only as
-    an explainable change that the independent reviewer must still approve.
+    actual clause. Natural prompt labels such as “画面内容：” or “关于尺寸：”
+    may precede the copied requirement, and the explicit connective fillers
+    above may be inserted inside it. A reordered but otherwise exact mapping is
+    accepted only as an explainable change that the independent reviewer must
+    still approve. Negated, reordered inside a clause, or numerically altered
+    requirements are never accepted by containment.
     """
     expected_clauses = [tokens for tokens in map(_tokens, _clauses(requirement)) if tokens]
     actual_clauses = [tokens for tokens in map(_tokens, _clauses(field_value)) if tokens]
     if not expected_clauses:
         return {"covered": False, "content_intact": False, "explanations": []}
     allow_fillers = binding == "positive_prompt"
-    candidates: list[list[tuple[int, bool]]] = []
+    candidates: list[list[tuple[int, str]]] = []
     for expected in expected_clauses:
-        matches: list[tuple[int, bool]] = []
+        matches: list[tuple[int, str]] = []
         for index, actual in enumerate(actual_clauses):
             if actual == expected:
-                matches.append((index, False))
-            elif allow_fillers and _strip_fillers(actual) == expected:
-                matches.append((index, True))
+                matches.append((index, "exact"))
+                continue
+            if not allow_fillers or _polarity_conflict(expected, actual):
+                continue
+            stripped = _strip_fillers(actual)
+            if stripped == expected:
+                matches.append((index, "connective"))
+            elif _contains_contiguous(actual, expected):
+                matches.append((index, "context"))
+            elif _contains_contiguous(stripped, expected):
+                matches.append((index, "connective"))
         candidates.append(matches)
 
-    assignment: list[tuple[int, bool]] | None = []
+    assignment: list[tuple[int, str]] | None = []
     last_index = -1
     for matches in candidates:
         selected = next((item for item in matches if item[0] > last_index), None)
@@ -433,7 +555,7 @@ def _assess_requirement(
     reordered = False
     if assignment is None:
         used: set[int] = set()
-        alternate: list[tuple[int, bool]] = []
+        alternate: list[tuple[int, str]] = []
         for matches in candidates:
             selected = next((item for item in matches if item[0] not in used), None)
             if selected is None:
@@ -447,8 +569,10 @@ def _assess_requirement(
 
     if assignment is not None:
         explanations: list[str] = []
-        if any(stripped for _index, stripped in assignment):
+        if any(kind == "connective" for _index, kind in assignment):
             explanations.append("connective")
+        if any(kind == "context" for _index, kind in assignment):
+            explanations.append("context")
         if reordered:
             explanations.append("word_order")
         return {"covered": True, "content_intact": True, "explanations": explanations}
@@ -466,7 +590,6 @@ def _assess_requirement(
             ):
                 conflict = True
     return {"covered": False, "content_intact": not conflict, "explanations": []}
-
 
 def _covers_requirement(requirement: str, field_value: str) -> bool:
     """True when every requirement clause is covered by one prompt clause."""
@@ -1390,6 +1513,7 @@ async def _compile(
                 intent_id=intent.id if intent is not None else None,
                 detail={"status": output.status},
             )
+            await _block_invalid_prompt(ctx, reservation)
             raise _invalid_prompt()
 
         data = output.data if isinstance(output.data, dict) else {}
@@ -1446,6 +1570,7 @@ async def _compile(
                     [defect.message for defect in defects],
                     reason=reason,
                 )
+            await _block_invalid_prompt(ctx, reservation)
             raise _invalid_prompt()
 
         if intent is not None:
@@ -1489,62 +1614,83 @@ async def _compile(
         ruleset = s07_rules(
             echo_rules=tuple(item["rule_id"] for item in requirements)
         )
-        try:
-            review_output = await run_role(
-                ctx,
-                "output_reviewer",
-                STAGE,
-                {
-                    "reviewed_role": "generation_engineer",
-                    "target_kind": "prompt_plan",
-                    "hard_requirements": requirements,
-                    "ruleset_version": ruleset.version,
-                    "rules": ruleset.describe(),
-                    "coverage_explanations": coverage_explanations,
+        if gate_mode_for_target("prompt_plan") == "off":
+            # Gates are disabled for non-requirements targets: the prompt
+            # producer and server-side validation already ran, so record a
+            # pass without spending a reviewer model call.
+            review_output = RoleOutput(
+                role="output_reviewer",
+                status="ready",
+                data={
+                    "results": [
+                        {
+                            "target_id": artifact.id,
+                            "decision": "pass",
+                            "checks": [],
+                        }
+                    ]
                 },
-                approved_inputs={"final_brief": brief},
-                review_targets=[
+                model_fingerprint="gate-off",
+            )
+            decision = "pass"
+            checks = []
+        else:
+            try:
+                review_output = await run_role(
+                    ctx,
+                    "output_reviewer",
+                    STAGE,
                     {
-                        "target_id": artifact.id,
+                        "reviewed_role": "generation_engineer",
                         "target_kind": "prompt_plan",
-                        "payload": payload,
-                        "effective_request": reviewed_request,
-                    }
-                ],
-                required_rule_ids=tuple(rule.rule_id for rule in ruleset.blocking()),
-                allowed_evidence_ids=(artifact.id, final_artifact.id),
-            )
-        except ApiError as exc:
-            await _record_transition(
-                ctx,
-                ReasonCode.TECHNICAL_FAILURE,
-                "reviewer_failed",
-                attempt=artifact.revision_no,
-                intent_id=intent.id if intent is not None else None,
-                detail={"error_code": exc.code},
-            )
-            await _mark_failed(ctx, "REVIEW_UNAVAILABLE")
-            raise
+                        "hard_requirements": requirements,
+                        "ruleset_version": ruleset.version,
+                        "rules": ruleset.describe(),
+                        "coverage_explanations": coverage_explanations,
+                    },
+                    approved_inputs={"final_brief": brief},
+                    review_targets=[
+                        {
+                            "target_id": artifact.id,
+                            "target_kind": "prompt_plan",
+                            "payload": payload,
+                            "effective_request": reviewed_request,
+                        }
+                    ],
+                    required_rule_ids=tuple(rule.rule_id for rule in ruleset.blocking()),
+                    allowed_evidence_ids=(artifact.id, final_artifact.id),
+                )
+            except ApiError as exc:
+                await _record_transition(
+                    ctx,
+                    ReasonCode.TECHNICAL_FAILURE,
+                    "reviewer_failed",
+                    attempt=artifact.revision_no,
+                    intent_id=intent.id if intent is not None else None,
+                    detail={"error_code": exc.code},
+                )
+                await _mark_failed(ctx, "REVIEW_UNAVAILABLE")
+                raise
 
-        # A reviewer contract defect is a typed protocol rejection: the run is
-        # not marked failed, the candidate stays invisible and the gate stays closed.
-        try:
-            _target_id, decision, checks = _validate_review(
-                review_output,
-                target_id=artifact.id,
-                allowed_evidence=(artifact.id, final_artifact.id),
-                ruleset=ruleset,
-            )
-        except ApiError as exc:
-            await _record_transition(
-                ctx,
-                ReasonCode.PROTOCOL_ERROR,
-                "review_invalid",
-                attempt=artifact.revision_no,
-                intent_id=intent.id if intent is not None else None,
-                detail={"error_code": exc.code},
-            )
-            raise
+            # A reviewer contract defect is a typed protocol rejection: the run is
+            # not marked failed, the candidate stays invisible and the gate stays closed.
+            try:
+                _target_id, decision, checks = _validate_review(
+                    review_output,
+                    target_id=artifact.id,
+                    allowed_evidence=(artifact.id, final_artifact.id),
+                    ruleset=ruleset,
+                )
+            except ApiError as exc:
+                await _record_transition(
+                    ctx,
+                    ReasonCode.PROTOCOL_ERROR,
+                    "review_invalid",
+                    attempt=artifact.revision_no,
+                    intent_id=intent.id if intent is not None else None,
+                    detail={"error_code": exc.code},
+                )
+                raise
 
         review_checks = {"ruleset_version": RULESET_VERSION, "checks": checks}
         if decision == "pass" and intent is not None:
@@ -1621,6 +1767,29 @@ async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> 
                 409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE")
             )
         await _abandon_generation(ctx, payload)
+        return
+    if (
+        action == "compile_prompt"
+        and status == "blocked"
+        and ctx.run.issue_code == "PROMPT_REQUIRES_RECONFIRMATION"
+    ):
+        await _reopen_prompt_retry(ctx)
+        status = "active"
+    elif (
+        action == "compile_prompt"
+        and status == "blocked"
+        and ctx.run.issue_code == "PROMPT_INVALID"
+    ):
+        await state.set_stage(ctx, STAGE, "active")
+        status = "active"
+    elif (
+        action == "compile_prompt"
+        and status == "blocked"
+        and ctx.run.issue_code == "REVISION_BUDGET_EXHAUSTED"
+    ):
+        # Preserve the typed budget error for direct API recovery. The UI does
+        # not expose compile for this state; only revise_requirements is offered.
+        await _compile(ctx, None)
         return
     if status not in {"active", "needs_input"}:
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))

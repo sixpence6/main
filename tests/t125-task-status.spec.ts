@@ -294,6 +294,39 @@ describe('T13 轻量任务状态、失败与真实恢复动作', () => {
     }
   })
 
+  it('S03 需求澄清时展示已审核的分步问题，而不是通用补充提示', async () => {
+    const detailText = [
+      '已了解你要做米色亚麻托特包的商品主图。',
+      '1. 请确认这张图主要用在哪里？例如：淘宝主图、小红书封面或品牌官网。',
+      '2. 请确认必须保留哪些商品特征？例如：浅米色、亚麻纹理或手提带形状。',
+    ].join('\n')
+    const base = taskState(reason('missing_information', '还需要补充信息后才能继续。', 'needs_input'), 'needs_input')
+    await mountTask(workflow({
+      stage: 'S03',
+      status: 'needs_input',
+      issue: { code: 'MISSING_INPUT', message: detailText, template_id: null, params: {} },
+      task_state: {
+        ...base,
+        progress: {
+          ...base.progress,
+          phase: 'requirements',
+          stage: 'S03',
+          stage_label: '内部阶段-澄清需求',
+          status: 'needs_input',
+          awaiting_user: true,
+          terminal: false,
+        },
+      },
+    }))
+
+    const region = await taskRegion()
+    expect(within(region).getByText('需要补充信息')).toBeVisible()
+    expect(within(region).getByText(/请确认这张图主要用在哪里/)).toBeVisible()
+    expect(within(region).getByText(/请确认必须保留哪些商品特征/)).toBeVisible()
+    expect(within(region).queryByText('还需要补充信息后才能继续。')).not.toBeInTheDocument()
+    expect(screen.queryByText('正在整理需求…')).not.toBeInTheDocument()
+  })
+
   it('只显示服务端实际提供的恢复动作，只读核实与可能调用模型清晰区分，并需明确确认计数动作', async () => {
     const verify = action('verify_generation', '核实原任务', {
       effect: 'read_only',
@@ -386,6 +419,134 @@ describe('T13 轻量任务状态、失败与真实恢复动作', () => {
     })
     expect(String(harness!.fetch.writes[0].path)).toContain('/workflow/actions/revise_prompt')
     expect(screen.getAllByRole('textbox', { name: '描述商品与图片需求' })).toHaveLength(1)
+  })
+
+  it('S07 历史提示词门禁阻断时直接提供重新编制提示词的入口', async () => {
+    const blocked = workflow({
+      stage: 'S07',
+      status: 'blocked',
+      issue: {
+        code: 'PROMPT_REQUIRES_RECONFIRMATION',
+        message: '提示词引入了尚未确认的卖点、文字或弱化了已确认要求，未提交生图。请修改需求并重新确认后再生成。',
+        template_id: 'PROMPT_REQUIRES_RECONFIRMATION',
+        params: {},
+      },
+      task_state: taskState(reason('true_drift', '当前状态不支持此操作，请先完成提示的步骤。', 'blocked'), 'blocked'),
+      available_actions: [
+        action('compile_prompt', '编制生图提示词', { effect: 'model_call', requires_model_call: true }),
+        action('revise_requirements', '修改需求', { effect: 'model_call', requires_model_call: true }),
+      ],
+    })
+    await mountTask(blocked, (fetch) => {
+      fetch.route('POST', ACTIONS_ROUTE, () => ({
+        body: workflow({
+          stage: 'S07',
+          status: 'needs_input',
+          task_state: taskState(null, 'needs_input'),
+          available_actions: [],
+        }),
+      }))
+    })
+
+    const region = await taskRegion()
+    expect(within(region).getByText('提示词需要重新编制')).toBeVisible()
+    expect(within(region).getByText(/已确认需求没有变化，不需要修改需求/)).toBeVisible()
+    expect(within(region).queryByText('需要重新确认')).not.toBeInTheDocument()
+    expect(within(region).queryByText('当前状态不支持此操作，请先完成提示的步骤。')).not.toBeInTheDocument()
+    await harness!.user.click(within(region).getByRole('button', { name: '编制生图提示词' }))
+
+    await waitFor(() => expect(harness!.fetch.writes).toHaveLength(1))
+    expect(String(harness!.fetch.writes[0].path)).toContain('/workflow/actions/compile_prompt')
+  })
+
+  it('S04 被历史业务校验阻断时提供重新制定创意方向的入口', async () => {
+    const blocked = workflow({
+      stage: 'S04',
+      status: 'blocked',
+      issue: {
+        code: 'REQUIREMENT_DRIFT',
+        message: '创意方向与已批准需求不一致，未通过业务校验',
+        template_id: null,
+        params: {},
+      },
+      task_state: taskState(reason('true_drift', '当前状态不支持此操作，请先完成提示的步骤。', 'blocked'), 'blocked'),
+      available_actions: [
+        action('plan_creative', '制定创意方向', { effect: 'model_call', requires_model_call: true }),
+      ],
+    })
+    await mountTask(blocked, (fetch) => {
+      fetch.route('POST', ACTIONS_ROUTE, (request) => {
+        if (String(request.path).includes('/plan_creative')) {
+          return {
+            body: workflow({
+              stage: 'S05',
+              status: 'active',
+              task_state: taskState(null, 'active'),
+              available_actions: [
+                action('plan_visual', '制定视觉方案', { effect: 'model_call', requires_model_call: true }),
+              ],
+            }),
+          }
+        }
+        return {
+          body: workflow({ stage: 'S06', status: 'active', task_state: taskState(null, 'active') }),
+        }
+      })
+    })
+
+    const region = await taskRegion()
+    expect(within(region).getByText('创意方向需要重新整理')).toBeVisible()
+    expect(within(region).getByText(/需求信息已经整理完成，不需要重新确认/)).toBeVisible()
+    expect(within(region).queryByText('需要重新确认')).not.toBeInTheDocument()
+    expect(within(region).queryByText('当前状态不支持此操作，请先完成提示的步骤。')).not.toBeInTheDocument()
+    await harness!.user.click(within(region).getByRole('button', { name: '制定创意方向' }))
+
+    await waitFor(() => expect(harness!.fetch.writes).toHaveLength(2))
+    expect(String(harness!.fetch.writes[0].path)).toContain('/workflow/actions/plan_creative')
+    expect(String(harness!.fetch.writes[1].path)).toContain('/workflow/actions/plan_visual')
+  })
+
+  it('S09 历史图片检查阻断时可直接重新检查，不会重新生成', async () => {
+    const blocked = workflow({
+      stage: 'S09',
+      status: 'blocked',
+      issue: {
+        code: 'IMAGE_NOT_APPROVED',
+        message: '本次图片未通过检查，未展示或提供下载。你可以补充需求后重新确认并提交生成。',
+        template_id: 'IMAGE_NOT_APPROVED',
+        params: {},
+      },
+      task_state: taskState(reason('true_drift', '当前状态不支持此操作，请先完成提示的步骤。', 'blocked'), 'blocked'),
+      available_actions: [
+        action('recheck_candidate', '重新检查这张图片'),
+        action('retry_rejected_generation', '重新生成', {
+          kind: 'confirm',
+          effect: 'model_call',
+          requires_model_call: true,
+          requires_confirmation: true,
+        }),
+      ],
+    })
+    await mountTask(blocked, (fetch) => {
+      fetch.route('POST', ACTIONS_ROUTE, () => ({
+        body: workflow({
+          stage: 'S10',
+          status: 'active',
+          task_state: taskState(null, 'active'),
+          available_actions: [],
+        }),
+      }))
+    })
+
+    const region = await taskRegion()
+    expect(within(region).getByText('图片需要重新检查')).toBeVisible()
+    expect(within(region).getByText('本次图片已经生成。点“重新检查这张图片”即可按简化后的规则重新核对；不会重新生成，也不会新增受理次数或占用生成槽位。')).toBeVisible()
+    expect(within(region).queryByText('需要重新确认')).not.toBeInTheDocument()
+    expect(within(region).queryByText('当前状态不支持此操作，请先完成提示的步骤。')).not.toBeInTheDocument()
+    await harness!.user.click(within(region).getByRole('button', { name: '重新检查这张图片' }))
+
+    await waitFor(() => expect(harness!.fetch.writes).toHaveLength(1))
+    expect(String(harness!.fetch.writes[0].path)).toContain('/workflow/actions/recheck_candidate')
   })
 
   it('账号禁用时只显示安全失败，不自动重试也不宣称生成成功', async () => {

@@ -536,6 +536,7 @@ def _validate_partial_draft(
     reference_evidence: str | None,
     reference_texts: dict[str, list[str]],
 ) -> None:
+    _validate_text_hygiene(data)
     if data.size != size:
         raise _invalid_service()
     if data.reference_asset_id != reference_asset_id:
@@ -552,6 +553,70 @@ def _validate_partial_draft(
         reference_evidence=reference_evidence,
         reference_texts=reference_texts,
     )
+
+
+_NO_PRODUCT_MARKERS = (
+    "不含任何商品",
+    "不含商品",
+    "不包含商品",
+    "不出现商品",
+    "不展示商品",
+    "不需要商品",
+    "无需商品",
+    "没有商品",
+    "无任何商品",
+    "无商品",
+    "不含任何产品",
+    "不含产品",
+    "不包含产品",
+    "不出现产品",
+    "不展示产品",
+    "没有产品",
+    "无产品",
+    "只有人物",
+    "仅有人物",
+    "只呈现人物",
+    "仅呈现人物",
+    "纯人物",
+)
+
+
+def _no_product_text(data: BriefData) -> str | None:
+    """Return an explicit no-product statement when the user asked for a pure scene.
+
+    The brief schema allows product_description to be null while a request is
+    still being clarified. A ready draft, however, must carry a nonempty subject
+    for every downstream stage. When the user has explicitly chosen a pure
+    portrait/scene with no product, preserve that decision as a concrete string
+    instead of treating the missing product as a technical failure.
+    """
+    candidates: list[Any] = [
+        data.product_description,
+        *(fact.text for fact in data.facts),
+        *data.must_include,
+        *data.must_preserve,
+        *data.forbidden,
+        *data.assumptions,
+    ]
+    for candidate in candidates:
+        text = _clean_display(candidate, limit=240)
+        if text and any(marker in text for marker in _NO_PRODUCT_MARKERS):
+            return text
+    return None
+
+
+def _normalize_ready_draft(data: BriefData) -> BriefData:
+    if data.product_description and data.product_description.strip():
+        return data
+    explicit = _no_product_text(data)
+    if explicit is None:
+        return data
+    return data.model_copy(update={"product_description": explicit})
+
+
+def _is_no_product_text(value: Any) -> bool:
+    text = _clean_display(value, limit=300)
+    return bool(text) and any(marker in text for marker in _NO_PRODUCT_MARKERS)
 
 
 def _validate_ready_draft(
@@ -588,17 +653,6 @@ def _validate_ready_draft(
 
 
 _MAX_QUESTION_CHARS = 300
-_QUESTION_MARKERS = (
-    "?",
-    "？",
-    "请说明",
-    "请提供",
-    "请确认",
-    "请补充",
-    "请选择",
-    "是否",
-    "能否",
-)
 _QUESTION_SUGGESTION_MARKERS = (
     "建议使用",
     "建议采用",
@@ -616,24 +670,26 @@ _QUESTION_CONTACT = re.compile(
 
 
 def _validated_questions(output: RoleOutput) -> list[str]:
-    """Only expose short, scoped questions that ask for missing blocking facts.
+    """Only expose short, well-formed clarification questions.
 
-    The producer never gets to smuggle an unapproved suggestion body, link,
-    contact address or multi-line instruction through the clarification channel.
-    The same function is used when a persisted clarification is replayed.
+    Whether a question really asks for a missing blocking fact is decided by the
+    independent S03 reviewer. This local guard only removes unsafe transport:
+    corrupted text, oversized or multi-line content, contact details and
+    unapproved suggestion bodies. The same function is used when a persisted
+    clarification is replayed.
     """
     questions = [question.strip() for question in output.questions if question.strip()]
     if not questions or len(questions) > 8:
         raise _review_invalid("澄清问题数量不合法，未展示")
     for question in questions:
+        if _has_corrupted_text(question):
+            raise _review_invalid("澄清问题包含乱码，未展示")
         if len(question) > _MAX_QUESTION_CHARS or "\n" in question or "\r" in question:
             raise _review_invalid("澄清问题过长或格式不合法，未展示")
         if _QUESTION_CONTACT.search(question):
             raise _review_invalid("澄清问题不得包含外部链接或联系方式")
         if any(marker in question for marker in _QUESTION_SUGGESTION_MARKERS):
             raise _review_invalid("澄清问题包含未经审查的建议正文，未展示")
-        if not any(marker in question for marker in _QUESTION_MARKERS):
-            raise _review_invalid("澄清问题必须只询问缺失信息")
     text = "\n".join(questions)
     if len(text) > _MAX_QUESTIONS_CHARS:
         raise _review_invalid("澄清问题总长度不合法，未展示")
@@ -734,9 +790,214 @@ async def _stop_review(ctx: WorkflowContext) -> None:
 async def _record_review_error(ctx: WorkflowContext, error: ApiError) -> None:
     """Contract defects block the gate; only real outages mark the stage failed."""
     if error.code in {"REVIEW_INVALID", "REVIEW_REJECTED"}:
-        await set_stage(ctx, STAGE, "blocked", issue_code=error.code, template_id=error.code)
+        await set_stage(
+            ctx,
+            STAGE,
+            "blocked",
+            issue_code=error.code,
+            template_id=error.code,
+            message=error.message,
+        )
         return
     await _fail_run(ctx, "REVIEW_UNAVAILABLE")
+
+
+_CORRUPTED_TEXT_MARKERS = ("\ufffd", "锟斤拷", "烫烫烫", "屯屯屯", "Ã", "Â", "â€")
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def _has_corrupted_text(value: str) -> bool:
+    """Reject replacement characters, control bytes and common mojibake."""
+    return bool(_CONTROL_CHARS.search(value)) or any(
+        marker in value for marker in _CORRUPTED_TEXT_MARKERS
+    )
+
+
+def _walk_strings(value: Any):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, list):
+        for item in value:
+            yield from _walk_strings(item)
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _walk_strings(item)
+
+
+def _validate_text_hygiene(data: BriefData) -> None:
+    if any(_has_corrupted_text(text) for text in _walk_strings(data.model_dump(mode="json"))):
+        raise _invalid_service()
+
+
+def _clean_display(value: Any, *, limit: int = 160) -> str:
+    if value is None:
+        return ""
+    text = str(value).replace("\r", " ").replace("\n", " ")
+    text = _CONTROL_CHARS.sub("", text)
+    return " ".join(text.split())[:limit]
+
+
+def _join_display(values: Any, *, limit: int = 3) -> str:
+    if not isinstance(values, list):
+        return ""
+    parts = [
+        item
+        for value in values[:limit]
+        if (item := _clean_display(value, limit=80))
+    ]
+    return "；".join(parts)
+
+
+def _alignment_report(
+    data: BriefData | None,
+    *,
+    questions: list[str],
+    size: str,
+    reference_asset_id: str | None,
+    reference_usage: str,
+    ready: bool,
+) -> str:
+    """Build the user-facing requirements report from validated fields only."""
+    product = _clean_display(getattr(data, "product_description", None), limit=180)
+    purpose = _clean_display(getattr(data, "purpose", None), limit=180)
+    subject_label = "画面主体" if _is_no_product_text(product) else "商品主体"
+    preserve = _join_display(getattr(data, "must_preserve", []))
+    style = _clean_display("、".join(getattr(data, "style_keywords", []) or []), limit=120)
+    composition = _clean_display(getattr(data, "composition", None), limit=120)
+    lighting = _clean_display(getattr(data, "lighting", None), limit=120)
+    visual = "；".join(item for item in (style, composition, lighting) if item)
+    texts = _join_display(getattr(data, "texts", []))
+    actual_size = _clean_display(getattr(data, "size", None), limit=40) or size
+    usage_labels = {
+        "product": "商品参考（保留商品外观）",
+        "style": "风格参考（只借视觉风格）",
+        "composition": "构图参考（只借画面布局）",
+        "none": "无参考图",
+    }
+    usage = usage_labels.get(reference_usage, reference_usage)
+    if reference_asset_id is None:
+        usage = "无参考图"
+
+    basic = [
+        (subject_label, product),
+        ("使用场景与目标", purpose),
+        ("输出尺寸", actual_size),
+    ]
+    filled = sum(1 for _, value in basic if value)
+    lines = ["需求对齐情况", f"- 基本信息：{filled}/3 项已明确"]
+    for label, value in basic:
+        lines.append(f"- {label}：{value or '待补充'}")
+    feature_label = "必须保留的画面特征" if subject_label == "画面主体" else "必须保留的商品特征"
+    preserve_display = preserve or ("未指定（如无必须保留项，可继续）" if ready else "待补充")
+    visual_display = visual or ("待后续创意与视觉方案补全" if ready else "待补充")
+    texts_display = texts or ("无画面文字" if ready else "待补充")
+    lines.append(f"- {feature_label}：{preserve_display}")
+    lines.append(f"- 风格、构图与光影：{visual_display}")
+    lines.append(f"- 画面文字：{texts_display}")
+    lines.append(f"- 参考图用途：{usage}")
+
+    missing: list[str] = []
+    if not ready:
+        if not product:
+            missing.append(subject_label)
+        if not purpose:
+            missing.append("使用场景与目标")
+        if not preserve:
+            missing.append(f"{feature_label}（如没有必须保留项，请直接说明）")
+        if not visual:
+            missing.append("风格、构图与光影")
+        if not texts:
+            missing.append("画面文字（如不需要文字，请直接说明“不需要文字”）")
+        if reference_asset_id is not None and reference_usage not in {
+            "product",
+            "style",
+            "composition",
+        }:
+            missing.append("参考图使用方式")
+
+    lines.append("")
+    lines.append("还缺少的信息")
+    if missing:
+        lines.extend(f"- {item}" for item in missing)
+    elif questions:
+        lines.append("- 下方澄清问题尚未回答，请补充后再继续。")
+    else:
+        lines.append("- 无，需求信息已对齐。")
+
+    if questions:
+        lines.append("")
+        lines.append("请补充以下信息")
+        lines.extend(
+            f"{index}. {_clean_display(question, limit=300)}"
+            for index, question in enumerate(questions, 1)
+        )
+        lines.append("")
+        lines.append("推荐提示词（可直接复制后补充发送）")
+        confirmed: list[str] = []
+        if product:
+            confirmed.append(f"商品主体为{product}")
+        if purpose:
+            confirmed.append(f"使用场景与目标是{purpose}")
+        if preserve:
+            confirmed.append(f"必须保留{preserve}")
+        if visual:
+            confirmed.append(f"风格、构图与光影为{visual}")
+        prefix = "请继续整理这张商品图的需求。"
+        if confirmed:
+            prefix += "已确认：" + "；".join(confirmed) + "。"
+        tail = "；".join(questions)
+        if not tail.endswith(("。", "？", "！", "?", "!")):
+            tail += "。"
+        prompt = prefix + "还需要补充：" + tail
+        lines.append(prompt[:1600])
+    elif ready:
+        lines.append("")
+        lines.append("下一步：确认需求后将生成图片提示词；只有你确认提示词后，系统才会生成图片。")
+    return "\n".join(lines)
+
+
+async def _append_assistant(
+    ctx: WorkflowContext, content: str, revision: int
+) -> Message | None:
+    """Persist one workflow assistant message, idempotently for a revision."""
+    now = format_timestamp(utc_now())
+    async with write_transaction(ctx.session_factory) as session:
+        project = await session.get(Project, ctx.project_id)
+        if project is None:
+            raise conflict("PROJECT_NOT_FOUND", "项目不存在")
+        existing = await session.scalar(
+            select(Message)
+            .where(
+                Message.project_id == ctx.project_id,
+                Message.role == "assistant",
+                Message.turn_kind == "workflow",
+                Message.project_revision == project.revision,
+            )
+            .order_by(Message.sequence_no.desc())
+            .limit(1)
+        )
+        if existing is not None and existing.content == content:
+            return existing
+        highest = await session.scalar(
+            select(func.max(Message.sequence_no)).where(
+                Message.project_id == ctx.project_id
+            )
+        )
+        message = Message(
+            id=str(uuid4()),
+            project_id=ctx.project_id,
+            sequence_no=(highest or 0) + 1,
+            role="assistant",
+            content=content,
+            project_revision=project.revision,
+            brief_snapshot_json=None,
+            operation_id=None,
+            turn_kind="workflow",
+            created_at=now,
+        )
+        session.add(message)
+        await session.flush()
+        return message
 
 
 def _blocked_template(output: RoleOutput) -> tuple[str, str]:
@@ -916,9 +1177,11 @@ async def _compose(
             raise
 
         if output.status in {"needs_input", "blocked"}:
+            partial_data: BriefData | None = None
             if output.data is not None:
+                partial_data = BriefData.model_validate(output.data)
                 _validate_partial_draft(
-                    BriefData.model_validate(output.data),
+                    partial_data,
                     allowed=set(evidence),
                     size=size,
                     reference_asset_id=reference_asset_id,
@@ -966,10 +1229,20 @@ async def _compose(
             if decision == "pass":
                 if output.status == "needs_input":
                     try:
-                        question_text = _joined_questions(output)
+                        questions = _validated_questions(output)
+                        question_text = "\n".join(questions)
+                        report = _alignment_report(
+                            partial_data,
+                            questions=questions,
+                            size=size,
+                            reference_asset_id=reference_asset_id,
+                            reference_usage=expected_usage,
+                            ready=False,
+                        )
                     except ApiError as exc:
                         await _record_review_error(ctx, exc)
                         raise
+                    await _append_assistant(ctx, report, ctx.project.revision)
                     await set_stage(
                         ctx,
                         STAGE,
@@ -997,7 +1270,7 @@ async def _compose(
             await _fail_run(ctx, "SERVICE_UNAVAILABLE")
             raise _invalid_service()
 
-        data = BriefData.model_validate(output.data)
+        data = _normalize_ready_draft(BriefData.model_validate(output.data))
         try:
             _validate_ready_draft(
                 data,
@@ -1043,7 +1316,7 @@ async def _compose(
             "target_id": artifact.id,
             "target_kind": "brief_draft",
             "status": output.status,
-            "data": output.data,
+            "data": data.model_dump(mode="json"),
             "issues": output.issues,
             "questions": output.questions,
             "user_text": user_text,
@@ -1093,6 +1366,18 @@ async def _compose(
                     "reference_asset_id": reference_asset_id,
                     "reference_usage": expected_usage,
                 },
+            )
+            await _append_assistant(
+                ctx,
+                _alignment_report(
+                    data,
+                    questions=[],
+                    size=size,
+                    reference_asset_id=reference_asset_id,
+                    reference_usage=expected_usage,
+                    ready=True,
+                ),
+                ctx.project.revision,
             )
             await set_stage(ctx, "S04", "active")
             return

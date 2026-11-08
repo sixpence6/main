@@ -8,8 +8,7 @@ from urllib.parse import urlsplit
 from starlette.datastructures import Headers, MutableHeaders
 
 from app.auth.sessions import (
-    PREAUTH_CSRF_COOKIE,
-    SESSION_COOKIE,
+    cookie_names,
     load_session,
     touch_session,
 )
@@ -136,6 +135,7 @@ class AuthMiddleware:
     def __init__(self, app: Any, settings: Settings) -> None:
         self.app = app
         self.settings = settings
+        self.session_cookie, self.csrf_cookie = cookie_names(settings.auth_cookie_secure)
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] != "http":
@@ -175,7 +175,7 @@ class AuthMiddleware:
             if "=" in part:
                 key, value = part.split("=", 1)
                 cookie_map[key.strip()] = value.strip()
-        raw_session = cookie_map.get(SESSION_COOKIE)
+        raw_session = cookie_map.get(self.session_cookie)
         app_state = scope["app"].state
         if raw_session:
             try:
@@ -212,7 +212,7 @@ class AuthMiddleware:
                 return
             if path in {"/api/auth/login", "/api/auth/link"}:
                 presented = headers.get("x-csrf-token")
-                cookie_token = cookie_map.get(PREAUTH_CSRF_COOKIE)
+                cookie_token = cookie_map.get(self.csrf_cookie)
                 if not presented or not cookie_token or not constant_time_equals(
                     presented, cookie_token
                 ):
@@ -223,7 +223,7 @@ class AuthMiddleware:
                     await _send_json(send, 401, "AUTH_REQUIRED", "请先登录")
                     return
                 presented = headers.get("x-csrf-token")
-                cookie_token = cookie_map.get(PREAUTH_CSRF_COOKIE)
+                cookie_token = cookie_map.get(self.csrf_cookie)
                 if not presented or not cookie_token or not constant_time_equals(
                     presented, cookie_token
                 ):

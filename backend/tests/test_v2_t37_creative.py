@@ -400,6 +400,235 @@ async def test_explicit_copy_authorization_allows_new_copy_lines(llm_settings):
         }
 
 
+async def test_faithful_selling_point_summary_is_accepted(llm_settings):
+    """卖点可以是对多条已批准事实的忠实汇总，而不是某一条事实的整句复制。"""
+    facts = [
+        {
+            "text": "写实街区夜景",
+            "basis": "user_declared",
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "用于线上电商详情页或横版横幅",
+            "basis": "user_declared",
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "单独海报",
+            "basis": "user_declared",
+            "evidence_ids": ["user:1"],
+        },
+    ]
+    point = {
+        "text": "用户说明画面用于线上电商详情页或横版横幅的单独海报展示。",
+        "evidence_ids": ["user:1"],
+    }
+    script = CreativeScript(
+        [creative_ready(selling_points=[point])],
+        ["pass"],
+    )
+    stub = LLMStub(role_responder=script)
+    registry = build_test_registry(llm=stub)
+
+    async with _client_for(llm_settings, registry) as (application, client):
+        project_id = await _create_project(client)
+        await _prepare_brief(application, project_id, overrides={"facts": facts})
+
+        response = await client.post(
+            f"/api/projects/{project_id}/workflow/actions/plan_creative",
+            json={"expected_revision": 0},
+        )
+        assert response.status_code == 200, response.text
+        view = response.json()
+        assert view["stage"] == "S05"
+        creative = [
+            item for item in view["artifacts"] if item["kind"] == "creative_direction"
+        ]
+        assert creative[0]["status"] == "approved"
+        assert creative[0]["payload"]["selling_points"] == [point]
+
+
+async def test_natural_selling_point_summaries_are_accepted(llm_settings):
+    """自然短句、免责括号和多条事实汇总不能被当成需求漂移。"""
+    facts = [
+        {
+            "text": "生成大唐不夜城的盛唐景象，用作海报展示",
+            "basis": "user_declared",
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "写实街区夜景",
+            "basis": "user_declared",
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "用于线上电商详情页或横版横幅",
+            "basis": "user_declared",
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "尺寸不限定",
+            "basis": "user_declared",
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "夜色灯火通明",
+            "basis": "user_declared",
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "不需要文字",
+            "basis": "user_declared",
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "单独海报",
+            "basis": "user_declared",
+            "evidence_ids": ["user:1"],
+        },
+    ]
+    selling_points = [
+        {
+            "text": (
+                "以大唐不夜城的盛唐街区景象为画面核心内容，用于"
+                "海报展示（用户声明，未独立核实）"
+            ),
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "写实风格街区夜景，夜色灯火通明（用户声明，未独立核实）",
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "适配线上电商详情页或横版横幅，可作为单独海报成幅使用（用户声明，未独立核实）",
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "写实风格呈现盛唐街区夜景。",
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "夜色中街区灯火通明，突出繁华的盛唐夜间气象。",
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "画面可作为线上电商详情页或横版横幅使用的单独海报。",
+            "evidence_ids": ["user:1"],
+        },
+        {
+            "text": "画面不承载文字信息，适合无字视觉海报表达。",
+            "evidence_ids": ["user:1"],
+        },
+    ]
+    script = CreativeScript(
+        [creative_ready(selling_points=selling_points)],
+        ["pass"],
+    )
+    stub = LLMStub(role_responder=script)
+    registry = build_test_registry(llm=stub)
+
+    async with _client_for(llm_settings, registry) as (application, client):
+        project_id = await _create_project(client)
+        await _prepare_brief(
+            application,
+            project_id,
+            overrides={
+                "product_description": "大唐不夜城的盛唐街区景象，写实风格夜景",
+                "purpose": "海报展示；用于线上电商详情页或横版横幅的单独海报",
+                "facts": facts,
+                "size": "3840x2160",
+            },
+        )
+
+        response = await client.post(
+            f"/api/projects/{project_id}/workflow/actions/plan_creative",
+            json={"expected_revision": 0},
+        )
+        assert response.status_code == 200, response.text
+        view = response.json()
+        assert view["stage"] == "S05"
+        creative = [
+            item for item in view["artifacts"] if item["kind"] == "creative_direction"
+        ]
+        assert creative[0]["status"] == "approved"
+        assert creative[0]["payload"]["selling_points"] == selling_points
+
+
+async def test_unsupported_selling_point_summary_is_rejected(llm_settings):
+    """放宽整句子串后，仍不能把已批准需求中没有的功效写成卖点。"""
+    script = CreativeScript(
+        [
+            creative_ready(
+                selling_points=[
+                    {
+                        "text": "用户说明商品具备长效保温效果",
+                        "evidence_ids": ["user:1"],
+                    }
+                ]
+            )
+        ],
+        [],
+    )
+    stub = LLMStub(role_responder=script)
+    registry = build_test_registry(llm=stub)
+
+    async with _client_for(llm_settings, registry) as (application, client):
+        project_id = await _create_project(client)
+        run_id = await _prepare_brief(application, project_id)
+
+        response = await client.post(
+            f"/api/projects/{project_id}/workflow/actions/plan_creative",
+            json={"expected_revision": 0},
+        )
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "REQUIREMENT_DRIFT"
+        assert await _artifacts(application, run_id, "creative_direction") == []
+
+
+async def test_business_rejected_candidate_can_be_retried(llm_settings):
+    """旧的 S04 误判阻断可以由用户显式重试恢复，而不是永久卡死。"""
+    bad = creative_ready(
+        selling_points=[
+            {
+                "text": "用户说明商品具备长效保温效果",
+                "evidence_ids": ["user:1"],
+            }
+        ]
+    )
+    good = creative_ready(
+        selling_points=[
+            {
+                "text": "用户声明商品为陶瓷杯",
+                "evidence_ids": ["user:1"],
+            }
+        ]
+    )
+    script = CreativeScript([bad, good], ["pass"])
+    stub = LLMStub(role_responder=script)
+    registry = build_test_registry(llm=stub)
+
+    async with _client_for(llm_settings, registry) as (application, client):
+        project_id = await _create_project(client)
+        await _prepare_brief(application, project_id)
+
+        first = await client.post(
+            f"/api/projects/{project_id}/workflow/actions/plan_creative",
+            json={"expected_revision": 0},
+        )
+        assert first.status_code == 409, first.text
+        view = await _workflow(client, project_id)
+        assert [item["id"] for item in view["available_actions"]] == [
+            "plan_creative"
+        ]
+
+        second = await client.post(
+            f"/api/projects/{project_id}/workflow/actions/plan_creative",
+            json={"expected_revision": 0},
+        )
+        assert second.status_code == 200, second.text
+        assert second.json()["stage"] == "S05"
+
+
 async def test_fact_drift_is_rejected_before_persisting(llm_settings):
     """AC-14：无来源的功效／认证类卖点不进入候选。"""
     script = CreativeScript(
@@ -803,3 +1032,54 @@ async def test_visual_capability_is_never_used_by_creative_stage(llm_settings):
         assert response.status_code == 200, response.text
         assert visual.submit_calls == []
         assert registry.recorder.visual_builds == 0
+
+
+async def test_creative_review_is_skipped_when_gates_are_off(llm_settings):
+    settings = llm_settings.model_copy(update={"workflow_gate_mode": "requirements_only"})
+    script = CreativeScript([creative_ready()], [])
+    stub = LLMStub(role_responder=script)
+    registry = build_test_registry(llm=stub)
+
+    async with _client_for(settings, registry) as (application, client):
+        project_id = await _create_project(client)
+        run_id = await _prepare_brief(application, project_id)
+
+        response = await client.post(
+            f"/api/projects/{project_id}/workflow/actions/plan_creative",
+            json={"expected_revision": 0},
+        )
+        assert response.status_code == 200, response.text
+        view = response.json()
+        assert view["stage"] == "S05"
+        assert view["status"] == "active"
+        creative = [item for item in view["artifacts"] if item["kind"] == "creative_direction"]
+        assert creative[0]["status"] == "approved"
+        assert [call.role for call in await _role_calls(application, run_id)] == [
+            "creative_planner"
+        ]
+        assert [str(item.payload["task"]["role"]) for item in stub.role_calls_received] == [
+            "creative_planner"
+        ]
+
+
+async def test_negative_claim_listing_is_not_treated_as_a_product_claim(llm_settings):
+    direction = "不新增商品、价格、销量、认证等未提供内容，只呈现已确认的盛唐夜景。"
+    script = CreativeScript([creative_ready(direction=direction)], ["pass"])
+    stub = LLMStub(role_responder=script)
+    registry = build_test_registry(llm=stub)
+
+    async with _client_for(llm_settings, registry) as (application, client):
+        project_id = await _create_project(client)
+        await _prepare_brief(application, project_id)
+
+        response = await client.post(
+            f"/api/projects/{project_id}/workflow/actions/plan_creative",
+            json={"expected_revision": 0},
+        )
+        assert response.status_code == 200, response.text
+        view = response.json()
+        assert view["stage"] == "S05"
+        creative = [item for item in view["artifacts"] if item["kind"] == "creative_direction"]
+        assert creative[0]["status"] == "approved"
+        assert creative[0]["payload"]["direction"] == direction
+

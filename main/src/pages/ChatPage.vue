@@ -1,19 +1,22 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
 import AccessibleDrawer from '@/components/AccessibleDrawer.vue'
 import { assetUrl } from '@/api/client'
 import { useChatFlow } from '@/composables/useChatFlow'
+import { publishLiveStatus, type LiveStatusInput } from '@/composables/useLiveStatus'
 import { useWorkspace } from '@/composables/useWorkspace'
 import { displayProjectTitle, formatDateTime } from '@/utils/format'
 
 const workspace = useWorkspace()
 const flow = useChatFlow()
+const route = useRoute()
 const {
   projectMessages,
   projectLoading,
   projectError,
   currentProject,
+  projectParam,
   draft,
 } = workspace
 const {
@@ -60,13 +63,22 @@ const {
 } = flow
 
 const scrollRegion = ref<HTMLElement | null>(null)
+const chatContent = ref<HTMLElement | null>(null)
+const composerArea = ref<HTMLElement | null>(null)
 const composerInput = ref<HTMLTextAreaElement | null>(null)
 const attachmentInput = ref<HTMLInputElement | null>(null)
 const composing = ref(false)
 const stickToBottom = ref(true)
 const newContentAvailable = ref(false)
+const footerHeight = ref(132)
 const lightboxOpen = ref(false)
 const lightboxItem = ref<{ assetId: string; caption: string } | null>(null)
+let scrollFrame = 0
+let composerFrame = 0
+let bottomFrame = 0
+let ignoreScrollUntil = 0
+let contentObserver: ResizeObserver | null = null
+let footerObserver: ResizeObserver | null = null
 const title = computed(() => currentProject.value ? displayProjectTitle(currentProject.value.title) : '新对话')
 const usageText = computed(() => {
   const usage = flow.workflow.view.value?.usage
@@ -123,31 +135,68 @@ function onDrop(event: DragEvent): void {
   void chooseAttachment(file)
 }
 
-function scrollToLatest(): void {
+function scrollToLatest(behavior: ScrollBehavior = 'auto'): void {
   const element = scrollRegion.value
   if (!element) return
-  element.scrollTop = element.scrollHeight
+  // Programmatic scrolling also emits scroll events. Keep those events from
+  // being mistaken for the user scrolling away from the live edge.
+  ignoreScrollUntil = performance.now() + (behavior === 'smooth' ? 700 : 140)
+  if (behavior === 'smooth' && typeof element.scrollTo === 'function') {
+    element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' })
+  } else {
+    element.scrollTop = element.scrollHeight
+  }
   stickToBottom.value = true
   newContentAvailable.value = false
 }
 
-function onScroll(): void {
-  const element = scrollRegion.value
-  if (!element) return
-  const distance = element.scrollHeight - element.scrollTop - element.clientHeight
-  stickToBottom.value = distance <= 48
-  if (stickToBottom.value) newContentAvailable.value = false
+function scheduleStickToBottom(): void {
+  if (!stickToBottom.value || bottomFrame) return
+  bottomFrame = requestAnimationFrame(() => {
+    bottomFrame = 0
+    if (!stickToBottom.value) return
+    const element = scrollRegion.value
+    if (!element) return
+    ignoreScrollUntil = performance.now() + 80
+    element.scrollTop = element.scrollHeight
+  })
 }
 
-function resizeComposer(): void {
+function onScroll(): void {
+  if (scrollFrame) return
+  scrollFrame = requestAnimationFrame(() => {
+    scrollFrame = 0
+    if (performance.now() < ignoreScrollUntil) return
+    const element = scrollRegion.value
+    if (!element) return
+    const distance = element.scrollHeight - element.scrollTop - element.clientHeight
+    stickToBottom.value = distance <= 48
+    if (stickToBottom.value) newContentAvailable.value = false
+  })
+}
+
+function resizeComposerNow(): void {
   const element = composerInput.value
   if (!element) return
   element.style.height = 'auto'
-  element.style.height = Math.min(element.scrollHeight || 44, 180) + 'px'
+  const next = Math.min(element.scrollHeight || 44, 180) + 'px'
+  if (element.style.height !== next) element.style.height = next
+}
+
+function scheduleComposerResize(): void {
+  if (composerFrame) return
+  composerFrame = requestAnimationFrame(() => {
+    composerFrame = 0
+    resizeComposerNow()
+  })
 }
 
 function onComposerInput(): void {
-  resizeComposer()
+  scheduleComposerResize()
+}
+
+function onMediaLoad(): void {
+  if (stickToBottom.value) scheduleStickToBottom()
 }
 
 function openLightbox(item: { assetId: string | null; caption: string }, event: MouseEvent): void {
@@ -181,12 +230,58 @@ watch(
 
 watch(
   () => draft.value,
+  () => scheduleComposerResize(),
+  { flush: 'post' },
+)
+
+watch(
+  () => projectParam.value,
   async () => {
+    stickToBottom.value = true
+    newContentAvailable.value = false
     await nextTick()
-    resizeComposer()
+    scrollToLatest()
   },
   { flush: 'post' },
 )
+
+watch(
+  () => route.hash,
+  async (hash) => {
+    if (hash !== '#composer') return
+    await nextTick()
+    composerArea.value?.scrollIntoView({ block: 'nearest' })
+    composerInput.value?.focus({ preventScroll: true })
+  },
+  { immediate: true, flush: 'post' },
+)
+
+onMounted(() => {
+  if (typeof ResizeObserver !== 'undefined') {
+    if (chatContent.value) {
+      contentObserver = new ResizeObserver(() => {
+        if (stickToBottom.value) scheduleStickToBottom()
+      })
+      contentObserver.observe(chatContent.value)
+    }
+    if (composerArea.value) {
+      footerObserver = new ResizeObserver(() => {
+        footerHeight.value = composerArea.value?.offsetHeight ?? 0
+      })
+      footerObserver.observe(composerArea.value)
+      footerHeight.value = composerArea.value.offsetHeight
+    }
+  }
+  scheduleComposerResize()
+})
+
+onBeforeUnmount(() => {
+  if (scrollFrame) cancelAnimationFrame(scrollFrame)
+  if (composerFrame) cancelAnimationFrame(composerFrame)
+  if (bottomFrame) cancelAnimationFrame(bottomFrame)
+  contentObserver?.disconnect()
+  footerObserver?.disconnect()
+})
 
 async function submit(): Promise<void> {
   const value = draft.value
@@ -212,6 +307,82 @@ function resultPageRoute(runId: string): { name: string; params?: { projectId: s
 function roleLabel(role: string): string {
   return role === 'user' ? '你' : '智能生图助手'
 }
+
+const liveStatusInput = computed<LiveStatusInput>(() => {
+  const projectId = projectParam.value
+  const projectTitle = currentProject.value
+    ? title.value
+    : projectId
+      ? '正在读取对话'
+      : '新对话'
+  const currentView = flow.workflow.view.value
+  const progress = currentView?.task_state?.progress
+  const base = { projectId, projectTitle, detail: '', busy: false }
+
+  if (projectError.value) {
+    return { ...base, label: '对话读取失败', detail: projectError.value, tone: 'error' }
+  }
+  if (projectLoading.value) {
+    return { ...base, label: '正在读取对话', detail: '正在恢复消息和工作流状态…', tone: 'working' }
+  }
+  if (attachmentBusy.value) {
+    return { ...base, label: '正在上传参考图', detail: '上传完成后才会发送这条消息。', tone: 'working', busy: true }
+  }
+  if (busy.value) {
+    const label = progress?.stage_label ? `正在${progress.stage_label}` : '正在处理'
+    return {
+      ...base,
+      label,
+      detail: taskStatusText.value || '正在同步最新进度，无需重复发送。',
+      tone: 'working',
+      busy: true,
+    }
+  }
+  if (canConfirmRequirements.value) {
+    return { ...base, label: '等待确认需求', detail: '核对需求卡后，才会准备提示词。', tone: 'waiting' }
+  }
+  if (promptPreview.value) {
+    return {
+      ...base,
+      label: '等待确认提示词',
+      detail: promptPreview.value.can_confirm ? '确认真实提示词后才会提交生成。' : '提示词仍在检查，请稍候。',
+      tone: 'waiting',
+    }
+  }
+  if (isWorkingStatus.value) {
+    return {
+      ...base,
+      label: progress?.stage_label ? `正在${progress.stage_label}` : '正在处理',
+      detail: taskStatusText.value || '工作流仍在执行，状态会自动更新。',
+      tone: 'working',
+      busy: Boolean(progress?.status === 'active'),
+    }
+  }
+  if (taskReasonLabel.value) {
+    return {
+      ...base,
+      label: taskReasonLabel.value,
+      detail: taskStatusText.value || '需要你确认后继续。',
+      tone: taskReason.value?.severity === 'failed' ? 'error' : 'waiting',
+    }
+  }
+  if (publishedAssetId.value) {
+    return { ...base, label: '图片已就绪', detail: '可以下载原图，或在输入框继续描述修改。', tone: 'success' }
+  }
+  if (currentView?.status === 'completed') {
+    return { ...base, label: '本轮已完成', detail: '在下方输入框可以继续下一轮调整。', tone: 'success' }
+  }
+  if (projectId) {
+    return { ...base, label: '已就绪', detail: '在下方输入框继续描述商品和画面。', tone: 'idle' }
+  }
+  return { ...base, label: '准备开始', detail: '描述商品和画面，我会同步每一步进度。', tone: 'idle' }
+})
+
+watch(
+  liveStatusInput,
+  (next) => publishLiveStatus(next),
+  { immediate: true, flush: 'post' },
+)
 </script>
 
 <template>
@@ -224,7 +395,8 @@ function roleLabel(role: string): string {
       <span v-if="busy" class="chat-working">处理中…</span>
     </header>
 
-    <div ref="scrollRegion" class="chat-scroll" aria-label="对话内容" @scroll="onScroll">
+    <div ref="scrollRegion" class="chat-scroll" aria-label="对话内容" @scroll.passive="onScroll">
+      <div ref="chatContent" class="chat-content">
       <div v-if="!hasConversation" class="welcome">
         <p class="welcome-mark" aria-hidden="true">✦</p>
         <h1>发来商品图片，或告诉我你想做什么样的电商图片</h1>
@@ -243,6 +415,7 @@ function roleLabel(role: string): string {
             <li
               v-for="message in projectMessages"
               :key="message.id"
+              v-memo="[message.id, message.content, message.attachment?.preview_url]"
               class="message-row"
               :class="message.role === 'user' ? 'is-user' : 'is-assistant'"
             >
@@ -253,6 +426,11 @@ function roleLabel(role: string): string {
                   class="message-attachment"
                   :src="message.attachment.preview_url"
                   :alt="'随消息发送的图片，用途：' + message.attachment.usage"
+                  :width="message.attachment.width"
+                  :height="message.attachment.height"
+                  loading="lazy"
+                  decoding="async"
+                  @load="onMediaLoad"
                 >
                 <p class="message-content">{{ message.content }}</p>
               </div>
@@ -269,10 +447,12 @@ function roleLabel(role: string): string {
               <p v-if="taskReasonLabel" class="task-reason-label" :data-category="taskReason?.category">
                 {{ taskReasonLabel }}
               </p>
-              <p v-if="taskStatusText" class="message-content">{{ taskStatusText }}</p>
-              <span v-if="isWorkingStatus" class="typing-dots" aria-hidden="true"><i /><i /><i /></span>
+              <div v-if="taskStatusText || isWorkingStatus" class="status-line">
+                <p v-if="taskStatusText" class="message-content">{{ taskStatusText }}</p>
+                <span v-if="isWorkingStatus" class="typing-dots" aria-hidden="true"><i /><i /><i /></span>
+              </div>
               <div v-if="taskActions.length" class="task-actions">
-                <p class="task-actions-note">安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。</p>
+                <p v-if="!isWorkingStatus" class="task-actions-note">安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。</p>
                 <div v-for="action in taskActions" :key="action.id" class="task-action">
                   <div class="task-action-head">
                     <button
@@ -327,7 +507,7 @@ function roleLabel(role: string): string {
           >
             <div class="message-bubble">
               <p class="message-role">智能生图助手</p>
-              <p class="assistant-lead">提示词已经准备好。下面就是实际会交给图片模型的内容，请确认后开始生成。</p>
+              <p class="assistant-lead">提示词已经准备好。下面就是实际会交给图片模型的内容，确认后才会生成图片。</p>
               <div class="prompt-block">
                 <div class="prompt-heading">
                   <h3>实际提示词</h3>
@@ -398,7 +578,17 @@ function roleLabel(role: string): string {
                 :aria-label="'查看大图：' + item.caption"
                 @click.prevent="openLightbox(item, $event)"
               >
-                <img class="result-image" :src="assetUrl(item.assetId)" :alt="item.caption">
+                <img
+                  class="result-image"
+                  :src="assetUrl(item.assetId)"
+                  :alt="item.caption"
+                  :width="item.width ?? undefined"
+                  :height="item.height ?? undefined"
+                  :style="item.width && item.height ? { aspectRatio: item.width + ' / ' + item.height } : undefined"
+                  loading="lazy"
+                  decoding="async"
+                  @load="onMediaLoad"
+                >
                 <span class="image-zoom-label">查看大图</span>
               </a>
               <div v-else class="result-unavailable" role="status">
@@ -439,12 +629,10 @@ function roleLabel(role: string): string {
           </section>
         </template>
       </template>
+      </div>
     </div>
 
-    <footer class="composer-area">
-      <button v-if="newContentAvailable" type="button" class="new-content-button" @click="scrollToLatest">
-        有新内容，回到底部
-      </button>
+    <footer ref="composerArea" class="composer-area">
       <div v-if="flowError" class="chat-error composer-error" role="alert">
         <p>{{ flowError }}</p>
         <button type="button" class="text-button" @click="retry">重试</button>
@@ -466,6 +654,7 @@ function roleLabel(role: string): string {
         <button type="button" class="text-button attachment-remove" :disabled="attachmentBusy" @click="removeAttachment">移除图片</button>
       </div>
       <div
+        id="composer"
         class="composer-shell"
         @dragover.prevent
         @drop.prevent="onDrop"
@@ -508,15 +697,29 @@ function roleLabel(role: string): string {
         <button
           type="button"
           class="send-button"
-          aria-label="发送"
+          :aria-label="busy ? '正在发送' : '发送'"
+          :aria-busy="busy"
           :disabled="sendDisabled"
           @click="submit"
         >
-          发送
+          {{ busy ? '处理中…' : '发送' }}
         </button>
       </div>
       <p class="composer-hint">Enter 发送，Shift + Enter 换行</p>
     </footer>
+
+    <Transition name="float-pop">
+      <button
+        v-if="newContentAvailable"
+        type="button"
+        class="new-content-button"
+        :style="{ bottom: footerHeight + 12 + 'px' }"
+        @click="scrollToLatest('smooth')"
+      >
+        <span class="new-content-dot" aria-hidden="true" />
+        有新内容，回到底部
+      </button>
+    </Transition>
     <AccessibleDrawer
       :open="lightboxOpen"
       title="图片大图"
@@ -537,6 +740,7 @@ function roleLabel(role: string): string {
 
 <style scoped>
 .pure-chat {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -568,10 +772,23 @@ function roleLabel(role: string): string {
   overflow-x: hidden;
   overflow-y: auto;
   padding: 34px clamp(20px, 5vw, 56px) 24px;
-  scroll-behavior: smooth;
+  overflow-anchor: none;
+  overscroll-behavior-y: contain;
+  scrollbar-color: rgba(98, 109, 136, .28) transparent;
+  scrollbar-width: thin;
 }
+.chat-scroll::-webkit-scrollbar { width: 7px; }
+.chat-scroll::-webkit-scrollbar-track { background: transparent; }
+.chat-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(98, 109, 136, .24);
+  background-clip: content-box;
+}
+.chat-content { display: flex; flex-direction: column; min-height: 100%; }
 .welcome {
   display: flex;
+  flex: 1 0 auto;
   flex-direction: column;
   justify-content: center;
   align-items: center;
@@ -632,7 +849,9 @@ function roleLabel(role: string): string {
   color: #fff;
   font-weight: 600;
 }
+.primary-action { transition: background-color .2s ease, transform .18s var(--ease-spring), opacity .2s ease; }
 .primary-action:hover:not(:disabled) { background: var(--color-primary-hover); }
+.primary-action:active:not(:disabled) { transform: scale(.975); }
 .primary-action:disabled { cursor: not-allowed; opacity: .55; }
 .prompt-block { margin: 0 0 18px; padding: 18px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-panel); }
 .prompt-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
@@ -643,15 +862,24 @@ function roleLabel(role: string): string {
 .prompt-meta { margin-bottom: 0; }
 .text-button { padding: 2px 0; border: 0; background: transparent; color: var(--color-primary); font-size: 13px; }
 .text-button:hover { text-decoration: underline; }
-.status-bubble { display: inline-flex; align-items: center; gap: 12px; color: var(--color-text-muted); }
+.status-bubble {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--color-text-muted);
+}
 .status-bubble .message-content { color: var(--color-text-muted); }
+.status-line { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.status-line .message-content { min-width: 0; }
 .task-reason-label { margin: 0 0 6px; color: var(--color-primary); font-size: 13px; font-weight: 600; }
-.task-actions { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
+.task-actions { display: flex; align-self: stretch; flex-direction: column; gap: 14px; width: 100%; margin-top: 9px; }
 .task-actions-note { margin: 0; color: var(--color-text-muted); font-size: 13px; line-height: 1.6; }
 .task-action { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--color-border-soft); }
 .task-action-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.task-action-button { min-height: 34px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-panel); color: var(--color-text); font-size: 13px; }
-.task-action-button:hover:not(:disabled) { border-color: var(--color-primary); color: var(--color-primary); }
+.task-action-button { min-height: 34px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-panel); color: var(--color-text); font-size: 13px; transition: border-color .2s ease, color .2s ease, transform .18s var(--ease-spring), background-color .2s ease; }
+.task-action-button:hover:not(:disabled) { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-soft); }
+.task-action-button:active:not(:disabled) { transform: scale(.97); }
 .task-action-button:disabled { cursor: not-allowed; opacity: .5; }
 .task-effect { padding: 2px 8px; border-radius: 999px; background: var(--color-primary-soft); color: var(--color-primary); font-size: 12px; }
 .task-help, .task-count, .task-text-note { margin: 0; color: var(--color-text-muted); font-size: 12px; line-height: 1.55; }
@@ -739,16 +967,41 @@ figcaption { color: var(--color-text-muted); font-size: 13px; }
   background: linear-gradient(to top, var(--color-panel) 78%, rgba(255,255,255,0));
 }
 .new-content-button {
-  display: block;
-  width: fit-content;
-  margin: 0 auto 8px;
-  padding: 7px 14px;
-  border: 1px solid var(--color-border);
+  position: absolute;
+  left: 50%;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid rgba(88, 70, 232, .2);
   border-radius: 999px;
-  background: var(--color-panel);
+  background: rgba(255, 255, 255, .94);
+  box-shadow: 0 9px 24px rgba(42, 45, 78, .13), inset 0 1px 0 #fff;
   color: var(--color-primary);
-  font-size: 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  transform: translateX(-50%);
+  transition: transform .22s var(--ease-spring), box-shadow .22s ease, background-color .2s ease;
 }
+.new-content-button:hover { box-shadow: 0 12px 28px rgba(42, 45, 78, .18), inset 0 1px 0 #fff; }
+.new-content-button:active { transform: translateX(-50%) scale(.96); }
+.new-content-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 4px var(--color-primary-soft);
+}
+.float-pop-enter-active,
+.float-pop-leave-active { transition: opacity .2s ease, transform .3s var(--ease-spring); }
+.float-pop-enter-from,
+.float-pop-leave-to { opacity: 0; transform: translateX(-50%) translateY(9px) scale(.9); }
 .lightbox-image { display: block; max-width: 100%; max-height: calc(100vh - 160px); margin: 0 auto; border-radius: 12px; object-fit: contain; }
 .composer-error { margin-bottom: 10px; }
 .composer-shell {
@@ -763,6 +1016,11 @@ figcaption { color: var(--color-text-muted); font-size: 13px; }
   border-radius: 22px;
   background: var(--color-panel);
   box-shadow: 0 10px 30px rgba(40, 44, 72, .08);
+  transition: border-color .22s ease, box-shadow .28s var(--ease-out), transform .28s var(--ease-spring);
+}
+.composer-shell:focus-within {
+  border-color: rgba(88, 70, 232, .55);
+  box-shadow: 0 0 0 4px rgba(88, 70, 232, .08), 0 16px 38px rgba(40, 44, 72, .12);
 }
 .composer-input {
   flex: 1;
@@ -778,8 +1036,9 @@ figcaption { color: var(--color-text-muted); font-size: 13px; }
   font: 16px/1.5 var(--font-family);
 }
 .composer-input:disabled { opacity: .6; }
-.send-button { flex: none; min-width: 68px; height: 44px; border: 0; border-radius: 16px; background: var(--color-primary); color: #fff; font-weight: 600; }
+.send-button { flex: none; min-width: 68px; height: 44px; border: 0; border-radius: 16px; background: var(--color-primary); color: #fff; font-weight: 600; transition: background-color .2s ease, transform .18s var(--ease-spring), opacity .2s ease, min-width .24s var(--ease-spring); }
 .send-button:hover:not(:disabled) { background: var(--color-primary-hover); }
+.send-button:active:not(:disabled) { transform: scale(.96); }
 .send-button:disabled { cursor: not-allowed; opacity: .45; }
 .composer-hint { width: min(var(--conversation-width), 100%); margin: 8px auto 0; color: var(--color-text-muted); font-size: 12px; text-align: center; }
 @media (max-width: 767px) {

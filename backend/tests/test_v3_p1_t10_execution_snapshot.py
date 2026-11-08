@@ -500,3 +500,50 @@ def test_legacy_confirmation_is_explicit_and_malformed_snapshot_fails_closed() -
         execution_snapshot_from_checks(malformed)
     assert raised.value.code == "SNAPSHOT_VERSION_UNSUPPORTED"
 
+
+@pytest.mark.asyncio
+async def test_requirements_only_confirmation_skips_prompt_reviewer(full_settings) -> None:
+    settings = full_settings.model_copy(update={"workflow_gate_mode": "requirements_only"})
+    llm = LLMStub()
+    visual = VisualStub()
+
+    def responder(request):
+        role = request.payload["task"]["role"]
+        if role == "generation_engineer":
+            return _execution_responder(request)
+        raise AssertionError(f"unexpected role {role}")
+
+    request_id = str(uuid.uuid4())
+    async with _environment(settings, llm, visual, responder) as (app, client):
+        setup = await _setup_execution_snapshot(app, client)
+        confirmed = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/confirm_requirements",
+            json={
+                "expected_revision": setup["revision"],
+                "payload": {
+                    "artifact_id": setup["final_artifact_id"],
+                    "artifact_digest": setup["final_digest"],
+                    "requirement_revision": setup["revision"],
+                    "request_id": request_id,
+                },
+            },
+        )
+        assert confirmed.status_code == 200, confirmed.text
+
+        view = None
+        for _ in range(500):
+            await _drain(app)
+            view = (
+                await client.get(f"/api/projects/{setup['project_id']}/workflow")
+            ).json()
+            if view.get("prompt_preview"):
+                break
+            await asyncio.sleep(0.01)
+
+        assert view is not None
+        assert view["stage"] == "S07"
+        assert view["status"] == "needs_input"
+        assert view["prompt_preview"]["status"] == "awaiting_confirmation"
+        assert [request.payload["task"]["role"] for request in llm.role_calls_received] == [
+            "generation_engineer"
+        ]

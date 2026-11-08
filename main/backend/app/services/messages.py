@@ -316,6 +316,20 @@ async def _classify_message(
     return ConversationData.model_validate(output.data)
 
 
+async def _typed_requirement_confirmation(ctx: Any, content: str) -> bool:
+    """Recognize a bare typed confirmation only for the S06 requirements card."""
+    from app.workflow import dispatch
+
+    if ctx.run is None or ctx.run.stage != "S06" or ctx.run.status != "active":
+        return False
+    normalized = "".join(content.split()).rstrip("。.!！")
+    if normalized not in {"确认", "确认需求", "确认需求卡"}:
+        return False
+    return any(
+        item.id == "confirm_requirements" for item in dispatch.available_actions(ctx)
+    )
+
+
 async def _plan_message_action(ctx: Any, decision: Any) -> tuple[str | None, str | None, str]:
     from app.workflow import dispatch
     from app.workflow.stages import s02
@@ -788,6 +802,42 @@ async def _send_workflow_message(
             if attachment_asset_id is not None
             else None
         )
+        # A bare typed confirmation is the requirements-card action itself. It
+        # must use the same request-id path as the button so the atomic intent
+        # is created and the background prompt driver is scheduled. Never treat
+        # this as final image authorization at S07.
+        if attachment_asset is None and await _typed_requirement_confirmation(ctx, content):
+            start_sequence = await _max_sequence(session_factory, project_id)
+            try:
+                await _append_workflow_message(
+                    session_factory,
+                    project_id=project_id,
+                    role="user",
+                    content=content,
+                    project_revision=ctx.project.revision,
+                    operation_id=effective_request_id,
+                    turn_kind="workflow",
+                )
+                await dispatch.handle_action(
+                    ctx, "confirm_requirements", {"request_id": effective_request_id}
+                )
+            except ApiError:
+                await _stamp_partial_action_messages(
+                    ctx,
+                    request_id=effective_request_id,
+                    kind="requirements_confirmation",
+                    start_sequence=start_sequence,
+                )
+                raise
+            return await _finish_action_exchange(
+                ctx,
+                request_id=effective_request_id,
+                kind="requirements_confirmation",
+                start_sequence=start_sequence,
+                fixed_template="REQUIREMENT_CONFIRMED",
+                principal=principal,
+            )
+
         decision = await _classify_message(
             ctx, content, has_reference_attachment=attachment_asset is not None
         )

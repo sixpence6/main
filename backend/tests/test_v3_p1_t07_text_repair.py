@@ -8,9 +8,12 @@ import pytest
 from sqlalchemy import select
 
 from app.adapters.base import ProviderOutcome
+from app.db import write_transaction
 from app.auth.models import Account
 from app.models import Project
+from app.prompt_preparation import PreparedPrompt
 from app.timeutil import format_timestamp, utc_now
+from app.workflow import templates
 from app.workflow.reasons import (
     CandidateDefect,
     CandidateDefectCode,
@@ -241,12 +244,24 @@ async def test_three_invalid_text_candidates_exhaust_budget_without_image_retry(
         await _drain(app)
 
         intents, usages, slots = await _rows(app, setup["project_id"])
-        assert len(intents) == 1 and intents[0].status == "accepted"
+        # The third failed prompt candidate is a proven pre-image terminal
+        # state. It keeps the counted usage but must not keep live occupancy.
+        assert len(intents) == 1 and intents[0].status == "abandoned"
         assert len(usages) == 1
-        assert all(slot.released_at is None for slot in slots)
+        assert all(slot.released_at is not None for slot in slots)
         run, artifacts, budget, diags = await _run_state(app, setup["project_id"])
         assert artifacts == []
         assert budget is not None and budget.used == 3
+        assert run is not None and run.status == "blocked"
+        assert run is not None and run.issue_code == "REVISION_BUDGET_EXHAUSTED"
+        view = (await client.get(f"/api/projects/{setup['project_id']}/workflow")).json()
+        assert view["status"] == "blocked"
+        assert view["task_state"]["reason"]["message"] == templates.render(
+            "REVISION_BUDGET_EXHAUSTED"
+        )
+        assert [item["id"] for item in view["available_actions"]] == [
+            "revise_requirements"
+        ]
         assert [item["reason"] for item in diags if item["action"] == "candidate_invalid"] == [
             ReasonCode.REPAIRABLE_COMPOSITION
         ] * 3
@@ -267,6 +282,78 @@ async def test_three_invalid_text_candidates_exhaust_budget_without_image_retry(
         assert "REVISION_BUDGET_EXHAUSTED" in blocked.text
         assert len(llm.role_calls_received) == 3
         assert visual.submit_calls == []
+
+
+@pytest.mark.asyncio
+async def test_revise_requirements_after_exhausted_prompt_budget_starts_fresh_run(
+    full_settings,
+):
+    llm = LLMStub()
+    visual = VisualStub()
+    async with _environment(
+        full_settings, llm, visual, responder=_generation_engineer_responder()
+    ) as (app, client):
+        setup = await _setup_s06(app, client)
+        async with write_transaction(app.state.session_factory) as session:
+            run = await session.scalar(
+                select(WorkflowRun).where(
+                    WorkflowRun.project_id == setup["project_id"]
+                )
+            )
+            assert run is not None
+            old_run_id = run.id
+            session.add(
+                RevisionBudget(
+                    run_id=old_run_id, artifact_kind="prompt_plan", used=3, max_allowed=3
+                )
+            )
+            await session.flush()
+
+        response = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/confirm_requirements",
+            json=_confirmation_payload(setup, str(uuid.uuid4())),
+        )
+        assert response.status_code == 200, response.text
+        await _drain(app)
+
+        blocked = await client.get(
+            f"/api/projects/{setup['project_id']}/workflow"
+        )
+        assert blocked.status_code == 200
+        blocked_view = blocked.json()
+        assert blocked_view["run_id"] == old_run_id
+        assert blocked_view["status"] == "blocked"
+        assert blocked_view["issue"]["code"] == "REVISION_BUDGET_EXHAUSTED"
+
+        revised = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/revise_requirements",
+            json={
+                "expected_revision": blocked_view["project_revision"],
+                "text": "把杯身改为哑光白色，其他保持已确认内容",
+                "payload": {},
+            },
+        )
+        assert revised.status_code == 200, revised.text
+        view = revised.json()
+        assert view["run_id"] != old_run_id
+        assert view["stage"] in {"S03", "S04"}
+        assert view["project_revision"] == setup["revision"] + 1
+
+        async with app.state.session_factory() as session:
+            old_run = await session.get(WorkflowRun, old_run_id)
+            assert old_run is not None
+            assert old_run.stage == "S07" and old_run.status == "blocked"
+            assert old_run.issue_code == "REVISION_BUDGET_EXHAUSTED"
+            old_budget = await session.get(
+                RevisionBudget, (old_run_id, "prompt_plan")
+            )
+            assert old_budget is not None and old_budget.used == 3
+        intents, usages, slots = await _rows(app, setup["project_id"])
+        assert len(intents) == 1 and intents[0].status == "abandoned"
+        assert len(usages) == 1
+        assert all(slot.released_at is not None for slot in slots)
+        assert visual.submit_calls == []
+
 
 
 @pytest.mark.asyncio
@@ -298,6 +385,95 @@ async def test_true_drift_still_abandons_intent_without_prompt_candidate(full_se
         reasons = [item["reason"] for item in diags if item["action"] == "reconfirm_requirements"]
         assert reasons == [ReasonCode.TRUE_DRIFT]
         assert visual.submit_calls == []
+
+
+class _DriftThenExact:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def __call__(self, request):
+        role = request.payload["task"]["role"]
+        if role == "generation_engineer":
+            self.calls += 1
+            brief = request.payload["approved_inputs"]["final_brief"]
+            if self.calls == 1:
+                return engineer_response(
+                    candidate_data(brief, extra_positive="限时特价 9.9 元")
+                )
+            return engineer_response(candidate_data(brief))
+        return _generation_engineer_responder()(request)
+
+
+@pytest.mark.asyncio
+async def test_prompt_reconfirmation_block_retries_without_new_acceptance(full_settings):
+    llm = LLMStub()
+    visual = VisualStub()
+    script = _DriftThenExact()
+    async with _environment(full_settings, llm, visual, responder=script) as (app, client):
+        setup = await _setup_s06(app, client)
+        response = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/confirm_requirements",
+            json=_confirmation_payload(setup, str(uuid.uuid4())),
+        )
+        assert response.status_code == 200, response.text
+        await _drain(app)
+
+        intents, usages, slots = await _rows(app, setup["project_id"])
+        assert len(intents) == 1 and intents[0].status == "abandoned"
+        assert len(usages) == 1
+        assert all(slot.released_at is not None for slot in slots)
+        run, artifacts, budget, _diags = await _run_state(app, setup["project_id"])
+        assert run is not None and run.issue_code == "PROMPT_REQUIRES_RECONFIRMATION"
+        assert artifacts == [] and visual.submit_calls == []
+
+        workflow = await client.get(
+            f"/api/projects/{setup['project_id']}/workflow"
+        )
+        assert workflow.status_code == 200
+        assert "compile_prompt" in [
+            action["id"] for action in workflow.json()["available_actions"]
+        ]
+
+        retried = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/compile_prompt",
+            json={"expected_revision": setup["revision"], "payload": {}},
+        )
+        assert retried.status_code == 200, retried.text
+        assert retried.json()["stage"] == "S07"
+        assert retried.json()["status"] == "needs_input"
+
+        intents, usages, slots = await _rows(app, setup["project_id"])
+        assert len(intents) == 1 and intents[0].status == "accepted"
+        assert len(usages) == 1
+        assert all(slot.released_at is None for slot in slots)
+        run, artifacts, budget, _diags = await _run_state(app, setup["project_id"])
+        assert run is not None and run.status == "needs_input"
+        assert len(artifacts) == 1 and artifacts[0].status == "approved"
+        assert artifacts[0].revision_no == 2
+        assert budget is not None and budget.used == 2
+        async with app.state.session_factory() as session:
+            prepared = list(
+                (
+                    await session.scalars(
+                        select(PreparedPrompt).where(
+                            PreparedPrompt.project_id == setup["project_id"]
+                        )
+                    )
+                ).all()
+            )
+            jobs = list(
+                (
+                    await session.scalars(
+                        select(GenerationJob).where(
+                            GenerationJob.project_id == setup["project_id"]
+                        )
+                    )
+                ).all()
+            )
+        assert len(prepared) == 1 and prepared[0].status == "awaiting_confirmation"
+        assert jobs == []
+        assert visual.submit_calls == []
+        assert script.calls == 2
 
 
 @pytest.mark.asyncio

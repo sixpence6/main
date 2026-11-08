@@ -15,6 +15,7 @@ from app.workflow import templates
 from app.workflow.adjudication import (
     RULESET_VERSION,
     ProtocolIssue,
+    gate_mode_for_target,
     governance_ruleset,
     review_output,
 )
@@ -78,6 +79,31 @@ _UNSUPPORTED_CLAIM_PATTERNS = (
     re.compile(r"\d+(?:\.\d+)?\s*(?:元|折|%)"),
 )
 
+# A direction may name these tokens only to say they are absent or forbidden
+# ("不新增销量、认证等未提供内容"). Such a negative listing is not a claim.
+_NEGATED_CLAIM_MARKERS = (
+    "不新增",
+    "不添加",
+    "不包含",
+    "不涉及",
+    "不使用",
+    "不承诺",
+    "不暗示",
+    "不得",
+    "不可",
+    "不应",
+    "禁止",
+    "避免",
+    "无需",
+    "没有",
+    "未提供",
+    "未包含",
+    "未涉及",
+    "不含",
+    "无",
+)
+_CLAIM_SENTENCE_BOUNDARIES = "。；;！!？?\n"
+
 
 def available(ctx: WorkflowContext) -> list[dict[str, Any]]:
     """Program-owned action menu for the creative stage.
@@ -95,6 +121,11 @@ def available(ctx: WorkflowContext) -> list[dict[str, Any]]:
         "REVIEW_UNKNOWN",
     }:
         return ["revise_creative"]
+    if ctx.run.status == "blocked" and ctx.run.issue_code == "REQUIREMENT_DRIFT":
+        # Older runs could be blocked by the former whole-sentence source check.
+        # Keep the approved brief and allow one explicit retry; the revision
+        # budget still limits repeated model calls.
+        return ["plan_creative"]
     return []
 
 
@@ -142,6 +173,61 @@ def _normalize(value: str) -> str:
     return " ".join(value.split()).casefold()
 
 
+# Natural creative summaries may combine several approved facts and add
+# connective wording. Require substantial character-bigram coverage instead
+# of a whole-sentence substring, which rejects faithful paraphrases.
+_MIN_SUPPORT_COVERAGE = 0.30
+# A short, concrete fact (for example "不需要文字") can support a longer,
+# natural sentence through its content characters even when the surrounding
+# wording is different. Require a shared bigram as well so that unrelated
+# phrases that merely reuse a few characters do not pass.
+_MIN_SHORT_FACT_COVERAGE = 0.60
+_SHORT_FACT_MAX_CHARS = 10
+
+_PARENTHETICAL_RE = re.compile(r"（[^）]*）|\([^)]*\)")
+
+
+def _support_text(value: str) -> str:
+    return "".join(ch for ch in value.casefold() if ch.isalnum())
+
+
+def _claim_support_text(value: str) -> str:
+    # Disclaimers such as "（用户声明，未独立核实）" are provenance notes,
+    # not part of the claim that must be found in the cited facts.
+    return _support_text(_PARENTHETICAL_RE.sub("", value))
+
+
+def _char_bigrams(value: str) -> set[str]:
+    return {value[index : index + 2] for index in range(len(value) - 1)}
+
+
+def _supported_by_facts(claim: str, facts: list[str]) -> bool:
+    normalized_claim = _claim_support_text(claim)
+    normalized_facts = [_support_text(fact) for fact in facts]
+    if not normalized_claim or not normalized_facts:
+        return False
+    if any(normalized_claim in fact for fact in normalized_facts):
+        return True
+
+    claim_bigrams = _char_bigrams(normalized_claim)
+    if not claim_bigrams:
+        return False
+    claim_chars = set(normalized_claim)
+    for fact in normalized_facts:
+        if not 2 <= len(fact) <= _SHORT_FACT_MAX_CHARS:
+            continue
+        fact_bigrams = _char_bigrams(fact)
+        if not (fact_bigrams & claim_bigrams):
+            continue
+        if len(set(fact) & claim_chars) / len(set(fact)) >= _MIN_SHORT_FACT_COVERAGE:
+            return True
+
+    fact_bigrams: set[str] = set()
+    for fact in normalized_facts:
+        fact_bigrams.update(_char_bigrams(fact))
+    return len(claim_bigrams & fact_bigrams) / len(claim_bigrams) >= _MIN_SUPPORT_COVERAGE
+
+
 def _flatten_strings(value: Any) -> list[str]:
     if isinstance(value, str):
         return [value]
@@ -160,6 +246,21 @@ def _flatten_strings(value: Any) -> list[str]:
 
 def _brief_corpus(brief: dict[str, Any]) -> str:
     return _normalize("\n".join(_flatten_strings(brief)))
+
+
+def _claim_token_is_negated(text: str, start: int) -> bool:
+    """Return True when an unsupported-claim token is explicitly negated.
+
+    The check stays sentence-local: a negated earlier sentence must not excuse
+    a positive claim in a later sentence.
+    """
+    prefix = text[:start]
+    boundary = max(
+        (prefix.rfind(marker) for marker in _CLAIM_SENTENCE_BOUNDARIES),
+        default=-1,
+    )
+    clause = _normalize(prefix[boundary + 1 :])
+    return any(marker in clause for marker in _NEGATED_CLAIM_MARKERS)
 
 
 def _fact_evidence(brief: dict[str, Any]) -> dict[str, list[str]]:
@@ -240,8 +341,7 @@ def _validate_creative(brief: dict[str, Any], data: dict[str, Any]) -> None:
             if not isinstance(evidence_id, str) or evidence_id not in evidence:
                 raise _business_reject()
             cited.extend(evidence[evidence_id])
-        normalized_claim = _normalize(text)
-        if not any(normalized_claim in _normalize(fact_text) for fact_text in cited):
+        if not _supported_by_facts(text, cited):
             raise _business_reject()
 
     corpus = _brief_corpus(brief)
@@ -251,6 +351,8 @@ def _validate_creative(brief: dict[str, Any], data: dict[str, Any]) -> None:
     for text in claims:
         for pattern in _UNSUPPORTED_CLAIM_PATTERNS:
             for match in pattern.finditer(text):
+                if _claim_token_is_negated(text, match.start()):
+                    continue
                 if _normalize(match.group(0)) not in corpus:
                     raise _business_reject()
 
@@ -421,6 +523,28 @@ async def _review_creative(
     data: dict[str, Any],
 ) -> None:
     allowed_evidence = set(_review_evidence_ids(brief, artifact))
+    if gate_mode_for_target("creative_direction") == "off":
+        # Gate disabled: server-side business validation already accepted the
+        # candidate. Record the pass so the artifact is approved without a
+        # reviewer model call.
+        latest = await latest_artifact(ctx, "creative_direction")
+        if latest is None or latest.id != artifact.id:
+            await _mark_superseded(ctx, artifact)
+            raise conflict("ARTIFACT_STALE", "创意方向已有更新版本。")
+        await add_review(
+            ctx,
+            artifact,
+            reviewer_role="output_reviewer",
+            decision="pass",
+            checks={
+                "ruleset_version": RULESET_VERSION,
+                "checks": [],
+                "rule_ids": list(REQUIRED_RULES),
+                "gate_mode": "off",
+            },
+        )
+        await set_stage(ctx, NEXT_STAGE, "active")
+        return
     try:
         review = await run_role(
             ctx,
@@ -587,6 +711,7 @@ async def _run_creative(
             STAGE,
             "blocked",
             issue_code="REQUIREMENT_DRIFT",
+            message="创意方向未通过业务校验。请按已确认需求重新制定创意方向；不会生成图片。",
             template_id=_SAFE_HANDOFF_TEMPLATE,
         )
         raise

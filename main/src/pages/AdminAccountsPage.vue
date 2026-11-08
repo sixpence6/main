@@ -648,7 +648,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .accounts-page {
-  min-height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   padding: 32px 20px 56px;
   background: var(--color-page);
 }

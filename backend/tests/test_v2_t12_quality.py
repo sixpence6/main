@@ -976,3 +976,97 @@ async def test_non_product_reference_does_not_claim_product_consistency(
         "task"
     ]["required_rule_ids"]
     assert (await _load_asset(llm_app, seed.asset_id)).review_status == "approved"
+
+
+async def test_gate_off_auto_approves_image_without_reviewer_calls(
+    llm_app: Any, llm_client: Any, llm_settings: Any
+) -> None:
+    llm_settings.workflow_gate_mode = "requirements_only"
+    stub = llm_app.state.registry.stub_llm
+    calls: list[Any] = []
+    stub.role_responder = lambda request: calls.append(request) or {}
+    seed = await _seed_project(llm_app, llm_settings, llm_client)
+
+    response = await _post_review(llm_client, seed)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["stage"] == "S10"
+    assert body["status"] == "active"
+    assert calls == []
+    report = _artifact_by_kind(body, "quality_report")
+    assert report["status"] == "approved"
+    assert report["payload"]["decision"] == "pass"
+    assert all(
+        check["outcome"] in {"pass", "not_applicable"}
+        for check in report["payload"]["checks"]
+    )
+    image_approval = next(
+        item
+        for item in await _approvals(llm_app, seed.project_id)
+        if item.approval_type == "image"
+    )
+    checks = json.loads(image_approval.checks_json)
+    asset = await _load_asset(llm_app, seed.asset_id)
+    assert checks["asset_id"] == seed.asset_id
+    assert checks["asset_digest"] == asset.sha256
+    assert asset.review_status == "approved"
+    assert (await _load_job(llm_app, seed.job_id)).status == "approved"
+
+
+async def test_gate_off_still_blocks_local_size_mismatch(
+    llm_app: Any, llm_client: Any, llm_settings: Any
+) -> None:
+    llm_settings.workflow_gate_mode = "requirements_only"
+    stub = llm_app.state.registry.stub_llm
+    stub.role_responder = lambda request: (_ for _ in ()).throw(
+        AssertionError(f"unexpected role {request.payload['task']['role']}")
+    )
+    seed = await _seed_project(
+        llm_app, llm_settings, llm_client, actual_size=(32, 32)
+    )
+
+    response = await _post_review(llm_client, seed)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "blocked"
+    assert body["issue"]["code"] == "IMAGE_NOT_APPROVED"
+    assert stub.role_calls_received == []
+    assert not any(
+        item["approval_type"] == "image" for item in body["approvals"]
+    )
+    assert (await _load_asset(llm_app, seed.asset_id)).review_status == "quarantined"
+    assert (await _load_job(llm_app, seed.job_id)).status == "rejected"
+
+
+async def test_gate_off_recheck_recovers_blocked_candidate_without_new_attempt(
+    llm_app: Any, llm_client: Any, llm_settings: Any
+) -> None:
+    stub = llm_app.state.registry.stub_llm
+    stub.role_responder = lambda request: (_ for _ in ()).throw(
+        AssertionError(f"unexpected role {request.payload['task']['role']}")
+    )
+    seed = await _seed_project(llm_app, llm_settings, llm_client)
+    async with write_transaction(llm_app.state.session_factory) as session:
+        run = await session.get(WorkflowRun, seed.run_id)
+        assert run is not None
+        run.status = "blocked"
+        run.issue_code = "IMAGE_NOT_APPROVED"
+        run.issue_message = "历史图片内容检查未通过"
+        run.template_id = "IMAGE_NOT_APPROVED"
+        run.updated_at = format_timestamp(utc_now())
+    llm_settings.workflow_gate_mode = "requirements_only"
+
+    response = await llm_client.post(
+        f"/api/projects/{seed.project_id}/workflow/actions/recheck_candidate",
+        json={"expected_revision": seed.revision, "payload": {}},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["stage"] == "S10"
+    assert body["status"] == "active"
+    assert stub.role_calls_received == []
+    assert any(item["approval_type"] == "image" for item in body["approvals"])
+    assert (await _load_asset(llm_app, seed.asset_id)).review_status == "approved"

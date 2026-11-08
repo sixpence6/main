@@ -14,6 +14,19 @@ from app.timeutil import format_timestamp
 
 SESSION_COOKIE = "__Host-session"
 PREAUTH_CSRF_COOKIE = "__Host-csrf"
+# Browsers drop any cookie whose name starts with "__Host-" unless it carries the
+# Secure attribute on a secure connection, so a loopback HTTP deployment cannot
+# use the prefixed names. These fall back to explicitly project-scoped names
+# (ports share one cookie jar on 127.0.0.1, so the prefix must not be generic).
+INSECURE_SESSION_COOKIE = "ecom-session"
+INSECURE_PREAUTH_CSRF_COOKIE = "ecom-csrf"
+
+
+def cookie_names(secure: bool) -> tuple[str, str]:
+    """Return (session_cookie, csrf_cookie) for the active cookie security mode."""
+    if secure:
+        return SESSION_COOKIE, PREAUTH_CSRF_COOKIE
+    return INSECURE_SESSION_COOKIE, INSECURE_PREAUTH_CSRF_COOKIE
 SESSION_IDLE_SECONDS = 30 * 60
 SESSION_ABSOLUTE_SECONDS = 12 * 60 * 60
 SESSION_IDLE = timedelta(seconds=SESSION_IDLE_SECONDS)

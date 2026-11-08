@@ -39,9 +39,29 @@ watch(
 )
 
 watch(
-  () => workspace.currentProject.value?.id,
-  (id) => {
-    if (id && !workspace.projectList.value.some((item) => item.id === id)) void loadProjects()
+  () => workspace.currentProject.value,
+  (project) => {
+    if (!project) return
+    if (!workspace.projectList.value.some((item) => item.id === project.id)) {
+      void loadProjects()
+      return
+    }
+    // Workflow polling already gives the current project fresh status. Reflect
+    // that single item instead of refetching the entire conversation list.
+    const index = workspace.projectList.value.findIndex((item) => item.id === project.id)
+    if (index < 0) return
+    const current = workspace.projectList.value[index]
+    if (
+      current.title === project.title &&
+      current.brief_status === project.brief_status &&
+      current.updated_at === project.updated_at
+    ) return
+    workspace.projectList.value[index] = {
+      ...current,
+      title: project.title,
+      brief_status: project.brief_status,
+      updated_at: project.updated_at,
+    }
   },
 )
 
@@ -285,9 +305,33 @@ onMounted(() => {
 .conversation-title { overflow: hidden; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-meta { display: flex; gap: 7px; overflow: hidden; color: var(--color-text-muted); font-size: 10px; white-space: nowrap; }
 .conversation-meta time { overflow: hidden; text-overflow: ellipsis; }
-.conversation-rename { display: none; flex: none; width: 26px; height: 26px; margin-right: 4px; border: 0; border-radius: 8px; background: transparent; color: var(--color-text-muted); }
-.conversation-item:hover .conversation-rename, .conversation-rename:focus-visible { display: block; }
+.conversation-rename {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-muted);
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(.9);
+  transition: opacity .16s ease, transform .22s var(--ease-spring), background-color .16s ease, color .16s ease;
+}
+.conversation-item:hover .conversation-rename,
+.conversation-item:focus-within .conversation-rename,
+.conversation-rename:focus-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+}
 .conversation-rename:hover { background: var(--color-primary-soft); color: var(--color-primary); }
+@media (hover: none) {
+  .conversation-rename { opacity: 1; visibility: visible; transform: none; }
+}
 .rename-form { width: 100%; padding: 6px; border-radius: 11px; background: var(--color-panel-soft); }
 .rename-input { width: 100%; height: 30px; padding: 0 8px; border: 1px solid var(--color-primary); border-radius: 8px; outline: 0; background: var(--color-panel); color: var(--color-text); font: inherit; font-size: 12px; }
 .rename-actions { display: flex; gap: 4px; margin-top: 5px; }

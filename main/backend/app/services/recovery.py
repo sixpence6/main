@@ -11,7 +11,7 @@ from app import recovery_states
 from app.db import write_transaction
 from app.models import Generation, Project
 from app.timeutil import format_timestamp, utc_now
-from app.workflow.tables import DiagnosticEvent, GenerationJob, WorkflowRun
+from app.workflow.tables import DiagnosticEvent, GenerationJob, RevisionBudget, WorkflowRun
 
 logger = logging.getLogger("app.recovery")
 
@@ -204,6 +204,36 @@ async def _repair_generation_jobs(session, now: str) -> int:
     return repaired
 
 
+async def _repair_prompt_preparation(session, now: str) -> int:
+    """Close an S07 run whose prompt-candidate budget was already exhausted.
+
+    The compile driver runs in-process. If it stops after the third invalid
+    candidate without persisting a terminal checkpoint, the run can otherwise
+    stay "active" forever and the UI keeps showing the preparation spinner.
+    Startup has no live compile task, so this exact active+exhausted shape is
+    stale and safe to make recoverable without calling a model.
+    """
+    rows = (
+        await session.execute(
+            select(WorkflowRun, RevisionBudget)
+            .join(RevisionBudget, RevisionBudget.run_id == WorkflowRun.id)
+            .where(
+                WorkflowRun.stage == "S07",
+                WorkflowRun.status == "active",
+                RevisionBudget.artifact_kind == "prompt_plan",
+                RevisionBudget.used >= RevisionBudget.max_allowed,
+            )
+        )
+    ).all()
+    for run, _budget in rows:
+        run.status = "blocked"
+        run.issue_code = "REVISION_BUDGET_EXHAUSTED"
+        run.template_id = "REVISION_BUDGET_EXHAUSTED"
+        run.issue_message = None
+        run.updated_at = now
+    return len(rows)
+
+
 async def _clear_recovery_claims(session, now: str) -> int:
     runs = list(
         (
@@ -264,13 +294,15 @@ async def repair_leftover_state(app: FastAPI) -> None:
         claims = await _clear_recovery_claims(session, now)
         role_calls = await _repair_role_calls(session, now)
         jobs = await _repair_generation_jobs(session, now)
+        prompts = await _repair_prompt_preparation(session, now)
 
-    if organizing or interrupted or claims or role_calls or jobs:
+    if organizing or interrupted or claims or role_calls or jobs or prompts:
         logger.info(
             "repaired leftover state: "
-            "organizing=%s generations=%s claims=%s role_calls=%s jobs=%s",
+            "organizing=%s generations=%s claims=%s role_calls=%s jobs=%s prompts=%s",
             len(organizing),
             len(interrupted),
             role_calls,
             jobs,
+            prompts,
         )

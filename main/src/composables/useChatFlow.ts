@@ -29,6 +29,8 @@ interface ImageHistoryItem {
   sequenceNo: number
   requirementRevision: number
   assetId: string | null
+  width: number | null
+  height: number | null
   caption: string
   publishedAt: string | null
   createdAt: string
@@ -48,6 +50,16 @@ const AUTO_ACTION_IDS = new Set([
   'publish_delivery',
 ])
 
+// A page reload must not leave an already-authorized text stage spinning
+// forever. These actions can safely continue an active run; delivery approval
+// and publishing stay explicit, and image submission is never auto-replayed.
+const RESUMABLE_AUTO_ACTION_IDS = new Set([
+  'compose_brief',
+  'plan_creative',
+  'plan_visual',
+  'finalize_requirements',
+])
+
 const TASK_ACTION_IDS = new Set([
   'verify_generation',
   'recover_generation',
@@ -62,6 +74,8 @@ const TASK_ACTION_IDS = new Set([
   'revise_prompt_and_retry',
   'revise_requirements',
   'revise_prompt',
+  'compile_prompt',
+  'recheck_candidate',
   'abandon_generation',
 ])
 
@@ -92,6 +106,9 @@ const TASK_ACTION_HELP: Record<string, string> = {
   revise_prompt_and_retry: '先修改并重新审查提示词，再生成一张新图；会新增一次受理计数并占用生成槽位。',
   revise_requirements: '修改需求会让旧提示词和授权失效；确认新需求前不会继续生成。',
   revise_prompt: '修改提示词后会重新审查；确认前不会生成图片。',
+  compile_prompt: '按当前已确认需求重新编制提示词；不会提交生图，也不会新增受理次数。',
+  recheck_candidate: '只重新核对当前已生成的图片，不会重新生成，也不会新增受理次数或占用生成槽位。',
+  plan_creative: '按当前已确认需求重新整理创意方向；不会生成图片，也不会新增生成次数。',
   abandon_generation: '放弃本次生成只结束当前尝试；已计入的受理次数不会退回。',
 }
 
@@ -164,6 +181,15 @@ export function useChatFlow() {
   let stageTask: Promise<StagedMessageAttachmentView> | null = null
   let stageTaskKey = ''
   let keepAttachmentOnProjectChange = false
+
+  /**
+   * Sending no longer disables the composer, so a response must not erase text
+   * the user started typing for the next turn while the request was in flight.
+   */
+  function clearDraftIfUnchanged(sent: string): void {
+    const current = workspace.draft.value
+    if (current === sent || current.trim() === sent.trim()) workspace.draft.value = ''
+  }
 
   const view = workflow.view
   const finalBrief = computed<WorkflowArtifact | null>(() => {
@@ -257,6 +283,8 @@ export function useChatFlow() {
           sequenceNo: 1,
           requirementRevision: current.requirement_revision,
           assetId: current.delivery.asset_id,
+          width: null,
+          height: null,
           caption: current.delivery.caption || current.delivery.filename || '已完成的电商图片',
           publishedAt: current.delivery.published_at,
           createdAt: current.delivery.created_at,
@@ -273,6 +301,8 @@ export function useChatFlow() {
       sequenceNo: version.sequence_no,
       requirementRevision: version.requirement_revision,
       assetId: version.asset_id,
+      width: version.width ?? null,
+      height: version.height ?? null,
       caption: version.caption || version.filename || ('版本 ' + version.sequence_no + ' 生成图片'),
       publishedAt: version.published_at,
       createdAt: version.created_at,
@@ -314,6 +344,7 @@ export function useChatFlow() {
     if (promptPreview.value) return ''
     if (publishedAssetId.value) return '图片已生成并发布。'
     if (current.status === 'completed') return '这一轮已完成。'
+    if (current.status !== 'active') return ''
     if (current.stage === 'S03') return '正在整理需求…'
     if (current.stage === 'S04') return '正在构思画面…'
     if (current.stage === 'S05') return '正在检查画面方案…'
@@ -322,16 +353,81 @@ export function useChatFlow() {
     if (current.stage === 'S10') return '正在整理交付图片…'
     return ''
   })
-  const taskReason = computed(() => view.value?.task_state?.reason ?? null)
-  const taskReasonLabel = computed(() => {
-    if (!taskReason.value) return ''
-    return TASK_REASON_LABELS[taskReason.value.category] || '任务需要处理'
+  // The backend exposes reviewed S03 clarification questions in issue.message.
+  // Keep other statuses on the safe task reason copy.
+  const clarificationText = computed(() => {
+    const current = view.value
+    if (!current || current.stage !== 'S03' || current.status !== 'needs_input') return ''
+    if (current.issue?.code !== 'MISSING_INPUT') return ''
+    const reason = current.task_state?.reason
+    if (reason && reason.category !== 'missing_information') return ''
+    return current.issue?.message || ''
   })
-  const taskStatusText = computed(() => taskReason.value?.message || statusText.value)
+  const taskReason = computed(() => view.value?.task_state?.reason ?? null)
+  const recoverablePromptBlock = computed(() => {
+    const current = view.value
+    return Boolean(
+      current &&
+        current.stage === 'S07' &&
+        current.status === 'blocked' &&
+        current.issue?.code === 'PROMPT_REQUIRES_RECONFIRMATION',
+    )
+  })
+  const recoverableCreativeBlock = computed(() => {
+    const current = view.value
+    return Boolean(
+      current &&
+        current.stage === 'S04' &&
+        current.status === 'blocked' &&
+        current.issue?.code === 'REQUIREMENT_DRIFT',
+    )
+  })
+  const recoverableImageBlock = computed(() => {
+    const current = view.value
+    return Boolean(
+      current &&
+        current.stage === 'S09' &&
+        current.status === 'blocked' &&
+        current.issue?.code === 'IMAGE_NOT_APPROVED',
+    )
+  })
+  const taskReasonLabel = computed(() => {
+    if (recoverablePromptBlock.value) return '提示词需要重新编制'
+    if (recoverableCreativeBlock.value) return '创意方向需要重新整理'
+    if (recoverableImageBlock.value) return '图片需要重新检查'
+    if (taskReason.value) {
+      return TASK_REASON_LABELS[taskReason.value.category] || '任务需要处理'
+    }
+    if (clarificationText.value) return '需要补充信息'
+    return questionText.value ? '任务需要处理' : ''
+  })
+  const taskStatusText = computed(() => {
+    if (recoverablePromptBlock.value) {
+      return '已确认需求没有变化，不需要修改需求。点“编制生图提示词”即可按现有需求重试；不会提交生图，也不会新增受理次数。'
+    }
+    if (recoverableCreativeBlock.value) {
+      return '需求信息已经整理完成，不需要重新确认。点“制定创意方向”即可按现有需求重新整理；不会生成图片，也不会新增生成次数。'
+    }
+    if (recoverableImageBlock.value) {
+      return '本次图片已经生成。点“重新检查这张图片”即可按简化后的规则重新核对；不会重新生成，也不会新增受理次数或占用生成槽位。'
+    }
+    return clarificationText.value || taskReason.value?.message || questionText.value || statusText.value
+  })
   const taskActions = computed<WorkflowAction[]>(() => {
     const current = view.value
     if (!current) return []
-    return current.available_actions.filter((action) => TASK_ACTION_IDS.has(action.id))
+    const allowed = new Set(TASK_ACTION_IDS)
+    if (current.status === 'blocked') allowed.add('plan_creative')
+    const actions = current.available_actions.filter((action) => allowed.has(action.id))
+    if (current.status !== 'active' || busy.value) return actions
+    const resumable = current.available_actions.find((action) =>
+      RESUMABLE_AUTO_ACTION_IDS.has(action.id),
+    )
+    if (!resumable || actions.some((action) => action.id === resumable.id)) return actions
+    // A refresh can leave a server-side stage active with no request in flight.
+    // Surface an explicit continuation instead of an endless spinner; this does
+    // not call a model until the user chooses it.
+    return [{ ...resumable, label: '继续当前步骤' }, ...actions]
   })
   const isWorkingStatus = computed(() =>
     !taskReason.value &&
@@ -516,6 +612,7 @@ export function useChatFlow() {
       return false
     }
     const sessionAtStart = sessionRevision.value
+    const resumePipeline = RESUMABLE_AUTO_ACTION_IDS.has(action.id)
     autoArmed = false
     busy.value = true
     flowError.value = ''
@@ -532,8 +629,12 @@ export function useChatFlow() {
       }
       delete taskConfirmations.value[action.id]
       pendingTaskAction.value = null
-      if (taskText !== null) workspace.draft.value = ''
+      if (taskText !== null) clearDraftIfUnchanged(taskText)
       await workspace.refreshProjectDetail()
+      if (resumePipeline) {
+        autoArmed = true
+        await autoAdvance(true)
+      }
       return true
     } finally {
       busy.value = false
@@ -618,7 +719,7 @@ export function useChatFlow() {
       })
       if (sessionAtStart !== sessionRevision.value) return
       workflow.adopt(next)
-      workspace.draft.value = ''
+      clearDraftIfUnchanged(body)
       await afterWorkflowChange(true)
     } catch (caught) {
       if (sessionAtStart !== sessionRevision.value) return
@@ -652,7 +753,7 @@ export function useChatFlow() {
       })
       if (sessionAtStart !== sessionRevision.value) return
       applyMessageResponse(response)
-      workspace.draft.value = ''
+      clearDraftIfUnchanged(body)
       clearAttachmentAfterSend()
       await afterWorkflowChange(true)
     } catch (caught) {
@@ -698,7 +799,7 @@ export function useChatFlow() {
       })
       if (sessionAtStart !== sessionRevision.value) return
       applyMessageResponse(response)
-      workspace.draft.value = ''
+      clearDraftIfUnchanged(body)
       if (staged) clearAttachmentAfterSend()
       await afterWorkflowChange(true)
     } catch (caught) {

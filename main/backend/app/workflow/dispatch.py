@@ -58,7 +58,7 @@ _ACTIONS: dict[str, dict[str, Any]] = {
     "close_generation_tracking": {"label": "结束本地跟踪", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
     "start_new_generation": {"label": "确认风险并生成新任务", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
     "review_candidate": {"label": "审查候选图", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
-    "recheck_candidate": {"label": "复核修正图", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
+    "recheck_candidate": {"label": "重新检查这张图片", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "request_correction": {
         "label": "提交修正要求",
         "kind": "text",
@@ -223,6 +223,10 @@ def _views_for(module: Any, ctx: WorkflowContext) -> list[ActionView]:
     reconfirmation_pending = ctx.run.status == "blocked" and (
         ctx.run.issue_code == "PROMPT_REQUIRES_RECONFIRMATION"
     )
+    prompt_repair_pending = ctx.run.status == "blocked" and ctx.run.issue_code in {
+        "PROMPT_INVALID",
+        "REVISION_BUDGET_EXHAUSTED",
+    }
     abandonment_pending = ctx.run.status == "blocked" and (
         ctx.run.issue_code == "PROMPT_ABANDONED"
     )
@@ -231,6 +235,7 @@ def _views_for(module: Any, ctx: WorkflowContext) -> list[ActionView]:
         and (
             ctx.run.status in {"active", "needs_input"}
             or reconfirmation_pending
+            or prompt_repair_pending
             or abandonment_pending
         )
         and not any(view.id == "revise_requirements" for view in views)

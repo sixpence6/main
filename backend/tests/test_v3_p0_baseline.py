@@ -91,6 +91,20 @@ def test_h1_multi_sentence_requirement_is_covered_verbatim() -> None:
     assert s07._covers_requirement(requirement, "白色陶瓷马克杯。杯身无图案。放在木质桌面上")
 
 
+def test_h1_natural_prompt_labels_are_covered() -> None:
+    requirement = "大唐不夜城的盛唐街区景象，写实风格夜景（场景类创作，非实物商品）；尺寸不限定"
+    prompt = (
+        "画面内容：大唐不夜城的盛唐街区景象，写实风格夜景（场景类创作，非实物商品）。"
+        "关于尺寸：尺寸不限定，本次按已确认的横版画幅统一组织。"
+    )
+
+    assert s07._covers_requirement(requirement, prompt)
+
+
+def test_h1_containment_does_not_hide_negation() -> None:
+    assert not s07._covers_requirement("要反光", "不要反光")
+
+
 def test_h1_characters_cannot_be_assembled_across_clauses() -> None:
     requirement = "白色陶瓷马克杯；木质桌面"
 

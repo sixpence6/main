@@ -1,4 +1,4 @@
-import { inject, onBeforeUnmount, ref, watch, type ComputedRef, type InjectionKey, type Ref } from 'vue'
+import { onBeforeUnmount, ref, shallowRef, watch, type ComputedRef, type InjectionKey, type Ref } from 'vue'
 import { ApiError } from '@/api/client'
 import { sessionRevision } from '@/auth/session'
 import {
@@ -11,6 +11,7 @@ import {
 export type WorkflowProjectId = Ref<string | null | undefined> | ComputedRef<string | null | undefined>
 
 const POLL_INTERVAL_MS = 2500
+const GENERATION_POLL_INTERVAL_MS = 1000
 export type WorkflowController = ReturnType<typeof useWorkflow>
 export const WORKFLOW_KEY: InjectionKey<WorkflowController> = Symbol('workflow')
 
@@ -35,8 +36,43 @@ function browserOnline(): boolean {
   return typeof navigator === 'undefined' || navigator.onLine !== false
 }
 
+function sameWorkflow(left: WorkflowView | null, right: WorkflowView): boolean {
+  if (!left) return false
+  const leftVersions = left.versions ?? []
+  const rightVersions = right.versions ?? []
+  const leftLast = leftVersions[leftVersions.length - 1]
+  const rightLast = rightVersions[rightVersions.length - 1]
+  return (
+    left.project_id === right.project_id &&
+    left.project_revision === right.project_revision &&
+    left.requirement_revision === right.requirement_revision &&
+    left.run_id === right.run_id &&
+    left.status === right.status &&
+    left.stage === right.stage &&
+    left.updated_at === right.updated_at &&
+    left.issue?.code === right.issue?.code &&
+    left.generation_job?.status === right.generation_job?.status &&
+    left.generation_job?.updated_at === right.generation_job?.updated_at &&
+    left.delivery?.status === right.delivery?.status &&
+    left.delivery?.asset_id === right.delivery?.asset_id &&
+    left.prompt_preview?.id === right.prompt_preview?.id &&
+    left.prompt_preview?.can_confirm === right.prompt_preview?.can_confirm &&
+    left.intent?.status === right.intent?.status &&
+    left.usage?.used === right.usage?.used &&
+    leftVersions.length === rightVersions.length &&
+    leftLast?.status === rightLast?.status &&
+    leftLast?.asset_id === rightLast?.asset_id &&
+    left.task_state?.reason?.code === right.task_state?.reason?.code &&
+    left.task_state?.progress.awaiting_user === right.task_state?.progress.awaiting_user &&
+    left.available_actions.map((action) => action.id).join('|') ===
+      right.available_actions.map((action) => action.id).join('|')
+  )
+}
+
 export function useWorkflow(projectId: WorkflowProjectId) {
-  const view = ref<WorkflowView | null>(null)
+  // WorkflowView is replaced byte-for-byte as one immutable server snapshot.
+  // A shallow ref avoids walking every artifact, version and approval on each poll.
+  const view = shallowRef<WorkflowView | null>(null)
   const loading = ref(false)
   const error = ref('')
   const errorCode = ref('')
@@ -54,6 +90,12 @@ export function useWorkflow(projectId: WorkflowProjectId) {
     }
   }
 
+  function pollDelay(): number {
+    return view.value && ['S08', 'S09', 'S10'].includes(view.value.stage ?? '')
+      ? GENERATION_POLL_INTERVAL_MS
+      : POLL_INTERVAL_MS
+  }
+
   function armPoll(): void {
     clearPoll()
     if (disposed || actionBusy.value || !pageVisible() || !browserOnline()) return
@@ -61,7 +103,7 @@ export function useWorkflow(projectId: WorkflowProjectId) {
     pollTimer = setTimeout(() => {
       pollTimer = null
       void poll()
-    }, POLL_INTERVAL_MS)
+    }, pollDelay())
   }
 
   async function poll(): Promise<void> {
@@ -75,7 +117,10 @@ export function useWorkflow(projectId: WorkflowProjectId) {
       clearPoll()
       return
     }
-    armPoll()
+    // Returning to the tab should confirm an active task immediately instead of
+    // waiting through another full polling interval.
+    if (canObserveBackground(view.value)) void load(true)
+    else armPoll()
   }
 
   function handleOnline(): void {
@@ -101,6 +146,9 @@ export function useWorkflow(projectId: WorkflowProjectId) {
     }
     const currentController = new AbortController()
     controller = currentController
+    // Never let a previous project's actions, prompt or delivery leak into the
+    // newly selected conversation while the next snapshot is in flight.
+    if (view.value && view.value.project_id !== id) view.value = null
     if (!silent) {
       loading.value = true
       error.value = ''
@@ -113,7 +161,7 @@ export function useWorkflow(projectId: WorkflowProjectId) {
         sequence !== loadSequence ||
         projectId.value !== id
       ) return
-      view.value = next
+      if (!sameWorkflow(view.value, next)) view.value = next
     } catch (caught) {
       if (
         sessionAtStart !== sessionRevision.value ||
