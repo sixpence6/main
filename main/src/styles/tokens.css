@@ -91,42 +91,6 @@
   --shell-pad-x: 16px;
 }
 
-/* 兼容别名（V7 前保留；新代码请使用上方的语义令牌）。 */
-:root {
-  --font-family: var(--font-sans);
-  --text-input: var(--text-reading);
-  --text-input-line: var(--text-reading-line);
-  --text-product: var(--text-page);
-  --text-product-line: var(--text-page-line);
-  --text-small: var(--text-caption);
-  --text-heading: var(--text-section);
-  --color-page: var(--surface-canvas);
-  --color-panel: var(--surface-panel);
-  --color-panel-soft: var(--surface-inset);
-  --color-glass: var(--surface-glass);
-  --color-text: var(--text-primary);
-  --color-text-muted: var(--text-muted);
-  --color-primary: var(--action-primary);
-  --color-primary-hover: var(--action-primary-hover);
-  --color-primary-soft: var(--action-soft);
-  --color-border: var(--line-hairline);
-  --color-border-soft: var(--line-hairline);
-  --color-code: var(--surface-inset);
-  --color-accent: var(--action-link);
-  --color-success: var(--state-success);
-  --color-warning: var(--state-warning);
-  --color-danger: var(--state-danger);
-  --color-info: var(--state-info);
-  --color-error: var(--state-danger);
-  --color-muted: var(--text-muted);
-  --radius-control: var(--radius-sm);
-  --radius-panel: var(--radius-md);
-  --radius-card: var(--radius-md);
-  --radius-image: var(--radius-sm);
-  --shadow-panel: var(--shadow-composer);
-  --conversation-width: var(--conversation-max);
-}
-
 @media (min-width: 768px) {
   :root {
     --shell-pad-x: 24px;

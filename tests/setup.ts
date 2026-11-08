@@ -16,6 +16,10 @@ if (!window.scrollTo) {
   window.scrollTo = vi.fn()
 }
 
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = vi.fn()
+}
+
 afterEach(() => {
   cleanup()
   vi.useRealTimers()

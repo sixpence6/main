@@ -431,7 +431,7 @@ h2 {
   border: 1px solid var(--line-hairline);
   border-radius: var(--radius-md);
   background: var(--surface-panel);
-  box-shadow: var(--shadow-panel);
+  box-shadow: var(--shadow-composer);
 }
 .security-account-panel {
   display: flex;

@@ -142,7 +142,7 @@ async function upload(name: string, type = 'image/png'): Promise<void> {
 describe('T151 V6 输入区与移动抽屉', () => {
   it('输入区几何、焦点环与禁用发送使用 v3 令牌，文本域最多 8 行', () => {
     const shell = cssRule(chatStyle, '.composer-shell')
-    expect(shell).toContain('width: min(var(--conversation-width), 100%)')
+    expect(shell).toContain('width: min(var(--conversation-max), 100%)')
     expect(shell).toContain('margin: 0 auto')
     expect(shell).toMatch(/padding:\s*12px 16px/)
     expect(shell).toContain('border: 1px solid var(--line-hairline)')
