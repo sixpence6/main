@@ -1,0 +1,4385 @@
+{
+  "ok": true,
+  "base": "http://127.0.0.1:8099",
+  "api": "http://127.0.0.1:8794",
+  "startedAt": "2026-11-08T12:40:19.553Z",
+  "screenshots": [
+    {
+      "file": "v4-320-executing.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-320-executing.png",
+      "bytes": 23894,
+      "sha256": "43d44d942c4b5dde6bc6c568246db832eb5c841e4f19a2fdff085b712301d05c",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-768-executing.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-768-executing.png",
+      "bytes": 27789,
+      "sha256": "9b00540097cab371a184920ac79698fc57b10d4def36e4663bae8374ffb1eb9e",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "viewportLabel": "768x1024",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-1440-executing.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-1440-executing.png",
+      "bytes": 42556,
+      "sha256": "54a2788057a327888d383806704155ae4ea993eab9343ccb1d9b7b6da0bffcf7",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "viewportLabel": "1440x900",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-320-confirm.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-320-confirm.png",
+      "bytes": 42234,
+      "sha256": "67f246b1e5ea3caf2ac2eb344aac75139859332b5cfd80d8a3b0db3ae80f3f52",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-768-confirm.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-768-confirm.png",
+      "bytes": 47041,
+      "sha256": "2fed527ad1a496d4f17b74f3c39085303db379465a4de98bd10562ee58dc66a0",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "viewportLabel": "768x1024",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-1440-confirm.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-1440-confirm.png",
+      "bytes": 62996,
+      "sha256": "a8c1325f8cf90786efbcf1fa470c296551900349f13c2f691b26103482cfdb1f",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "viewportLabel": "1440x900",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-320-failed.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-320-failed.png",
+      "bytes": 27686,
+      "sha256": "4b392fcf1a8f24be30f9e5be632bfb01b901d6129e57d2ee444e8750f91aed61",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-768-failed.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-768-failed.png",
+      "bytes": 31777,
+      "sha256": "0f0a3ab658200e03180e95676111387cc4ee03bdb8b42f22daa1c66f349b1536",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "viewportLabel": "768x1024",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-1440-failed.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-1440-failed.png",
+      "bytes": 46873,
+      "sha256": "a7626d6bd1e5eaf702f4e1a47af06b5ac739ea06c62f5c715ae6eaf2a05d4c6d",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "viewportLabel": "1440x900",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-320-unknown.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-320-unknown.png",
+      "bytes": 46969,
+      "sha256": "3bfe1275edfad5573ae87dd117f2b98c600f361284ac5d21abcb4ce9d2c93293",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-768-unknown.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-768-unknown.png",
+      "bytes": 52143,
+      "sha256": "8e1b7f9a3c2c9d163a1a3906f7ff1dedd6dd4252a49f7b6fc79422967d791cb7",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "viewportLabel": "768x1024",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-1440-unknown.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-1440-unknown.png",
+      "bytes": 68305,
+      "sha256": "f747721110ef94bd03298009f0053f4e4b9dc46a7bbf025544df0bb88f5089e9",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "viewportLabel": "1440x900",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-320-recovered.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-320-recovered.png",
+      "bytes": 24803,
+      "sha256": "9198418a240c3dda89e331719df0d1172b63e3230f79e769b9d097752015e4f1",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-768-recovered.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-768-recovered.png",
+      "bytes": 28640,
+      "sha256": "d16d58f35e195d2134833405f17d627587cc240c2d5264818a624e6754f0d393",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "viewportLabel": "768x1024",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v4-1440-recovered.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v4-1440-recovered.png",
+      "bytes": 43540,
+      "sha256": "8ea88ee2c69206b01ebbba7d34578256849e7632491205e6ee427c7f663e9423",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "viewportLabel": "1440x900",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    }
+  ],
+  "scenarios": {
+    "executing-320": {
+      "metrics": {
+        "exists": true,
+        "state": "executing",
+        "classes": "assistant-turn task-turn is-executing",
+        "card": {
+          "rect": {
+            "x": 16,
+            "y": 297,
+            "top": 297,
+            "bottom": 343,
+            "width": 288,
+            "height": 46
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "288px",
+            "height": "46px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": null,
+        "statusText": "正在生成图片…",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "正在生成图片…",
+        "doc": {
+          "scrollWidth": 320,
+          "clientWidth": 320
+        }
+      },
+      "requests": []
+    },
+    "executing-768": {
+      "metrics": {
+        "exists": true,
+        "state": "executing",
+        "classes": "assistant-turn task-turn is-executing",
+        "card": {
+          "rect": {
+            "x": 38,
+            "y": 254,
+            "top": 254,
+            "bottom": 300,
+            "width": 691,
+            "height": 46
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "691.219px",
+            "height": "46px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": null,
+        "statusText": "正在生成图片…",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "正在生成图片…",
+        "doc": {
+          "scrollWidth": 768,
+          "clientWidth": 768
+        }
+      },
+      "requests": []
+    },
+    "executing-1440": {
+      "metrics": {
+        "exists": true,
+        "state": "executing",
+        "classes": "assistant-turn task-turn is-executing",
+        "card": {
+          "rect": {
+            "x": 472,
+            "y": 254,
+            "top": 254,
+            "bottom": 300,
+            "width": 760,
+            "height": 46
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "760px",
+            "height": "46px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": null,
+        "statusText": "正在生成图片…",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "正在生成图片…",
+        "doc": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        }
+      },
+      "requests": []
+    },
+    "confirm-320": {
+      "metrics": {
+        "exists": true,
+        "state": "waiting",
+        "classes": "assistant-turn task-turn is-waiting",
+        "card": {
+          "rect": {
+            "x": 16,
+            "y": 297,
+            "top": 297,
+            "bottom": 596,
+            "width": 288,
+            "height": 299
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "288px",
+            "height": "299px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "授权已失效",
+        "statusText": "需要确认后才会继续处理。",
+        "checkbox": {
+          "checked": true,
+          "rect": {
+            "x": 32,
+            "y": 563,
+            "top": 563,
+            "bottom": 583,
+            "width": 20,
+            "height": 20
+          },
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "1px 0px 0px",
+            "background": "rgb(27, 29, 33)",
+            "color": "rgb(0, 0, 0)",
+            "border": "1px solid rgb(27, 29, 33)",
+            "borderRadius": "8px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "20px",
+            "height": "20px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "buttons": [
+          {
+            "text": "修改提示词",
+            "disabled": false,
+            "rect": {
+              "x": 32,
+              "y": 448,
+              "top": 448,
+              "bottom": 484,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          }
+        ],
+        "bubble": false,
+        "typing": false,
+        "text": "授权已失效\n\n需要确认后才会继续处理。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n修改提示词\n可能调用模型\n\n修改提示词后会重新审查；确认前不会生成图片。\n\n请在下方输入框说明修改说明，然后点击发送。\n\n我已核对当前内容并确认继续。",
+        "doc": {
+          "scrollWidth": 320,
+          "clientWidth": 320
+        }
+      },
+      "requests": []
+    },
+    "confirm-768": {
+      "metrics": {
+        "exists": true,
+        "state": "waiting",
+        "classes": "assistant-turn task-turn is-waiting",
+        "card": {
+          "rect": {
+            "x": 38,
+            "y": 254,
+            "top": 254,
+            "bottom": 499,
+            "width": 691,
+            "height": 245
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "691.219px",
+            "height": "245px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "授权已失效",
+        "statusText": "需要确认后才会继续处理。",
+        "checkbox": {
+          "checked": true,
+          "rect": {
+            "x": 54,
+            "y": 466,
+            "top": 466,
+            "bottom": 486,
+            "width": 20,
+            "height": 20
+          },
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "1px 0px 0px",
+            "background": "rgb(27, 29, 33)",
+            "color": "rgb(0, 0, 0)",
+            "border": "1px solid rgb(27, 29, 33)",
+            "borderRadius": "8px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "20px",
+            "height": "20px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "buttons": [
+          {
+            "text": "修改提示词",
+            "disabled": false,
+            "rect": {
+              "x": 54,
+              "y": 369,
+              "top": 369,
+              "bottom": 405,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          }
+        ],
+        "bubble": false,
+        "typing": false,
+        "text": "授权已失效\n\n需要确认后才会继续处理。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n修改提示词\n可能调用模型\n\n修改提示词后会重新审查；确认前不会生成图片。\n\n请在下方输入框说明修改说明，然后点击发送。\n\n我已核对当前内容并确认继续。",
+        "doc": {
+          "scrollWidth": 768,
+          "clientWidth": 768
+        }
+      },
+      "requests": []
+    },
+    "confirm-1440": {
+      "metrics": {
+        "exists": true,
+        "state": "waiting",
+        "classes": "assistant-turn task-turn is-waiting",
+        "card": {
+          "rect": {
+            "x": 472,
+            "y": 254,
+            "top": 254,
+            "bottom": 499,
+            "width": 760,
+            "height": 245
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "760px",
+            "height": "245px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "授权已失效",
+        "statusText": "需要确认后才会继续处理。",
+        "checkbox": {
+          "checked": true,
+          "rect": {
+            "x": 488,
+            "y": 466,
+            "top": 466,
+            "bottom": 486,
+            "width": 20,
+            "height": 20
+          },
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "1px 0px 0px",
+            "background": "rgb(27, 29, 33)",
+            "color": "rgb(0, 0, 0)",
+            "border": "1px solid rgb(27, 29, 33)",
+            "borderRadius": "8px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "20px",
+            "height": "20px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "buttons": [
+          {
+            "text": "修改提示词",
+            "disabled": false,
+            "rect": {
+              "x": 488,
+              "y": 369,
+              "top": 369,
+              "bottom": 405,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          }
+        ],
+        "bubble": false,
+        "typing": false,
+        "text": "授权已失效\n\n需要确认后才会继续处理。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n修改提示词\n可能调用模型\n\n修改提示词后会重新审查；确认前不会生成图片。\n\n请在下方输入框说明修改说明，然后点击发送。\n\n我已核对当前内容并确认继续。",
+        "doc": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        }
+      },
+      "requests": []
+    },
+    "failed-320": {
+      "metrics": {
+        "exists": true,
+        "state": "failed",
+        "classes": "assistant-turn task-turn is-failed",
+        "card": {
+          "rect": {
+            "x": 16,
+            "y": 297,
+            "top": 297,
+            "bottom": 391,
+            "width": 288,
+            "height": 94
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "288px",
+            "height": "94px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(178, 59, 75)",
+            "border": "0px none rgb(178, 59, 75)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "硬约束不满足",
+        "statusText": "本次结果未通过必须满足项检查，未放行且不会自动重试。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "硬约束不满足\n\n本次结果未通过必须满足项检查，未放行且不会自动重试。",
+        "doc": {
+          "scrollWidth": 320,
+          "clientWidth": 320
+        }
+      },
+      "requests": []
+    },
+    "failed-768": {
+      "metrics": {
+        "exists": true,
+        "state": "failed",
+        "classes": "assistant-turn task-turn is-failed",
+        "card": {
+          "rect": {
+            "x": 38,
+            "y": 254,
+            "top": 254,
+            "bottom": 326,
+            "width": 691,
+            "height": 72
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "691.219px",
+            "height": "72px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(178, 59, 75)",
+            "border": "0px none rgb(178, 59, 75)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "硬约束不满足",
+        "statusText": "本次结果未通过必须满足项检查，未放行且不会自动重试。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "硬约束不满足\n\n本次结果未通过必须满足项检查，未放行且不会自动重试。",
+        "doc": {
+          "scrollWidth": 768,
+          "clientWidth": 768
+        }
+      },
+      "requests": []
+    },
+    "failed-1440": {
+      "metrics": {
+        "exists": true,
+        "state": "failed",
+        "classes": "assistant-turn task-turn is-failed",
+        "card": {
+          "rect": {
+            "x": 472,
+            "y": 254,
+            "top": 254,
+            "bottom": 326,
+            "width": 760,
+            "height": 72
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "760px",
+            "height": "72px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(178, 59, 75)",
+            "border": "0px none rgb(178, 59, 75)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "硬约束不满足",
+        "statusText": "本次结果未通过必须满足项检查，未放行且不会自动重试。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "硬约束不满足\n\n本次结果未通过必须满足项检查，未放行且不会自动重试。",
+        "doc": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        }
+      },
+      "requests": []
+    },
+    "unknown-320": {
+      "metrics": {
+        "exists": true,
+        "state": "unknown",
+        "classes": "assistant-turn task-turn is-unknown",
+        "card": {
+          "rect": {
+            "x": 16,
+            "y": 240,
+            "top": 240,
+            "bottom": 644,
+            "width": 278,
+            "height": 404
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "278px",
+            "height": "404px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "结果未知，正在核实",
+        "statusText": "远端状态尚未确认，系统不会自动重发。",
+        "checkbox": null,
+        "buttons": [
+          {
+            "text": "核实原任务",
+            "disabled": false,
+            "rect": {
+              "x": 32,
+              "y": 413,
+              "top": 413,
+              "bottom": 449,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          {
+            "text": "获取原结果",
+            "disabled": false,
+            "rect": {
+              "x": 32,
+              "y": 544,
+              "top": 544,
+              "bottom": 580,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          }
+        ],
+        "bubble": false,
+        "typing": false,
+        "text": "结果未知，正在核实\n\n远端状态尚未确认，系统不会自动重发。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n核实原任务\n只读核实\n\n只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。\n\n只读核实不会新增受理计数。\n\n获取原结果\n只读核实\n\n只找回原任务的结果，不新增计数。\n\n只读核实不会新增受理计数。",
+        "doc": {
+          "scrollWidth": 320,
+          "clientWidth": 320
+        }
+      },
+      "requests": []
+    },
+    "unknown-768": {
+      "metrics": {
+        "exists": true,
+        "state": "unknown",
+        "classes": "assistant-turn task-turn is-unknown",
+        "card": {
+          "rect": {
+            "x": 38,
+            "y": 254,
+            "top": 254,
+            "bottom": 582,
+            "width": 691,
+            "height": 328
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "691.219px",
+            "height": "328px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "结果未知，正在核实",
+        "statusText": "远端状态尚未确认，系统不会自动重发。",
+        "checkbox": null,
+        "buttons": [
+          {
+            "text": "核实原任务",
+            "disabled": false,
+            "rect": {
+              "x": 54,
+              "y": 369,
+              "top": 369,
+              "bottom": 405,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          {
+            "text": "获取原结果",
+            "disabled": false,
+            "rect": {
+              "x": 54,
+              "y": 482,
+              "top": 482,
+              "bottom": 518,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          }
+        ],
+        "bubble": false,
+        "typing": false,
+        "text": "结果未知，正在核实\n\n远端状态尚未确认，系统不会自动重发。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n核实原任务\n只读核实\n\n只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。\n\n只读核实不会新增受理计数。\n\n获取原结果\n只读核实\n\n只找回原任务的结果，不新增计数。\n\n只读核实不会新增受理计数。",
+        "doc": {
+          "scrollWidth": 768,
+          "clientWidth": 768
+        }
+      },
+      "requests": []
+    },
+    "unknown-1440": {
+      "metrics": {
+        "exists": true,
+        "state": "unknown",
+        "classes": "assistant-turn task-turn is-unknown",
+        "card": {
+          "rect": {
+            "x": 472,
+            "y": 254,
+            "top": 254,
+            "bottom": 582,
+            "width": 760,
+            "height": 328
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "760px",
+            "height": "328px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "结果未知，正在核实",
+        "statusText": "远端状态尚未确认，系统不会自动重发。",
+        "checkbox": null,
+        "buttons": [
+          {
+            "text": "核实原任务",
+            "disabled": false,
+            "rect": {
+              "x": 488,
+              "y": 369,
+              "top": 369,
+              "bottom": 405,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          {
+            "text": "获取原结果",
+            "disabled": false,
+            "rect": {
+              "x": 488,
+              "y": 482,
+              "top": 482,
+              "bottom": 518,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          }
+        ],
+        "bubble": false,
+        "typing": false,
+        "text": "结果未知，正在核实\n\n远端状态尚未确认，系统不会自动重发。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n核实原任务\n只读核实\n\n只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。\n\n只读核实不会新增受理计数。\n\n获取原结果\n只读核实\n\n只找回原任务的结果，不新增计数。\n\n只读核实不会新增受理计数。",
+        "doc": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        }
+      },
+      "requests": []
+    },
+    "recovered-320": {
+      "metrics": {
+        "exists": true,
+        "state": "recovered",
+        "classes": "assistant-turn task-turn is-recovered",
+        "card": {
+          "rect": {
+            "x": 16,
+            "y": 297,
+            "top": 297,
+            "bottom": 369,
+            "width": 288,
+            "height": 72
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "288px",
+            "height": "72px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(53, 116, 91)",
+            "border": "0px none rgb(53, 116, 91)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": "已恢复",
+        "reasonLabel": null,
+        "statusText": "这一轮已完成。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "已恢复\n\n这一轮已完成。",
+        "doc": {
+          "scrollWidth": 320,
+          "clientWidth": 320
+        }
+      },
+      "requests": [
+        {
+          "requestId": "27920.159",
+          "method": "POST",
+          "url": "http://127.0.0.1:8099/api/projects/55555555-eeee-4eee-8eee-555555555555/workflow/actions/recover_generation",
+          "status": 200,
+          "postData": "{\"expected_revision\":5,\"text\":null,\"payload\":null}"
+        },
+        {
+          "requestId": "27920.160",
+          "method": "GET",
+          "url": "http://127.0.0.1:8099/api/projects/55555555-eeee-4eee-8eee-555555555555",
+          "status": 200,
+          "postData": null
+        }
+      ],
+      "before": {
+        "top": 297,
+        "width": 288
+      }
+    },
+    "recovered-768": {
+      "metrics": {
+        "exists": true,
+        "state": "recovered",
+        "classes": "assistant-turn task-turn is-recovered",
+        "card": {
+          "rect": {
+            "x": 38,
+            "y": 254,
+            "top": 254,
+            "bottom": 326,
+            "width": 691,
+            "height": 72
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "691.219px",
+            "height": "72px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(53, 116, 91)",
+            "border": "0px none rgb(53, 116, 91)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": "已恢复",
+        "reasonLabel": null,
+        "statusText": "这一轮已完成。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "已恢复\n\n这一轮已完成。",
+        "doc": {
+          "scrollWidth": 768,
+          "clientWidth": 768
+        }
+      },
+      "requests": [
+        {
+          "requestId": "27920.172",
+          "method": "POST",
+          "url": "http://127.0.0.1:8099/api/projects/55555555-eeee-4eee-8eee-555555555555/workflow/actions/recover_generation",
+          "status": 200,
+          "postData": "{\"expected_revision\":5,\"text\":null,\"payload\":null}"
+        },
+        {
+          "requestId": "27920.173",
+          "method": "GET",
+          "url": "http://127.0.0.1:8099/api/projects/55555555-eeee-4eee-8eee-555555555555",
+          "status": 200,
+          "postData": null
+        }
+      ],
+      "before": {
+        "top": 254,
+        "width": 691
+      }
+    },
+    "recovered-1440": {
+      "metrics": {
+        "exists": true,
+        "state": "recovered",
+        "classes": "assistant-turn task-turn is-recovered",
+        "card": {
+          "rect": {
+            "x": 472,
+            "y": 254,
+            "top": 254,
+            "bottom": 326,
+            "width": 760,
+            "height": 72
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "760px",
+            "height": "72px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(53, 116, 91)",
+            "border": "0px none rgb(53, 116, 91)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": "已恢复",
+        "reasonLabel": null,
+        "statusText": "这一轮已完成。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "已恢复\n\n这一轮已完成。",
+        "doc": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        }
+      },
+      "requests": [
+        {
+          "requestId": "27920.188",
+          "method": "POST",
+          "url": "http://127.0.0.1:8099/api/projects/55555555-eeee-4eee-8eee-555555555555/workflow/actions/recover_generation",
+          "status": 200,
+          "postData": "{\"expected_revision\":5,\"text\":null,\"payload\":null}"
+        },
+        {
+          "requestId": "27920.189",
+          "method": "GET",
+          "url": "http://127.0.0.1:8099/api/projects/55555555-eeee-4eee-8eee-555555555555",
+          "status": 200,
+          "postData": null
+        },
+        {
+          "requestId": "27920.190",
+          "method": "GET",
+          "url": "http://127.0.0.1:8099/api/projects?limit=20",
+          "status": 200,
+          "postData": null
+        }
+      ],
+      "before": {
+        "top": 254,
+        "width": 760
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "executing state 320",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "executing",
+        "classes": "assistant-turn task-turn is-executing",
+        "card": {
+          "rect": {
+            "x": 16,
+            "y": 297,
+            "top": 297,
+            "bottom": 343,
+            "width": 288,
+            "height": 46
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "288px",
+            "height": "46px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": null,
+        "statusText": "正在生成图片…",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "正在生成图片…",
+        "doc": {
+          "scrollWidth": 320,
+          "clientWidth": 320
+        }
+      }
+    },
+    {
+      "name": "executing text 320",
+      "ok": true,
+      "detail": "正在生成图片…"
+    },
+    {
+      "name": "executing static 320",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "executing",
+        "classes": "assistant-turn task-turn is-executing",
+        "card": {
+          "rect": {
+            "x": 16,
+            "y": 297,
+            "top": 297,
+            "bottom": 343,
+            "width": 288,
+            "height": 46
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "288px",
+            "height": "46px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": null,
+        "statusText": "正在生成图片…",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "正在生成图片…",
+        "doc": {
+          "scrollWidth": 320,
+          "clientWidth": 320
+        }
+      }
+    },
+    {
+      "name": "executing card 320",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 16,
+          "y": 297,
+          "top": 297,
+          "bottom": 343,
+          "width": 288,
+          "height": 46
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(74, 79, 87)",
+          "border": "0px none rgb(74, 79, 87)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "transitionDuration": "1e-05s",
+          "animationName": "none",
+          "width": "288px",
+          "height": "46px",
+          "gridTemplateColumns": "none",
+          "gap": "normal"
+        }
+      }
+    },
+    {
+      "name": "executing no page scroll 320",
+      "ok": true,
+      "detail": {
+        "scrollWidth": 320,
+        "clientWidth": 320
+      }
+    },
+    {
+      "name": "executing no action 320",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "executing state 768",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "executing",
+        "classes": "assistant-turn task-turn is-executing",
+        "card": {
+          "rect": {
+            "x": 38,
+            "y": 254,
+            "top": 254,
+            "bottom": 300,
+            "width": 691,
+            "height": 46
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "691.219px",
+            "height": "46px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": null,
+        "statusText": "正在生成图片…",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "正在生成图片…",
+        "doc": {
+          "scrollWidth": 768,
+          "clientWidth": 768
+        }
+      }
+    },
+    {
+      "name": "executing text 768",
+      "ok": true,
+      "detail": "正在生成图片…"
+    },
+    {
+      "name": "executing static 768",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "executing",
+        "classes": "assistant-turn task-turn is-executing",
+        "card": {
+          "rect": {
+            "x": 38,
+            "y": 254,
+            "top": 254,
+            "bottom": 300,
+            "width": 691,
+            "height": 46
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "691.219px",
+            "height": "46px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": null,
+        "statusText": "正在生成图片…",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "正在生成图片…",
+        "doc": {
+          "scrollWidth": 768,
+          "clientWidth": 768
+        }
+      }
+    },
+    {
+      "name": "executing card 768",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 38,
+          "y": 254,
+          "top": 254,
+          "bottom": 300,
+          "width": 691,
+          "height": 46
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(74, 79, 87)",
+          "border": "0px none rgb(74, 79, 87)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "transitionDuration": "1e-05s",
+          "animationName": "none",
+          "width": "691.219px",
+          "height": "46px",
+          "gridTemplateColumns": "none",
+          "gap": "normal"
+        }
+      }
+    },
+    {
+      "name": "executing no page scroll 768",
+      "ok": true,
+      "detail": {
+        "scrollWidth": 768,
+        "clientWidth": 768
+      }
+    },
+    {
+      "name": "executing no action 768",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "executing state 1440",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "executing",
+        "classes": "assistant-turn task-turn is-executing",
+        "card": {
+          "rect": {
+            "x": 472,
+            "y": 254,
+            "top": 254,
+            "bottom": 300,
+            "width": 760,
+            "height": 46
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "760px",
+            "height": "46px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": null,
+        "statusText": "正在生成图片…",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "正在生成图片…",
+        "doc": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        }
+      }
+    },
+    {
+      "name": "executing text 1440",
+      "ok": true,
+      "detail": "正在生成图片…"
+    },
+    {
+      "name": "executing static 1440",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "executing",
+        "classes": "assistant-turn task-turn is-executing",
+        "card": {
+          "rect": {
+            "x": 472,
+            "y": 254,
+            "top": 254,
+            "bottom": 300,
+            "width": 760,
+            "height": 46
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "760px",
+            "height": "46px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": null,
+        "statusText": "正在生成图片…",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "正在生成图片…",
+        "doc": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        }
+      }
+    },
+    {
+      "name": "executing card 1440",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 472,
+          "y": 254,
+          "top": 254,
+          "bottom": 300,
+          "width": 760,
+          "height": 46
+        },
+        "style": {
+          "display": "flex",
+          "padding": "12px 16px",
+          "margin": "0px",
+          "background": "rgb(239, 237, 230)",
+          "color": "rgb(74, 79, 87)",
+          "border": "0px none rgb(74, 79, 87)",
+          "borderRadius": "14px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "transitionDuration": "1e-05s",
+          "animationName": "none",
+          "width": "760px",
+          "height": "46px",
+          "gridTemplateColumns": "none",
+          "gap": "normal"
+        }
+      }
+    },
+    {
+      "name": "executing no page scroll 1440",
+      "ok": true,
+      "detail": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      }
+    },
+    {
+      "name": "executing no action 1440",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "confirm checkbox 320",
+      "ok": true,
+      "detail": {
+        "checked": true,
+        "rect": {
+          "x": 32,
+          "y": 563,
+          "top": 563,
+          "bottom": 583,
+          "width": 20,
+          "height": 20
+        },
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "1px 0px 0px",
+          "background": "rgb(27, 29, 33)",
+          "color": "rgb(0, 0, 0)",
+          "border": "1px solid rgb(27, 29, 33)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "transitionDuration": "1e-05s",
+          "animationName": "none",
+          "width": "20px",
+          "height": "20px",
+          "gridTemplateColumns": "none",
+          "gap": "normal"
+        }
+      }
+    },
+    {
+      "name": "confirm card static 320",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "waiting",
+        "classes": "assistant-turn task-turn is-waiting",
+        "card": {
+          "rect": {
+            "x": 16,
+            "y": 297,
+            "top": 297,
+            "bottom": 596,
+            "width": 288,
+            "height": 299
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "288px",
+            "height": "299px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "授权已失效",
+        "statusText": "需要确认后才会继续处理。",
+        "checkbox": {
+          "checked": true,
+          "rect": {
+            "x": 32,
+            "y": 563,
+            "top": 563,
+            "bottom": 583,
+            "width": 20,
+            "height": 20
+          },
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "1px 0px 0px",
+            "background": "rgb(27, 29, 33)",
+            "color": "rgb(0, 0, 0)",
+            "border": "1px solid rgb(27, 29, 33)",
+            "borderRadius": "8px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "20px",
+            "height": "20px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "buttons": [
+          {
+            "text": "修改提示词",
+            "disabled": false,
+            "rect": {
+              "x": 32,
+              "y": 448,
+              "top": 448,
+              "bottom": 484,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          }
+        ],
+        "bubble": false,
+        "typing": false,
+        "text": "授权已失效\n\n需要确认后才会继续处理。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n修改提示词\n可能调用模型\n\n修改提示词后会重新审查；确认前不会生成图片。\n\n请在下方输入框说明修改说明，然后点击发送。\n\n我已核对当前内容并确认继续。",
+        "doc": {
+          "scrollWidth": 320,
+          "clientWidth": 320
+        }
+      }
+    },
+    {
+      "name": "confirm no write 320",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "confirm checkbox 768",
+      "ok": true,
+      "detail": {
+        "checked": true,
+        "rect": {
+          "x": 54,
+          "y": 466,
+          "top": 466,
+          "bottom": 486,
+          "width": 20,
+          "height": 20
+        },
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "1px 0px 0px",
+          "background": "rgb(27, 29, 33)",
+          "color": "rgb(0, 0, 0)",
+          "border": "1px solid rgb(27, 29, 33)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "transitionDuration": "1e-05s",
+          "animationName": "none",
+          "width": "20px",
+          "height": "20px",
+          "gridTemplateColumns": "none",
+          "gap": "normal"
+        }
+      }
+    },
+    {
+      "name": "confirm card static 768",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "waiting",
+        "classes": "assistant-turn task-turn is-waiting",
+        "card": {
+          "rect": {
+            "x": 38,
+            "y": 254,
+            "top": 254,
+            "bottom": 499,
+            "width": 691,
+            "height": 245
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "691.219px",
+            "height": "245px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "授权已失效",
+        "statusText": "需要确认后才会继续处理。",
+        "checkbox": {
+          "checked": true,
+          "rect": {
+            "x": 54,
+            "y": 466,
+            "top": 466,
+            "bottom": 486,
+            "width": 20,
+            "height": 20
+          },
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "1px 0px 0px",
+            "background": "rgb(27, 29, 33)",
+            "color": "rgb(0, 0, 0)",
+            "border": "1px solid rgb(27, 29, 33)",
+            "borderRadius": "8px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "20px",
+            "height": "20px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "buttons": [
+          {
+            "text": "修改提示词",
+            "disabled": false,
+            "rect": {
+              "x": 54,
+              "y": 369,
+              "top": 369,
+              "bottom": 405,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          }
+        ],
+        "bubble": false,
+        "typing": false,
+        "text": "授权已失效\n\n需要确认后才会继续处理。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n修改提示词\n可能调用模型\n\n修改提示词后会重新审查；确认前不会生成图片。\n\n请在下方输入框说明修改说明，然后点击发送。\n\n我已核对当前内容并确认继续。",
+        "doc": {
+          "scrollWidth": 768,
+          "clientWidth": 768
+        }
+      }
+    },
+    {
+      "name": "confirm no write 768",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "confirm checkbox 1440",
+      "ok": true,
+      "detail": {
+        "checked": true,
+        "rect": {
+          "x": 488,
+          "y": 466,
+          "top": 466,
+          "bottom": 486,
+          "width": 20,
+          "height": 20
+        },
+        "style": {
+          "display": "block",
+          "padding": "0px",
+          "margin": "1px 0px 0px",
+          "background": "rgb(27, 29, 33)",
+          "color": "rgb(0, 0, 0)",
+          "border": "1px solid rgb(27, 29, 33)",
+          "borderRadius": "8px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "transitionDuration": "1e-05s",
+          "animationName": "none",
+          "width": "20px",
+          "height": "20px",
+          "gridTemplateColumns": "none",
+          "gap": "normal"
+        }
+      }
+    },
+    {
+      "name": "confirm card static 1440",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "waiting",
+        "classes": "assistant-turn task-turn is-waiting",
+        "card": {
+          "rect": {
+            "x": 472,
+            "y": 254,
+            "top": 254,
+            "bottom": 499,
+            "width": 760,
+            "height": 245
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "760px",
+            "height": "245px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "授权已失效",
+        "statusText": "需要确认后才会继续处理。",
+        "checkbox": {
+          "checked": true,
+          "rect": {
+            "x": 488,
+            "y": 466,
+            "top": 466,
+            "bottom": 486,
+            "width": 20,
+            "height": 20
+          },
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "1px 0px 0px",
+            "background": "rgb(27, 29, 33)",
+            "color": "rgb(0, 0, 0)",
+            "border": "1px solid rgb(27, 29, 33)",
+            "borderRadius": "8px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "20px",
+            "height": "20px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "buttons": [
+          {
+            "text": "修改提示词",
+            "disabled": false,
+            "rect": {
+              "x": 488,
+              "y": 369,
+              "top": 369,
+              "bottom": 405,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          }
+        ],
+        "bubble": false,
+        "typing": false,
+        "text": "授权已失效\n\n需要确认后才会继续处理。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n修改提示词\n可能调用模型\n\n修改提示词后会重新审查；确认前不会生成图片。\n\n请在下方输入框说明修改说明，然后点击发送。\n\n我已核对当前内容并确认继续。",
+        "doc": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        }
+      }
+    },
+    {
+      "name": "confirm no write 1440",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "failed state 320",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "failed",
+        "classes": "assistant-turn task-turn is-failed",
+        "card": {
+          "rect": {
+            "x": 16,
+            "y": 297,
+            "top": 297,
+            "bottom": 391,
+            "width": 288,
+            "height": 94
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "288px",
+            "height": "94px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(178, 59, 75)",
+            "border": "0px none rgb(178, 59, 75)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "硬约束不满足",
+        "statusText": "本次结果未通过必须满足项检查，未放行且不会自动重试。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "硬约束不满足\n\n本次结果未通过必须满足项检查，未放行且不会自动重试。",
+        "doc": {
+          "scrollWidth": 320,
+          "clientWidth": 320
+        }
+      }
+    },
+    {
+      "name": "failed reason 320",
+      "ok": true,
+      "detail": "硬约束不满足\n\n本次结果未通过必须满足项检查，未放行且不会自动重试。"
+    },
+    {
+      "name": "failed no actions 320",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "failed no retry 320",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "failed state 768",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "failed",
+        "classes": "assistant-turn task-turn is-failed",
+        "card": {
+          "rect": {
+            "x": 38,
+            "y": 254,
+            "top": 254,
+            "bottom": 326,
+            "width": 691,
+            "height": 72
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "691.219px",
+            "height": "72px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(178, 59, 75)",
+            "border": "0px none rgb(178, 59, 75)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "硬约束不满足",
+        "statusText": "本次结果未通过必须满足项检查，未放行且不会自动重试。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "硬约束不满足\n\n本次结果未通过必须满足项检查，未放行且不会自动重试。",
+        "doc": {
+          "scrollWidth": 768,
+          "clientWidth": 768
+        }
+      }
+    },
+    {
+      "name": "failed reason 768",
+      "ok": true,
+      "detail": "硬约束不满足\n\n本次结果未通过必须满足项检查，未放行且不会自动重试。"
+    },
+    {
+      "name": "failed no actions 768",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "failed no retry 768",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "failed state 1440",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "failed",
+        "classes": "assistant-turn task-turn is-failed",
+        "card": {
+          "rect": {
+            "x": 472,
+            "y": 254,
+            "top": 254,
+            "bottom": 326,
+            "width": 760,
+            "height": 72
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "760px",
+            "height": "72px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(178, 59, 75)",
+            "border": "0px none rgb(178, 59, 75)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "硬约束不满足",
+        "statusText": "本次结果未通过必须满足项检查，未放行且不会自动重试。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "硬约束不满足\n\n本次结果未通过必须满足项检查，未放行且不会自动重试。",
+        "doc": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        }
+      }
+    },
+    {
+      "name": "failed reason 1440",
+      "ok": true,
+      "detail": "硬约束不满足\n\n本次结果未通过必须满足项检查，未放行且不会自动重试。"
+    },
+    {
+      "name": "failed no actions 1440",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "failed no retry 1440",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "unknown state 320",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "unknown",
+        "classes": "assistant-turn task-turn is-unknown",
+        "card": {
+          "rect": {
+            "x": 16,
+            "y": 240,
+            "top": 240,
+            "bottom": 644,
+            "width": 278,
+            "height": 404
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "278px",
+            "height": "404px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "结果未知，正在核实",
+        "statusText": "远端状态尚未确认，系统不会自动重发。",
+        "checkbox": null,
+        "buttons": [
+          {
+            "text": "核实原任务",
+            "disabled": false,
+            "rect": {
+              "x": 32,
+              "y": 413,
+              "top": 413,
+              "bottom": 449,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          {
+            "text": "获取原结果",
+            "disabled": false,
+            "rect": {
+              "x": 32,
+              "y": 544,
+              "top": 544,
+              "bottom": 580,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          }
+        ],
+        "bubble": false,
+        "typing": false,
+        "text": "结果未知，正在核实\n\n远端状态尚未确认，系统不会自动重发。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n核实原任务\n只读核实\n\n只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。\n\n只读核实不会新增受理计数。\n\n获取原结果\n只读核实\n\n只找回原任务的结果，不新增计数。\n\n只读核实不会新增受理计数。",
+        "doc": {
+          "scrollWidth": 320,
+          "clientWidth": 320
+        }
+      }
+    },
+    {
+      "name": "unknown copy 320",
+      "ok": true,
+      "detail": "结果未知，正在核实\n\n远端状态尚未确认，系统不会自动重发。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n核实原任务\n只读核实\n\n只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。\n\n只读核实不会新增受理计数。\n\n获取原结果\n只读核实\n\n只找回原任务的结果，不新增计数。\n\n只读核实不会新增受理计数。"
+    },
+    {
+      "name": "unknown actions 320",
+      "ok": true,
+      "detail": [
+        {
+          "text": "核实原任务",
+          "disabled": false,
+          "rect": {
+            "x": 32,
+            "y": 413,
+            "top": 413,
+            "bottom": 449,
+            "width": 104,
+            "height": 36
+          },
+          "style": {
+            "display": "block",
+            "padding": "0px 16px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "104px",
+            "height": "36px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        {
+          "text": "获取原结果",
+          "disabled": false,
+          "rect": {
+            "x": 32,
+            "y": 544,
+            "top": 544,
+            "bottom": 580,
+            "width": 104,
+            "height": 36
+          },
+          "style": {
+            "display": "block",
+            "padding": "0px 16px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "104px",
+            "height": "36px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unknown state 768",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "unknown",
+        "classes": "assistant-turn task-turn is-unknown",
+        "card": {
+          "rect": {
+            "x": 38,
+            "y": 254,
+            "top": 254,
+            "bottom": 582,
+            "width": 691,
+            "height": 328
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "691.219px",
+            "height": "328px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "结果未知，正在核实",
+        "statusText": "远端状态尚未确认，系统不会自动重发。",
+        "checkbox": null,
+        "buttons": [
+          {
+            "text": "核实原任务",
+            "disabled": false,
+            "rect": {
+              "x": 54,
+              "y": 369,
+              "top": 369,
+              "bottom": 405,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          {
+            "text": "获取原结果",
+            "disabled": false,
+            "rect": {
+              "x": 54,
+              "y": 482,
+              "top": 482,
+              "bottom": 518,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          }
+        ],
+        "bubble": false,
+        "typing": false,
+        "text": "结果未知，正在核实\n\n远端状态尚未确认，系统不会自动重发。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n核实原任务\n只读核实\n\n只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。\n\n只读核实不会新增受理计数。\n\n获取原结果\n只读核实\n\n只找回原任务的结果，不新增计数。\n\n只读核实不会新增受理计数。",
+        "doc": {
+          "scrollWidth": 768,
+          "clientWidth": 768
+        }
+      }
+    },
+    {
+      "name": "unknown copy 768",
+      "ok": true,
+      "detail": "结果未知，正在核实\n\n远端状态尚未确认，系统不会自动重发。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n核实原任务\n只读核实\n\n只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。\n\n只读核实不会新增受理计数。\n\n获取原结果\n只读核实\n\n只找回原任务的结果，不新增计数。\n\n只读核实不会新增受理计数。"
+    },
+    {
+      "name": "unknown actions 768",
+      "ok": true,
+      "detail": [
+        {
+          "text": "核实原任务",
+          "disabled": false,
+          "rect": {
+            "x": 54,
+            "y": 369,
+            "top": 369,
+            "bottom": 405,
+            "width": 104,
+            "height": 36
+          },
+          "style": {
+            "display": "block",
+            "padding": "0px 16px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "104px",
+            "height": "36px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        {
+          "text": "获取原结果",
+          "disabled": false,
+          "rect": {
+            "x": 54,
+            "y": 482,
+            "top": 482,
+            "bottom": 518,
+            "width": 104,
+            "height": 36
+          },
+          "style": {
+            "display": "block",
+            "padding": "0px 16px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "104px",
+            "height": "36px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unknown state 1440",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "unknown",
+        "classes": "assistant-turn task-turn is-unknown",
+        "card": {
+          "rect": {
+            "x": 472,
+            "y": 254,
+            "top": 254,
+            "bottom": 582,
+            "width": 760,
+            "height": 328
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "760px",
+            "height": "328px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(73, 101, 168)",
+            "border": "0px none rgb(73, 101, 168)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": null,
+        "reasonLabel": "结果未知，正在核实",
+        "statusText": "远端状态尚未确认，系统不会自动重发。",
+        "checkbox": null,
+        "buttons": [
+          {
+            "text": "核实原任务",
+            "disabled": false,
+            "rect": {
+              "x": 488,
+              "y": 369,
+              "top": 369,
+              "bottom": 405,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          {
+            "text": "获取原结果",
+            "disabled": false,
+            "rect": {
+              "x": 488,
+              "y": 482,
+              "top": 482,
+              "bottom": 518,
+              "width": 104,
+              "height": 36
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px 16px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "transitionDuration": "1e-05s",
+              "animationName": "none",
+              "width": "104px",
+              "height": "36px",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          }
+        ],
+        "bubble": false,
+        "typing": false,
+        "text": "结果未知，正在核实\n\n远端状态尚未确认，系统不会自动重发。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n核实原任务\n只读核实\n\n只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。\n\n只读核实不会新增受理计数。\n\n获取原结果\n只读核实\n\n只找回原任务的结果，不新增计数。\n\n只读核实不会新增受理计数。",
+        "doc": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        }
+      }
+    },
+    {
+      "name": "unknown copy 1440",
+      "ok": true,
+      "detail": "结果未知，正在核实\n\n远端状态尚未确认，系统不会自动重发。\n\n安全恢复：以下操作只使用当前服务端允许的动作，不会自动提交新的生成请求，也不会自动新增受理次数。\n\n核实原任务\n只读核实\n\n只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。\n\n只读核实不会新增受理计数。\n\n获取原结果\n只读核实\n\n只找回原任务的结果，不新增计数。\n\n只读核实不会新增受理计数。"
+    },
+    {
+      "name": "unknown actions 1440",
+      "ok": true,
+      "detail": [
+        {
+          "text": "核实原任务",
+          "disabled": false,
+          "rect": {
+            "x": 488,
+            "y": 369,
+            "top": 369,
+            "bottom": 405,
+            "width": 104,
+            "height": 36
+          },
+          "style": {
+            "display": "block",
+            "padding": "0px 16px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "104px",
+            "height": "36px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        {
+          "text": "获取原结果",
+          "disabled": false,
+          "rect": {
+            "x": 488,
+            "y": 482,
+            "top": 482,
+            "bottom": 518,
+            "width": 104,
+            "height": 36
+          },
+          "style": {
+            "display": "block",
+            "padding": "0px 16px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "104px",
+            "height": "36px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        }
+      ]
+    },
+    {
+      "name": "recovered clicked 320",
+      "ok": true,
+      "detail": {
+        "clicked": true
+      }
+    },
+    {
+      "name": "recovered state 320",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "recovered",
+        "classes": "assistant-turn task-turn is-recovered",
+        "card": {
+          "rect": {
+            "x": 16,
+            "y": 297,
+            "top": 297,
+            "bottom": 369,
+            "width": 288,
+            "height": 72
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "288px",
+            "height": "72px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(53, 116, 91)",
+            "border": "0px none rgb(53, 116, 91)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": "已恢复",
+        "reasonLabel": null,
+        "statusText": "这一轮已完成。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "已恢复\n\n这一轮已完成。",
+        "doc": {
+          "scrollWidth": 320,
+          "clientWidth": 320
+        }
+      }
+    },
+    {
+      "name": "recovered copy 320",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "recovered",
+        "classes": "assistant-turn task-turn is-recovered",
+        "card": {
+          "rect": {
+            "x": 16,
+            "y": 297,
+            "top": 297,
+            "bottom": 369,
+            "width": 288,
+            "height": 72
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "288px",
+            "height": "72px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(53, 116, 91)",
+            "border": "0px none rgb(53, 116, 91)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": "已恢复",
+        "reasonLabel": null,
+        "statusText": "这一轮已完成。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "已恢复\n\n这一轮已完成。",
+        "doc": {
+          "scrollWidth": 320,
+          "clientWidth": 320
+        }
+      }
+    },
+    {
+      "name": "recovered no buttons 320",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "recovered same position 320",
+      "ok": true,
+      "detail": {
+        "before": {
+          "top": 297,
+          "width": 288
+        },
+        "after": {
+          "x": 16,
+          "y": 297,
+          "top": 297,
+          "bottom": 369,
+          "width": 288,
+          "height": 72
+        }
+      }
+    },
+    {
+      "name": "recovered one action 320",
+      "ok": true,
+      "detail": [
+        {
+          "requestId": "27920.159",
+          "method": "POST",
+          "url": "http://127.0.0.1:8099/api/projects/55555555-eeee-4eee-8eee-555555555555/workflow/actions/recover_generation",
+          "status": 200,
+          "postData": "{\"expected_revision\":5,\"text\":null,\"payload\":null}"
+        },
+        {
+          "requestId": "27920.160",
+          "method": "GET",
+          "url": "http://127.0.0.1:8099/api/projects/55555555-eeee-4eee-8eee-555555555555",
+          "status": 200,
+          "postData": null
+        }
+      ]
+    },
+    {
+      "name": "recovered clicked 768",
+      "ok": true,
+      "detail": {
+        "clicked": true
+      }
+    },
+    {
+      "name": "recovered state 768",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "recovered",
+        "classes": "assistant-turn task-turn is-recovered",
+        "card": {
+          "rect": {
+            "x": 38,
+            "y": 254,
+            "top": 254,
+            "bottom": 326,
+            "width": 691,
+            "height": 72
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "691.219px",
+            "height": "72px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(53, 116, 91)",
+            "border": "0px none rgb(53, 116, 91)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": "已恢复",
+        "reasonLabel": null,
+        "statusText": "这一轮已完成。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "已恢复\n\n这一轮已完成。",
+        "doc": {
+          "scrollWidth": 768,
+          "clientWidth": 768
+        }
+      }
+    },
+    {
+      "name": "recovered copy 768",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "recovered",
+        "classes": "assistant-turn task-turn is-recovered",
+        "card": {
+          "rect": {
+            "x": 38,
+            "y": 254,
+            "top": 254,
+            "bottom": 326,
+            "width": 691,
+            "height": 72
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "691.219px",
+            "height": "72px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(53, 116, 91)",
+            "border": "0px none rgb(53, 116, 91)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": "已恢复",
+        "reasonLabel": null,
+        "statusText": "这一轮已完成。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "已恢复\n\n这一轮已完成。",
+        "doc": {
+          "scrollWidth": 768,
+          "clientWidth": 768
+        }
+      }
+    },
+    {
+      "name": "recovered no buttons 768",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "recovered same position 768",
+      "ok": true,
+      "detail": {
+        "before": {
+          "top": 254,
+          "width": 691
+        },
+        "after": {
+          "x": 38,
+          "y": 254,
+          "top": 254,
+          "bottom": 326,
+          "width": 691,
+          "height": 72
+        }
+      }
+    },
+    {
+      "name": "recovered one action 768",
+      "ok": true,
+      "detail": [
+        {
+          "requestId": "27920.172",
+          "method": "POST",
+          "url": "http://127.0.0.1:8099/api/projects/55555555-eeee-4eee-8eee-555555555555/workflow/actions/recover_generation",
+          "status": 200,
+          "postData": "{\"expected_revision\":5,\"text\":null,\"payload\":null}"
+        },
+        {
+          "requestId": "27920.173",
+          "method": "GET",
+          "url": "http://127.0.0.1:8099/api/projects/55555555-eeee-4eee-8eee-555555555555",
+          "status": 200,
+          "postData": null
+        }
+      ]
+    },
+    {
+      "name": "recovered clicked 1440",
+      "ok": true,
+      "detail": {
+        "clicked": true
+      }
+    },
+    {
+      "name": "recovered state 1440",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "recovered",
+        "classes": "assistant-turn task-turn is-recovered",
+        "card": {
+          "rect": {
+            "x": 472,
+            "y": 254,
+            "top": 254,
+            "bottom": 326,
+            "width": 760,
+            "height": 72
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "760px",
+            "height": "72px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(53, 116, 91)",
+            "border": "0px none rgb(53, 116, 91)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": "已恢复",
+        "reasonLabel": null,
+        "statusText": "这一轮已完成。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "已恢复\n\n这一轮已完成。",
+        "doc": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        }
+      }
+    },
+    {
+      "name": "recovered copy 1440",
+      "ok": true,
+      "detail": {
+        "exists": true,
+        "state": "recovered",
+        "classes": "assistant-turn task-turn is-recovered",
+        "card": {
+          "rect": {
+            "x": 472,
+            "y": 254,
+            "top": 254,
+            "bottom": 326,
+            "width": 760,
+            "height": 72
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px 16px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "760px",
+            "height": "72px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "icon": {
+          "classes": {},
+          "style": {
+            "display": "block",
+            "padding": "0px",
+            "margin": "3px 0px 0px",
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(53, 116, 91)",
+            "border": "0px none rgb(53, 116, 91)",
+            "borderRadius": "0px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "transitionDuration": "1e-05s",
+            "animationName": "none",
+            "width": "16px",
+            "height": "16px",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        "heading": "已恢复",
+        "reasonLabel": null,
+        "statusText": "这一轮已完成。",
+        "checkbox": null,
+        "buttons": [],
+        "bubble": false,
+        "typing": false,
+        "text": "已恢复\n\n这一轮已完成。",
+        "doc": {
+          "scrollWidth": 1440,
+          "clientWidth": 1440
+        }
+      }
+    },
+    {
+      "name": "recovered no buttons 1440",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "recovered same position 1440",
+      "ok": true,
+      "detail": {
+        "before": {
+          "top": 254,
+          "width": 760
+        },
+        "after": {
+          "x": 472,
+          "y": 254,
+          "top": 254,
+          "bottom": 326,
+          "width": 760,
+          "height": 72
+        }
+      }
+    },
+    {
+      "name": "recovered one action 1440",
+      "ok": true,
+      "detail": [
+        {
+          "requestId": "27920.188",
+          "method": "POST",
+          "url": "http://127.0.0.1:8099/api/projects/55555555-eeee-4eee-8eee-555555555555/workflow/actions/recover_generation",
+          "status": 200,
+          "postData": "{\"expected_revision\":5,\"text\":null,\"payload\":null}"
+        },
+        {
+          "requestId": "27920.189",
+          "method": "GET",
+          "url": "http://127.0.0.1:8099/api/projects/55555555-eeee-4eee-8eee-555555555555",
+          "status": 200,
+          "postData": null
+        },
+        {
+          "requestId": "27920.190",
+          "method": "GET",
+          "url": "http://127.0.0.1:8099/api/projects?limit=20",
+          "status": 200,
+          "postData": null
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "detailGets": 18,
+    "actions": [
+      {
+        "id": "55555555-eeee-4eee-8eee-555555555555",
+        "action": "recover_generation",
+        "body": {
+          "expected_revision": 5,
+          "text": null,
+          "payload": null
+        },
+        "at": 1794141635016
+      },
+      {
+        "id": "55555555-eeee-4eee-8eee-555555555555",
+        "action": "recover_generation",
+        "body": {
+          "expected_revision": 5,
+          "text": null,
+          "payload": null
+        },
+        "at": 1794141637252
+      },
+      {
+        "id": "55555555-eeee-4eee-8eee-555555555555",
+        "action": "recover_generation",
+        "body": {
+          "expected_revision": 5,
+          "text": null,
+          "payload": null
+        },
+        "at": 1794141639482
+      }
+    ]
+  },
+  "browser": {
+    "Browser": "Edg/156.0.4314.58",
+    "File-Path-Style": "windows",
+    "Protocol-Version": "1.3",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+    "V8-Version": "15.6.12.10",
+    "WebKit-Version": "537.36 (@7806b68d20d1c1273d5b07b4f4de18e8f5852581)",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:14980/devtools/browser/b0fa2e2a-9658-4cc8-a06a-d9de117394d5"
+  },
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+    "platform": "Win32",
+    "language": "zh-CN",
+    "timezone": "Asia/Shanghai",
+    "dpr": 1,
+    "screen": {
+      "width": 800,
+      "height": 600
+    },
+    "fonts": "\"Noto Sans SC\"",
+    "osScalePercent": 100,
+    "fontStack": "system-ui, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", sans-serif"
+  },
+  "finishedAt": "2026-11-08T12:40:40.926Z",
+  "steps": [
+    "Build visual/v3 at 06d854c with NODE_OPTIONS preload; serve main/dist on 8099 and proxy /api to mock 8794.",
+    "Launch headless Edge with CDP; set viewport 320x800 and load executing project.",
+    "Capture executing: one static inset status card, no bubble/typing/percentage/internal stage.",
+    "Load confirm project; check the 20x20 confirmation checkbox; capture checked state; confirm no POST is sent.",
+    "Load failed project; capture failure in place; wait 900ms and confirm no automatic retry POST.",
+    "Load unknown project; capture exact 结果未知，正在核实 copy and only server-provided verify/retrieve actions.",
+    "Load recovered project; record pre-click top; click 恢复原任务; capture 已恢复 + 这一轮已完成 in the same region.",
+    "Repeat all five states at 768x1024 and 1440x900; verify no page-level horizontal scroll at 320 and card/CTA remains visible.",
+    "Collect computed styles, dimensions, network requests with requestId, and mock action stats.",
+    "Write v4-browser-result.json with 66 checks, 15 screenshots, and environment metadata."
+  ],
+  "fixture": {
+    "runId": "run-v4",
+    "projectRevision": 5,
+    "states": {
+      "executing": "S08 active",
+      "confirm": "S07 blocked authorization_invalid",
+      "failed": "S09 failed hard_failure",
+      "unknown": "S09 blocked remote_unknown",
+      "recovered": "S09 failed technical_failure -> S10 completed"
+    },
+    "errorCodes": {
+      "hardFailure": "V4_HARD_FAILURE",
+      "remoteUnknown": "V4_REMOTE_UNKNOWN",
+      "technicalFailure": "V4_TECHNICAL_FAILURE"
+    }
+  }
+}
