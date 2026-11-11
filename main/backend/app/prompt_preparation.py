@@ -26,6 +26,7 @@ from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict
 from app.models import Asset, Base, ImageCorrection, Project
 from app.ownership import revalidate_principal
+from app.prompt_content import extract_prompt, has_prompt_body
 from app.services.assets import resolve_asset_file
 from app.services.generations import service_fingerprint
 from app.timeutil import format_timestamp, utc_now
@@ -96,11 +97,22 @@ def compose_request_text(positive: str, negative: str) -> str:
     return positive if not negative else f"{positive}\n\n禁止内容（Negative prompt）:\n{negative}"
 
 
-async def build_request(ctx, payload, final_artifact, *, session=None, authorized=False) -> dict:
+def require_prompt_body(request: dict) -> None:
+    """A frozen heading or fence is never an executable image prompt."""
+    if not has_prompt_body(request.get("positive_prompt", "")) or not has_prompt_body(
+        request.get("prompt", "")
+    ):
+        raise conflict("PROMPT_EMPTY", "提示词缺少实际正文，请编辑并保存完整提示词后重新确认。")
+
+
+async def build_request(
+    ctx, payload, final_artifact, *, session=None, authorized=False, check_body=True
+) -> dict:
     if session is None:
         async with read_session(ctx.session_factory) as opened:
             return await build_request(
-                ctx, payload, final_artifact, session=opened, authorized=authorized
+                ctx, payload, final_artifact, session=opened, authorized=authorized,
+                check_body=check_body,
             )
     project = await session.get(Project, ctx.project_id)
     run = await session.get(WorkflowRun, ctx.run_id)
@@ -250,7 +262,7 @@ async def build_request(ctx, payload, final_artifact, *, session=None, authorize
             }
         )
     visual = ctx.settings.visual()
-    return {
+    request = {
         "contract_version": CONTRACT_VERSION,
         "project_id": project.id,
         "run_id": run.id,
@@ -280,6 +292,10 @@ async def build_request(ctx, payload, final_artifact, *, session=None, authorize
             "configuration_fingerprint": configuration_fingerprint(visual),
         },
     }
+
+    if check_body:
+        require_prompt_body(request)
+    return request
 
 
 async def approve_and_wait(
@@ -416,7 +432,9 @@ async def approve_and_wait(
     ctx.run = run
 
 
-async def validated_request(ctx, session, snapshot, *, authorized=False) -> dict:
+async def validated_request(
+    ctx, session, snapshot, *, authorized=False, check_body=True
+) -> dict:
     artifact = await session.get(Artifact, snapshot.artifact_id)
     approval = await session.get(Approval, snapshot.approval_id)
     try:
@@ -441,22 +459,29 @@ async def validated_request(ctx, session, snapshot, *, authorized=False) -> dict
             or approval.approval_type != "generation_prompt"
             or approval.project_id != ctx.project_id
             or snapshot.project_id != ctx.project_id
+            or snapshot.run_id != ctx.run_id
+            or artifact.project_id != ctx.project_id
+            or artifact.run_id != ctx.run_id
             or digest_payload(request) != snapshot.request_digest
             or artifact.digest != digest_payload(json.loads(artifact.payload_json))
         ):
             raise conflict("PROMPT_STALE", "提示词批准或冻结请求已失效。")
         final = await session.get(Artifact, request["requirements_artifact_id"])
-        if final is None or final.status != "approved":
+        if (final is None or final.status != "approved"
+                or final.project_id != ctx.project_id or final.run_id != ctx.run_id):
             raise conflict("PROMPT_STALE", "提示词批准或冻结请求已失效。")
         require_snapshot_binding(snapshot, request)
         actual = await build_request(
-            ctx, json.loads(artifact.payload_json), final, session=session, authorized=authorized
+            ctx, json.loads(artifact.payload_json), final, session=session, authorized=authorized,
+            check_body=False,
         )
         reasons = invalidation_reasons(request, actual)
         if reasons:
             raise_for_reasons(reasons)
     except (ValueError, KeyError, OSError) as exc:
         raise conflict("PROMPT_STALE", "提示词批准或冻结请求已失效。") from exc
+    if check_body:
+        require_prompt_body(request)
     return request
 
 
@@ -496,6 +521,73 @@ async def invalidate_awaiting(
         return len(snapshots)
 
 
+async def _preview_source_markdown(ctx, session, snapshot, request) -> str | None:
+    """Recover only the approved document that could have produced this candidate."""
+    approval = await session.get(Approval, snapshot.approval_id)
+    # User edits are authoritative; an old role document must never replace them.
+    if json.loads(approval.checks_json).get("user_edited"):
+        return None
+    candidate = await session.get(Artifact, snapshot.artifact_id)
+    previous_time = await session.scalar(
+        select(func.max(Artifact.created_at)).where(
+            Artifact.project_id == ctx.project_id,
+            Artifact.run_id == ctx.run_id,
+            Artifact.kind == "prompt_plan",
+            Artifact.revision_no < candidate.revision_no,
+        )
+    )
+    statement = select(Artifact).where(
+        Artifact.project_id == ctx.project_id,
+        Artifact.run_id == ctx.run_id,
+        Artifact.kind == "prompt_markdown",
+        Artifact.status == "approved",
+        Artifact.created_at <= candidate.created_at,
+        Artifact.created_at <= snapshot.created_at,
+    )
+    if previous_time is not None:
+        statement = statement.where(Artifact.created_at > previous_time)
+    document = await session.scalar(
+        statement.order_by(Artifact.created_at.desc(), Artifact.revision_no.desc()).limit(1)
+    )
+    if document is None:
+        return None
+    try:
+        payload = json.loads(document.payload_json)
+        if (
+            digest_payload(payload) != document.digest
+            or payload.get("format") != "markdown"
+            or payload.get("role") != "generation_engineer"
+            or payload.get("project_revision") != request["project_revision"]
+            or payload.get("reference_asset_id") != ctx.project.reference_asset_id
+            or not isinstance(payload.get("content"), str)
+        ):
+            return None
+        for binding in payload.get("upstream_documents", []):
+            upstream = await session.get(Artifact, binding["id"])
+            latest = None
+            if upstream is not None:
+                latest = await session.scalar(
+                    select(Artifact.id).where(
+                        Artifact.project_id == ctx.project_id,
+                        Artifact.kind == upstream.kind,
+                        Artifact.status == "approved",
+                    ).order_by(Artifact.created_at.desc(), Artifact.revision_no.desc()).limit(1)
+                )
+            if (
+                upstream is None
+                or latest != upstream.id
+                or upstream.project_id != ctx.project_id
+                or upstream.status != "approved"
+                or upstream.created_at > document.created_at
+                or upstream.digest != binding["digest"]
+                or upstream.digest != digest_payload(json.loads(upstream.payload_json))
+            ):
+                return None
+        return payload["content"]
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
 async def safe_preview(ctx) -> dict | None:
     if ctx.run is None:
         return None
@@ -503,6 +595,7 @@ async def safe_preview(ctx) -> dict | None:
         snapshot = await session.scalar(
             select(PreparedPrompt)
             .where(
+                PreparedPrompt.project_id == ctx.project_id,
                 PreparedPrompt.run_id == ctx.run_id,
                 PreparedPrompt.status == "awaiting_confirmation",
             )
@@ -512,19 +605,46 @@ async def safe_preview(ctx) -> dict | None:
         if snapshot is None:
             return None
         try:
-            request = await validated_request(ctx, session, snapshot)
+            request = await validated_request(ctx, session, snapshot, check_body=False)
         except ApiError:
             return None
         from app.final_confirmation import command_context
 
         context = await command_context(ctx, snapshot, session)
+        can_edit = False
+        if context is not None and ctx.principal.account_id != request["owner_account_id"]:
+            context = None
+        if context is not None:
+            try:
+                await revalidate_principal(session, ctx.principal)
+                can_edit = ctx.run.stage == "S07" and ctx.run.status == "needs_input"
+            except ApiError:
+                context = None
+        source = (
+            await _preview_source_markdown(ctx, session, snapshot, request)
+            if can_edit else None
+        )
+        warning = None
+        valid_body = True
+        try:
+            require_prompt_body(request)
+        except ApiError:
+            valid_body = False
+            warning = "保存的提示词缺少实际正文，暂不能确认。请补全提示词并保存后重新确认。"
+            if source is not None:
+                warning = "保存的提示词缺少实际正文，暂不能确认。可从原始 Markdown 恢复正文，编辑保存后重新确认。"
+        if source is not None and warning is None:
+            warning = extract_prompt(source).warning
         return {
             "id": snapshot.id,
             "status": snapshot.status,
             "request_digest": snapshot.request_digest,
             "request": request,
             "created_at": snapshot.created_at,
-            "can_confirm": context is not None,
+            "can_confirm": context is not None and valid_body,
+            "can_edit": can_edit,
+            "source_markdown": source,
+            "parse_warning": warning,
             "command_context": context,
         }
 
@@ -600,6 +720,7 @@ async def edit_prepared_prompt(ctx, payload) -> None:
         raise conflict("PROMPT_INVALID", "提示词不能为空，正向最多 12000 字，反向最多 6000 字。") from None
     if not edit.positive_prompt.strip():
         raise conflict("PROMPT_INVALID", "请填写正向提示词。")
+    require_prompt_body({"positive_prompt": edit.positive_prompt, "prompt": edit.positive_prompt})
     if ctx.principal is None:
         raise final_confirmation_required()
     now = format_timestamp(utc_now())
@@ -615,7 +736,7 @@ async def edit_prepared_prompt(ctx, payload) -> None:
                 or old.status != "awaiting_confirmation"
                 or old.request_digest != edit.snapshot_digest):
             raise conflict("PROMPT_STALE", "提示词已变化，请刷新后再修改。")
-        request = await validated_request(ctx, session, old)
+        request = await validated_request(ctx, session, old, check_body=False)
         source = await session.get(Artifact, old.artifact_id)
         plan = json.loads(source.payload_json)
         plan.update(positive_prompt=edit.positive_prompt, negative_prompt=edit.negative_prompt)

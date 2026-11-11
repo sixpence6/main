@@ -1,6 +1,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { ApiError, api } from '@/api/client'
 import { sessionRevision } from '@/auth/session'
+import { hasValidPromptEdits } from '@/utils/promptContent'
 import {
   type PromptPreviewView,
   type ClarificationAnswer,
@@ -178,6 +179,7 @@ export function useChatFlow() {
   const attachmentError = ref('')
   const pendingRequirementRequestId = ref('')
   const pendingPromptCommandId = ref('')
+  let pendingPromptCommandKey = ''
   const pendingTaskAction = ref<WorkflowAction | null>(null)
   const taskConfirmations = ref<Record<string, boolean>>({})
   let lastAutoAction = ''
@@ -880,34 +882,83 @@ export function useChatFlow() {
     }
   }
 
-  async function confirmPrompt(edits?: { positive_prompt: string; negative_prompt: string }): Promise<void> {
+  async function confirmPrompt(edits?: { positive_prompt: string; negative_prompt: string }): Promise<boolean> {
     let preview = promptPreview.value
-    if (!preview?.can_confirm || busy.value) return
-    const action = actionById('confirm_prompt')
-    if (!action) return
+    const initial = view.value
+    const projectId = workspace.projectParam.value
+    if (!preview || !initial || !projectId || initial.project_id !== projectId || busy.value) return false
+    if ((preview.request.project_id !== undefined && preview.request.project_id !== projectId)
+      || (preview.request.run_id !== undefined && preview.request.run_id !== initial.run_id)
+      || (preview.request.requirement_revision !== undefined
+        && preview.request.requirement_revision !== initial.requirement_revision)) {
+      flowError.value = '提示词所属项目或需求已变化，请刷新后重新检查。'
+      return false
+    }
+    const submitted = edits ? { ...edits } : { positive_prompt: positivePrompt.value, negative_prompt: negativePrompt.value }
+    if (!hasValidPromptEdits(submitted.positive_prompt, submitted.negative_prompt)) {
+      flowError.value = '请填写有效提示词正文；空内容、仅标题或仅代码围栏不能确认。'
+      return false
+    }
+    const changed = submitted.positive_prompt !== positivePrompt.value || submitted.negative_prompt !== negativePrompt.value
+    if (changed ? !(preview.can_edit ?? preview.can_confirm) || !actionById('edit_prepared_prompt')
+      : !preview.can_confirm || !actionById('confirm_prompt')) return false
     const sessionAtStart = sessionRevision.value
-    if (!pendingPromptCommandId.value) pendingPromptCommandId.value = makeId()
-    autoArmed = true
+    const scopeAtStart = contextRevision
+    const isCurrent = () => !disposed && sessionAtStart === sessionRevision.value && scopeAtStart === contextRevision
+      && workspace.projectParam.value === projectId && view.value?.project_id === projectId
+    // Editing replaces prompt artifacts and approvals, but cannot change the
+    // identity, requirements, output, references or service the user reviewed.
+    const requestContext = (request: Record<string, unknown>) => JSON.stringify(
+      Object.entries(request).filter(([key]) => ![
+        'positive_prompt', 'negative_prompt', 'prompt', 'project_revision', 'snapshot_id', 'snapshot_digest',
+        'prompt_artifact_id', 'prompt_artifact_revision', 'prompt_artifact_digest',
+        'prompt_approval_id', 'approval_rules_version', 'approval_prompt_version',
+      ].includes(key)).sort(([left], [right]) => left.localeCompare(right)),
+      (_key, value: unknown) => value && typeof value === 'object' && !Array.isArray(value)
+        ? Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))) : value,
+    )
+    const initialContext = requestContext(preview.request)
+    autoArmed = false
     busy.value = true
     flowError.value = ''
     try {
-      if (edits && (edits.positive_prompt !== positivePrompt.value || edits.negative_prompt !== negativePrompt.value)) {
-        const save = actionById('edit_prepared_prompt')
-        if (!save || !await workflow.runAction(save, null, {
+      if (changed) {
+        const oldId = preview.id
+        const oldDigest = preview.request_digest
+        const save = actionById('edit_prepared_prompt')!
+        const saved = await workflow.runAction(save, null, {
           snapshot_id: preview.id,
           snapshot_digest: preview.request_digest,
-          ...edits,
-        })) {
+          ...submitted,
+        })
+        if (!isCurrent()) return false
+        if (!saved) {
           flowError.value = workflow.error.value || '提示词未能保存，请刷新后重试。'
-          return
+          return false
         }
-        if (sessionAtStart !== sessionRevision.value) return
         preview = promptPreview.value
-        pendingPromptCommandId.value = makeId()
-        if (!preview?.can_confirm || preview.request.positive_prompt !== edits.positive_prompt || preview.request.negative_prompt !== edits.negative_prompt) {
-          flowError.value = '保存结果已变化，请检查当前提示词后重新确认。'
-          return
+        if (!preview || preview.id === oldId || preview.request_digest === oldDigest || !preview.can_confirm
+          || preview.request.positive_prompt !== submitted.positive_prompt
+          || preview.request.negative_prompt !== submitted.negative_prompt
+          || view.value?.run_id !== initial.run_id
+          || view.value?.requirement_revision !== initial.requirement_revision
+          || requestContext(preview.request) !== initialContext) {
+          flowError.value = '保存结果或生成上下文已变化，请检查当前提示词后重新确认。'
+          return false
         }
+      }
+      // A recoverable historical preview intentionally has only an edit action.
+      const action = actionById('confirm_prompt')
+      if (!isCurrent() || !preview.can_confirm || !action || !preview.command_context
+        || !preview.id || !preview.request_digest) {
+        if (isCurrent()) flowError.value = '当前提示词尚不可确认，请检查保存结果后重试。'
+        return false
+      }
+      const commandKey = JSON.stringify([sessionAtStart, scopeAtStart, projectId, preview.id,
+        preview.request_digest, preview.command_context])
+      if (!pendingPromptCommandId.value || pendingPromptCommandKey !== commandKey) {
+        pendingPromptCommandId.value = makeId()
+        pendingPromptCommandKey = commandKey
       }
       const ok = await workflow.runAction(action, null, {
         snapshot_id: preview.id,
@@ -915,13 +966,15 @@ export function useChatFlow() {
         command_id: pendingPromptCommandId.value,
         command_context: preview.command_context,
       })
-      if (sessionAtStart !== sessionRevision.value) return
+      if (!isCurrent()) return false
       if (!ok) {
         flowError.value = workflow.error.value || '操作没有完成，请稍后重试。'
-        return
+        return false
       }
       pendingPromptCommandId.value = ''
+      autoArmed = true
       await afterWorkflowChange(true)
+      return isCurrent()
     } finally {
       busy.value = false
     }

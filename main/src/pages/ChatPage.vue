@@ -3,6 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } 
 import { RouterLink, useRoute } from 'vue-router'
 import ImageLightbox from '@/components/ImageLightbox.vue'
 import { assetUrl } from '@/api/client'
+import { sessionRevision } from '@/auth/session'
+import { hasPromptContent, hasValidPromptEdits } from '@/utils/promptContent'
 import type { WorkflowAction } from '@/api/workflow'
 import { useChatFlow } from '@/composables/useChatFlow'
 import { publishLiveStatus, type LiveStatusInput } from '@/composables/useLiveStatus'
@@ -117,8 +119,18 @@ const sendDisabled = computed(() =>
   !draft.value.trim()
 )
 const promptStateLabel = computed(() => {
-  if (!promptPreview.value) return ''
-  return promptPreview.value.can_confirm ? '' : '提示词正在检查，确认按钮暂不可用。'
+  const preview = promptPreview.value
+  if (!preview) return ''
+  if (preview.parse_warning || !hasValidPromptEdits(positivePrompt.value, negativePrompt.value)) {
+    return '提示词解析异常或缺少有效正文，原快照不能用于生成。请在卡片内编辑正文，检查后明确确认。'
+  }
+  if (!hasValidPromptEdits(promptEditPositive.value, promptEditNegative.value)) {
+    return '请填写有效提示词正文；空内容、仅标题或仅代码围栏不能确认。'
+  }
+  if (preview.can_confirm) return ''
+  return preview.can_edit
+    ? '当前快照不能确认；请编辑提示词，保存为新快照后再确认生成。'
+    : '提示词正在检查，确认按钮暂不可用。'
 })
 
 interface PromptCardSnapshot {
@@ -134,7 +146,31 @@ const promptEditNegative = ref('')
 const promptSnapshot = ref<PromptCardSnapshot | null>(null)
 const promptConfirmed = ref(false)
 const promptConfirming = ref(false)
-const promptConfirmedId = ref('')
+// Keep unsaved text per project and snapshot within this page's login session.
+const promptDrafts = new Map<string, { positive: string; negative: string }>()
+let activePromptDraftKey = ''
+let promptCardScope = 0
+const promptDraftKey = computed(() => {
+  const view = flow.workflow.view.value
+  const preview = promptPreview.value
+  return view?.project_id === projectParam.value && preview
+    ? JSON.stringify([sessionRevision.value, view.project_id, preview.id, preview.request_digest]) : ''
+})
+const promptEditsChanged = computed(() => promptEditPositive.value !== positivePrompt.value
+  || promptEditNegative.value !== negativePrompt.value)
+const promptCanEdit = computed(() => Boolean(promptPreview.value?.can_edit ?? promptPreview.value?.can_confirm)
+  && Boolean(flow.workflow.view.value?.available_actions.some((action) => action.id === 'edit_prepared_prompt')))
+const promptNeedsRepair = computed(() => Boolean(promptPreview.value?.parse_warning)
+  || !hasValidPromptEdits(positivePrompt.value, negativePrompt.value))
+const promptSourceAvailable = computed(() => hasPromptContent(promptPreview.value?.source_markdown))
+const promptSourceLoaded = ref(false)
+
+function useFullPromptSource(): void {
+  if (!promptSourceAvailable.value || !promptCanEdit.value || busy.value || promptConfirming.value) return
+  promptEditPositive.value = promptPreview.value!.source_markdown!
+  promptEditNegative.value = ''
+  promptSourceLoaded.value = true
+}
 
 function promptVersionFromRequest(request: Record<string, unknown> | undefined): string {
   const raw = request?.contract_version
@@ -153,27 +189,27 @@ const promptCardReference = computed(() => promptSnapshot.value?.reference ?? re
 const promptCardVisible = computed(() =>
   Boolean(promptPreview.value || promptSnapshot.value),
 )
-const promptStatus = computed<'pending' | 'checking' | 'confirmed'>(() => {
+const promptStatus = computed<'pending' | 'checking' | 'repair' | 'confirmed'>(() => {
   if (promptConfirmed.value) return 'confirmed'
+  if (promptNeedsRepair.value || (promptPreview.value?.can_confirm === false && promptCanEdit.value)) return 'repair'
   return promptPreview.value?.can_confirm === false ? 'checking' : 'pending'
 })
 const promptStatusLabel = computed(() => {
   if (promptStatus.value === 'confirmed') return '已确认'
+  if (promptStatus.value === 'repair') return '待修正'
   return promptStatus.value === 'checking' ? '检查中' : '待确认'
 })
 const promptCanConfirm = computed(() =>
-  Boolean(promptPreview.value?.can_confirm) &&
-  Boolean(flow.workflow.view.value?.available_actions.some((action) => action.id === 'confirm_prompt')) &&
-  Boolean(promptEditPositive.value.trim()) &&
+  Boolean(promptDraftKey.value) &&
+  (promptEditsChanged.value ? promptCanEdit.value : Boolean(promptPreview.value?.can_confirm) &&
+    Boolean(flow.workflow.view.value?.available_actions.some((action) => action.id === 'confirm_prompt'))) &&
+  hasValidPromptEdits(promptEditPositive.value, promptEditNegative.value) &&
   !promptConfirmed.value &&
   !promptConfirming.value &&
   !busy.value
 )
-const promptCtaLabel = computed(() =>
-  promptPreview.value && promptPreview.value.can_confirm === false
-    ? '提示词检查中…'
-    : '确认使用以上提示词生成'
-)
+const promptCtaLabel = computed(() => promptStatus.value === 'checking'
+  ? '提示词检查中…' : '确认使用以上提示词生成')
 const promptExecutionStatus = computed(() => taskStatusText.value || '已确认，正在执行…')
 
 type TaskVisualState = 'executing' | 'failed' | 'unknown' | 'recovered' | 'waiting'
@@ -279,15 +315,16 @@ function resetPromptCard(): void {
   promptSnapshot.value = null
   promptConfirmed.value = false
   promptConfirming.value = false
-  promptConfirmedId.value = ''
 }
 
 function onConfirmPrompt(): void {
-  if (promptConfirmed.value || promptConfirming.value) return
-  const preview = promptPreview.value
-  if (!preview?.can_confirm || busy.value) return
-  const hasAction = flow.workflow.view.value?.available_actions.some((item) => item.id === 'confirm_prompt')
-  if (!hasAction) return
+  if (!promptCanConfirm.value) return
+  const preview = promptPreview.value!
+  const projectAtStart = projectParam.value
+  const sessionAtStart = sessionRevision.value
+  const scopeAtStart = promptCardScope
+  const isCurrent = () => projectParam.value === projectAtStart && sessionRevision.value === sessionAtStart
+    && promptCardScope === scopeAtStart
   promptSnapshot.value = {
     positive: promptEditPositive.value,
     negative: promptEditNegative.value,
@@ -295,19 +332,18 @@ function onConfirmPrompt(): void {
     reference: referenceInfo.value,
     version: promptVersionLabel.value,
   }
-  promptConfirmedId.value = preview.id
   promptConfirmed.value = true
   promptConfirming.value = true
   // The confirmed card is a frozen receipt: keep it until the preview id
   // genuinely changes or the project resets, even when promptPreview clears.
   void confirmPrompt({ positive_prompt: promptEditPositive.value, negative_prompt: promptEditNegative.value }).then(
-    () => {
+    (ok) => {
+      if (!isCurrent()) return
       promptConfirming.value = false
-      if (flowError.value && promptPreview.value?.can_confirm) resetPromptCard()
+      if (!ok) resetPromptCard()
     },
     () => {
-      promptConfirming.value = false
-      resetPromptCard()
+      if (isCurrent()) resetPromptCard()
     },
   )
 }
@@ -462,26 +498,42 @@ watch(
 watch(
   () => projectParam.value,
   async () => {
+    promptCardScope += 1
     resetPromptCard()
     stickToBottom.value = true
     newContentAvailable.value = false
     await nextTick()
     scrollToLatest()
   },
-  { flush: 'post' },
+  { flush: 'sync' },
 )
 
-watch(
-  () => promptPreview.value?.id,
-  (id) => {
-    if (id && promptConfirmed.value && id !== promptConfirmedId.value && !promptConfirming.value) resetPromptCard()
-    if (id && !promptConfirming.value) {
-      promptEditPositive.value = positivePrompt.value
-      promptEditNegative.value = negativePrompt.value
-    }
-  },
-  { immediate: true },
-)
+watch(sessionRevision, () => {
+  promptCardScope += 1
+  promptDrafts.clear()
+  activePromptDraftKey = ''
+  promptEditPositive.value = ''
+  promptEditNegative.value = ''
+  resetPromptCard()
+}, { flush: 'sync' })
+
+watch([promptEditPositive, promptEditNegative], ([positive, negative]) => {
+  if (activePromptDraftKey) promptDrafts.set(activePromptDraftKey, { positive, negative })
+}, { flush: 'sync' })
+
+watch(promptDraftKey, (key, oldKey) => {
+  activePromptDraftKey = ''
+  promptSourceLoaded.value = false
+  if (!key) return
+  if (promptConfirmed.value && key !== oldKey && !promptConfirming.value) resetPromptCard()
+  const saved = promptDrafts.get(key)
+  if (!promptConfirming.value) {
+    promptEditPositive.value = saved?.positive ?? positivePrompt.value
+    promptEditNegative.value = saved?.negative ?? negativePrompt.value
+  }
+  activePromptDraftKey = key
+  promptDrafts.set(key, { positive: promptEditPositive.value, negative: promptEditNegative.value })
+}, { immediate: true, flush: 'sync' })
 
 watch(
   () => route.hash,
@@ -515,6 +567,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  promptCardScope += 1
   if (composerFrame) cancelAnimationFrame(composerFrame)
   if (bottomFrame) cancelAnimationFrame(bottomFrame)
   contentObserver?.disconnect()
@@ -741,7 +794,7 @@ const liveStatusInput = computed<LiveStatusInput>(() => {
     return {
       ...base,
       label: '等待确认提示词',
-      detail: promptPreview.value.can_confirm ? '确认真实提示词后才会提交生成。' : '提示词仍在检查，请稍候。',
+      detail: promptStateLabel.value || '确认真实提示词后才会提交生成。',
       tone: 'waiting',
     }
   }
@@ -1089,6 +1142,14 @@ watch(
 
               <div class="prompt-card-body">
                 <p v-if="!promptConfirmed" class="prompt-edit-help">请检查提示词，可直接修改；点击确认后才会生成图片。</p>
+                <p v-if="!promptConfirmed && promptPreview?.parse_warning" class="prompt-parse-warning" role="status">
+                  {{ promptPreview.parse_warning }}
+                </p>
+                <div v-if="!promptConfirmed && promptSourceAvailable" class="prompt-source-recovery">
+                  <p class="prompt-edit-help">使用完整原文会将包含原文的全部内容填入正向提示词，并清空反向提示词以免重复。请检查、编辑后明确确认；此按钮不会保存或生成。</p>
+                  <button type="button" class="prompt-copy" :disabled="!promptCanEdit || promptConfirming || busy" @click="useFullPromptSource">使用完整原文编辑</button>
+                  <p v-if="promptSourceLoaded" class="prompt-edit-help" role="status">正向提示词已填入完整原文，反向已清空；尚未保存，请检查后确认。</p>
+                </div>
                 <label v-if="!promptConfirmed" class="prompt-edit-label">
                   正向提示词
                   <textarea v-model="promptEditPositive" class="prompt-edit-input" aria-label="正向提示词" rows="7" maxlength="12000" :disabled="promptConfirming || busy" />
@@ -1441,6 +1502,8 @@ watch(
 </template>
 
 <style scoped>
+.prompt-parse-warning { color: var(--state-danger); margin-bottom: var(--space-3); }
+.prompt-source-recovery { margin-bottom: var(--space-3); }
 .prompt-edit-help { color: var(--text-secondary); margin-bottom: var(--space-3); }
 .prompt-edit-label { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); }
 .prompt-edit-input { box-sizing: border-box; width: 100%; min-width: 0; resize: vertical; padding: var(--space-3); color: var(--text-primary); background: var(--surface-panel); border: 1px solid var(--line-control); border-radius: var(--radius-md); font: inherit; line-height: 1.6; }

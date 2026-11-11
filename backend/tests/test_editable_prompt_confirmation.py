@@ -1,5 +1,6 @@
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import func, select
 
 from app.adapters.base import ProviderOutcome
@@ -122,3 +123,21 @@ async def test_invalid_edit_and_paused_confirmation_do_not_submit(full_settings)
         denied = await action(client, project["id"], current, "confirm_prompt", final_payload(preview))
         assert denied.status_code == 409
         assert len(visual.submit_calls) == 0
+
+
+@pytest.mark.parametrize("positive", ["## 正向提示词", "```markdown\n\n```"])
+async def test_edit_cannot_save_a_prompt_without_body(full_settings, positive):
+    async with _environment(settings_for(full_settings), ConsolidatedScript()) as (app, client, llm, visual):
+        project = await _create_project(client)
+        await _start(client, project["id"], "钢笔电商主图，冷白背景，居中构图，无文字")
+        await _drain(app)
+        view = await _view(client, project["id"])
+        preview = view["prompt_preview"]
+        calls = len(llm.role_calls_received)
+        denied = await action(client, project["id"], view, "edit_prepared_prompt", {
+            "snapshot_id": preview["id"], "snapshot_digest": preview["request_digest"],
+            "positive_prompt": positive, "negative_prompt": ""})
+        assert denied.status_code == 409, denied.text
+        assert denied.json()["error"]["code"] == "PROMPT_EMPTY", denied.text
+        assert (await _view(client, project["id"]))["prompt_preview"]["id"] == preview["id"]
+        assert visual.submit_calls == [] and len(llm.role_calls_received) == calls
