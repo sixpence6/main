@@ -20,7 +20,7 @@ def test_0011_upgrade_preserves_history_without_inventing_execution_authorizatio
         before = db.execute("SELECT * FROM projects").fetchall()
     command.upgrade(config, "head")
     with sqlite3.connect(settings.database_path) as db:
-        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0015",)
+        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0017",)
         assert db.execute("SELECT * FROM projects").fetchall() == before
         assert db.execute("SELECT checks_json FROM approvals").fetchall() == [(checks,)]
         assert db.execute("SELECT count(*) FROM prepared_prompts").fetchone() == (0,)

@@ -40,9 +40,10 @@ def current_gate_mode() -> GateMode:
 def gate_mode_for_target(target_kind: str) -> GateMode:
     """Return the effective mode for one target kind.
 
-    The requirements stage keeps its independent review in every mode: its
-    output is immediately shown to the user and must not be garbled or
-    ungrounded. Other rule catalogues are bypassed until strict mode returns.
+    In requirements_only mode the requirements stage keeps its independent
+    review because its output is immediately shown to the user and must not be
+    garbled or ungrounded. Other rule catalogues are bypassed until strict mode
+    returns; off bypasses every content-review catalogue.
     """
     mode = current_gate_mode()
     if mode == "requirements_only" and target_kind != "requirement_draft":

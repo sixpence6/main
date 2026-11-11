@@ -82,10 +82,10 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool = True
     app_public_url: str | None = None
     trusted_proxy_cidrs: list[str] = Field(default_factory=list)
-    # Gate rollout switch. "requirements_only" keeps the strict S03 requirement
-    # review and relaxes every other rule catalogue; "strict" restores all old
-    # gates; "off" relaxes all of them. Schema/evidence sanity stays in stages.
-    workflow_gate_mode: Literal["strict", "requirements_only", "off"] = "requirements_only"
+    # Historical protocol controls. The current collaborative workflow always
+    # skips content review; strict/requirements_only only serve compatibility.
+    workflow_gate_mode: Literal["strict", "requirements_only", "off"] = "off"
+    workflow_role_policy: Literal["collaborative", "consolidated", "legacy"] = "collaborative"
 
     # Release backup scheduling. The scheduler is disabled when APP_BACKUP_DIR
     # is absent; manual CLI backup remains available either way.
@@ -129,7 +129,11 @@ class Settings(BaseSettings):
     llm_vision_model: str | None = None
     llm_vision_base_url: str | None = None
     llm_vision_api_key: SecretStr | None = None
-    llm_timeout_seconds: int = 60
+    workflow_handoff_format: Literal["json", "markdown"] = "markdown"
+    llm_timeout_seconds: int = 3600
+    llm_thinking_mode: Literal["auto", "enabled", "disabled"] = "auto"
+    llm_reasoning_effort: Literal["auto", "low", "medium", "high"] = "auto"
+    llm_vision_reasoning_effort: Literal["auto", "low", "medium", "high"] = "auto"
 
     visual_adapter: str | None = None
     visual_base_url: str | None = None
@@ -402,6 +406,9 @@ class Settings(BaseSettings):
             api_key=api_key,
             model=_blank(self.llm_model),
             timeout_seconds=max(int(self.llm_timeout_seconds), 1),
+            thinking_mode=self.llm_thinking_mode,
+            reasoning_effort=self.llm_reasoning_effort,
+            vision_reasoning_effort=self.llm_vision_reasoning_effort,
             image_size=None,
             vision_model=_blank(self.llm_vision_model),
             vision_base_url=_blank(self.llm_vision_base_url) or base_url,
@@ -434,6 +441,9 @@ class RoleConfig:
     vision_model: str | None = None
     vision_base_url: str | None = None
     vision_api_key: SecretStr | None = None
+    thinking_mode: Literal["auto", "enabled", "disabled"] = "auto"
+    reasoning_effort: Literal["auto", "low", "medium", "high"] = "auto"
+    vision_reasoning_effort: Literal["auto", "low", "medium", "high"] = "auto"
 
     @property
     def configured(self) -> bool:

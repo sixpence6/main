@@ -9,14 +9,13 @@ from dataclasses import replace
 from typing import Any
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from PIL import Image
 from sqlalchemy import select
 
 from app.adapters.base import ProviderError
 from app.config import Settings
 from app.main import create_app
-from app.models import Asset
 from app.workflow import state as workflow_state
 from app.workflow import templates
 from app.workflow.stages import s02
@@ -941,3 +940,22 @@ async def test_selected_usage_survives_failed_reanalysis_and_retry(full_settings
                 )
             ).all()
         assert events
+
+
+@pytest.mark.asyncio
+async def test_off_mode_skips_reference_reviewer(full_settings):
+    settings = full_settings.model_copy(update={"workflow_gate_mode": "off"})
+    async with environment(settings, responder()) as (_, client, stub, _):
+        project = await create_project(client)
+        uploaded = await upload_ok(client, project["id"], 0, png_bytes())
+        response = await act(
+            client,
+            project["id"],
+            "analyze_reference",
+            expected_revision=uploaded["revision"],
+            payload={},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["stage"] == "S02"
+        roles = [request.payload["task"]["role"] for request in stub.role_calls_received]
+        assert roles == ["reference_analyst"]

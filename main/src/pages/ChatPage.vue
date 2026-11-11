@@ -32,6 +32,9 @@ const {
   chooseAttachment,
   removeAttachment,
   hasConversation,
+  conversationQuestion,
+  selectedOption,
+  answerQuestion,
   requirementRows,
   canConfirmRequirements,
   promptPreview,
@@ -76,7 +79,15 @@ const newContentAvailable = ref(false)
 const footerHeight = ref(132)
 const lightboxOpen = ref(false)
 const lightboxItem = ref<{ assetId: string; caption: string } | null>(null)
-const pendingSend = ref<{ text: string; sentAt: string } | null>(null)
+
+interface PendingSend {
+  id: string
+  text: string
+  sentAt: string
+  status: 'sending' | 'failed'
+}
+
+const pendingSend = ref<PendingSend | null>(null)
 const retryingProject = ref(false)
 const requirementSubmitting = ref(false)
 const requirementConfirmed = ref(false)
@@ -101,6 +112,7 @@ const usageText = computed(() => {
 const sendDisabled = computed(() =>
   busy.value ||
   attachmentBusy.value ||
+  pendingSend.value?.status === 'sending' ||
   pendingTaskConfirmationMissing.value ||
   !draft.value.trim()
 )
@@ -117,6 +129,8 @@ interface PromptCardSnapshot {
   version: string
 }
 
+const promptEditPositive = ref('')
+const promptEditNegative = ref('')
 const promptSnapshot = ref<PromptCardSnapshot | null>(null)
 const promptConfirmed = ref(false)
 const promptConfirming = ref(false)
@@ -136,7 +150,9 @@ const promptCardPositive = computed(() => promptSnapshot.value?.positive ?? posi
 const promptCardNegative = computed(() => promptSnapshot.value?.negative ?? negativePrompt.value)
 const promptCardOutput = computed(() => promptSnapshot.value?.output ?? promptOutput.value)
 const promptCardReference = computed(() => promptSnapshot.value?.reference ?? referenceInfo.value)
-const promptCardVisible = computed(() => Boolean(promptPreview.value || promptSnapshot.value))
+const promptCardVisible = computed(() =>
+  Boolean(promptPreview.value || promptSnapshot.value),
+)
 const promptStatus = computed<'pending' | 'checking' | 'confirmed'>(() => {
   if (promptConfirmed.value) return 'confirmed'
   return promptPreview.value?.can_confirm === false ? 'checking' : 'pending'
@@ -147,6 +163,8 @@ const promptStatusLabel = computed(() => {
 })
 const promptCanConfirm = computed(() =>
   Boolean(promptPreview.value?.can_confirm) &&
+  Boolean(flow.workflow.view.value?.available_actions.some((action) => action.id === 'confirm_prompt')) &&
+  Boolean(promptEditPositive.value.trim()) &&
   !promptConfirmed.value &&
   !promptConfirming.value &&
   !busy.value
@@ -199,14 +217,24 @@ const taskVisibleActions = computed(() => {
     (action) => RECOVERY_ACTION_IDS.has(action.id) || action.effect === 'read_only',
   )
 })
+const showPendingAssistant = computed(() =>
+  pendingSend.value?.status === 'sending' &&
+  !taskTurnVisible.value &&
+  !canConfirmRequirements.value &&
+  !promptPreview.value,
+)
 const taskReasonLine = computed(() => {
   if (taskVisualState.value === 'executing' || taskVisualState.value === 'recovered') return ''
   const label = taskReasonLabel.value || (taskUnknown.value ? '结果未知' : '')
   if (!label) return ''
-  return taskUnknown.value ? label + '，正在核实' : label
+  return label
 })
 const taskStatusLine = computed(() => {
   if (taskVisualState.value === 'executing') return taskDisplayText.value
+  const reason = taskReason.value
+  if (reason && ['LLM_TIMEOUT', 'LLM_RESPONSE_INVALID', 'RECOVERY_UNSUPPORTED', 'ORIGINAL_RESULT_UNAVAILABLE'].includes(reason.template_id ?? reason.code)) {
+    return reason.message
+  }
   return (taskUnknown.value || taskFailed.value) && taskReasonLine.value ? '' : taskDisplayText.value
 })
 
@@ -261,8 +289,8 @@ function onConfirmPrompt(): void {
   const hasAction = flow.workflow.view.value?.available_actions.some((item) => item.id === 'confirm_prompt')
   if (!hasAction) return
   promptSnapshot.value = {
-    positive: positivePrompt.value,
-    negative: negativePrompt.value,
+    positive: promptEditPositive.value,
+    negative: promptEditNegative.value,
     output: promptOutput.value,
     reference: referenceInfo.value,
     version: promptVersionLabel.value,
@@ -272,7 +300,7 @@ function onConfirmPrompt(): void {
   promptConfirming.value = true
   // The confirmed card is a frozen receipt: keep it until the preview id
   // genuinely changes or the project resets, even when promptPreview clears.
-  void confirmPrompt().then(
+  void confirmPrompt({ positive_prompt: promptEditPositive.value, negative_prompt: promptEditNegative.value }).then(
     () => {
       promptConfirming.value = false
       if (flowError.value && promptPreview.value?.can_confirm) resetPromptCard()
@@ -409,6 +437,8 @@ function closeLightbox(): void {
 watch(
   () => [
     projectMessages.value.length,
+    pendingSend.value?.id ?? '',
+    pendingSend.value?.status ?? '',
     taskStatusText.value,
     canConfirmRequirements.value,
     Boolean(promptPreview.value),
@@ -444,8 +474,13 @@ watch(
 watch(
   () => promptPreview.value?.id,
   (id) => {
-    if (id && promptConfirmed.value && id !== promptConfirmedId.value) resetPromptCard()
+    if (id && promptConfirmed.value && id !== promptConfirmedId.value && !promptConfirming.value) resetPromptCard()
+    if (id && !promptConfirming.value) {
+      promptEditPositive.value = positivePrompt.value
+      promptEditNegative.value = negativePrompt.value
+    }
   },
+  { immediate: true },
 )
 
 watch(
@@ -486,14 +521,61 @@ onBeforeUnmount(() => {
   footerObserver?.disconnect()
 })
 
+function createRequestId(): string {
+  if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16)
+    const value = character === 'x' ? random : (random & 0x3) | 0x8
+    return value.toString(16)
+  })
+}
+
 async function submit(): Promise<void> {
   const value = draft.value
-  if (sendDisabled.value) return
-  pendingSend.value = { text: value.trim(), sentAt: new Date().toISOString() }
+  if (sendDisabled.value || !value.trim()) return
+  // A failed local bubble must not trap the composer. Sending new text
+  // supersedes it; the failed request can still be retried from its bubble
+  // until the user chooses to move on.
+  if (pendingSend.value?.status === 'failed') pendingSend.value = null
+  const pending: PendingSend = {
+    id: createRequestId(),
+    text: value,
+    sentAt: new Date().toISOString(),
+    status: 'sending',
+  }
+  pendingSend.value = pending
+  await nextTick()
+  composerInput.value?.focus({ preventScroll: true })
   try {
-    await send(value)
-  } finally {
-    pendingSend.value = null
+    const result = await send(value, pending.id)
+    if (pendingSend.value?.id !== pending.id) return
+    if (result.status === 'failed') {
+      pendingSend.value = { ...pending, status: 'failed' }
+    } else {
+      pendingSend.value = null
+    }
+  } catch {
+    if (pendingSend.value?.id === pending.id) {
+      pendingSend.value = { ...pending, status: 'failed' }
+    }
+  }
+}
+
+async function retryPendingSend(): Promise<void> {
+  const pending = pendingSend.value
+  if (!pending || pending.status !== 'failed' || busy.value) return
+  pendingSend.value = { ...pending, status: 'sending' }
+  try {
+    const result = await send(pending.text, pending.id)
+    if (pendingSend.value?.id !== pending.id) return
+    if (result.status === 'sent') pendingSend.value = null
+    else pendingSend.value = { ...pending, status: 'failed' }
+  } catch {
+    if (pendingSend.value?.id === pending.id) {
+      pendingSend.value = { ...pending, status: 'failed' }
+    }
   }
 }
 
@@ -609,10 +691,14 @@ watch(
 watch(
   () => projectMessages.value.map((message) => message.id),
   (_ids, previousIds) => {
-    if (!pendingSend.value) return
+    const pending = pendingSend.value
+    if (!pending || pending.status !== 'sending') return
     const known = new Set(previousIds ?? [])
     const arrived = projectMessages.value.some(
-      (message) => message.role === 'user' && !known.has(message.id),
+      (message) =>
+        message.role === 'user' &&
+        !known.has(message.id) &&
+        (!message.request_id || message.request_id === pending.id),
     )
     if (arrived) pendingSend.value = null
   },
@@ -699,10 +785,10 @@ watch(
   <section class="pure-chat" aria-label="生图对话">
     <div ref="scrollRegion" class="chat-scroll" aria-label="对话内容" @scroll.passive="onScroll">
       <div ref="chatContent" class="chat-content">
-      <div v-if="!hasConversation" class="welcome">
+      <div v-if="!hasConversation && !pendingSend" class="welcome">
         <div class="welcome-inner">
           <h1>发来商品图片，或告诉我你想做什么样的电商图片</h1>
-          <p class="welcome-note">用一句话描述商品、用途和画面感觉即可。需要确认时，我会把要点整理给你。</p>
+          <p class="welcome-note">描述你想要的画面，四位助手会协作完成设计和生图。</p>
           <div v-if="!draft.trim()" class="suggestion-list" aria-label="推荐提示词">
             <button
               v-for="suggestion in suggestions"
@@ -741,7 +827,7 @@ watch(
             <li
               v-for="message in projectMessages"
               :key="message.id"
-              v-memo="[message.id, message.content, message.attachment?.asset_id, message.attachment?.preview_url]"
+              v-memo="[message.id, message.content, message.attachment?.asset_id, message.attachment?.preview_url, conversationQuestion?.question_id, conversationQuestion?.message_id, busy, selectedOption, pendingAttachment]"
               class="message-row"
               :class="message.role === 'user' ? 'is-user' : 'is-assistant'"
             >
@@ -752,6 +838,23 @@ watch(
                     <p v-if="segment.type === 'text'" class="message-content">{{ segment.content }}</p>
                     <pre v-else class="message-code"><code>{{ segment.content }}</code></pre>
                   </template>
+                  <div
+                    v-if="conversationQuestion?.message_id === message.id && conversationQuestion.options.length"
+                    class="conversation-options"
+                    role="group"
+                    :aria-label="conversationQuestion.text"
+                    :aria-busy="busy"
+                  >
+                    <button
+                      v-for="option in conversationQuestion.options"
+                      :key="option.id"
+                      type="button"
+                      :disabled="busy || Boolean(pendingAttachment)"
+                      :aria-pressed="selectedOption === option.id"
+                      @click="answerQuestion(option.id)"
+                    >{{ option.id }}. {{ option.label }}{{ selectedOption === option.id ? '（正在发送…）' : '' }}</button>
+                    <span v-if="!busy" class="conversation-option-hint">也可以直接输入你的想法。</span>
+                  </div>
                   <div v-if="message.attachment" class="message-attachments">
                     <button
                       type="button"
@@ -775,13 +878,44 @@ watch(
                 </div>
               </div>
             </li>
-            <li v-if="pendingSend" class="message-row is-user is-pending">
+            <li
+              v-if="pendingSend"
+              class="message-row is-user is-pending"
+              :data-request-id="pendingSend.id"
+            >
               <div class="message-stack">
-                <p class="message-meta">
-                  你 · {{ formatMessageTime(pendingSend?.sentAt) }}<span class="pending-send-label"> · 发送中…</span>
-                </p>
+                <p class="message-meta">你 · {{ formatMessageTime(pendingSend.sentAt) }} · <span v-if="pendingSend.status === 'sending'" class="pending-send-label">发送中…</span><span v-else class="pending-send-label is-failed">发送失败</span></p>
                 <div class="message-bubble">
-                  <p class="message-content">{{ pendingSend?.text }}</p>
+                  <p class="message-content">{{ pendingSend.text }}</p>
+                </div>
+                <div v-if="pendingSend.status === 'failed'" class="pending-send-actions">
+                  <button
+                    type="button"
+                    class="text-button pending-retry-button"
+                    :disabled="busy"
+                    @click="retryPendingSend"
+                  >
+                    重试发送
+                  </button>
+                </div>
+              </div>
+            </li>
+            <li
+              v-if="showPendingAssistant"
+              class="message-row is-assistant is-pending-assistant"
+            >
+              <div class="message-stack">
+                <p class="message-meta">智能生图助手</p>
+                <div
+                  class="message-assistant pending-assistant-bubble"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  <span class="pending-assistant-text">正在理解你的需求…</span>
+                  <span class="typing-dots pending-assistant-dots" aria-hidden="true">
+                    <i></i><i></i><i></i>
+                  </span>
                 </div>
               </div>
             </li>
@@ -858,7 +992,7 @@ watch(
           </section>
 
           <section
-            v-if="canConfirmRequirements || requirementConfirmed || requirementSubmitting"
+            v-if="flow.workflow.view.value?.interaction_mode !== 'direct' && (canConfirmRequirements || requirementConfirmed || requirementSubmitting)"
             class="assistant-turn requirement-turn"
             aria-label="需求确认"
           >
@@ -954,9 +1088,18 @@ watch(
               </header>
 
               <div class="prompt-card-body">
-                <blockquote class="prompt-card-quote">{{ promptCardPositive }}</blockquote>
+                <p v-if="!promptConfirmed" class="prompt-edit-help">请检查提示词，可直接修改；点击确认后才会生成图片。</p>
+                <label v-if="!promptConfirmed" class="prompt-edit-label">
+                  正向提示词
+                  <textarea v-model="promptEditPositive" class="prompt-edit-input" aria-label="正向提示词" rows="7" maxlength="12000" :disabled="promptConfirming || busy" />
+                </label>
+                <blockquote v-else class="prompt-card-quote">{{ promptCardPositive }}</blockquote>
+                <label v-if="!promptConfirmed" class="prompt-edit-label">
+                  反向提示词（希望避免的内容）
+                  <textarea v-model="promptEditNegative" class="prompt-edit-input" aria-label="反向提示词" rows="3" maxlength="6000" :disabled="promptConfirming || busy" />
+                </label>
 
-                <div v-if="promptCardNegative" class="prompt-card-negative">
+                <div v-if="promptConfirmed && promptCardNegative" class="prompt-card-negative">
                   <svg
                     class="prompt-card-danger-icon"
                     aria-hidden="true"
@@ -989,7 +1132,7 @@ watch(
                 <p v-if="promptStateLabel && !promptConfirmed" class="prompt-card-note">{{ promptStateLabel }}</p>
 
                 <div v-if="!promptConfirmed" class="prompt-card-actions">
-                  <button type="button" class="prompt-copy" @click="copyPrompt(promptCardPositive)">
+                  <button type="button" class="prompt-copy" @click="copyPrompt(promptEditPositive)">
                     {{ copied ? '已复制' : '复制提示词' }}
                   </button>
                   <button
@@ -1298,6 +1441,17 @@ watch(
 </template>
 
 <style scoped>
+.prompt-edit-help { color: var(--text-secondary); margin-bottom: var(--space-3); }
+.prompt-edit-label { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); }
+.prompt-edit-input { box-sizing: border-box; width: 100%; min-width: 0; resize: vertical; padding: var(--space-3); color: var(--text-primary); background: var(--surface-panel); border: 1px solid var(--line-control); border-radius: var(--radius-md); font: inherit; line-height: 1.6; }
+.prompt-edit-input:focus-visible { outline: 2px solid var(--focus-ring-light); outline-offset: 2px; }
+
+.conversation-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.conversation-options button { padding: 9px 14px; border: 1px solid var(--line-control); border-radius: var(--radius-sm); background: var(--action-soft); color: var(--text-primary); font: inherit; text-align: left; cursor: pointer; max-width: 100%; overflow-wrap: anywhere; }
+.conversation-options button:focus-visible { outline: 2px solid var(--focus-ring-light); outline-offset: 3px; }
+.conversation-options button:disabled { opacity: .6; cursor: default; }
+.conversation-option-hint { flex-basis: 100%; font-size: var(--text-caption); color: var(--text-muted); }
+
 .pure-chat {
   position: relative;
   display: flex;
@@ -1509,6 +1663,44 @@ watch(
   white-space: nowrap;
 }
 .pending-send-label { color: var(--text-muted); }
+.pending-send-label.is-failed { color: var(--state-danger); }
+.pending-send-actions {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin-top: var(--space-2);
+}
+.pending-retry-button { flex: none; }
+.pending-assistant-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--text-reading-line);
+  color: var(--text-secondary);
+  font-size: var(--text-reading);
+  line-height: var(--text-reading-line);
+}
+.pending-assistant-text { min-width: 0; }
+.pending-assistant-dots {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  height: 1em;
+}
+.pending-assistant-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pending-dot-pulse 1.2s ease-in-out infinite;
+}
+.pending-assistant-dots i:nth-child(2) { animation-delay: .16s; }
+.pending-assistant-dots i:nth-child(3) { animation-delay: .32s; }
+@keyframes pending-dot-pulse {
+  0%, 70%, 100% { opacity: .28; transform: translateY(0); }
+  35% { opacity: 1; transform: translateY(-2px); }
+}
 .assistant-turn { width: min(var(--conversation-max), 100%); margin: 24px auto 0; }
 .assistant-lead { margin: 0 0 16px; line-height: 1.7; }
 .requirement-turn {
@@ -1820,6 +2012,8 @@ watch(
   .task-status-icon,
   .task-action-button,
   .task-confirm-box { transition: none; animation: none; }
+  .pending-assistant-dots { display: none; }
+  .pending-assistant-dots i { transition: none; animation: none; }
 }
 .image-history { display: flex; flex-direction: column; gap: var(--space-4); }
 .history-bubble { width: 100%; }

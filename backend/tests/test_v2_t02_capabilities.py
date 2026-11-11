@@ -59,8 +59,8 @@ async def test_config_status_separates_three_capabilities_with_real_defaults(cli
     assert text["capability"] == "TEXT"
     assert vision["capability"] == "VISION"
     assert image_generation["capability"] == "IMAGE_GEN"
-    assert text["timeout_seconds"] == 60
-    assert vision["timeout_seconds"] == 60
+    assert text["timeout_seconds"] == 3600
+    assert vision["timeout_seconds"] == 3600
     assert image_generation["timeout_seconds"] == 300
     assert text["configured"] is False and text["ready"] is False
     assert vision["configured"] is False and vision["ready"] is False

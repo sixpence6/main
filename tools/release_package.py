@@ -70,10 +70,11 @@ def load_manifest() -> Manifest:
 
 
 def tracked_files(source_root: Path) -> list[str]:
-    """Return tracked files relative to source_root, sorted, excluding dirs."""
+    """Return tracked and non-ignored new source files for the working-tree snapshot."""
     rel_root = source_root.relative_to(ROOT).as_posix()
     proc = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-files", "-z", "--", rel_root],
+        ["git", "-C", str(ROOT), "ls-files", "--cached", "--others",
+         "--exclude-standard", "-z", "--", rel_root],
         capture_output=True,
         check=False,
     )
@@ -89,7 +90,7 @@ def tracked_files(source_root: Path) -> list[str]:
         rel = item[len(prefix):]
         if rel:
             result.append(rel)
-    return sorted(result)
+    return sorted(set(result))
 
 
 def dist_files(dist_dir: Path) -> list[str]:
@@ -113,6 +114,8 @@ def forbidden_reason(rel: str, manifest: Manifest) -> str | None:
     bad = parts & manifest.forbidden_components
     if bad:
         return "forbidden component: " + ", ".join(sorted(bad))
+    if Path(rel).name.startswith(".env") and Path(rel).name != ".env.example":
+        return "forbidden environment file"
     if rel in manifest.forbidden_files:
         return "forbidden secret/config file"
     for suffix in manifest.forbidden_suffixes:
@@ -150,6 +153,9 @@ def validate(manifest: Manifest, require_dist: bool = False) -> tuple[list[str],
         if not (manifest.source_root / rel).is_file():
             issues.append("missing required file: " + rel)
 
+    if not (ROOT / "package-lock.json").is_file():
+        issues.append("workspace package-lock.json is missing")
+
     matched_patterns = {pattern: False for pattern in manifest.include}
     for rel in tracked:
         for pattern in manifest.include:
@@ -160,6 +166,11 @@ def validate(manifest: Manifest, require_dist: bool = False) -> tuple[list[str],
         reason = forbidden_reason(rel, manifest)
         if reason:
             issues.append(f"selected file violates package policy: {rel} ({reason})")
+            continue
+        source = manifest.source_root / rel
+        if (source.is_symlink() or not source.is_file()
+                or not source.resolve().is_relative_to(manifest.source_root.resolve())):
+            issues.append("selected source is missing or a symlink: " + rel)
             continue
         selected.append(rel)
 
@@ -221,6 +232,48 @@ def migration_head(source_root: Path) -> str:
     return heads[-1]
 
 
+def materialize_standalone_layout(package_dir: Path) -> list[str]:
+    """Adapt the single-workspace lock and Docker inputs without changing dev layout."""
+    package = json.loads((package_dir / "package.json").read_text(encoding="utf-8"))
+    lock = json.loads((ROOT / "package-lock.json").read_text(encoding="utf-8"))
+    packages = lock["packages"]
+    if "main" not in packages or any(k.startswith("main/node_modules/") for k in packages):
+        raise SystemExit("release requires a hoisted single-workspace dependency lock")
+    root_entry = {k: v for k, v in package.items() if k in {
+        "name", "version", "dependencies", "devDependencies", "optionalDependencies", "engines"
+    }}
+    locked_main = packages["main"]
+    for field in ("dependencies", "devDependencies", "optionalDependencies"):
+        if package.get(field, {}) != locked_main.get(field, {}):
+            raise SystemExit("workspace lock is stale for " + field)
+    lock["name"] = package["name"]
+    lock["version"] = package["version"]
+    lock["packages"] = {"": root_entry, **{
+        k: v for k, v in packages.items() if k.startswith("node_modules/") and not v.get("link")
+    }}
+    (package_dir / "package-lock.json").write_text(
+        json.dumps(lock, indent=2) + "\n", encoding="utf-8"
+    )
+    dockerfile = package_dir / "docker" / "Dockerfile"
+    text = dockerfile.read_text(encoding="utf-8")
+    text = text.replace("COPY main/package.json ./main/package.json\n", "")
+    text = text.replace("npm ci --workspace main", "npm ci")
+    text = text.replace("WORKDIR /app/main", "WORKDIR /app")
+    text = text.replace("main/", "")
+    dockerfile.write_text(text, encoding="utf-8")
+    compose = package_dir / "docker-compose.yml"
+    text = compose.read_text(encoding="utf-8").replace("context: ..", "context: .")
+    text = text.replace("dockerfile: main/docker/Dockerfile", "dockerfile: docker/Dockerfile")
+    compose.write_text(text, encoding="utf-8")
+    (package_dir / ".gitignore").write_text(
+        ".env\n.env.*\n!.env.example\n**/.env\n**/.env.*\n!**/.env.example\n"
+        "node_modules/\n.venv/\n__pycache__/\n*.pyc\n*.log\n*.db*\n*.sqlite*\n"
+        "backend/data/*\n!backend/data/.gitkeep\nbackups/\ncerts/\n*.key\n*.pem\n*.p12\n*.pfx\n",
+        encoding="utf-8",
+    )
+    return ["package-lock.json", ".gitignore"]
+
+
 def write_checksums(package_dir: Path) -> None:
     lines: list[str] = []
     for path in sorted(package_dir.rglob("*")):
@@ -244,6 +297,11 @@ def write_release_manifest(package_dir: Path, manifest: Manifest, files: list[st
         "version": manifest.version,
         "source_root": "main",
         "source_commit": git_head(),
+        "source_snapshot": "working-tree (includes modified and new production files)",
+        "source_dirty": bool(subprocess.run(
+            ["git", "-C", str(ROOT), "status", "--porcelain", "--", "main", "package-lock.json"],
+            capture_output=True, check=True,
+        ).stdout.strip()),
         "created_at": datetime.now(UTC).isoformat(),
         "migration_head": migration_head(manifest.source_root),
         "files": entries,
@@ -290,9 +348,13 @@ def build_package(manifest: Manifest, output_root: Path, do_build: bool, require
     if unexpected:
         raise SystemExit("refusing to publish forbidden files: " + ", ".join(unexpected))
 
+    files.extend(materialize_standalone_layout(staging))
     write_checksums(staging)
     write_release_manifest(staging, manifest, files)
 
+    if (final_dir.is_symlink() or final_dir.resolve().parent != output_root.resolve()
+            or staging.resolve().parent != output_root.resolve()):
+        raise SystemExit("release output must stay inside the resolved output root")
     if final_dir.exists():
         shutil.rmtree(final_dir)
     staging.rename(final_dir)

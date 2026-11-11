@@ -216,7 +216,7 @@ describe('T14 多轮图片历史与旧链接只读定位', () => {
     await mountHistory(view)
 
     const unavailable = await screen.findByRole('region', { name: '当前结果不可用' })
-    expect(within(unavailable).getByText(/当前交付图片已过期/)).toBeVisible()
+    expect(within(unavailable).getByText(/当前图片暂时无法读取/)).toBeVisible()
     const region = await historyRegion()
     const oldArticle = within(region).getByRole('article', { name: '版本 1 结果' })
     const currentArticle = within(region).getByRole('article', { name: '版本 2 结果' })
@@ -226,6 +226,20 @@ describe('T14 多轮图片历史与旧链接只读定位', () => {
     expect(within(region).getByRole('img', { name: '旧版本主图' })).toBeVisible()
     expect(screen.queryByText('图片已经生成，可以保存使用了。')).not.toBeInTheDocument()
     expect(harness!.fetch.writes).toHaveLength(0)
+  })
+
+  it('文件缺失时显示真实原因，不误报为内容门禁', async () => {
+    await mountHistory(completedView({
+      versions: [version({
+        asset_id: null,
+        filename: null,
+        can_download: false,
+        unavailable_reason: 'ASSET_FILE_MISSING',
+      })],
+    }))
+    const unavailable = await screen.findByRole('region', { name: '当前结果不可用' })
+    expect(within(unavailable).getByText('当前图片文件缺失，暂时无法预览或下载。')).toBeVisible()
+    expect(within(unavailable).queryByText(/门禁|过期/)).not.toBeInTheDocument()
   })
 
   it('当前交付已撤销时只显示安全状态，不展示旧图兜底', async () => {

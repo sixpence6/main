@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-10",
+  "timezone": "Asia/Shanghai",
+  "head": "1a200a5407fafb72b6b95da80bf024caf987eeba",
+  "role_policy": "collaborative",
+  "source_hashes": [
+    {
+      "Path": "D:\\Desktop\\新建文件夹\\main\\backend\\app\\workflow\\collaboration.py",
+      "Hash": "2345644176312CD3686AE39045E6C6A7186AE68B03142401A13AAB0C3CE990F5"
+    },
+    {
+      "Path": "D:\\Desktop\\新建文件夹\\main\\backend\\app\\workflow\\consolidated.py",
+      "Hash": "6AD6C68DC6FE4ACEE18EE6E36EADCE2C925CC320756CD8890117D5D34204B889"
+    },
+    {
+      "Path": "D:\\Desktop\\新建文件夹\\main\\backend\\app\\services\\messages.py",
+      "Hash": "81DF25E350E70881F71C0DB0D2C08AAD4866B02A407F0A0F3BA69030BA1B65AE"
+    },
+    {
+      "Path": "D:\\Desktop\\新建文件夹\\main\\backend\\app\\workflow\\stages\\s02.py",
+      "Hash": "58963EA35F559E09294A4BDC3B9D5A31116D2026A46EB51B87980F419C2911B0"
+    },
+    {
+      "Path": "D:\\Desktop\\新建文件夹\\main\\backend\\app\\workflow\\stages\\s05.py",
+      "Hash": "C402E3B30A468F46220C3B9B4BD2ADB61AA89CF5BA27B69E69C9CA28E9A3B7A8"
+    }
+  ]
+}

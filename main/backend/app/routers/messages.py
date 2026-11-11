@@ -43,6 +43,7 @@ async def send_message_endpoint(
             state.http,
             project_id=project_id,
             content=payload.content,
+            clarification_answer=payload.clarification_answer.model_dump() if payload.clarification_answer else None,
             expected_revision=payload.expected_revision,
             principal=principal,
             app=request.app,

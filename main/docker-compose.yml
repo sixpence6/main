@@ -32,8 +32,8 @@ services:
 
   frontend:
     build:
-      context: .
-      dockerfile: docker/Dockerfile
+      context: ..
+      dockerfile: main/docker/Dockerfile
     image: ecommerce-image-workspace:local
     container_name: ecommerce-image-workspace
     depends_on:

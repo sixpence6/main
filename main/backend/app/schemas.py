@@ -245,6 +245,14 @@ class CreateProjectRequest(EmptyBody):
     pass
 
 
+class ClarificationAnswerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question_id: str = Field(min_length=1, max_length=128)
+    option_id: str = Field(pattern=r"^[A-Z]$")
+    requirement_revision: StrictInt = Field(ge=0)
+    message_id: str = Field(min_length=1, max_length=128)
+
+
 class SendMessageRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -252,6 +260,7 @@ class SendMessageRequest(BaseModel):
     expected_revision: StrictInt = Field(ge=0)
     request_id: UUID4 | None = None
     attachment_asset_id: UUID4 | None = None
+    clarification_answer: ClarificationAnswerRequest | None = None
 
 
 class UpdateBriefRequest(BaseModel):

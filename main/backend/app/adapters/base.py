@@ -72,6 +72,7 @@ class RoleRequest:
     system_prompt: str
     payload: dict[str, object]
     images: tuple[OrganizeImage, ...] = ()
+    output_format: Literal["json", "markdown"] = "json"
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,7 @@ class RoleResponse:
 
     payload: dict[str, object]
     model_fingerprint: str
+    text: str | None = None
 
 
 class LLMAdapter(Protocol):

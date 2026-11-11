@@ -191,6 +191,9 @@ class OpenAIChatAdapter:
             else self._api_key
         )
         self._timeout_seconds = role.timeout_seconds
+        self._thinking_mode = role.thinking_mode
+        self._reasoning_effort = role.reasoning_effort
+        self._vision_reasoning_effort = role.vision_reasoning_effort
         self._client = client
 
     def _messages(self, request: OrganizeRequest) -> list[dict[str, Any]]:
@@ -255,11 +258,24 @@ class OpenAIChatAdapter:
         messages.append({"role": "user", "content": [image_part]})
 
 
-    def _fingerprint(self, model: str, base_url: str) -> str:
+    def _reasoning_options(self, *, vision: bool) -> dict[str, Any]:
+        mode = "auto" if vision else self._thinking_mode
+        effort = self._vision_reasoning_effort if vision else self._reasoning_effort
+        options: dict[str, Any] = {}
+        if mode != "auto":
+            options["thinking"] = {"type": mode}
+        if effort != "auto" and mode != "disabled":
+            options["reasoning_effort"] = effort
+        return options
+
+    def _fingerprint(self, model: str, base_url: str, thinking_mode: str = "auto", reasoning_effort: str = "auto") -> str:
         """A stable, non-secret identifier for the model configuration in use."""
-        digest = hashlib.sha256(
-            f"{self.adapter_id}|{model}|{base_url}".encode()
-        ).hexdigest()[:32]
+        value = f"{self.adapter_id}|{model}|{base_url}"
+        if thinking_mode != "auto":
+            value += f"|thinking={thinking_mode}"
+        if reasoning_effort != "auto":
+            value += f"|reasoning_effort={reasoning_effort}"
+        digest = hashlib.sha256(value.encode()).hexdigest()[:32]
         return f"{self.adapter_id}:{model}:{digest}"
 
     async def complete(self, request: RoleRequest) -> RoleResponse:
@@ -286,8 +302,10 @@ class OpenAIChatAdapter:
             {"role": "system", "content": request.system_prompt},
             {
                 "role": "user",
-                "content": json.dumps(
-                    request.payload, ensure_ascii=False, separators=(",", ":")
+                "content": (
+                    str(request.payload.get("markdown_context", ""))
+                    if request.output_format == "markdown"
+                    else json.dumps(request.payload, ensure_ascii=False, separators=(",", ":"))
                 ),
             },
         ]
@@ -304,8 +322,10 @@ class OpenAIChatAdapter:
         # (for example, "does not implement structured text.format output").
         # The role prompts still require one JSON object, and the parser
         # accepts fenced or otherwise slightly wrapped JSON.
-        if not request.images:
+        if not request.images and request.output_format == "json":
             body["response_format"] = {"type": "json_object"}
+        reasoning_options = self._reasoning_options(vision=bool(request.images))
+        body.update(reasoning_options)
 
         try:
             response = await self._client.post(
@@ -328,15 +348,20 @@ class OpenAIChatAdapter:
                 error_code="LLM_NETWORK_ERROR",
             ) from None
 
-        payload = self._interpret_role_response(response, api_key)
+        markdown = request.output_format == "markdown"
+        interpreted = self._interpret_role_response(response, api_key, markdown=markdown)
         return RoleResponse(
-            payload=payload,
-            model_fingerprint=self._fingerprint(model, base_url),
+            payload={} if markdown else interpreted,
+            text=interpreted if markdown else None,
+            model_fingerprint=self._fingerprint(
+                model, base_url, reasoning_options.get("thinking", {}).get("type", "auto"),
+                reasoning_options.get("reasoning_effort", "auto"),
+            ),
         )
 
     def _interpret_role_response(
-        self, response: httpx.Response, api_key: str
-    ) -> dict[str, object]:
+        self, response: httpx.Response, api_key: str, *, markdown: bool = False
+    ) -> dict[str, object] | str:
         if 300 <= response.status_code < 400:
             raise ProviderError(
                 "语言模型服务返回了不允许的重定向",
@@ -391,6 +416,8 @@ class OpenAIChatAdapter:
                 evidence="uncertain",
                 error_code="LLM_RESPONSE_INVALID",
             )
+        if markdown:
+            return content
         try:
             parsed = _extract_json(content)
         except (ValueError, TypeError):
@@ -431,6 +458,7 @@ class OpenAIChatAdapter:
         # explicit JSON requirement in the organizer prompt instead.
         if request.reference_image is None:
             body["response_format"] = {"type": "json_object"}
+        body.update(self._reasoning_options(vision=request.reference_image is not None))
 
         try:
             response = await self._client.post(

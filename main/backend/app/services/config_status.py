@@ -35,7 +35,7 @@ def _fingerprint(adapter_id: str | None, model: str | None, base_url: str | None
     """只暴露脱敏指纹；摘要不包含 Key，原始地址也不回传。"""
     if not adapter_id or not model:
         return None
-    digest = hashlib.sha256(f"{adapter_id}|{model}|{base_url or ''}".encode("utf-8")).hexdigest()[:32]
+    digest = hashlib.sha256(f"{adapter_id}|{model}|{base_url or ''}".encode()).hexdigest()[:32]
     return f"{adapter_id}:{model}:{digest}"
 
 

@@ -1,9 +1,7 @@
-"""Background driver for one accepted generation intent.
+"""Background driver for one durable generation request.
 
-The HTTP confirmation path only writes durable facts. This module advances that
-intent after the transaction commits: S07 prompt compilation + independent
-review, then persists a frozen request and waits. It creates no image attempt
-and never submits, authorizes execution, approves delivery, or publishes.
+The current four-role workflow compiles and executes automatically. Historical
+interaction policies retain their persisted prompt-confirmation behavior.
 """
 
 from __future__ import annotations
@@ -24,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def schedule_confirmed_cycle(
-    app: Any, project_id: str, run_id: str, intent_id: str
+    app: Any, project_id: str, run_id: str, intent_id: str, *, principal=None
 ) -> None:
     """Start the post-confirmation driver once per accepted intent."""
 
@@ -39,7 +37,7 @@ def schedule_confirmed_cycle(
     if intent_id in cycles:
         return
     cycles.add(intent_id)
-    task = asyncio.create_task(_run_cycle(app, project_id, run_id, intent_id))
+    task = asyncio.create_task(_run_cycle(app, project_id, run_id, intent_id, principal=principal))
     tasks.add(task)
 
     def _done(finished: asyncio.Task[None]) -> None:
@@ -63,7 +61,7 @@ async def _intent_state(app: Any, intent_id: str) -> tuple[str, str] | None:
 
 
 async def _run_cycle(
-    app: Any, project_id: str, run_id: str, intent_id: str
+    app: Any, project_id: str, run_id: str, intent_id: str, *, principal=None
 ) -> None:
     try:
         fact = await _intent_state(app, intent_id)
@@ -71,13 +69,13 @@ async def _run_cycle(
             return
         if fact[1] not in {"accepted", "executing"}:
             return
-        context = await state.load_context(app, project_id)
+        context = await state.load_context(app, project_id, principal=principal)
         if context.run is None or context.run.id != run_id:
             return
         if context.run.stage != "S07" or context.run.status != "active":
             return
         await s07.handle(context, "compile_prompt", {})
-        # Independent prompt approval commits the durable waiting state.
+        # Compilation freezes a waiting request; only the user confirms execution.
     except asyncio.CancelledError:
         raise
     except BaseException as exc:

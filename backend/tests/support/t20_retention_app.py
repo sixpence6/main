@@ -44,7 +44,7 @@ class LoggingVisual(VisualStub):
 def build_app():
     # T20：真实重启验收使用与生产相同的 create_app，仅替换外部适配器并记录调用。
     return create_app(
-        settings=Settings(),
+        settings=Settings(workflow_role_policy="legacy"),
         registry=build_test_registry(llm=LoggingLLM(), visual=LoggingVisual()),
     )
 

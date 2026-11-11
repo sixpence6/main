@@ -8,6 +8,9 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./main/src', import.meta.url)),
     },
+    // main/ has its own node_modules; without dedupe, App and ChatPage can
+    // resolve different vue-router copies and lose the router injection.
+    dedupe: ['vue', 'vue-router'],
   },
   test: {
     environment: 'jsdom',

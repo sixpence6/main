@@ -332,6 +332,7 @@ export const api = {
       expected_revision: number
       request_id?: string
       attachment_asset_id?: string
+      clarification_answer?: import('./workflow').ClarificationAnswer
     },
   ): Promise<MessageCreateResponse> {
     return requestJson<MessageCreateResponse>(

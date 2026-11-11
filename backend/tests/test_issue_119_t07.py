@@ -239,7 +239,8 @@ async def test_s07_requirements_change_settles_old_intent_and_invalidates_previe
         assert after["intent"]["status"] == "abandoned"
         assert after["usage"]["used"] == 1
         assert body["user_message"]["turn_kind"] == "workflow"
-        assert "需求版本" in body["assistant_message"]["content"]
+        assert body["assistant_message"]["content"]
+        assert body["assistant_message"]["project_revision"] == after["project_revision"]
         assert _intent(path, project_id)["status"] == "abandoned"
         assert _live_slots(path, old_intent["id"]) == 0
         assert _rows(

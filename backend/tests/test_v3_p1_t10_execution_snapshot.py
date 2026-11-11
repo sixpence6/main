@@ -15,7 +15,6 @@ from app.db import read_session, write_transaction
 from app.models import Project
 from app.workflow import state
 from app.workflow.contracts import digest_payload
-from app.workflow.snapshot import requirements_from_snapshot
 from app.workflow.stages import s05
 from app.workflow.tables import Approval, Artifact, GenerationJob
 from tests.support.adapters import LLMStub, VisualStub
@@ -73,9 +72,8 @@ def _execution_responder(request: Any) -> dict[str, Any]:
     role = request.payload["task"]["role"]
     if role == "generation_engineer":
         brief = request.payload["approved_inputs"]["final_brief"]
-        snapshot = request.payload["approved_inputs"]["execution_snapshot"]
         data = candidate_data(brief)
-        allowed = {item["rule_id"] for item in requirements_from_snapshot(snapshot)}
+        allowed = {item["rule_id"] for item in request.payload["input_data"]["hard_requirements"]}
         data["requirement_coverage"] = [
             item for item in data["requirement_coverage"] if item["rule_id"] in allowed
         ]
@@ -280,7 +278,9 @@ async def test_execution_snapshot_flows_confirm_compile_qc_and_history(full_sett
         approved_inputs = engineer.payload["approved_inputs"]
         assert approved_inputs["final_brief"]["background"] == "浅灰无缝背景"
         assert approved_inputs["execution_snapshot"]["snapshot_digest"] == digest
-        assert approved_inputs["execution_snapshot"]["fields"] == snapshot["fields"]
+        assert "fields" not in approved_inputs["execution_snapshot"]
+        assert "brief" not in approved_inputs["execution_snapshot"]
+        assert "constraints" not in approved_inputs["execution_snapshot"]
 
         quality = (await _wait_for_role(app, llm, "quality_compliance"))[0]
         quality_input = quality.payload["input_data"]

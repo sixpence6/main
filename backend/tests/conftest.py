@@ -54,6 +54,8 @@ def _test_settings(base: Settings, **overrides) -> Settings:
         # Existing gate tests exercise the strict catalogue. New soft-gate
         # behaviour is covered explicitly by its own tests.
         "workflow_gate_mode": "strict",
+        # Historical stage fixtures explicitly exercise the legacy compatibility path.
+        "workflow_role_policy": "legacy",
     }
     values.update(overrides)
     return Settings(**values)
@@ -80,6 +82,7 @@ def settings(tmp_path: Path) -> Settings:
         visual_model=None,
         visual_image_size=None,
         workflow_gate_mode="strict",
+        workflow_role_policy="legacy",
     )
 
 

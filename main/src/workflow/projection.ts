@@ -137,6 +137,20 @@ export function userStateOf(
   return 'u1'
 }
 
+export function deliveryUnavailableText(view: WorkflowView): string {
+  const current = view.versions?.find((version) => version.run_id === view.run_id)
+  switch (current?.unavailable_reason) {
+    case 'ASSET_FILE_MISSING':
+      return '当前图片文件缺失，暂时无法预览或下载。'
+    case 'DIGEST_MISMATCH':
+      return '当前图片文件与交付记录不一致，暂时无法预览或下载。'
+    case 'ASSET_REJECTED':
+      return '当前图片已被标记为不可用，暂时无法预览或下载。'
+    default:
+      return '当前图片暂时无法读取，请稍后刷新；仍无法打开时请联系维护人员。'
+  }
+}
+
 export function nextStepForWorkflow(
   project: ProjectView | null | undefined,
   view: WorkflowView | null | undefined,
@@ -166,10 +180,10 @@ export function nextStepForWorkflow(
       actionId: feedbackAvailable ? 'request_new_version' : null,
     }
   }
-  if (currentDeliveryBlocked(project, view)) {
+  if (view && currentDeliveryBlocked(project, view)) {
     return {
       title: '当前交付不可用',
-      detail: '交付记录存在，但当前版本图片已撤销、过期、文件缺失或未通过内容门禁，不能预览或下载；历史记录仍按真实状态保留。',
+      detail: deliveryUnavailableText(view),
       actionId: null,
     }
   }

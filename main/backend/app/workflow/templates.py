@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from string import Formatter
 from typing import Final
+from uuid import UUID
 
 TEMPLATE_VERSION: Final = "2.0.0"
 
@@ -33,6 +34,11 @@ TEMPLATES: Final[dict[str, str]] = {
     "WAIT_STAGE": "正在{stage_label}，请稍候。",
     "REFERENCE_INVALID": "文件无法作为参考图使用，请上传符合要求的 PNG 或 JPEG 图片。",
     "CAPABILITY_NOT_READY": "当前{capability_label}能力未配置或不满足要求，流程已暂停。",
+    "SIZE_UNSUPPORTED": "当前输出尺寸与需求不一致，请在对话中明确选择可执行尺寸，或保留原比例暂停。",
+    "LLM_TIMEOUT": "模型请求超时，输入与已回答项已保留；可手动继续原流程，本次未自动重试。",
+    "LLM_RESPONSE_INVALID": "模型响应无法解析，输入与已回答项已保留；可手动继续原流程，本次未自动重试。",
+    "RECOVERY_UNSUPPORTED": "当前供应商连接不支持自动核实，且未取得原结果定位信息。原任务仍为未知，请凭本地请求 ID {job_id} 人工核实；系统不会自动重发。",
+    "ORIGINAL_RESULT_UNAVAILABLE": "暂未取得原结果，原任务仍为未知，输入、授权与占用已保留；系统不会自动重发。",
     "SERVICE_UNAVAILABLE": "当前处理服务暂不可用，已保留输入，本次未自动重试。",
     "REVIEW_UNAVAILABLE": "审查暂不可用，内容尚未放行。",
     "RULESET_UNSUPPORTED": "审查规则契约已变更，旧候选未放行；请按新契约重新审查。",
@@ -114,6 +120,7 @@ TEMPLATES: Final[dict[str, str]] = {
 _PARAMS: Final[dict[str, tuple[str, ...]]] = {
     "WAIT_STAGE": ("stage_label",),
     "CAPABILITY_NOT_READY": ("capability_label",),
+    "RECOVERY_UNSUPPORTED": ("job_id",),
 }
 
 SAFE_FALLBACK: Final = TEMPLATES["SERVICE_UNAVAILABLE"]
@@ -126,6 +133,11 @@ def render(template_id: str, /, **params: object) -> str:
     allowed = _PARAMS.get(template_id, ())
     if set(params) != set(allowed):
         return SAFE_FALLBACK
+    if template_id == "RECOVERY_UNSUPPORTED":
+        try:
+            UUID(str(params.get("job_id", "")))
+        except ValueError:
+            return SAFE_FALLBACK
     if template_id == "WAIT_STAGE":
         label = params.get("stage_label")
         if not isinstance(label, str) or label not in STAGE_LABELS.values():

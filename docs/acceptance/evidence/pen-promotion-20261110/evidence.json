@@ -1,0 +1,4514 @@
+{
+  "date": "2026-11-10",
+  "timezone": "Asia/Shanghai",
+  "baseline": {
+    "branch": "visual/v3",
+    "head": "1a200a5407fafb72b6b95da80bf024caf987eeba",
+    "includes_preexisting_uncommitted_changes": true,
+    "gate_mode": "off",
+    "llm_model": "deepseek-v4.1-flash",
+    "image_model": "gpt-image-2-4k",
+    "image_size": "3840x2160",
+    "baseline_llm_timeout_seconds": 60,
+    "diagnostic_llm_timeout_seconds": 180
+  },
+  "project_id": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+  "run_id": "499a983f-55a4-40e9-9a04-06ef61d99c22",
+  "original_square_route_passed": false,
+  "events": [
+    {
+      "time": "2026-11-10T00:08:56.882Z",
+      "kind": "user_message",
+      "text": "做一张 1:1 促销主视觉，石墨黑底，留出价格位置\n我要做一张钢笔图，用于电商主页"
+    },
+    {
+      "time": "2026-11-10T00:10:03.307Z",
+      "kind": "user_message",
+      "text": "1. 采用你第一个外观建议：黑色磨砂金属笔身，配银色笔夹的商务钢笔。\n2. 按我最初要求的 1:1 方图，采用你建议的钢笔居中、价格位置留在下方的构图。\n3. 采用你给的第三种方式：完全不出现文字，仅留空白区域，价格由我后续添加。"
+    },
+    {
+      "time": "2026-11-10T00:10:24.454Z",
+      "kind": "http",
+      "method": "POST",
+      "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/messages",
+      "status": 503,
+      "body": {
+        "error": {
+          "code": "SERVICE_UNAVAILABLE",
+          "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+        }
+      }
+    },
+    {
+      "time": "2026-11-10T00:11:12.795Z",
+      "kind": "user_click",
+      "text": "继续流程"
+    },
+    {
+      "time": "2026-11-10T00:11:28.320Z",
+      "kind": "http",
+      "method": "POST",
+      "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+      "status": 503,
+      "body": {
+        "error": {
+          "code": "SERVICE_UNAVAILABLE",
+          "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+        }
+      }
+    },
+    {
+      "time": "2026-11-10T00:11:57.011Z",
+      "kind": "user_click",
+      "text": "继续流程"
+    },
+    {
+      "time": "2026-11-10T00:12:15.282Z",
+      "kind": "http",
+      "method": "POST",
+      "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+      "status": 503,
+      "body": {
+        "error": {
+          "code": "SERVICE_UNAVAILABLE",
+          "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+        }
+      }
+    },
+    {
+      "time": "2026-11-10T00:12:50.194Z",
+      "kind": "user_message",
+      "text": "我采用你先前给出的可输出尺寸方案：本次改为 3840x2160 横图，钢笔居左、价格留白在右侧。钢笔采用你推荐的黑色磨砂金属笔身配银色笔夹的商务款，背景保持石墨黑，用于电商主页促销主视觉。画面完全不出现文字、数字或价格，右侧只留纯净空白，由我后续添加价格。其余光影与极简商务风格按你的推荐整理。"
+    },
+    {
+      "time": "2026-11-10T00:14:04.195Z",
+      "kind": "user_click",
+      "text": "确认需求并生成提示词"
+    },
+    {
+      "time": "2026-11-10T00:16:16.103Z",
+      "kind": "user_click",
+      "text": "继续流程"
+    },
+    {
+      "time": "2026-11-10T00:17:16.191Z",
+      "kind": "http",
+      "method": "POST",
+      "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+      "status": 503,
+      "body": {
+        "error": {
+          "code": "SERVICE_UNAVAILABLE",
+          "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+        }
+      }
+    },
+    {
+      "time": "2026-11-10T00:18:44.434Z",
+      "kind": "user_click",
+      "text": "继续流程"
+    },
+    {
+      "time": "2026-11-10T00:20:53.864Z",
+      "kind": "user_click",
+      "text": "确认使用以上提示词生成"
+    },
+    {
+      "time": "2026-11-10T00:26:20.001Z",
+      "kind": "user_click",
+      "text": "核实原任务"
+    },
+    {
+      "time": "2026-11-10T00:26:33.261Z",
+      "kind": "user_click",
+      "text": "找回原结果"
+    }
+  ],
+  "role_calls": [
+    {
+      "id": "a5b4d067-4598-4d9a-ab9e-62b0e9b2565c",
+      "stage": "S01",
+      "role": "intent_router",
+      "attempt": 1,
+      "status": "ok",
+      "error_code": null,
+      "error_message": null,
+      "started_at": "2026-11-10T00:08:56.985Z",
+      "finished_at": "2026-11-10T00:09:03.339Z",
+      "request_characters": 5101,
+      "request_digest": "1b7a02fb5ece6dabf9f7f84642efbfcb6ee0546bb0ae6bce094248a06e18e3fd",
+      "response": {
+        "data": {
+          "action": "new_request",
+          "evidence_ids": [
+            "22b38d57-6b1b-43c9-9d90-54b8704d7d85"
+          ],
+          "route": "image_request"
+        },
+        "issues": [],
+        "questions": [],
+        "role": "intent_router",
+        "status": "ready"
+      }
+    },
+    {
+      "id": "1aa1a972-8f54-461a-a9c5-ac134252ae1e",
+      "stage": "S03",
+      "role": "requirements_consultant",
+      "attempt": 1,
+      "status": "ok",
+      "error_code": null,
+      "error_message": null,
+      "started_at": "2026-11-10T00:09:03.422Z",
+      "finished_at": "2026-11-10T00:09:30.793Z",
+      "request_characters": 8531,
+      "request_digest": "c64c465f5a9b9a75d36ce1cc6b845b1f17912029d828db42cfadf4468c2d7b6d",
+      "response": {
+        "data": null,
+        "issues": [
+          {
+            "code": "MISSING_INPUT",
+            "detail": "用户仅说明画面主体是“钢笔”，未给出款式、颜色、材质、笔夹等外观信息，也未提供参考图，无法确定画面主体细节与必须保留的商品特征。",
+            "evidence_ids": [
+              "22b38d57-6b1b-43c9-9d90-54b8704d7d85"
+            ],
+            "path": "data.product_description"
+          },
+          {
+            "code": "CONFLICTING_INPUT",
+            "detail": "用户要求 1:1 促销主视觉，而当前配置的可输出尺寸为 3840x2160（16:9），两者比例不一致，需确认最终画布比例后再定稿尺寸字段。",
+            "evidence_ids": [
+              "22b38d57-6b1b-43c9-9d90-54b8704d7d85"
+            ],
+            "path": "data.size"
+          },
+          {
+            "code": "MISSING_INPUT",
+            "detail": "用户只说“留出价格位置”，未说明画面中要出现哪些确切文字，无法确定留白区域的大小、位置以及是否需要渲染文字。",
+            "evidence_ids": [
+              "22b38d57-6b1b-43c9-9d90-54b8704d7d85"
+            ],
+            "path": "data.texts"
+          }
+        ],
+        "questions": [
+          "这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。",
+          "画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。",
+          "留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。"
+        ],
+        "role": "requirements_consultant",
+        "status": "needs_input"
+      }
+    },
+    {
+      "id": "b6895655-7758-4fe1-8969-627bd1e76899",
+      "stage": "S03",
+      "role": "requirements_consultant",
+      "attempt": 1,
+      "status": "ok",
+      "error_code": null,
+      "error_message": null,
+      "started_at": "2026-11-10T00:10:03.381Z",
+      "finished_at": "2026-11-10T00:10:24.439Z",
+      "request_characters": 10443,
+      "request_digest": "505c952298ce2ff999edf43ffad06f3410d59fe5c54d4c78e980bd137719b8d5",
+      "response": {
+        "data": {
+          "assumptions": [
+            "用户未提供参考图，参考图用途记为 none，钢笔外观以用户确认的文字描述为准。",
+            "灯光方案（低调棚拍的柔光与金属高光）为策划创作假设，用户未指定灯光。",
+            "下方价格留白高度按约三分之一处理，具体高度用户未指定。",
+            "当前能力标注的默认输出为 3840x2160，按用户确认的 1:1 比例以 3840x3840 记录尺寸。"
+          ],
+          "composition": "1:1 方图；钢笔位于画面中央，笔身完整、不裁切、不遮挡；画面下方预留约三分之一高度的空白区域用于放置价格，该区域保持纯净，无文字、无图形、无装饰元素。",
+          "creative_direction": "以石墨黑为唯一背景色的极简商务促销主视觉：一支黑色磨砂金属笔身、银色笔夹的钢笔作为唯一主体居于画面中心，画面下方保留纯净留白作为后续价格放置区，整体克制、深浅对比明确，突出磨砂金属与银色笔夹的质感。",
+          "facts": [
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85"
+              ],
+              "text": "用户要做一张钢笔图，用于电商主页。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85"
+              ],
+              "text": "画面用途是促销主视觉。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85"
+              ],
+              "text": "背景为石墨黑。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04"
+              ],
+              "text": "商品主体是一支商务钢笔。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04"
+              ],
+              "text": "经用户确认，钢笔外观为黑色磨砂金属笔身，配银色笔夹。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04"
+              ],
+              "text": "输出比例为 1:1 方图。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04"
+              ],
+              "text": "经用户确认，构图为钢笔居中，价格位置留在画面下方。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04"
+              ],
+              "text": "经用户确认，画面完全不出现文字，仅保留空白区域，价格由用户后续添加。"
+            }
+          ],
+          "forbidden": [
+            "画面中出现任何文字、数字、字母、水印或价格信息",
+            "在价格留白区放置图形或装饰遮挡",
+            "改动用户确认的笔身颜色、磨砂金属材质与笔夹颜色",
+            "改动用户确认的 1:1 比例与钢笔居中、价格位置在下的构图"
+          ],
+          "lighting": "低调棚拍光：侧上方柔光勾勒磨砂金属笔身轮廓，银色笔夹呈现干净的金属高光，石墨黑背景保持均匀深色，不出现杂乱反光。",
+          "must_include": [
+            "作为唯一主体的商务钢笔",
+            "石墨黑背景",
+            "画面下方用于价格留白的空白区域"
+          ],
+          "must_preserve": [
+            "黑色磨砂金属笔身",
+            "银色笔夹"
+          ],
+          "product_description": "一支商务钢笔：黑色磨砂金属笔身，配银色笔夹。",
+          "purpose": "用于电商主页的钢笔促销主视觉，1:1 方图，石墨黑底，画面下方留出价格位置，价格文字由用户后续自行添加。",
+          "reference_asset_id": null,
+          "reference_usage": "none",
+          "size": "3840x3840",
+          "style_keywords": [
+            "商务",
+            "极简",
+            "高级质感",
+            "石墨黑",
+            "促销主视觉"
+          ],
+          "texts": [],
+          "unresolved": []
+        },
+        "issues": [],
+        "questions": [],
+        "role": "requirements_consultant",
+        "status": "ready"
+      }
+    },
+    {
+      "id": "1e2cb070-8424-40f7-9f3e-1accb319b05b",
+      "stage": "S03",
+      "role": "requirements_consultant",
+      "attempt": 1,
+      "status": "invalid",
+      "error_code": "LLM_RESPONSE_INVALID",
+      "error_message": "语言模型返回的内容不是有效 JSON",
+      "started_at": "2026-11-10T00:11:12.846Z",
+      "finished_at": "2026-11-10T00:11:28.304Z",
+      "request_characters": 10423,
+      "request_digest": "01d8bf2c3db31b0b8a8b94261fb47d1bb7739089d605ab92f515082927e0f54e",
+      "response": null
+    },
+    {
+      "id": "81a80dec-0913-4ca5-8aa5-511e045ab361",
+      "stage": "S03",
+      "role": "requirements_consultant",
+      "attempt": 1,
+      "status": "invalid",
+      "error_code": "LLM_RESPONSE_INVALID",
+      "error_message": "语言模型返回的内容不是有效 JSON",
+      "started_at": "2026-11-10T00:11:57.059Z",
+      "finished_at": "2026-11-10T00:12:15.267Z",
+      "request_characters": 10423,
+      "request_digest": "01d8bf2c3db31b0b8a8b94261fb47d1bb7739089d605ab92f515082927e0f54e",
+      "response": null
+    },
+    {
+      "id": "e3f375a9-8075-45a8-abfd-5e2e0c3cbab6",
+      "stage": "S03",
+      "role": "conversation_router",
+      "attempt": 1,
+      "status": "ok",
+      "error_code": null,
+      "error_message": null,
+      "started_at": "2026-11-10T00:12:50.238Z",
+      "finished_at": "2026-11-10T00:12:56.784Z",
+      "request_characters": 5353,
+      "request_digest": "3587aa25f4f39147d03c741a7ff18d216e9c0eb0d92938d06075c944133ff42d",
+      "response": {
+        "data": {
+          "evidence_ids": [],
+          "kind": "requirements_change",
+          "reference_usage": "none"
+        },
+        "issues": [],
+        "questions": [],
+        "role": "conversation_router",
+        "status": "ready"
+      }
+    },
+    {
+      "id": "f37e9c50-4b65-4131-ba20-b4144c93cede",
+      "stage": "S03",
+      "role": "requirements_consultant",
+      "attempt": 1,
+      "status": "ok",
+      "error_code": null,
+      "error_message": null,
+      "started_at": "2026-11-10T00:12:56.814Z",
+      "finished_at": "2026-11-10T00:13:16.766Z",
+      "request_characters": 11011,
+      "request_digest": "45310f5011eda93bd39c6bf10b942f40f5e4d1cdafaddb5bc59892bfbd19a443",
+      "response": {
+        "data": {
+          "assumptions": [
+            "用户最新一条消息明确将尺寸与构图从早前的 1:1 方图、钢笔居中且价格位于下方，更新为 3840x2160 横图、钢笔居左、价格留白在右侧，以最新消息为准。",
+            "用户未指定具体光影参数，按极简商务影棚柔光处理。",
+            "用户未指定钢笔型号、笔尖细节或品牌，仅按已描述的黑身银夹外观呈现，不添加品牌标识。",
+            "用户未指定右侧留白的具体宽度，按画面右侧大面积纯净留白处理，供后续添加价格。"
+          ],
+          "composition": "3840x2160 横向画幅，钢笔居左完整呈现，右侧保持纯净空白用于后续添加价格，画面中不放任何文字、数字或价格元素。",
+          "creative_direction": "以极简商务为唯一方向：石墨黑背景中呈现黑色磨砂金属笔身、配银色笔夹的商务钢笔，钢笔置于画面左侧并完整呈现，右侧保留大面积纯净留白承接后续价格信息；整体克制、干净、有高端商务质感，不做多余装饰。",
+          "facts": [
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85"
+              ],
+              "text": "商品主体是钢笔。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "用途为电商主页促销主视觉。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "最新要求画面为 3840x2160 横图。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "构图为钢笔居左，价格留白在右侧。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "背景为石墨黑。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "整体风格为极简商务。"
+            }
+          ],
+          "forbidden": [
+            "画面中出现任何文字",
+            "画面中出现任何数字",
+            "画面中出现价格或货币符号",
+            "水印",
+            "促销标签或贴纸",
+            "品牌标识"
+          ],
+          "lighting": "极简商务影棚柔光：笔身金属与磨砂质感呈现清晰而柔和的高光，银色笔夹有细腻反光，背景石墨黑保持纯净，整体低对比、克制。",
+          "must_include": [
+            "黑色磨砂金属笔身",
+            "银色笔夹",
+            "石墨黑背景",
+            "钢笔居左",
+            "右侧纯净价格留白"
+          ],
+          "must_preserve": [
+            "黑色磨砂金属笔身",
+            "银色笔夹",
+            "商务钢笔外观",
+            "石墨黑背景"
+          ],
+          "product_description": "一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。",
+          "purpose": "用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。",
+          "reference_asset_id": null,
+          "reference_usage": "none",
+          "size": "3840x2160",
+          "style_keywords": [
+            "极简商务",
+            "石墨黑",
+            "磨砂金属质感",
+            "克制高级",
+            "电商促销主视觉"
+          ],
+          "texts": [],
+          "unresolved": []
+        },
+        "issues": [],
+        "questions": [],
+        "role": "requirements_consultant",
+        "status": "ready"
+      }
+    },
+    {
+      "id": "cd54811f-8437-4a4d-9a27-a04f1c718218",
+      "stage": "S04",
+      "role": "creative_planner",
+      "attempt": 1,
+      "status": "ok",
+      "error_code": null,
+      "error_message": null,
+      "started_at": "2026-11-10T00:13:16.846Z",
+      "finished_at": "2026-11-10T00:13:23.916Z",
+      "request_characters": 9742,
+      "request_digest": "9444cf194197db5efcaef8272e0f8610c36cf56b78c4593779dd36ab97522096",
+      "response": {
+        "data": {
+          "copy_lines": [],
+          "direction": "唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。",
+          "selling_points": [
+            {
+              "evidence_ids": [
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "黑色磨砂金属笔身，商务款质感"
+            },
+            {
+              "evidence_ids": [
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "银色笔夹，与黑色磨砂笔身形成明暗对比"
+            }
+          ]
+        },
+        "issues": [],
+        "questions": [],
+        "role": "creative_planner",
+        "status": "ready"
+      }
+    },
+    {
+      "id": "dd0802bd-f25a-4f44-9fd9-df93b7056ed7",
+      "stage": "S05",
+      "role": "visual_director",
+      "attempt": 1,
+      "status": "ok",
+      "error_code": null,
+      "error_message": null,
+      "started_at": "2026-11-10T00:13:23.995Z",
+      "finished_at": "2026-11-10T00:13:35.754Z",
+      "request_characters": 10977,
+      "request_digest": "ddf5301c1c46b5e6d3efd3a93d201b01b545db3442e11a92e9e0c0eca20b2603",
+      "response": {
+        "data": {
+          "background": "纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。",
+          "composition": "画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。",
+          "lighting": "采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。",
+          "palette": [
+            "石墨黑",
+            "磨砂黑",
+            "银色",
+            "柔和灰白"
+          ],
+          "preservation_rules": [
+            "画幅固定为 3840x2160 横向构图。",
+            "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。",
+            "保留黑色磨砂金属笔身与银色笔夹的已确认外观。",
+            "不添加未确认的钢笔型号、笔尖细节或品牌标识。",
+            "背景为纯净石墨黑，左右明度自然衔接。",
+            "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。",
+            "全画面不出现任何文字、数字、价格或货币符号。",
+            "不出现水印、促销标签或贴纸。",
+            "不添加多余道具、装饰图形或渐变光效。",
+            "整体保持低对比、克制、干净的极简商务质感。",
+            "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。"
+          ],
+          "reference_treatment": "本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。",
+          "style_keywords": [
+            "极简商务",
+            "石墨黑背景",
+            "磨砂金属质感",
+            "银色笔夹点睛",
+            "低对比影棚柔光",
+            "大面积纯净留白",
+            "克制高级"
+          ],
+          "text_layout": "无画面文字"
+        },
+        "issues": [],
+        "questions": [],
+        "role": "visual_director",
+        "status": "ready"
+      }
+    },
+    {
+      "id": "3f0f5c20-466a-491c-a180-a26daab848f4",
+      "stage": "S07",
+      "role": "generation_engineer",
+      "attempt": 1,
+      "status": "timeout",
+      "error_code": "LLM_TIMEOUT",
+      "error_message": "语言模型请求超时",
+      "started_at": "2026-11-10T00:14:04.290Z",
+      "finished_at": "2026-11-10T00:15:04.318Z",
+      "request_characters": 67501,
+      "request_digest": "c9d28c23f6afbe8d87d3266ccf09494134705db6cc628556685ea8a71475c4d5",
+      "response": null,
+      "request_parts_characters": {
+        "payload": 61855,
+        "system": 5621
+      },
+      "payload_parts_characters": {
+        "approved_inputs": 56579,
+        "capabilities": 33,
+        "input_data": 4090,
+        "repair_codes": 2,
+        "review_targets": 2,
+        "state": 57,
+        "task": 978
+      }
+    },
+    {
+      "id": "27e37ee7-5387-4fcc-83e2-474128aacc4d",
+      "stage": "S07",
+      "role": "generation_engineer",
+      "attempt": 1,
+      "status": "timeout",
+      "error_code": "LLM_TIMEOUT",
+      "error_message": "语言模型请求超时",
+      "started_at": "2026-11-10T00:16:16.157Z",
+      "finished_at": "2026-11-10T00:17:16.170Z",
+      "request_characters": 67501,
+      "request_digest": "c9d28c23f6afbe8d87d3266ccf09494134705db6cc628556685ea8a71475c4d5",
+      "response": null,
+      "request_parts_characters": {
+        "payload": 61855,
+        "system": 5621
+      },
+      "payload_parts_characters": {
+        "approved_inputs": 56579,
+        "capabilities": 33,
+        "input_data": 4090,
+        "repair_codes": 2,
+        "review_targets": 2,
+        "state": 57,
+        "task": 978
+      }
+    },
+    {
+      "id": "71b83227-f256-406d-8296-a32c8a16230c",
+      "stage": "S07",
+      "role": "generation_engineer",
+      "attempt": 1,
+      "status": "ok",
+      "error_code": null,
+      "error_message": null,
+      "started_at": "2026-11-10T00:18:44.486Z",
+      "finished_at": "2026-11-10T00:19:11.763Z",
+      "request_characters": 67501,
+      "request_digest": "c9d28c23f6afbe8d87d3266ccf09494134705db6cc628556685ea8a71475c4d5",
+      "response": {
+        "data": {
+          "count": 1,
+          "negative_prompt": "画面中出现任何文字；画面中出现任何数字；画面中出现价格或货币符号；水印；促销标签或贴纸；品牌标识。避免出现与已确认需求冲突的内容：多余道具、装饰图形、渐变光效；未确认的钢笔型号、笔尖细节、品牌元素；钢笔被裁切或遮挡；右侧留白被物体、装饰或文字占用；改变石墨黑背景基调与低对比极简商务质感。",
+          "positive_prompt": "单图电商主页促销主视觉，单张画面，单支商务钢笔为画面唯一主体。\n【确认商品与事实】一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。商品主体是钢笔。钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。用途为电商主页促销主视觉。用途为电商主页促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。最新要求画面为 3840x2160 横图。构图为钢笔居左，价格留白在右侧。画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。背景为石墨黑。整体风格为极简商务。\n【必须包含】黑色磨砂金属笔身；银色笔夹；石墨黑背景；钢笔居左；右侧纯净价格留白。\n【必须保留】黑色磨砂金属笔身；银色笔夹；商务钢笔外观；石墨黑背景；画幅固定为 3840x2160 横向构图。；单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。；保留黑色磨砂金属笔身与银色笔夹的已确认外观。；不添加未确认的钢笔型号、笔尖细节或品牌标识。；背景为纯净石墨黑，左右明度自然衔接。；右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。；全画面不出现任何文字、数字、价格或货币符号。；不出现水印、促销标签或贴纸。；不添加多余道具、装饰图形或渐变光效。；整体保持低对比、克制、干净的极简商务质感。；仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。\n【创意方向】唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。\n【构图、背景、光影与风格】画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。极简商务、石墨黑背景、磨砂金属质感、银色笔夹点睛、低对比影棚柔光、大面积纯净留白、克制高级。无画面文字。本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。",
+          "reference_asset_id": null,
+          "requirement_coverage": [
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:subject",
+              "value": "一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:fact:0",
+              "value": "商品主体是钢笔。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:fact:1",
+              "value": "钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:fact:2",
+              "value": "用途为电商主页促销主视觉。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:fact:3",
+              "value": "最新要求画面为 3840x2160 横图。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:fact:4",
+              "value": "构图为钢笔居左，价格留白在右侧。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:fact:5",
+              "value": "画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:fact:6",
+              "value": "背景为石墨黑。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:fact:7",
+              "value": "整体风格为极简商务。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_include:0",
+              "value": "黑色磨砂金属笔身"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_include:1",
+              "value": "银色笔夹"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_include:2",
+              "value": "石墨黑背景"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_include:3",
+              "value": "钢笔居左"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_include:4",
+              "value": "右侧纯净价格留白"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:0",
+              "value": "黑色磨砂金属笔身"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:1",
+              "value": "银色笔夹"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:2",
+              "value": "商务钢笔外观"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:3",
+              "value": "石墨黑背景"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:4",
+              "value": "画幅固定为 3840x2160 横向构图。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:5",
+              "value": "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:6",
+              "value": "保留黑色磨砂金属笔身与银色笔夹的已确认外观。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:7",
+              "value": "不添加未确认的钢笔型号、笔尖细节或品牌标识。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:8",
+              "value": "背景为纯净石墨黑，左右明度自然衔接。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:9",
+              "value": "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:10",
+              "value": "全画面不出现任何文字、数字、价格或货币符号。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:11",
+              "value": "不出现水印、促销标签或贴纸。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:12",
+              "value": "不添加多余道具、装饰图形或渐变光效。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:13",
+              "value": "整体保持低对比、克制、干净的极简商务质感。"
+            },
+            {
+              "binding": "positive_prompt",
+              "rule_id": "hard:must_preserve:14",
+              "value": "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。"
+            },
+            {
+              "binding": "negative_prompt",
+              "rule_id": "hard:forbidden:0",
+              "value": "画面中出现任何文字"
+            },
+            {
+              "binding": "negative_prompt",
+              "rule_id": "hard:forbidden:1",
+              "value": "画面中出现任何数字"
+            },
+            {
+              "binding": "negative_prompt",
+              "rule_id": "hard:forbidden:2",
+              "value": "画面中出现价格或货币符号"
+            },
+            {
+              "binding": "negative_prompt",
+              "rule_id": "hard:forbidden:3",
+              "value": "水印"
+            },
+            {
+              "binding": "negative_prompt",
+              "rule_id": "hard:forbidden:4",
+              "value": "促销标签或贴纸"
+            },
+            {
+              "binding": "negative_prompt",
+              "rule_id": "hard:forbidden:5",
+              "value": "品牌标识"
+            },
+            {
+              "binding": "size",
+              "rule_id": "hard:size",
+              "value": "3840x2160"
+            },
+            {
+              "binding": "count",
+              "rule_id": "hard:count",
+              "value": "1"
+            }
+          ],
+          "size": "3840x2160"
+        },
+        "issues": [],
+        "questions": [],
+        "role": "generation_engineer",
+        "status": "ready"
+      },
+      "request_parts_characters": {
+        "payload": 61855,
+        "system": 5621
+      },
+      "payload_parts_characters": {
+        "approved_inputs": 56579,
+        "capabilities": 33,
+        "input_data": 4090,
+        "repair_codes": 2,
+        "review_targets": 2,
+        "state": 57,
+        "task": 978
+      }
+    }
+  ],
+  "ui_snapshots": [
+    {
+      "file": "06-clarification-round1.json",
+      "time": "2026-11-10T00:09:49.903Z",
+      "url": "http://127.0.0.1:8010/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/chat",
+      "projectId": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n草稿\n2026/11/10 08:08:56\nP\npen-chain-20261110@example.test\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录\n未命名项目\n需要补充信息\n0:18\n\n你 · 08:08\n\n做一张 1:1 促销主视觉，石墨黑底，留出价格位置\n我要做一张钢笔图，用于电商主页\n\n智能生图助手 · 08:09\n\n需求对齐情况\n- 基本信息：1/3 项已明确\n- 商品主体：待补充\n- 使用场景与目标：待补充\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：待补充\n- 风格、构图与光影：待补充\n- 画面文字：待补充\n- 参考图用途：无参考图\n\n还缺少的信息\n- 商品主体\n- 使用场景与目标\n- 必须保留的商品特征（如没有必须保留项，请直接说明）\n- 风格、构图与光影\n- 画面文字（如不需要文字，请直接说明“不需要文字”）\n\n请补充以下信息\n1. 这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。\n2. 画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。\n3. 留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。\n\n回复方式\n- 直接回复选项编号即可，例如「1A 2B 3C」；也可以按编号补充自己的描述。\n- 请按题目编号逐条回复；未回复的题会继续保留。\n- 回答过的问题不会重复询问，信息足够后会继续下一步。\n- 可以复制这一行开始：1? 2? 3?（把 ? 换成你的选择或简短说明）\n\n需要补充信息\n\n这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。 画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。 留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。\n\n+\n描述商品与图片需求\n\nEnter 发送，Shift + Enter 换行",
+      "buttons": [
+        {
+          "text": "＋\n新对话",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "未命名项目\n草稿\n2026/11/10 08:08:56",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "退出登录",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "选择参考图文件",
+          "disabled": false
+        },
+        {
+          "text": "+",
+          "label": "添加参考图",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "发送",
+          "disabled": true
+        }
+      ],
+      "images": [],
+      "lastErrors": []
+    },
+    {
+      "file": "09-recommendations-result.json",
+      "time": "2026-11-10T00:11:02.948Z",
+      "url": "http://127.0.0.1:8010/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/chat",
+      "projectId": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n草稿\n2026/11/10 08:10:03\nP\npen-chain-20261110@example.test\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录\n未命名项目\n技术故障\n0:37\n\n你 · 08:08\n\n做一张 1:1 促销主视觉，石墨黑底，留出价格位置\n我要做一张钢笔图，用于电商主页\n\n智能生图助手 · 08:09\n\n需求对齐情况\n- 基本信息：1/3 项已明确\n- 商品主体：待补充\n- 使用场景与目标：待补充\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：待补充\n- 风格、构图与光影：待补充\n- 画面文字：待补充\n- 参考图用途：无参考图\n\n还缺少的信息\n- 商品主体\n- 使用场景与目标\n- 必须保留的商品特征（如没有必须保留项，请直接说明）\n- 风格、构图与光影\n- 画面文字（如不需要文字，请直接说明“不需要文字”）\n\n请补充以下信息\n1. 这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。\n2. 画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。\n3. 留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。\n\n回复方式\n- 直接回复选项编号即可，例如「1A 2B 3C」；也可以按编号补充自己的描述。\n- 请按题目编号逐条回复；未回复的题会继续保留。\n- 回答过的问题不会重复询问，信息足够后会继续下一步。\n- 可以复制这一行开始：1? 2? 3?（把 ? 换成你的选择或简短说明）\n\n你 · 08:10\n\n1. 采用你第一个外观建议：黑色磨砂金属笔身，配银色笔夹的商务钢笔。\n2. 按我最初要求的 1:1 方图，采用你建议的钢笔居中、价格位置留在下方的构图。\n3. 采用你给的第三种方式：完全不出现文字，仅留空白区域，价格由我后续添加。\n\n技术故障\n\n继续流程\n可能调用模型\n\n从已保存的检查点继续原流程，不新建生成意图。\n\n当前处理服务暂不可用，已保留输入，本次未自动重试。\n\n重试\n+\n描述商品与图片需求\n\nEnter 发送，Shift + Enter 换行",
+      "buttons": [
+        {
+          "text": "＋\n新对话",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "未命名项目\n草稿\n2026/11/10 08:10:03",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "退出登录",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "继续流程",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "重试",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "选择参考图文件",
+          "disabled": false
+        },
+        {
+          "text": "+",
+          "label": "添加参考图",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "发送",
+          "disabled": false
+        }
+      ],
+      "images": [],
+      "lastErrors": [
+        {
+          "time": "2026-11-10T00:10:24.454Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/messages",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "12-recover-requirements-result.json",
+      "time": "2026-11-10T00:11:34.968Z",
+      "url": "http://127.0.0.1:8010/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/chat",
+      "projectId": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n草稿\n2026/11/10 08:10:03\nP\npen-chain-20261110@example.test\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录\n未命名项目\n技术故障\n0:05\n\n你 · 08:08\n\n做一张 1:1 促销主视觉，石墨黑底，留出价格位置\n我要做一张钢笔图，用于电商主页\n\n智能生图助手 · 08:09\n\n需求对齐情况\n- 基本信息：1/3 项已明确\n- 商品主体：待补充\n- 使用场景与目标：待补充\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：待补充\n- 风格、构图与光影：待补充\n- 画面文字：待补充\n- 参考图用途：无参考图\n\n还缺少的信息\n- 商品主体\n- 使用场景与目标\n- 必须保留的商品特征（如没有必须保留项，请直接说明）\n- 风格、构图与光影\n- 画面文字（如不需要文字，请直接说明“不需要文字”）\n\n请补充以下信息\n1. 这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。\n2. 画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。\n3. 留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。\n\n回复方式\n- 直接回复选项编号即可，例如「1A 2B 3C」；也可以按编号补充自己的描述。\n- 请按题目编号逐条回复；未回复的题会继续保留。\n- 回答过的问题不会重复询问，信息足够后会继续下一步。\n- 可以复制这一行开始：1? 2? 3?（把 ? 换成你的选择或简短说明）\n\n你 · 08:10\n\n1. 采用你第一个外观建议：黑色磨砂金属笔身，配银色笔夹的商务钢笔。\n2. 按我最初要求的 1:1 方图，采用你建议的钢笔居中、价格位置留在下方的构图。\n3. 采用你给的第三种方式：完全不出现文字，仅留空白区域，价格由我后续添加。\n\n技术故障\n\n继续流程\n可能调用模型\n\n从已保存的检查点继续原流程，不新建生成意图。\n\n当前处理服务暂不可用，已保留输入，本次未自动重试。\n\n重试\n+\n描述商品与图片需求\n\nEnter 发送，Shift + Enter 换行",
+      "buttons": [
+        {
+          "text": "＋\n新对话",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "未命名项目\n草稿\n2026/11/10 08:10:03",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "退出登录",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "继续流程",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "重试",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "选择参考图文件",
+          "disabled": false
+        },
+        {
+          "text": "+",
+          "label": "添加参考图",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "发送",
+          "disabled": false
+        }
+      ],
+      "images": [],
+      "lastErrors": [
+        {
+          "time": "2026-11-10T00:10:24.454Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/messages",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:11:28.320Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "14-second-recovery-result.json",
+      "time": "2026-11-10T00:12:31.265Z",
+      "url": "http://127.0.0.1:8010/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/chat",
+      "projectId": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n草稿\n2026/11/10 08:10:03\nP\npen-chain-20261110@example.test\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录\n未命名项目\n技术故障\n0:15\n\n你 · 08:08\n\n做一张 1:1 促销主视觉，石墨黑底，留出价格位置\n我要做一张钢笔图，用于电商主页\n\n智能生图助手 · 08:09\n\n需求对齐情况\n- 基本信息：1/3 项已明确\n- 商品主体：待补充\n- 使用场景与目标：待补充\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：待补充\n- 风格、构图与光影：待补充\n- 画面文字：待补充\n- 参考图用途：无参考图\n\n还缺少的信息\n- 商品主体\n- 使用场景与目标\n- 必须保留的商品特征（如没有必须保留项，请直接说明）\n- 风格、构图与光影\n- 画面文字（如不需要文字，请直接说明“不需要文字”）\n\n请补充以下信息\n1. 这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。\n2. 画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。\n3. 留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。\n\n回复方式\n- 直接回复选项编号即可，例如「1A 2B 3C」；也可以按编号补充自己的描述。\n- 请按题目编号逐条回复；未回复的题会继续保留。\n- 回答过的问题不会重复询问，信息足够后会继续下一步。\n- 可以复制这一行开始：1? 2? 3?（把 ? 换成你的选择或简短说明）\n\n你 · 08:10\n\n1. 采用你第一个外观建议：黑色磨砂金属笔身，配银色笔夹的商务钢笔。\n2. 按我最初要求的 1:1 方图，采用你建议的钢笔居中、价格位置留在下方的构图。\n3. 采用你给的第三种方式：完全不出现文字，仅留空白区域，价格由我后续添加。\n\n技术故障\n\n继续流程\n可能调用模型\n\n从已保存的检查点继续原流程，不新建生成意图。\n\n当前处理服务暂不可用，已保留输入，本次未自动重试。\n\n重试\n+\n描述商品与图片需求\n\nEnter 发送，Shift + Enter 换行",
+      "buttons": [
+        {
+          "text": "＋\n新对话",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "未命名项目\n草稿\n2026/11/10 08:10:03",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "退出登录",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "继续流程",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "重试",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "选择参考图文件",
+          "disabled": false
+        },
+        {
+          "text": "+",
+          "label": "添加参考图",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "发送",
+          "disabled": false
+        }
+      ],
+      "images": [],
+      "lastErrors": [
+        {
+          "time": "2026-11-10T00:10:24.454Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/messages",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:11:28.320Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:12:15.282Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "18-requirements-or-block.json",
+      "time": "2026-11-10T00:13:53.742Z",
+      "url": "http://127.0.0.1:8010/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/chat",
+      "projectId": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n草稿\n2026/11/10 08:12:56\nP\npen-chain-20261110@example.test\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录\n未命名项目\n等待确认需求\n0:17\n\n你 · 08:08\n\n做一张 1:1 促销主视觉，石墨黑底，留出价格位置\n我要做一张钢笔图，用于电商主页\n\n智能生图助手 · 08:09\n\n需求对齐情况\n- 基本信息：1/3 项已明确\n- 商品主体：待补充\n- 使用场景与目标：待补充\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：待补充\n- 风格、构图与光影：待补充\n- 画面文字：待补充\n- 参考图用途：无参考图\n\n还缺少的信息\n- 商品主体\n- 使用场景与目标\n- 必须保留的商品特征（如没有必须保留项，请直接说明）\n- 风格、构图与光影\n- 画面文字（如不需要文字，请直接说明“不需要文字”）\n\n请补充以下信息\n1. 这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。\n2. 画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。\n3. 留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。\n\n回复方式\n- 直接回复选项编号即可，例如「1A 2B 3C」；也可以按编号补充自己的描述。\n- 请按题目编号逐条回复；未回复的题会继续保留。\n- 回答过的问题不会重复询问，信息足够后会继续下一步。\n- 可以复制这一行开始：1? 2? 3?（把 ? 换成你的选择或简短说明）\n\n你 · 08:10\n\n1. 采用你第一个外观建议：黑色磨砂金属笔身，配银色笔夹的商务钢笔。\n2. 按我最初要求的 1:1 方图，采用你建议的钢笔居中、价格位置留在下方的构图。\n3. 采用你给的第三种方式：完全不出现文字，仅留空白区域，价格由我后续添加。\n\n你 · 08:12\n\n我采用你先前给出的可输出尺寸方案：本次改为 3840x2160 横图，钢笔居左、价格留白在右侧。钢笔采用你推荐的黑色磨砂金属笔身配银色笔夹的商务款，背景保持石墨黑，用于电商主页促销主视觉。画面完全不出现文字、数字或价格，右侧只留纯净空白，由我后续添加价格。其余光影与极简商务风格按你的推荐整理。\n\n智能生图助手 · 08:13\n\n需求对齐情况\n- 基本信息：3/3 项已明确\n- 商品主体：一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。\n- 使用场景与目标：用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：黑色磨砂金属笔身；银色笔夹；商务钢笔外观\n- 风格、构图与光影：极简商务、石墨黑、磨砂金属质感、克制高级、电商促销主视觉；3840x2160 横向画幅，钢笔居左完整呈现，右侧保持纯净空白用于后续添加价格，画面中不放任何文字、数字或价格元素。；极简商务影棚柔光：笔身金属与磨砂质感呈现清晰而柔和的高光，银色笔夹有细腻反光，背景石墨黑保持纯净，整体低对比、克制。\n- 画面文字：无画面文字\n- 参考图用途：无参考图\n\n还缺少的信息\n- 无，需求信息已对齐。\n\n下一步：确认需求后将生成图片提示词；只有你确认提示词后，系统才会生成图片。\n\n修改需求\n可能调用模型\n\n修改需求会让旧提示词和授权失效；确认新需求前不会继续生成。\n\n请在下方输入框说明说明需要修改的需求内容，然后点击发送。\n\n需求确认\n\n我先把你的描述整理成了这份需求，确认后我会准备提示词。\n\n商品\n一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。\n用途\n用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。\n创作方向\n唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。\n画面风格\n极简商务、石墨黑背景、磨砂金属质感、银色笔夹点睛、低对比影棚柔光、大面积纯净留白、克制高级\n构图\n画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。\n光线\n采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。\n必须包含\n黑色磨砂金属笔身、银色笔夹、石墨黑背景、钢笔居左、右侧纯净价格留白\n必须保留\n黑色磨砂金属笔身、银色笔夹、商务钢笔外观、石墨黑背景、画幅固定为 3840x2160 横向构图。、单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。、保留黑色磨砂金属笔身与银色笔夹的已确认外观。、不添加未确认的钢笔型号、笔尖细节或品牌标识。、背景为纯净石墨黑，左右明度自然衔接。、右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。、全画面不出现任何文字、数字、价格或货币符号。、不出现水印、促销标签或贴纸。、不添加多余道具、装饰图形或渐变光效。、整体保持低对比、克制、干净的极简商务质感。、仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。\n避免\n画面中出现任何文字、画面中出现任何数字、画面中出现价格或货币符号、水印、促销标签或贴纸、品牌标识\n尺寸\n3840x2160\n\n本次生成会占用 1 次额度；今日已受理 0 / 20 次。\n\n确认需求并生成提示词\n+\n描述商品与图片需求\n\nEnter 发送，Shift + Enter 换行",
+      "buttons": [
+        {
+          "text": "＋\n新对话",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "未命名项目\n草稿\n2026/11/10 08:12:56",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "退出登录",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "修改需求",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "确认需求并生成提示词",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "选择参考图文件",
+          "disabled": false
+        },
+        {
+          "text": "+",
+          "label": "添加参考图",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "发送",
+          "disabled": true
+        }
+      ],
+      "images": [],
+      "lastErrors": [
+        {
+          "time": "2026-11-10T00:10:24.454Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/messages",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:11:28.320Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:12:15.282Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "26-s07-stalled-before-manual-compile.json",
+      "time": "2026-11-10T00:15:50.653Z",
+      "url": "http://127.0.0.1:8010/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/chat",
+      "projectId": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n需求已确认\n2026/11/10 08:14:04\nP\npen-chain-20261110@example.test\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录\n未命名项目\n技术故障\n0:44\n\n你 · 08:08\n\n做一张 1:1 促销主视觉，石墨黑底，留出价格位置\n我要做一张钢笔图，用于电商主页\n\n智能生图助手 · 08:09\n\n需求对齐情况\n- 基本信息：1/3 项已明确\n- 商品主体：待补充\n- 使用场景与目标：待补充\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：待补充\n- 风格、构图与光影：待补充\n- 画面文字：待补充\n- 参考图用途：无参考图\n\n还缺少的信息\n- 商品主体\n- 使用场景与目标\n- 必须保留的商品特征（如没有必须保留项，请直接说明）\n- 风格、构图与光影\n- 画面文字（如不需要文字，请直接说明“不需要文字”）\n\n请补充以下信息\n1. 这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。\n2. 画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。\n3. 留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。\n\n回复方式\n- 直接回复选项编号即可，例如「1A 2B 3C」；也可以按编号补充自己的描述。\n- 请按题目编号逐条回复；未回复的题会继续保留。\n- 回答过的问题不会重复询问，信息足够后会继续下一步。\n- 可以复制这一行开始：1? 2? 3?（把 ? 换成你的选择或简短说明）\n\n你 · 08:10\n\n1. 采用你第一个外观建议：黑色磨砂金属笔身，配银色笔夹的商务钢笔。\n2. 按我最初要求的 1:1 方图，采用你建议的钢笔居中、价格位置留在下方的构图。\n3. 采用你给的第三种方式：完全不出现文字，仅留空白区域，价格由我后续添加。\n\n你 · 08:12\n\n我采用你先前给出的可输出尺寸方案：本次改为 3840x2160 横图，钢笔居左、价格留白在右侧。钢笔采用你推荐的黑色磨砂金属笔身配银色笔夹的商务款，背景保持石墨黑，用于电商主页促销主视觉。画面完全不出现文字、数字或价格，右侧只留纯净空白，由我后续添加价格。其余光影与极简商务风格按你的推荐整理。\n\n智能生图助手 · 08:13\n\n需求对齐情况\n- 基本信息：3/3 项已明确\n- 商品主体：一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。\n- 使用场景与目标：用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：黑色磨砂金属笔身；银色笔夹；商务钢笔外观\n- 风格、构图与光影：极简商务、石墨黑、磨砂金属质感、克制高级、电商促销主视觉；3840x2160 横向画幅，钢笔居左完整呈现，右侧保持纯净空白用于后续添加价格，画面中不放任何文字、数字或价格元素。；极简商务影棚柔光：笔身金属与磨砂质感呈现清晰而柔和的高光，银色笔夹有细腻反光，背景石墨黑保持纯净，整体低对比、克制。\n- 画面文字：无画面文字\n- 参考图用途：无参考图\n\n还缺少的信息\n- 无，需求信息已对齐。\n\n下一步：确认需求后将生成图片提示词；只有你确认提示词后，系统才会生成图片。\n\n技术故障\n\n继续流程\n可能调用模型\n\n从已保存的检查点继续原流程，不新建生成意图。\n\n需求确认\n\n我先把你的描述整理成了这份需求，确认后我会准备提示词。\n\n商品\n一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。\n用途\n用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。\n创作方向\n唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。\n画面风格\n极简商务、石墨黑背景、磨砂金属质感、银色笔夹点睛、低对比影棚柔光、大面积纯净留白、克制高级\n构图\n画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。\n光线\n采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。\n必须包含\n黑色磨砂金属笔身、银色笔夹、石墨黑背景、钢笔居左、右侧纯净价格留白\n必须保留\n黑色磨砂金属笔身、银色笔夹、商务钢笔外观、石墨黑背景、画幅固定为 3840x2160 横向构图。、单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。、保留黑色磨砂金属笔身与银色笔夹的已确认外观。、不添加未确认的钢笔型号、笔尖细节或品牌标识。、背景为纯净石墨黑，左右明度自然衔接。、右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。、全画面不出现任何文字、数字、价格或货币符号。、不出现水印、促销标签或贴纸。、不添加多余道具、装饰图形或渐变光效。、整体保持低对比、克制、干净的极简商务质感。、仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。\n避免\n画面中出现任何文字、画面中出现任何数字、画面中出现价格或货币符号、水印、促销标签或贴纸、品牌标识\n尺寸\n3840x2160\n\n本次生成会占用 1 次额度；今日已受理 1 / 20 次。\n\n需求已确认\n正在准备提示词…\n\n+\n描述商品与图片需求\n\nEnter 发送，Shift + Enter 换行",
+      "buttons": [
+        {
+          "text": "＋\n新对话",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "未命名项目\n需求已确认\n2026/11/10 08:14:04",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "退出登录",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "继续流程",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "选择参考图文件",
+          "disabled": false
+        },
+        {
+          "text": "+",
+          "label": "添加参考图",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "发送",
+          "disabled": true
+        }
+      ],
+      "images": [],
+      "lastErrors": [
+        {
+          "time": "2026-11-10T00:10:24.454Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/messages",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:11:28.320Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:12:15.282Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "34-180s-recovery-progress.json",
+      "time": "2026-11-10T00:20:37.649Z",
+      "url": "http://127.0.0.1:8010/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/chat",
+      "projectId": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n需求已确认\n2026/11/10 08:14:04\nP\npen-chain-20261110@example.test\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录\n未命名项目\n等待确认提示词\n1:25\n\n你 · 08:08\n\n做一张 1:1 促销主视觉，石墨黑底，留出价格位置\n我要做一张钢笔图，用于电商主页\n\n智能生图助手 · 08:09\n\n需求对齐情况\n- 基本信息：1/3 项已明确\n- 商品主体：待补充\n- 使用场景与目标：待补充\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：待补充\n- 风格、构图与光影：待补充\n- 画面文字：待补充\n- 参考图用途：无参考图\n\n还缺少的信息\n- 商品主体\n- 使用场景与目标\n- 必须保留的商品特征（如没有必须保留项，请直接说明）\n- 风格、构图与光影\n- 画面文字（如不需要文字，请直接说明“不需要文字”）\n\n请补充以下信息\n1. 这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。\n2. 画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。\n3. 留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。\n\n回复方式\n- 直接回复选项编号即可，例如「1A 2B 3C」；也可以按编号补充自己的描述。\n- 请按题目编号逐条回复；未回复的题会继续保留。\n- 回答过的问题不会重复询问，信息足够后会继续下一步。\n- 可以复制这一行开始：1? 2? 3?（把 ? 换成你的选择或简短说明）\n\n你 · 08:10\n\n1. 采用你第一个外观建议：黑色磨砂金属笔身，配银色笔夹的商务钢笔。\n2. 按我最初要求的 1:1 方图，采用你建议的钢笔居中、价格位置留在下方的构图。\n3. 采用你给的第三种方式：完全不出现文字，仅留空白区域，价格由我后续添加。\n\n你 · 08:12\n\n我采用你先前给出的可输出尺寸方案：本次改为 3840x2160 横图，钢笔居左、价格留白在右侧。钢笔采用你推荐的黑色磨砂金属笔身配银色笔夹的商务款，背景保持石墨黑，用于电商主页促销主视觉。画面完全不出现文字、数字或价格，右侧只留纯净空白，由我后续添加价格。其余光影与极简商务风格按你的推荐整理。\n\n智能生图助手 · 08:13\n\n需求对齐情况\n- 基本信息：3/3 项已明确\n- 商品主体：一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。\n- 使用场景与目标：用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：黑色磨砂金属笔身；银色笔夹；商务钢笔外观\n- 风格、构图与光影：极简商务、石墨黑、磨砂金属质感、克制高级、电商促销主视觉；3840x2160 横向画幅，钢笔居左完整呈现，右侧保持纯净空白用于后续添加价格，画面中不放任何文字、数字或价格元素。；极简商务影棚柔光：笔身金属与磨砂质感呈现清晰而柔和的高光，银色笔夹有细腻反光，背景石墨黑保持纯净，整体低对比、克制。\n- 画面文字：无画面文字\n- 参考图用途：无参考图\n\n还缺少的信息\n- 无，需求信息已对齐。\n\n下一步：确认需求后将生成图片提示词；只有你确认提示词后，系统才会生成图片。\n\n修改提示词\n可能调用模型\n\n修改提示词后会重新审查；确认前不会生成图片。\n\n请在下方输入框说明说明提示词调整，然后点击发送。\n\n放弃本次生成\n更新状态\n\n放弃本次生成只结束当前尝试；已计入的受理次数不会退回。\n\n我确认放弃本次生成，已计入的受理次数不会退回\n修改需求\n可能调用模型\n\n修改需求会让旧提示词和授权失效；确认新需求前不会继续生成。\n\n请在下方输入框说明说明需要修改的需求内容，然后点击发送。\n\n智能生图助手\n\n提示词已经准备好。下面就是实际会交给图片模型的内容，确认后才会生成图片。\n\n实际提示词\nv1.1\n待确认\n单图电商主页促销主视觉，单张画面，单支商务钢笔为画面唯一主体。\n【确认商品与事实】一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。商品主体是钢笔。钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。用途为电商主页促销主视觉。用途为电商主页促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。最新要求画面为 3840x2160 横图。构图为钢笔居左，价格留白在右侧。画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。背景为石墨黑。整体风格为极简商务。\n【必须包含】黑色磨砂金属笔身；银色笔夹；石墨黑背景；钢笔居左；右侧纯净价格留白。\n【必须保留】黑色磨砂金属笔身；银色笔夹；商务钢笔外观；石墨黑背景；画幅固定为 3840x2160 横向构图。；单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。；保留黑色磨砂金属笔身与银色笔夹的已确认外观。；不添加未确认的钢笔型号、笔尖细节或品牌标识。；背景为纯净石墨黑，左右明度自然衔接。；右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。；全画面不出现任何文字、数字、价格或货币符号。；不出现水印、促销标签或贴纸。；不添加多余道具、装饰图形或渐变光效。；整体保持低对比、克制、干净的极简商务质感。；仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。\n【创意方向】唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。\n【构图、背景、光影与风格】画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。极简商务、石墨黑背景、磨砂金属质感、银色笔夹点睛、低对比影棚柔光、大面积纯净留白、克制高级。无画面文字。本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。\n避免\n\n画面中出现任何文字；画面中出现任何数字；画面中出现价格或货币符号；水印；促销标签或贴纸；品牌标识。避免出现与已确认需求冲突的内容：多余道具、装饰图形、渐变光效；未确认的钢笔型号、笔尖细节、品牌元素；钢笔被裁切或遮挡；右侧留白被物体、装饰或文字占用；改变石墨黑背景基调与低对比极简商务质感。\n\n输出\n1 张 · 3840x2160\n复制提示词\n确认使用以上提示词生成\n+\n描述商品与图片需求\n\nEnter 发送，Shift + Enter 换行",
+      "buttons": [
+        {
+          "text": "＋\n新对话",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "未命名项目\n需求已确认\n2026/11/10 08:14:04",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "退出登录",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "修改提示词",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "放弃本次生成",
+          "label": null,
+          "disabled": true
+        },
+        {
+          "text": "修改需求",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "复制提示词",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "确认使用以上提示词生成",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "选择参考图文件",
+          "disabled": false
+        },
+        {
+          "text": "+",
+          "label": "添加参考图",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "发送",
+          "disabled": true
+        }
+      ],
+      "images": [],
+      "lastErrors": [
+        {
+          "time": "2026-11-10T00:10:24.454Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/messages",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:11:28.320Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:12:15.282Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:17:16.191Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "36-final-confirmation-image.json",
+      "time": "2026-11-10T00:20:54.886Z",
+      "url": "http://127.0.0.1:8010/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/chat",
+      "projectId": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n需求已确认\n2026/11/10 08:14:04\nP\npen-chain-20261110@example.test\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录\n未命名项目\n正在生成图片\n\n你 · 08:08\n\n做一张 1:1 促销主视觉，石墨黑底，留出价格位置\n我要做一张钢笔图，用于电商主页\n\n智能生图助手 · 08:09\n\n需求对齐情况\n- 基本信息：1/3 项已明确\n- 商品主体：待补充\n- 使用场景与目标：待补充\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：待补充\n- 风格、构图与光影：待补充\n- 画面文字：待补充\n- 参考图用途：无参考图\n\n还缺少的信息\n- 商品主体\n- 使用场景与目标\n- 必须保留的商品特征（如没有必须保留项，请直接说明）\n- 风格、构图与光影\n- 画面文字（如不需要文字，请直接说明“不需要文字”）\n\n请补充以下信息\n1. 这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。\n2. 画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。\n3. 留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。\n\n回复方式\n- 直接回复选项编号即可，例如「1A 2B 3C」；也可以按编号补充自己的描述。\n- 请按题目编号逐条回复；未回复的题会继续保留。\n- 回答过的问题不会重复询问，信息足够后会继续下一步。\n- 可以复制这一行开始：1? 2? 3?（把 ? 换成你的选择或简短说明）\n\n你 · 08:10\n\n1. 采用你第一个外观建议：黑色磨砂金属笔身，配银色笔夹的商务钢笔。\n2. 按我最初要求的 1:1 方图，采用你建议的钢笔居中、价格位置留在下方的构图。\n3. 采用你给的第三种方式：完全不出现文字，仅留空白区域，价格由我后续添加。\n\n你 · 08:12\n\n我采用你先前给出的可输出尺寸方案：本次改为 3840x2160 横图，钢笔居左、价格留白在右侧。钢笔采用你推荐的黑色磨砂金属笔身配银色笔夹的商务款，背景保持石墨黑，用于电商主页促销主视觉。画面完全不出现文字、数字或价格，右侧只留纯净空白，由我后续添加价格。其余光影与极简商务风格按你的推荐整理。\n\n智能生图助手 · 08:13\n\n需求对齐情况\n- 基本信息：3/3 项已明确\n- 商品主体：一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。\n- 使用场景与目标：用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：黑色磨砂金属笔身；银色笔夹；商务钢笔外观\n- 风格、构图与光影：极简商务、石墨黑、磨砂金属质感、克制高级、电商促销主视觉；3840x2160 横向画幅，钢笔居左完整呈现，右侧保持纯净空白用于后续添加价格，画面中不放任何文字、数字或价格元素。；极简商务影棚柔光：笔身金属与磨砂质感呈现清晰而柔和的高光，银色笔夹有细腻反光，背景石墨黑保持纯净，整体低对比、克制。\n- 画面文字：无画面文字\n- 参考图用途：无参考图\n\n还缺少的信息\n- 无，需求信息已对齐。\n\n下一步：确认需求后将生成图片提示词；只有你确认提示词后，系统才会生成图片。\n\n正在生成图片…\n\n智能生图助手\n\n提示词已经准备好。下面就是实际会交给图片模型的内容，确认后才会生成图片。\n\n实际提示词\nv1.1\n已确认\n单图电商主页促销主视觉，单张画面，单支商务钢笔为画面唯一主体。\n【确认商品与事实】一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。商品主体是钢笔。钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。用途为电商主页促销主视觉。用途为电商主页促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。最新要求画面为 3840x2160 横图。构图为钢笔居左，价格留白在右侧。画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。背景为石墨黑。整体风格为极简商务。\n【必须包含】黑色磨砂金属笔身；银色笔夹；石墨黑背景；钢笔居左；右侧纯净价格留白。\n【必须保留】黑色磨砂金属笔身；银色笔夹；商务钢笔外观；石墨黑背景；画幅固定为 3840x2160 横向构图。；单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。；保留黑色磨砂金属笔身与银色笔夹的已确认外观。；不添加未确认的钢笔型号、笔尖细节或品牌标识。；背景为纯净石墨黑，左右明度自然衔接。；右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。；全画面不出现任何文字、数字、价格或货币符号。；不出现水印、促销标签或贴纸。；不添加多余道具、装饰图形或渐变光效。；整体保持低对比、克制、干净的极简商务质感。；仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。\n【创意方向】唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。\n【构图、背景、光影与风格】画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。极简商务、石墨黑背景、磨砂金属质感、银色笔夹点睛、低对比影棚柔光、大面积纯净留白、克制高级。无画面文字。本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。\n避免\n\n画面中出现任何文字；画面中出现任何数字；画面中出现价格或货币符号；水印；促销标签或贴纸；品牌标识。避免出现与已确认需求冲突的内容：多余道具、装饰图形、渐变光效；未确认的钢笔型号、笔尖细节、品牌元素；钢笔被裁切或遮挡；右侧留白被物体、装饰或文字占用；改变石墨黑背景基调与低对比极简商务质感。\n\n输出\n1 张 · 3840x2160\n\n正在生成图片…\n\n+\n描述商品与图片需求\n\nEnter 发送，Shift + Enter 换行",
+      "buttons": [
+        {
+          "text": "＋\n新对话",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "未命名项目\n需求已确认\n2026/11/10 08:14:04",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "退出登录",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "选择参考图文件",
+          "disabled": false
+        },
+        {
+          "text": "+",
+          "label": "添加参考图",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "发送",
+          "disabled": true
+        }
+      ],
+      "images": [],
+      "lastErrors": [
+        {
+          "time": "2026-11-10T00:10:24.454Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/messages",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:11:28.320Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:12:15.282Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:17:16.191Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "45-image-provider-terminal.json",
+      "time": "2026-11-10T00:26:05.869Z",
+      "url": "http://127.0.0.1:8010/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/chat",
+      "projectId": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n需求已确认\n2026/11/10 08:14:04\nP\npen-chain-20261110@example.test\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录\n未命名项目\n结果未知\n0:10\n\n你 · 08:08\n\n做一张 1:1 促销主视觉，石墨黑底，留出价格位置\n我要做一张钢笔图，用于电商主页\n\n智能生图助手 · 08:09\n\n需求对齐情况\n- 基本信息：1/3 项已明确\n- 商品主体：待补充\n- 使用场景与目标：待补充\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：待补充\n- 风格、构图与光影：待补充\n- 画面文字：待补充\n- 参考图用途：无参考图\n\n还缺少的信息\n- 商品主体\n- 使用场景与目标\n- 必须保留的商品特征（如没有必须保留项，请直接说明）\n- 风格、构图与光影\n- 画面文字（如不需要文字，请直接说明“不需要文字”）\n\n请补充以下信息\n1. 这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。\n2. 画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。\n3. 留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。\n\n回复方式\n- 直接回复选项编号即可，例如「1A 2B 3C」；也可以按编号补充自己的描述。\n- 请按题目编号逐条回复；未回复的题会继续保留。\n- 回答过的问题不会重复询问，信息足够后会继续下一步。\n- 可以复制这一行开始：1? 2? 3?（把 ? 换成你的选择或简短说明）\n\n你 · 08:10\n\n1. 采用你第一个外观建议：黑色磨砂金属笔身，配银色笔夹的商务钢笔。\n2. 按我最初要求的 1:1 方图，采用你建议的钢笔居中、价格位置留在下方的构图。\n3. 采用你给的第三种方式：完全不出现文字，仅留空白区域，价格由我后续添加。\n\n你 · 08:12\n\n我采用你先前给出的可输出尺寸方案：本次改为 3840x2160 横图，钢笔居左、价格留白在右侧。钢笔采用你推荐的黑色磨砂金属笔身配银色笔夹的商务款，背景保持石墨黑，用于电商主页促销主视觉。画面完全不出现文字、数字或价格，右侧只留纯净空白，由我后续添加价格。其余光影与极简商务风格按你的推荐整理。\n\n智能生图助手 · 08:13\n\n需求对齐情况\n- 基本信息：3/3 项已明确\n- 商品主体：一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。\n- 使用场景与目标：用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：黑色磨砂金属笔身；银色笔夹；商务钢笔外观\n- 风格、构图与光影：极简商务、石墨黑、磨砂金属质感、克制高级、电商促销主视觉；3840x2160 横向画幅，钢笔居左完整呈现，右侧保持纯净空白用于后续添加价格，画面中不放任何文字、数字或价格元素。；极简商务影棚柔光：笔身金属与磨砂质感呈现清晰而柔和的高光，银色笔夹有细腻反光，背景石墨黑保持纯净，整体低对比、克制。\n- 画面文字：无画面文字\n- 参考图用途：无参考图\n\n还缺少的信息\n- 无，需求信息已对齐。\n\n下一步：确认需求后将生成图片提示词；只有你确认提示词后，系统才会生成图片。\n\n结果未知，正在核实\n\n核实原任务\n只读核实\n\n只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。\n\n只读核实不会新增受理计数。\n\n找回原结果\n只读核实\n\n只在原任务已有可找回结果时读取原结果，不提交新生成、不新增计数。\n\n只读核实不会新增受理计数。\n\n智能生图助手\n\n提示词已经准备好。下面就是实际会交给图片模型的内容，确认后才会生成图片。\n\n实际提示词\nv1.1\n已确认\n单图电商主页促销主视觉，单张画面，单支商务钢笔为画面唯一主体。\n【确认商品与事实】一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。商品主体是钢笔。钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。用途为电商主页促销主视觉。用途为电商主页促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。最新要求画面为 3840x2160 横图。构图为钢笔居左，价格留白在右侧。画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。背景为石墨黑。整体风格为极简商务。\n【必须包含】黑色磨砂金属笔身；银色笔夹；石墨黑背景；钢笔居左；右侧纯净价格留白。\n【必须保留】黑色磨砂金属笔身；银色笔夹；商务钢笔外观；石墨黑背景；画幅固定为 3840x2160 横向构图。；单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。；保留黑色磨砂金属笔身与银色笔夹的已确认外观。；不添加未确认的钢笔型号、笔尖细节或品牌标识。；背景为纯净石墨黑，左右明度自然衔接。；右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。；全画面不出现任何文字、数字、价格或货币符号。；不出现水印、促销标签或贴纸。；不添加多余道具、装饰图形或渐变光效。；整体保持低对比、克制、干净的极简商务质感。；仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。\n【创意方向】唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。\n【构图、背景、光影与风格】画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。极简商务、石墨黑背景、磨砂金属质感、银色笔夹点睛、低对比影棚柔光、大面积纯净留白、克制高级。无画面文字。本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。\n避免\n\n画面中出现任何文字；画面中出现任何数字；画面中出现价格或货币符号；水印；促销标签或贴纸；品牌标识。避免出现与已确认需求冲突的内容：多余道具、装饰图形、渐变光效；未确认的钢笔型号、笔尖细节、品牌元素；钢笔被裁切或遮挡；右侧留白被物体、装饰或文字占用；改变石墨黑背景基调与低对比极简商务质感。\n\n输出\n1 张 · 3840x2160\n\n上次生成结果尚未确认，可能已经计费。再次生成可能产生额外费用。\n\n+\n描述商品与图片需求\n\nEnter 发送，Shift + Enter 换行",
+      "buttons": [
+        {
+          "text": "＋\n新对话",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "未命名项目\n需求已确认\n2026/11/10 08:14:04",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "退出登录",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "核实原任务",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "找回原结果",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "选择参考图文件",
+          "disabled": false
+        },
+        {
+          "text": "+",
+          "label": "添加参考图",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "发送",
+          "disabled": true
+        }
+      ],
+      "images": [],
+      "lastErrors": [
+        {
+          "time": "2026-11-10T00:10:24.454Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/messages",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:11:28.320Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:12:15.282Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:17:16.191Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "46-verify-original-image-job.json",
+      "time": "2026-11-10T00:26:21.234Z",
+      "url": "http://127.0.0.1:8010/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/chat",
+      "projectId": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n需求已确认\n2026/11/10 08:25:54\nP\npen-chain-20261110@example.test\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录\n未命名项目\n结果未知\n\n你 · 08:08\n\n做一张 1:1 促销主视觉，石墨黑底，留出价格位置\n我要做一张钢笔图，用于电商主页\n\n智能生图助手 · 08:09\n\n需求对齐情况\n- 基本信息：1/3 项已明确\n- 商品主体：待补充\n- 使用场景与目标：待补充\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：待补充\n- 风格、构图与光影：待补充\n- 画面文字：待补充\n- 参考图用途：无参考图\n\n还缺少的信息\n- 商品主体\n- 使用场景与目标\n- 必须保留的商品特征（如没有必须保留项，请直接说明）\n- 风格、构图与光影\n- 画面文字（如不需要文字，请直接说明“不需要文字”）\n\n请补充以下信息\n1. 这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。\n2. 画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。\n3. 留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。\n\n回复方式\n- 直接回复选项编号即可，例如「1A 2B 3C」；也可以按编号补充自己的描述。\n- 请按题目编号逐条回复；未回复的题会继续保留。\n- 回答过的问题不会重复询问，信息足够后会继续下一步。\n- 可以复制这一行开始：1? 2? 3?（把 ? 换成你的选择或简短说明）\n\n你 · 08:10\n\n1. 采用你第一个外观建议：黑色磨砂金属笔身，配银色笔夹的商务钢笔。\n2. 按我最初要求的 1:1 方图，采用你建议的钢笔居中、价格位置留在下方的构图。\n3. 采用你给的第三种方式：完全不出现文字，仅留空白区域，价格由我后续添加。\n\n你 · 08:12\n\n我采用你先前给出的可输出尺寸方案：本次改为 3840x2160 横图，钢笔居左、价格留白在右侧。钢笔采用你推荐的黑色磨砂金属笔身配银色笔夹的商务款，背景保持石墨黑，用于电商主页促销主视觉。画面完全不出现文字、数字或价格，右侧只留纯净空白，由我后续添加价格。其余光影与极简商务风格按你的推荐整理。\n\n智能生图助手 · 08:13\n\n需求对齐情况\n- 基本信息：3/3 项已明确\n- 商品主体：一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。\n- 使用场景与目标：用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：黑色磨砂金属笔身；银色笔夹；商务钢笔外观\n- 风格、构图与光影：极简商务、石墨黑、磨砂金属质感、克制高级、电商促销主视觉；3840x2160 横向画幅，钢笔居左完整呈现，右侧保持纯净空白用于后续添加价格，画面中不放任何文字、数字或价格元素。；极简商务影棚柔光：笔身金属与磨砂质感呈现清晰而柔和的高光，银色笔夹有细腻反光，背景石墨黑保持纯净，整体低对比、克制。\n- 画面文字：无画面文字\n- 参考图用途：无参考图\n\n还缺少的信息\n- 无，需求信息已对齐。\n\n下一步：确认需求后将生成图片提示词；只有你确认提示词后，系统才会生成图片。\n\n结果未知，正在核实\n\n核实原任务\n只读核实\n\n只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。\n\n只读核实不会新增受理计数。\n\n找回原结果\n只读核实\n\n只在原任务已有可找回结果时读取原结果，不提交新生成、不新增计数。\n\n只读核实不会新增受理计数。\n\n智能生图助手\n\n提示词已经准备好。下面就是实际会交给图片模型的内容，确认后才会生成图片。\n\n实际提示词\nv1.1\n已确认\n单图电商主页促销主视觉，单张画面，单支商务钢笔为画面唯一主体。\n【确认商品与事实】一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。商品主体是钢笔。钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。用途为电商主页促销主视觉。用途为电商主页促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。最新要求画面为 3840x2160 横图。构图为钢笔居左，价格留白在右侧。画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。背景为石墨黑。整体风格为极简商务。\n【必须包含】黑色磨砂金属笔身；银色笔夹；石墨黑背景；钢笔居左；右侧纯净价格留白。\n【必须保留】黑色磨砂金属笔身；银色笔夹；商务钢笔外观；石墨黑背景；画幅固定为 3840x2160 横向构图。；单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。；保留黑色磨砂金属笔身与银色笔夹的已确认外观。；不添加未确认的钢笔型号、笔尖细节或品牌标识。；背景为纯净石墨黑，左右明度自然衔接。；右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。；全画面不出现任何文字、数字、价格或货币符号。；不出现水印、促销标签或贴纸。；不添加多余道具、装饰图形或渐变光效。；整体保持低对比、克制、干净的极简商务质感。；仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。\n【创意方向】唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。\n【构图、背景、光影与风格】画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。极简商务、石墨黑背景、磨砂金属质感、银色笔夹点睛、低对比影棚柔光、大面积纯净留白、克制高级。无画面文字。本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。\n避免\n\n画面中出现任何文字；画面中出现任何数字；画面中出现价格或货币符号；水印；促销标签或贴纸；品牌标识。避免出现与已确认需求冲突的内容：多余道具、装饰图形、渐变光效；未确认的钢笔型号、笔尖细节、品牌元素；钢笔被裁切或遮挡；右侧留白被物体、装饰或文字占用；改变石墨黑背景基调与低对比极简商务质感。\n\n输出\n1 张 · 3840x2160\n\n上次生成结果尚未确认，可能已经计费。再次生成可能产生额外费用。\n\n+\n描述商品与图片需求\n\nEnter 发送，Shift + Enter 换行\n\n有新内容，回到底部",
+      "buttons": [
+        {
+          "text": "＋\n新对话",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "未命名项目\n需求已确认\n2026/11/10 08:25:54",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "退出登录",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "核实原任务",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "找回原结果",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "选择参考图文件",
+          "disabled": false
+        },
+        {
+          "text": "+",
+          "label": "添加参考图",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "发送",
+          "disabled": true
+        },
+        {
+          "text": "有新内容，回到底部",
+          "label": null,
+          "disabled": false
+        }
+      ],
+      "images": [],
+      "lastErrors": [
+        {
+          "time": "2026-11-10T00:10:24.454Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/messages",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:11:28.320Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:12:15.282Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:17:16.191Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "47-recover-original-image-result.json",
+      "time": "2026-11-10T00:26:34.488Z",
+      "url": "http://127.0.0.1:8010/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/chat",
+      "projectId": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n需求已确认\n2026/11/10 08:25:54\nP\npen-chain-20261110@example.test\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录\n未命名项目\n结果未知\n\n你 · 08:08\n\n做一张 1:1 促销主视觉，石墨黑底，留出价格位置\n我要做一张钢笔图，用于电商主页\n\n智能生图助手 · 08:09\n\n需求对齐情况\n- 基本信息：1/3 项已明确\n- 商品主体：待补充\n- 使用场景与目标：待补充\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：待补充\n- 风格、构图与光影：待补充\n- 画面文字：待补充\n- 参考图用途：无参考图\n\n还缺少的信息\n- 商品主体\n- 使用场景与目标\n- 必须保留的商品特征（如没有必须保留项，请直接说明）\n- 风格、构图与光影\n- 画面文字（如不需要文字，请直接说明“不需要文字”）\n\n请补充以下信息\n1. 这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。\n2. 画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。\n3. 留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。\n\n回复方式\n- 直接回复选项编号即可，例如「1A 2B 3C」；也可以按编号补充自己的描述。\n- 请按题目编号逐条回复；未回复的题会继续保留。\n- 回答过的问题不会重复询问，信息足够后会继续下一步。\n- 可以复制这一行开始：1? 2? 3?（把 ? 换成你的选择或简短说明）\n\n你 · 08:10\n\n1. 采用你第一个外观建议：黑色磨砂金属笔身，配银色笔夹的商务钢笔。\n2. 按我最初要求的 1:1 方图，采用你建议的钢笔居中、价格位置留在下方的构图。\n3. 采用你给的第三种方式：完全不出现文字，仅留空白区域，价格由我后续添加。\n\n你 · 08:12\n\n我采用你先前给出的可输出尺寸方案：本次改为 3840x2160 横图，钢笔居左、价格留白在右侧。钢笔采用你推荐的黑色磨砂金属笔身配银色笔夹的商务款，背景保持石墨黑，用于电商主页促销主视觉。画面完全不出现文字、数字或价格，右侧只留纯净空白，由我后续添加价格。其余光影与极简商务风格按你的推荐整理。\n\n智能生图助手 · 08:13\n\n需求对齐情况\n- 基本信息：3/3 项已明确\n- 商品主体：一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。\n- 使用场景与目标：用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：黑色磨砂金属笔身；银色笔夹；商务钢笔外观\n- 风格、构图与光影：极简商务、石墨黑、磨砂金属质感、克制高级、电商促销主视觉；3840x2160 横向画幅，钢笔居左完整呈现，右侧保持纯净空白用于后续添加价格，画面中不放任何文字、数字或价格元素。；极简商务影棚柔光：笔身金属与磨砂质感呈现清晰而柔和的高光，银色笔夹有细腻反光，背景石墨黑保持纯净，整体低对比、克制。\n- 画面文字：无画面文字\n- 参考图用途：无参考图\n\n还缺少的信息\n- 无，需求信息已对齐。\n\n下一步：确认需求后将生成图片提示词；只有你确认提示词后，系统才会生成图片。\n\n结果未知，正在核实\n\n核实原任务\n只读核实\n\n只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。\n\n只读核实不会新增受理计数。\n\n找回原结果\n只读核实\n\n只在原任务已有可找回结果时读取原结果，不提交新生成、不新增计数。\n\n只读核实不会新增受理计数。\n\n智能生图助手\n\n提示词已经准备好。下面就是实际会交给图片模型的内容，确认后才会生成图片。\n\n实际提示词\nv1.1\n已确认\n单图电商主页促销主视觉，单张画面，单支商务钢笔为画面唯一主体。\n【确认商品与事实】一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。商品主体是钢笔。钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。用途为电商主页促销主视觉。用途为电商主页促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。最新要求画面为 3840x2160 横图。构图为钢笔居左，价格留白在右侧。画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。背景为石墨黑。整体风格为极简商务。\n【必须包含】黑色磨砂金属笔身；银色笔夹；石墨黑背景；钢笔居左；右侧纯净价格留白。\n【必须保留】黑色磨砂金属笔身；银色笔夹；商务钢笔外观；石墨黑背景；画幅固定为 3840x2160 横向构图。；单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。；保留黑色磨砂金属笔身与银色笔夹的已确认外观。；不添加未确认的钢笔型号、笔尖细节或品牌标识。；背景为纯净石墨黑，左右明度自然衔接。；右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。；全画面不出现任何文字、数字、价格或货币符号。；不出现水印、促销标签或贴纸。；不添加多余道具、装饰图形或渐变光效。；整体保持低对比、克制、干净的极简商务质感。；仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。\n【创意方向】唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。\n【构图、背景、光影与风格】画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。极简商务、石墨黑背景、磨砂金属质感、银色笔夹点睛、低对比影棚柔光、大面积纯净留白、克制高级。无画面文字。本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。\n避免\n\n画面中出现任何文字；画面中出现任何数字；画面中出现价格或货币符号；水印；促销标签或贴纸；品牌标识。避免出现与已确认需求冲突的内容：多余道具、装饰图形、渐变光效；未确认的钢笔型号、笔尖细节、品牌元素；钢笔被裁切或遮挡；右侧留白被物体、装饰或文字占用；改变石墨黑背景基调与低对比极简商务质感。\n\n输出\n1 张 · 3840x2160\n\n上次生成结果尚未确认，可能已经计费。再次生成可能产生额外费用。\n\n+\n描述商品与图片需求\n\nEnter 发送，Shift + Enter 换行\n\n有新内容，回到底部",
+      "buttons": [
+        {
+          "text": "＋\n新对话",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "未命名项目\n需求已确认\n2026/11/10 08:25:54",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "退出登录",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "核实原任务",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "找回原结果",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "选择参考图文件",
+          "disabled": false
+        },
+        {
+          "text": "+",
+          "label": "添加参考图",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "发送",
+          "disabled": true
+        },
+        {
+          "text": "有新内容，回到底部",
+          "label": null,
+          "disabled": false
+        }
+      ],
+      "images": [],
+      "lastErrors": [
+        {
+          "time": "2026-11-10T00:10:24.454Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/messages",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:11:28.320Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:12:15.282Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:17:16.191Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "file": "49-reload-unknown-image.json",
+      "time": "2026-11-10T00:26:49.060Z",
+      "url": "http://127.0.0.1:8010/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/chat",
+      "projectId": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+      "text": "↗\n电商生图工作台\n＋\n新对话\n⌕\n未命名项目\n需求已确认 · 结果未确认\n2026/11/10 08:25:54\nP\npen-chain-20261110@example.test\n管理员 · 本地部署\n◔\n用量\n查看生成额度与记录\n数据使用说明\n退出登录\n未命名项目\n结果未知\n\n你 · 08:08\n\n做一张 1:1 促销主视觉，石墨黑底，留出价格位置\n我要做一张钢笔图，用于电商主页\n\n智能生图助手 · 08:09\n\n需求对齐情况\n- 基本信息：1/3 项已明确\n- 商品主体：待补充\n- 使用场景与目标：待补充\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：待补充\n- 风格、构图与光影：待补充\n- 画面文字：待补充\n- 参考图用途：无参考图\n\n还缺少的信息\n- 商品主体\n- 使用场景与目标\n- 必须保留的商品特征（如没有必须保留项，请直接说明）\n- 风格、构图与光影\n- 画面文字（如不需要文字，请直接说明“不需要文字”）\n\n请补充以下信息\n1. 这支钢笔具体是什么外观？笔身颜色、材质和笔夹结构会直接决定成品的质感与识别度，例如：黑色磨砂金属笔身配银色笔夹的商务钢笔；透明笔杆可见墨水的书写钢笔；酒红色漆面配金色笔夹的礼盒钢笔。也可以直接描述外观，或提供商品参考图。\n2. 画面按 1:1 方图出，还是用当前可输出的 3840x2160 横向尺寸？比例会决定钢笔与价格留白的排布方式，例如：1:1 方图，钢笔居中、价格文字放在下方留白；3840x2160 横图，钢笔居左、价格文字放在右侧留白。\n3. 留出的价格位置需要出现哪些确切文字？这决定留白的大小和位置，例如：只放价格数字；价格数字加一行促销小字；完全不出现文字，仅留空白区域。\n\n回复方式\n- 直接回复选项编号即可，例如「1A 2B 3C」；也可以按编号补充自己的描述。\n- 请按题目编号逐条回复；未回复的题会继续保留。\n- 回答过的问题不会重复询问，信息足够后会继续下一步。\n- 可以复制这一行开始：1? 2? 3?（把 ? 换成你的选择或简短说明）\n\n你 · 08:10\n\n1. 采用你第一个外观建议：黑色磨砂金属笔身，配银色笔夹的商务钢笔。\n2. 按我最初要求的 1:1 方图，采用你建议的钢笔居中、价格位置留在下方的构图。\n3. 采用你给的第三种方式：完全不出现文字，仅留空白区域，价格由我后续添加。\n\n你 · 08:12\n\n我采用你先前给出的可输出尺寸方案：本次改为 3840x2160 横图，钢笔居左、价格留白在右侧。钢笔采用你推荐的黑色磨砂金属笔身配银色笔夹的商务款，背景保持石墨黑，用于电商主页促销主视觉。画面完全不出现文字、数字或价格，右侧只留纯净空白，由我后续添加价格。其余光影与极简商务风格按你的推荐整理。\n\n智能生图助手 · 08:13\n\n需求对齐情况\n- 基本信息：3/3 项已明确\n- 商品主体：一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。\n- 使用场景与目标：用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。\n- 输出尺寸：3840x2160\n- 必须保留的商品特征：黑色磨砂金属笔身；银色笔夹；商务钢笔外观\n- 风格、构图与光影：极简商务、石墨黑、磨砂金属质感、克制高级、电商促销主视觉；3840x2160 横向画幅，钢笔居左完整呈现，右侧保持纯净空白用于后续添加价格，画面中不放任何文字、数字或价格元素。；极简商务影棚柔光：笔身金属与磨砂质感呈现清晰而柔和的高光，银色笔夹有细腻反光，背景石墨黑保持纯净，整体低对比、克制。\n- 画面文字：无画面文字\n- 参考图用途：无参考图\n\n还缺少的信息\n- 无，需求信息已对齐。\n\n下一步：确认需求后将生成图片提示词；只有你确认提示词后，系统才会生成图片。\n\n结果未知，正在核实\n\n核实原任务\n只读核实\n\n只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。\n\n只读核实不会新增受理计数。\n\n找回原结果\n只读核实\n\n只在原任务已有可找回结果时读取原结果，不提交新生成、不新增计数。\n\n只读核实不会新增受理计数。\n\n+\n描述商品与图片需求\n\nEnter 发送，Shift + Enter 换行",
+      "buttons": [
+        {
+          "text": "＋\n新对话",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "未命名项目\n需求已确认 · 结果未确认\n2026/11/10 08:25:54",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "退出登录",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "核实原任务",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "找回原结果",
+          "label": null,
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "选择参考图文件",
+          "disabled": false
+        },
+        {
+          "text": "+",
+          "label": "添加参考图",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "label": "发送",
+          "disabled": true
+        }
+      ],
+      "images": [],
+      "lastErrors": [
+        {
+          "time": "2026-11-10T00:10:24.454Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/messages",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:11:28.320Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:12:15.282Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        },
+        {
+          "time": "2026-11-10T00:17:16.191Z",
+          "kind": "http",
+          "method": "POST",
+          "path": "/api/projects/7a0d26a7-9434-424e-aa0a-03c69278b99f/workflow/actions/continue_workflow",
+          "status": 503,
+          "body": {
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "当前处理服务暂不可用，已保留输入，本次未自动重试。"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "approved_prompt_before_final_confirmation": {
+    "id": "6e4baba9-f98b-4bd0-bbfa-d3c24d0f699b",
+    "status": "awaiting_confirmation",
+    "can_confirm": true,
+    "request_digest": "caf988bd520ee6593e011effd3ffaaf572c30b9cd2e24a10e03ff01e5ba42f88",
+    "request": {
+      "approval_prompt_version": "2.0.0",
+      "approval_rules_version": "2.0.0",
+      "contract_version": "prompt-request-1.1.0",
+      "execution_requirements": {
+        "artifact_digest": "3ceb5b26bcd051d6c2caf92a7bdf6cf9d0f6111a18ac26d5f98bfb7b9eb2232d",
+        "artifact_id": "8385ab2d-71c8-4da9-9df9-2b19d79d3a14",
+        "artifact_revision_no": 1,
+        "brief": {
+          "assumptions": [
+            "用户最新一条消息明确将尺寸与构图从早前的 1:1 方图、钢笔居中且价格位于下方，更新为 3840x2160 横图、钢笔居左、价格留白在右侧，以最新消息为准。",
+            "用户未指定具体光影参数，按极简商务影棚柔光处理。",
+            "用户未指定钢笔型号、笔尖细节或品牌，仅按已描述的黑身银夹外观呈现，不添加品牌标识。",
+            "用户未指定右侧留白的具体宽度，按画面右侧大面积纯净留白处理，供后续添加价格。"
+          ],
+          "background": "纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。",
+          "composition": "画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。",
+          "copy_lines": [],
+          "creative_direction": "唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。",
+          "facts": [
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85"
+              ],
+              "text": "商品主体是钢笔。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "用途为电商主页促销主视觉。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "最新要求画面为 3840x2160 横图。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "构图为钢笔居左，价格留白在右侧。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "背景为石墨黑。"
+            },
+            {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "整体风格为极简商务。"
+            }
+          ],
+          "field_sources": {
+            "assumptions": "brief_draft",
+            "background": "visual_plan",
+            "composition": "visual_plan",
+            "copy_lines": "creative_direction",
+            "creative_direction": "creative_direction",
+            "facts": "brief_draft",
+            "forbidden": "brief_draft",
+            "lighting": "visual_plan",
+            "must_include": "brief_draft",
+            "must_preserve": "brief_draft+visual_plan",
+            "palette": "visual_plan",
+            "preservation_rules": "visual_plan",
+            "product_description": "brief_draft",
+            "purpose": "brief_draft",
+            "reference_asset_id": "brief_draft",
+            "reference_treatment": "visual_plan",
+            "reference_usage": "brief_draft",
+            "selling_points": "creative_direction",
+            "size": "brief_draft",
+            "style_keywords": "visual_plan",
+            "text_layout": "visual_plan",
+            "texts": "creative_direction",
+            "unresolved": "brief_draft"
+          },
+          "field_strengths": {
+            "assumptions": "not_applicable",
+            "background": "soft",
+            "composition": "soft",
+            "copy_lines": "soft",
+            "count": "hard",
+            "creative_direction": "soft",
+            "facts": "hard",
+            "forbidden": "hard",
+            "lighting": "soft",
+            "must_include": "hard",
+            "must_preserve": "hard",
+            "palette": "soft",
+            "preservation_rules": "soft",
+            "product_description": "hard",
+            "purpose": "soft",
+            "reference_asset_id": "hard",
+            "reference_treatment": "soft",
+            "reference_usage": "hard",
+            "selling_points": "not_applicable",
+            "size": "hard",
+            "style_keywords": "soft",
+            "text_layout": "soft",
+            "texts": "hard",
+            "unresolved": "not_applicable"
+          },
+          "forbidden": [
+            "画面中出现任何文字",
+            "画面中出现任何数字",
+            "画面中出现价格或货币符号",
+            "水印",
+            "促销标签或贴纸",
+            "品牌标识"
+          ],
+          "lighting": "采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。",
+          "must_include": [
+            "黑色磨砂金属笔身",
+            "银色笔夹",
+            "石墨黑背景",
+            "钢笔居左",
+            "右侧纯净价格留白"
+          ],
+          "must_preserve": [
+            "黑色磨砂金属笔身",
+            "银色笔夹",
+            "商务钢笔外观",
+            "石墨黑背景",
+            "画幅固定为 3840x2160 横向构图。",
+            "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。",
+            "保留黑色磨砂金属笔身与银色笔夹的已确认外观。",
+            "不添加未确认的钢笔型号、笔尖细节或品牌标识。",
+            "背景为纯净石墨黑，左右明度自然衔接。",
+            "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。",
+            "全画面不出现任何文字、数字、价格或货币符号。",
+            "不出现水印、促销标签或贴纸。",
+            "不添加多余道具、装饰图形或渐变光效。",
+            "整体保持低对比、克制、干净的极简商务质感。",
+            "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。"
+          ],
+          "palette": [
+            "石墨黑",
+            "磨砂黑",
+            "银色",
+            "柔和灰白"
+          ],
+          "preservation_rules": [
+            "画幅固定为 3840x2160 横向构图。",
+            "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。",
+            "保留黑色磨砂金属笔身与银色笔夹的已确认外观。",
+            "不添加未确认的钢笔型号、笔尖细节或品牌标识。",
+            "背景为纯净石墨黑，左右明度自然衔接。",
+            "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。",
+            "全画面不出现任何文字、数字、价格或货币符号。",
+            "不出现水印、促销标签或贴纸。",
+            "不添加多余道具、装饰图形或渐变光效。",
+            "整体保持低对比、克制、干净的极简商务质感。",
+            "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。"
+          ],
+          "product_description": "一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。",
+          "purpose": "用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。",
+          "reference_asset_id": null,
+          "reference_treatment": "本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。",
+          "reference_usage": "none",
+          "selling_points": [
+            {
+              "evidence_ids": [
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "黑色磨砂金属笔身，商务款质感"
+            },
+            {
+              "evidence_ids": [
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "银色笔夹，与黑色磨砂笔身形成明暗对比"
+            }
+          ],
+          "size": "3840x2160",
+          "style_keywords": [
+            "极简商务",
+            "石墨黑背景",
+            "磨砂金属质感",
+            "银色笔夹点睛",
+            "低对比影棚柔光",
+            "大面积纯净留白",
+            "克制高级"
+          ],
+          "text_layout": "无画面文字",
+          "texts": [],
+          "unresolved": [],
+          "user_locks": {}
+        },
+        "confirmed_at": "2026-11-10T00:14:04.226Z",
+        "confirmed_by": "user",
+        "constraints": [
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:product_description",
+            "destination": "positive_prompt",
+            "index": null,
+            "mapping_note": null,
+            "normalized_value": "一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。",
+            "original_value": "一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。",
+            "path": "product_description",
+            "rule_id": "hard:subject",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:purpose",
+            "destination": "positive_prompt",
+            "index": null,
+            "mapping_note": null,
+            "normalized_value": "用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。",
+            "original_value": "用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。",
+            "path": "purpose",
+            "rule_id": "hard:purpose",
+            "source": "brief_draft",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:facts:0",
+            "destination": "positive_prompt",
+            "index": 0,
+            "mapping_note": null,
+            "normalized_value": "商品主体是钢笔。",
+            "original_value": {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85"
+              ],
+              "text": "商品主体是钢笔。"
+            },
+            "path": "facts",
+            "rule_id": "hard:fact:0",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:facts:1",
+            "destination": "positive_prompt",
+            "index": 1,
+            "mapping_note": null,
+            "normalized_value": "钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。",
+            "original_value": {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。"
+            },
+            "path": "facts",
+            "rule_id": "hard:fact:1",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:facts:2",
+            "destination": "positive_prompt",
+            "index": 2,
+            "mapping_note": null,
+            "normalized_value": "用途为电商主页促销主视觉。",
+            "original_value": {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "用途为电商主页促销主视觉。"
+            },
+            "path": "facts",
+            "rule_id": "hard:fact:2",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:facts:3",
+            "destination": "positive_prompt",
+            "index": 3,
+            "mapping_note": null,
+            "normalized_value": "最新要求画面为 3840x2160 横图。",
+            "original_value": {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "最新要求画面为 3840x2160 横图。"
+            },
+            "path": "facts",
+            "rule_id": "hard:fact:3",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:facts:4",
+            "destination": "positive_prompt",
+            "index": 4,
+            "mapping_note": null,
+            "normalized_value": "构图为钢笔居左，价格留白在右侧。",
+            "original_value": {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "构图为钢笔居左，价格留白在右侧。"
+            },
+            "path": "facts",
+            "rule_id": "hard:fact:4",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:facts:5",
+            "destination": "positive_prompt",
+            "index": 5,
+            "mapping_note": null,
+            "normalized_value": "画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。",
+            "original_value": {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。"
+            },
+            "path": "facts",
+            "rule_id": "hard:fact:5",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:facts:6",
+            "destination": "positive_prompt",
+            "index": 6,
+            "mapping_note": null,
+            "normalized_value": "背景为石墨黑。",
+            "original_value": {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "背景为石墨黑。"
+            },
+            "path": "facts",
+            "rule_id": "hard:fact:6",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:facts:7",
+            "destination": "positive_prompt",
+            "index": 7,
+            "mapping_note": null,
+            "normalized_value": "整体风格为极简商务。",
+            "original_value": {
+              "basis": "user_declared",
+              "evidence_ids": [
+                "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+              ],
+              "text": "整体风格为极简商务。"
+            },
+            "path": "facts",
+            "rule_id": "hard:fact:7",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:creative_direction",
+            "destination": "positive_prompt",
+            "index": null,
+            "mapping_note": null,
+            "normalized_value": "唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。",
+            "original_value": "唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。",
+            "path": "creative_direction",
+            "rule_id": "hard:creative",
+            "source": "creative_direction",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:style_keywords",
+            "destination": "positive_prompt",
+            "index": null,
+            "mapping_note": null,
+            "normalized_value": "极简商务、石墨黑背景、磨砂金属质感、银色笔夹点睛、低对比影棚柔光、大面积纯净留白、克制高级",
+            "original_value": [
+              "极简商务",
+              "石墨黑背景",
+              "磨砂金属质感",
+              "银色笔夹点睛",
+              "低对比影棚柔光",
+              "大面积纯净留白",
+              "克制高级"
+            ],
+            "path": "style_keywords",
+            "rule_id": "hard:style",
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:composition",
+            "destination": "positive_prompt",
+            "index": null,
+            "mapping_note": null,
+            "normalized_value": "画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。",
+            "original_value": "画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。",
+            "path": "composition",
+            "rule_id": "hard:composition",
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:lighting",
+            "destination": "positive_prompt",
+            "index": null,
+            "mapping_note": null,
+            "normalized_value": "采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。",
+            "original_value": "采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。",
+            "path": "lighting",
+            "rule_id": "hard:lighting",
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:background",
+            "destination": "positive_prompt",
+            "index": null,
+            "mapping_note": null,
+            "normalized_value": "纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。",
+            "original_value": "纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。",
+            "path": "background",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:palette:0",
+            "destination": "positive_prompt",
+            "index": 0,
+            "mapping_note": null,
+            "normalized_value": "石墨黑",
+            "original_value": "石墨黑",
+            "path": "palette",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:palette:1",
+            "destination": "positive_prompt",
+            "index": 1,
+            "mapping_note": null,
+            "normalized_value": "磨砂黑",
+            "original_value": "磨砂黑",
+            "path": "palette",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:palette:2",
+            "destination": "positive_prompt",
+            "index": 2,
+            "mapping_note": null,
+            "normalized_value": "银色",
+            "original_value": "银色",
+            "path": "palette",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:palette:3",
+            "destination": "positive_prompt",
+            "index": 3,
+            "mapping_note": null,
+            "normalized_value": "柔和灰白",
+            "original_value": "柔和灰白",
+            "path": "palette",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:text_layout",
+            "destination": "positive_prompt",
+            "index": null,
+            "mapping_note": null,
+            "normalized_value": "无画面文字",
+            "original_value": "无画面文字",
+            "path": "text_layout",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:reference_treatment",
+            "destination": "positive_prompt",
+            "index": null,
+            "mapping_note": null,
+            "normalized_value": "本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。",
+            "original_value": "本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。",
+            "path": "reference_treatment",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_include:0",
+            "destination": "positive_prompt",
+            "index": 0,
+            "mapping_note": null,
+            "normalized_value": "黑色磨砂金属笔身",
+            "original_value": "黑色磨砂金属笔身",
+            "path": "must_include",
+            "rule_id": "hard:must_include:0",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_include:1",
+            "destination": "positive_prompt",
+            "index": 1,
+            "mapping_note": null,
+            "normalized_value": "银色笔夹",
+            "original_value": "银色笔夹",
+            "path": "must_include",
+            "rule_id": "hard:must_include:1",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_include:2",
+            "destination": "positive_prompt",
+            "index": 2,
+            "mapping_note": null,
+            "normalized_value": "石墨黑背景",
+            "original_value": "石墨黑背景",
+            "path": "must_include",
+            "rule_id": "hard:must_include:2",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_include:3",
+            "destination": "positive_prompt",
+            "index": 3,
+            "mapping_note": null,
+            "normalized_value": "钢笔居左",
+            "original_value": "钢笔居左",
+            "path": "must_include",
+            "rule_id": "hard:must_include:3",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_include:4",
+            "destination": "positive_prompt",
+            "index": 4,
+            "mapping_note": null,
+            "normalized_value": "右侧纯净价格留白",
+            "original_value": "右侧纯净价格留白",
+            "path": "must_include",
+            "rule_id": "hard:must_include:4",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:0",
+            "destination": "positive_prompt",
+            "index": 0,
+            "mapping_note": null,
+            "normalized_value": "黑色磨砂金属笔身",
+            "original_value": "黑色磨砂金属笔身",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:0",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:1",
+            "destination": "positive_prompt",
+            "index": 1,
+            "mapping_note": null,
+            "normalized_value": "银色笔夹",
+            "original_value": "银色笔夹",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:1",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:2",
+            "destination": "positive_prompt",
+            "index": 2,
+            "mapping_note": null,
+            "normalized_value": "商务钢笔外观",
+            "original_value": "商务钢笔外观",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:2",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:3",
+            "destination": "positive_prompt",
+            "index": 3,
+            "mapping_note": null,
+            "normalized_value": "石墨黑背景",
+            "original_value": "石墨黑背景",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:3",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:4",
+            "destination": "positive_prompt",
+            "index": 4,
+            "mapping_note": null,
+            "normalized_value": "画幅固定为 3840x2160 横向构图。",
+            "original_value": "画幅固定为 3840x2160 横向构图。",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:4",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:5",
+            "destination": "positive_prompt",
+            "index": 5,
+            "mapping_note": null,
+            "normalized_value": "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。",
+            "original_value": "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:5",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:6",
+            "destination": "positive_prompt",
+            "index": 6,
+            "mapping_note": null,
+            "normalized_value": "保留黑色磨砂金属笔身与银色笔夹的已确认外观。",
+            "original_value": "保留黑色磨砂金属笔身与银色笔夹的已确认外观。",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:6",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:7",
+            "destination": "positive_prompt",
+            "index": 7,
+            "mapping_note": null,
+            "normalized_value": "不添加未确认的钢笔型号、笔尖细节或品牌标识。",
+            "original_value": "不添加未确认的钢笔型号、笔尖细节或品牌标识。",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:7",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:8",
+            "destination": "positive_prompt",
+            "index": 8,
+            "mapping_note": null,
+            "normalized_value": "背景为纯净石墨黑，左右明度自然衔接。",
+            "original_value": "背景为纯净石墨黑，左右明度自然衔接。",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:8",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:9",
+            "destination": "positive_prompt",
+            "index": 9,
+            "mapping_note": null,
+            "normalized_value": "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。",
+            "original_value": "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:9",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:10",
+            "destination": "positive_prompt",
+            "index": 10,
+            "mapping_note": null,
+            "normalized_value": "全画面不出现任何文字、数字、价格或货币符号。",
+            "original_value": "全画面不出现任何文字、数字、价格或货币符号。",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:10",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:11",
+            "destination": "positive_prompt",
+            "index": 11,
+            "mapping_note": null,
+            "normalized_value": "不出现水印、促销标签或贴纸。",
+            "original_value": "不出现水印、促销标签或贴纸。",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:11",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:12",
+            "destination": "positive_prompt",
+            "index": 12,
+            "mapping_note": null,
+            "normalized_value": "不添加多余道具、装饰图形或渐变光效。",
+            "original_value": "不添加多余道具、装饰图形或渐变光效。",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:12",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:13",
+            "destination": "positive_prompt",
+            "index": 13,
+            "mapping_note": null,
+            "normalized_value": "整体保持低对比、克制、干净的极简商务质感。",
+            "original_value": "整体保持低对比、克制、干净的极简商务质感。",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:13",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:must_preserve:14",
+            "destination": "positive_prompt",
+            "index": 14,
+            "mapping_note": null,
+            "normalized_value": "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。",
+            "original_value": "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。",
+            "path": "must_preserve",
+            "rule_id": "hard:must_preserve:14",
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:preservation_rules:0",
+            "destination": "positive_prompt",
+            "index": 0,
+            "mapping_note": "保留规则已并入 must_preserve 执行。",
+            "normalized_value": "画幅固定为 3840x2160 横向构图。",
+            "original_value": "画幅固定为 3840x2160 横向构图。",
+            "path": "preservation_rules",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:preservation_rules:1",
+            "destination": "positive_prompt",
+            "index": 1,
+            "mapping_note": "保留规则已并入 must_preserve 执行。",
+            "normalized_value": "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。",
+            "original_value": "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。",
+            "path": "preservation_rules",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:preservation_rules:2",
+            "destination": "positive_prompt",
+            "index": 2,
+            "mapping_note": "保留规则已并入 must_preserve 执行。",
+            "normalized_value": "保留黑色磨砂金属笔身与银色笔夹的已确认外观。",
+            "original_value": "保留黑色磨砂金属笔身与银色笔夹的已确认外观。",
+            "path": "preservation_rules",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:preservation_rules:3",
+            "destination": "positive_prompt",
+            "index": 3,
+            "mapping_note": "保留规则已并入 must_preserve 执行。",
+            "normalized_value": "不添加未确认的钢笔型号、笔尖细节或品牌标识。",
+            "original_value": "不添加未确认的钢笔型号、笔尖细节或品牌标识。",
+            "path": "preservation_rules",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:preservation_rules:4",
+            "destination": "positive_prompt",
+            "index": 4,
+            "mapping_note": "保留规则已并入 must_preserve 执行。",
+            "normalized_value": "背景为纯净石墨黑，左右明度自然衔接。",
+            "original_value": "背景为纯净石墨黑，左右明度自然衔接。",
+            "path": "preservation_rules",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:preservation_rules:5",
+            "destination": "positive_prompt",
+            "index": 5,
+            "mapping_note": "保留规则已并入 must_preserve 执行。",
+            "normalized_value": "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。",
+            "original_value": "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。",
+            "path": "preservation_rules",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:preservation_rules:6",
+            "destination": "positive_prompt",
+            "index": 6,
+            "mapping_note": "保留规则已并入 must_preserve 执行。",
+            "normalized_value": "全画面不出现任何文字、数字、价格或货币符号。",
+            "original_value": "全画面不出现任何文字、数字、价格或货币符号。",
+            "path": "preservation_rules",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:preservation_rules:7",
+            "destination": "positive_prompt",
+            "index": 7,
+            "mapping_note": "保留规则已并入 must_preserve 执行。",
+            "normalized_value": "不出现水印、促销标签或贴纸。",
+            "original_value": "不出现水印、促销标签或贴纸。",
+            "path": "preservation_rules",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:preservation_rules:8",
+            "destination": "positive_prompt",
+            "index": 8,
+            "mapping_note": "保留规则已并入 must_preserve 执行。",
+            "normalized_value": "不添加多余道具、装饰图形或渐变光效。",
+            "original_value": "不添加多余道具、装饰图形或渐变光效。",
+            "path": "preservation_rules",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:preservation_rules:9",
+            "destination": "positive_prompt",
+            "index": 9,
+            "mapping_note": "保留规则已并入 must_preserve 执行。",
+            "normalized_value": "整体保持低对比、克制、干净的极简商务质感。",
+            "original_value": "整体保持低对比、克制、干净的极简商务质感。",
+            "path": "preservation_rules",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "positive_prompt",
+            "constraint_id": "req:preservation_rules:10",
+            "destination": "positive_prompt",
+            "index": 10,
+            "mapping_note": "保留规则已并入 must_preserve 执行。",
+            "normalized_value": "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。",
+            "original_value": "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。",
+            "path": "preservation_rules",
+            "rule_id": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "negative_prompt",
+            "constraint_id": "req:forbidden:0",
+            "destination": "negative_prompt",
+            "index": 0,
+            "mapping_note": null,
+            "normalized_value": "画面中出现任何文字",
+            "original_value": "画面中出现任何文字",
+            "path": "forbidden",
+            "rule_id": "hard:forbidden:0",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "negative_prompt",
+            "constraint_id": "req:forbidden:1",
+            "destination": "negative_prompt",
+            "index": 1,
+            "mapping_note": null,
+            "normalized_value": "画面中出现任何数字",
+            "original_value": "画面中出现任何数字",
+            "path": "forbidden",
+            "rule_id": "hard:forbidden:1",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "negative_prompt",
+            "constraint_id": "req:forbidden:2",
+            "destination": "negative_prompt",
+            "index": 2,
+            "mapping_note": null,
+            "normalized_value": "画面中出现价格或货币符号",
+            "original_value": "画面中出现价格或货币符号",
+            "path": "forbidden",
+            "rule_id": "hard:forbidden:2",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "negative_prompt",
+            "constraint_id": "req:forbidden:3",
+            "destination": "negative_prompt",
+            "index": 3,
+            "mapping_note": null,
+            "normalized_value": "水印",
+            "original_value": "水印",
+            "path": "forbidden",
+            "rule_id": "hard:forbidden:3",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "negative_prompt",
+            "constraint_id": "req:forbidden:4",
+            "destination": "negative_prompt",
+            "index": 4,
+            "mapping_note": null,
+            "normalized_value": "促销标签或贴纸",
+            "original_value": "促销标签或贴纸",
+            "path": "forbidden",
+            "rule_id": "hard:forbidden:4",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "negative_prompt",
+            "constraint_id": "req:forbidden:5",
+            "destination": "negative_prompt",
+            "index": 5,
+            "mapping_note": null,
+            "normalized_value": "品牌标识",
+            "original_value": "品牌标识",
+            "path": "forbidden",
+            "rule_id": "hard:forbidden:5",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "size",
+            "constraint_id": "req:size",
+            "destination": "size",
+            "index": null,
+            "mapping_note": null,
+            "normalized_value": "3840x2160",
+            "original_value": "3840x2160",
+            "path": "size",
+            "rule_id": "hard:size",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "reference_asset_id",
+            "constraint_id": "req:reference_usage",
+            "destination": "reference",
+            "index": null,
+            "mapping_note": null,
+            "normalized_value": "none",
+            "original_value": "none",
+            "path": "reference_usage",
+            "rule_id": null,
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null
+          },
+          {
+            "applicability": "applicable",
+            "binding": "count",
+            "constraint_id": "req:count",
+            "destination": "count",
+            "index": null,
+            "mapping_note": null,
+            "normalized_value": "1",
+            "original_value": 1,
+            "path": "count",
+            "rule_id": "hard:count",
+            "source": "contract",
+            "strength": "hard",
+            "user_lock_basis": null
+          }
+        ],
+        "contract_version": "1.0.0",
+        "fields": [
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:product_description",
+            "constraint_ids": [
+              "req:product_description"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": "一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。",
+            "path": "product_description",
+            "reason": null,
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null,
+            "value": "一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。"
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:purpose",
+            "constraint_ids": [
+              "req:purpose"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": "用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。",
+            "path": "purpose",
+            "reason": null,
+            "source": "brief_draft",
+            "strength": "soft",
+            "user_lock_basis": null,
+            "value": "用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。"
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:facts:0",
+            "constraint_ids": [
+              "req:facts:0",
+              "req:facts:1",
+              "req:facts:2",
+              "req:facts:3",
+              "req:facts:4",
+              "req:facts:5",
+              "req:facts:6",
+              "req:facts:7"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": [
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "22b38d57-6b1b-43c9-9d90-54b8704d7d85"
+                ],
+                "text": "商品主体是钢笔。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "用途为电商主页促销主视觉。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "最新要求画面为 3840x2160 横图。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "构图为钢笔居左，价格留白在右侧。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "背景为石墨黑。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "整体风格为极简商务。"
+              }
+            ],
+            "path": "facts",
+            "reason": null,
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null,
+            "value": [
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "22b38d57-6b1b-43c9-9d90-54b8704d7d85"
+                ],
+                "text": "商品主体是钢笔。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "用途为电商主页促销主视觉。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "最新要求画面为 3840x2160 横图。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "构图为钢笔居左，价格留白在右侧。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "背景为石墨黑。"
+              },
+              {
+                "basis": "user_declared",
+                "evidence_ids": [
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "整体风格为极简商务。"
+              }
+            ]
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:creative_direction",
+            "constraint_ids": [
+              "req:creative_direction"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": "唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。",
+            "path": "creative_direction",
+            "reason": null,
+            "source": "creative_direction",
+            "strength": "soft",
+            "user_lock_basis": null,
+            "value": "唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。"
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:style_keywords",
+            "constraint_ids": [
+              "req:style_keywords"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": [
+              "极简商务",
+              "石墨黑背景",
+              "磨砂金属质感",
+              "银色笔夹点睛",
+              "低对比影棚柔光",
+              "大面积纯净留白",
+              "克制高级"
+            ],
+            "path": "style_keywords",
+            "reason": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null,
+            "value": [
+              "极简商务",
+              "石墨黑背景",
+              "磨砂金属质感",
+              "银色笔夹点睛",
+              "低对比影棚柔光",
+              "大面积纯净留白",
+              "克制高级"
+            ]
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:composition",
+            "constraint_ids": [
+              "req:composition"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": "画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。",
+            "path": "composition",
+            "reason": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null,
+            "value": "画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。"
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:lighting",
+            "constraint_ids": [
+              "req:lighting"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": "采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。",
+            "path": "lighting",
+            "reason": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null,
+            "value": "采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。"
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:background",
+            "constraint_ids": [
+              "req:background"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": "纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。",
+            "path": "background",
+            "reason": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null,
+            "value": "纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。"
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:palette:0",
+            "constraint_ids": [
+              "req:palette:0",
+              "req:palette:1",
+              "req:palette:2",
+              "req:palette:3"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": [
+              "石墨黑",
+              "磨砂黑",
+              "银色",
+              "柔和灰白"
+            ],
+            "path": "palette",
+            "reason": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null,
+            "value": [
+              "石墨黑",
+              "磨砂黑",
+              "银色",
+              "柔和灰白"
+            ]
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:text_layout",
+            "constraint_ids": [
+              "req:text_layout"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": "无画面文字",
+            "path": "text_layout",
+            "reason": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null,
+            "value": "无画面文字"
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:reference_treatment",
+            "constraint_ids": [
+              "req:reference_treatment"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": "本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。",
+            "path": "reference_treatment",
+            "reason": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null,
+            "value": "本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。"
+          },
+          {
+            "applicability": "not_applicable",
+            "constraint_id": null,
+            "constraint_ids": [],
+            "destination": "non_executable",
+            "executable": false,
+            "mapping_note": null,
+            "original_value": [],
+            "path": "texts",
+            "reason": "字段为空，没有需要执行的条目。",
+            "source": "creative_direction",
+            "strength": "not_applicable",
+            "user_lock_basis": null,
+            "value": []
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:must_include:0",
+            "constraint_ids": [
+              "req:must_include:0",
+              "req:must_include:1",
+              "req:must_include:2",
+              "req:must_include:3",
+              "req:must_include:4"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": [
+              "黑色磨砂金属笔身",
+              "银色笔夹",
+              "石墨黑背景",
+              "钢笔居左",
+              "右侧纯净价格留白"
+            ],
+            "path": "must_include",
+            "reason": null,
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null,
+            "value": [
+              "黑色磨砂金属笔身",
+              "银色笔夹",
+              "石墨黑背景",
+              "钢笔居左",
+              "右侧纯净价格留白"
+            ]
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:must_preserve:0",
+            "constraint_ids": [
+              "req:must_preserve:0",
+              "req:must_preserve:1",
+              "req:must_preserve:2",
+              "req:must_preserve:3",
+              "req:must_preserve:4",
+              "req:must_preserve:5",
+              "req:must_preserve:6",
+              "req:must_preserve:7",
+              "req:must_preserve:8",
+              "req:must_preserve:9",
+              "req:must_preserve:10",
+              "req:must_preserve:11",
+              "req:must_preserve:12",
+              "req:must_preserve:13",
+              "req:must_preserve:14"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": [
+              "黑色磨砂金属笔身",
+              "银色笔夹",
+              "商务钢笔外观",
+              "石墨黑背景",
+              "画幅固定为 3840x2160 横向构图。",
+              "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。",
+              "保留黑色磨砂金属笔身与银色笔夹的已确认外观。",
+              "不添加未确认的钢笔型号、笔尖细节或品牌标识。",
+              "背景为纯净石墨黑，左右明度自然衔接。",
+              "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。",
+              "全画面不出现任何文字、数字、价格或货币符号。",
+              "不出现水印、促销标签或贴纸。",
+              "不添加多余道具、装饰图形或渐变光效。",
+              "整体保持低对比、克制、干净的极简商务质感。",
+              "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。"
+            ],
+            "path": "must_preserve",
+            "reason": null,
+            "source": "brief_draft+visual_plan",
+            "strength": "hard",
+            "user_lock_basis": null,
+            "value": [
+              "黑色磨砂金属笔身",
+              "银色笔夹",
+              "商务钢笔外观",
+              "石墨黑背景",
+              "画幅固定为 3840x2160 横向构图。",
+              "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。",
+              "保留黑色磨砂金属笔身与银色笔夹的已确认外观。",
+              "不添加未确认的钢笔型号、笔尖细节或品牌标识。",
+              "背景为纯净石墨黑，左右明度自然衔接。",
+              "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。",
+              "全画面不出现任何文字、数字、价格或货币符号。",
+              "不出现水印、促销标签或贴纸。",
+              "不添加多余道具、装饰图形或渐变光效。",
+              "整体保持低对比、克制、干净的极简商务质感。",
+              "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。"
+            ]
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:preservation_rules:0",
+            "constraint_ids": [
+              "req:preservation_rules:0",
+              "req:preservation_rules:1",
+              "req:preservation_rules:2",
+              "req:preservation_rules:3",
+              "req:preservation_rules:4",
+              "req:preservation_rules:5",
+              "req:preservation_rules:6",
+              "req:preservation_rules:7",
+              "req:preservation_rules:8",
+              "req:preservation_rules:9",
+              "req:preservation_rules:10"
+            ],
+            "destination": "positive_prompt",
+            "executable": true,
+            "mapping_note": "保留规则已并入 must_preserve 执行。",
+            "original_value": [
+              "画幅固定为 3840x2160 横向构图。",
+              "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。",
+              "保留黑色磨砂金属笔身与银色笔夹的已确认外观。",
+              "不添加未确认的钢笔型号、笔尖细节或品牌标识。",
+              "背景为纯净石墨黑，左右明度自然衔接。",
+              "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。",
+              "全画面不出现任何文字、数字、价格或货币符号。",
+              "不出现水印、促销标签或贴纸。",
+              "不添加多余道具、装饰图形或渐变光效。",
+              "整体保持低对比、克制、干净的极简商务质感。",
+              "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。"
+            ],
+            "path": "preservation_rules",
+            "reason": null,
+            "source": "visual_plan",
+            "strength": "soft",
+            "user_lock_basis": null,
+            "value": [
+              "画幅固定为 3840x2160 横向构图。",
+              "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。",
+              "保留黑色磨砂金属笔身与银色笔夹的已确认外观。",
+              "不添加未确认的钢笔型号、笔尖细节或品牌标识。",
+              "背景为纯净石墨黑，左右明度自然衔接。",
+              "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。",
+              "全画面不出现任何文字、数字、价格或货币符号。",
+              "不出现水印、促销标签或贴纸。",
+              "不添加多余道具、装饰图形或渐变光效。",
+              "整体保持低对比、克制、干净的极简商务质感。",
+              "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。"
+            ]
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:forbidden:0",
+            "constraint_ids": [
+              "req:forbidden:0",
+              "req:forbidden:1",
+              "req:forbidden:2",
+              "req:forbidden:3",
+              "req:forbidden:4",
+              "req:forbidden:5"
+            ],
+            "destination": "negative_prompt",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": [
+              "画面中出现任何文字",
+              "画面中出现任何数字",
+              "画面中出现价格或货币符号",
+              "水印",
+              "促销标签或贴纸",
+              "品牌标识"
+            ],
+            "path": "forbidden",
+            "reason": null,
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null,
+            "value": [
+              "画面中出现任何文字",
+              "画面中出现任何数字",
+              "画面中出现价格或货币符号",
+              "水印",
+              "促销标签或贴纸",
+              "品牌标识"
+            ]
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:size",
+            "constraint_ids": [
+              "req:size"
+            ],
+            "destination": "size",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": "3840x2160",
+            "path": "size",
+            "reason": null,
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null,
+            "value": "3840x2160"
+          },
+          {
+            "applicability": "not_applicable",
+            "constraint_id": null,
+            "constraint_ids": [],
+            "destination": "non_executable",
+            "executable": false,
+            "mapping_note": null,
+            "original_value": null,
+            "path": "reference_asset_id",
+            "reason": "未绑定参考图，参考图不是本版本的执行输入。",
+            "source": "brief_draft",
+            "strength": "not_applicable",
+            "user_lock_basis": null,
+            "value": null
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:reference_usage",
+            "constraint_ids": [
+              "req:reference_usage"
+            ],
+            "destination": "reference",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": "none",
+            "path": "reference_usage",
+            "reason": "未使用参考图，不产生参考图约束。",
+            "source": "brief_draft",
+            "strength": "hard",
+            "user_lock_basis": null,
+            "value": "none"
+          },
+          {
+            "applicability": "applicable",
+            "constraint_id": "req:count",
+            "constraint_ids": [
+              "req:count"
+            ],
+            "destination": "count",
+            "executable": true,
+            "mapping_note": null,
+            "original_value": 1,
+            "path": "count",
+            "reason": null,
+            "source": "contract",
+            "strength": "hard",
+            "user_lock_basis": null,
+            "value": 1
+          },
+          {
+            "applicability": "not_applicable",
+            "constraint_id": null,
+            "constraint_ids": [],
+            "destination": "non_executable",
+            "executable": false,
+            "mapping_note": null,
+            "original_value": [
+              "用户最新一条消息明确将尺寸与构图从早前的 1:1 方图、钢笔居中且价格位于下方，更新为 3840x2160 横图、钢笔居左、价格留白在右侧，以最新消息为准。",
+              "用户未指定具体光影参数，按极简商务影棚柔光处理。",
+              "用户未指定钢笔型号、笔尖细节或品牌，仅按已描述的黑身银夹外观呈现，不添加品牌标识。",
+              "用户未指定右侧留白的具体宽度，按画面右侧大面积纯净留白处理，供后续添加价格。"
+            ],
+            "path": "assumptions",
+            "reason": "假设仅用于说明批准依据，不单独进入执行提示词。",
+            "source": "brief_draft",
+            "strength": "not_applicable",
+            "user_lock_basis": null,
+            "value": [
+              "用户最新一条消息明确将尺寸与构图从早前的 1:1 方图、钢笔居中且价格位于下方，更新为 3840x2160 横图、钢笔居左、价格留白在右侧，以最新消息为准。",
+              "用户未指定具体光影参数，按极简商务影棚柔光处理。",
+              "用户未指定钢笔型号、笔尖细节或品牌，仅按已描述的黑身银夹外观呈现，不添加品牌标识。",
+              "用户未指定右侧留白的具体宽度，按画面右侧大面积纯净留白处理，供后续添加价格。"
+            ]
+          },
+          {
+            "applicability": "not_applicable",
+            "constraint_id": null,
+            "constraint_ids": [],
+            "destination": "non_executable",
+            "executable": false,
+            "mapping_note": null,
+            "original_value": [],
+            "path": "unresolved",
+            "reason": "未决问题不是执行指令；存在未决问题时确认本身被阻止。",
+            "source": "brief_draft",
+            "strength": "not_applicable",
+            "user_lock_basis": null,
+            "value": []
+          },
+          {
+            "applicability": "not_applicable",
+            "constraint_id": null,
+            "constraint_ids": [],
+            "destination": "qc_only",
+            "executable": false,
+            "mapping_note": null,
+            "original_value": [
+              {
+                "evidence_ids": [
+                  "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "黑色磨砂金属笔身，商务款质感"
+              },
+              {
+                "evidence_ids": [
+                  "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "银色笔夹，与黑色磨砂笔身形成明暗对比"
+              }
+            ],
+            "path": "selling_points",
+            "reason": "创意卖点用于审查背景，不单独成为执行约束。",
+            "source": "creative_direction",
+            "strength": "not_applicable",
+            "user_lock_basis": null,
+            "value": [
+              {
+                "evidence_ids": [
+                  "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "黑色磨砂金属笔身，商务款质感"
+              },
+              {
+                "evidence_ids": [
+                  "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+                  "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+                ],
+                "text": "银色笔夹，与黑色磨砂笔身形成明暗对比"
+              }
+            ]
+          },
+          {
+            "applicability": "not_applicable",
+            "constraint_id": null,
+            "constraint_ids": [],
+            "destination": "non_executable",
+            "executable": false,
+            "mapping_note": null,
+            "original_value": [],
+            "path": "copy_lines",
+            "reason": "字段为空，没有需要执行的条目。",
+            "source": "creative_direction",
+            "strength": "not_applicable",
+            "user_lock_basis": null,
+            "value": []
+          }
+        ],
+        "hard_requirements": [
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_include",
+            "id": "hr_3ceb5b26bcd051d6_must_include_1",
+            "label": "必须包含",
+            "source": "final_brief",
+            "value": "黑色磨砂金属笔身"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_include",
+            "id": "hr_3ceb5b26bcd051d6_must_include_2",
+            "label": "必须包含",
+            "source": "final_brief",
+            "value": "银色笔夹"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_include",
+            "id": "hr_3ceb5b26bcd051d6_must_include_3",
+            "label": "必须包含",
+            "source": "final_brief",
+            "value": "石墨黑背景"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_include",
+            "id": "hr_3ceb5b26bcd051d6_must_include_4",
+            "label": "必须包含",
+            "source": "final_brief",
+            "value": "钢笔居左"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_include",
+            "id": "hr_3ceb5b26bcd051d6_must_include_5",
+            "label": "必须包含",
+            "source": "final_brief",
+            "value": "右侧纯净价格留白"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_1",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "黑色磨砂金属笔身"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_2",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "银色笔夹"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_3",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "商务钢笔外观"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_4",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "石墨黑背景"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_5",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "画幅固定为 3840x2160 横向构图。"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_6",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_7",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "保留黑色磨砂金属笔身与银色笔夹的已确认外观。"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_8",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "不添加未确认的钢笔型号、笔尖细节或品牌标识。"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_9",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "背景为纯净石墨黑，左右明度自然衔接。"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_10",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_11",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "全画面不出现任何文字、数字、价格或货币符号。"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_12",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "不出现水印、促销标签或贴纸。"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_13",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "不添加多余道具、装饰图形或渐变光效。"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_14",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "整体保持低对比、克制、干净的极简商务质感。"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "positive_prompt",
+            "category": "must_preserve",
+            "id": "hr_3ceb5b26bcd051d6_must_preserve_15",
+            "label": "必须保留",
+            "source": "final_brief",
+            "value": "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "negative_prompt",
+            "category": "forbidden",
+            "id": "hr_3ceb5b26bcd051d6_forbidden_1",
+            "label": "禁止项",
+            "source": "final_brief",
+            "value": "画面中出现任何文字"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "negative_prompt",
+            "category": "forbidden",
+            "id": "hr_3ceb5b26bcd051d6_forbidden_2",
+            "label": "禁止项",
+            "source": "final_brief",
+            "value": "画面中出现任何数字"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "negative_prompt",
+            "category": "forbidden",
+            "id": "hr_3ceb5b26bcd051d6_forbidden_3",
+            "label": "禁止项",
+            "source": "final_brief",
+            "value": "画面中出现价格或货币符号"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "negative_prompt",
+            "category": "forbidden",
+            "id": "hr_3ceb5b26bcd051d6_forbidden_4",
+            "label": "禁止项",
+            "source": "final_brief",
+            "value": "水印"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "negative_prompt",
+            "category": "forbidden",
+            "id": "hr_3ceb5b26bcd051d6_forbidden_5",
+            "label": "禁止项",
+            "source": "final_brief",
+            "value": "促销标签或贴纸"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "negative_prompt",
+            "category": "forbidden",
+            "id": "hr_3ceb5b26bcd051d6_forbidden_6",
+            "label": "禁止项",
+            "source": "final_brief",
+            "value": "品牌标识"
+          },
+          {
+            "applicability": "required",
+            "applies_to": "size",
+            "category": "size",
+            "id": "hr_3ceb5b26bcd051d6_size_1",
+            "label": "输出尺寸",
+            "source": "final_brief",
+            "value": "3840x2160"
+          }
+        ],
+        "project_revision": 3,
+        "reference_asset_id": null,
+        "reference_usage": "none",
+        "referenced_material_digest": "2380bca122cd5f1a56ea83718fa429d6175d947fed5f73bbe176eb1713d4ef13",
+        "requirement_revision": 3,
+        "rules_version": "v3.rules.2",
+        "schema_version": "2.0.0",
+        "snapshot_digest": "199032b4ae7f93a88d67e673d07eb1b06196e5e8afee88063cfda9292838d870",
+        "snapshot_encoding": "canonical-json-sha256-v1",
+        "snapshot_schema_version": "1.1.0",
+        "user_locks": {}
+      },
+      "intent_id": "e3f7ff5c-f233-4d76-a504-c8520f87c463",
+      "negative_prompt": "画面中出现任何文字；画面中出现任何数字；画面中出现价格或货币符号；水印；促销标签或贴纸；品牌标识。避免出现与已确认需求冲突的内容：多余道具、装饰图形、渐变光效；未确认的钢笔型号、笔尖细节、品牌元素；钢笔被裁切或遮挡；右侧留白被物体、装饰或文字占用；改变石墨黑背景基调与低对比极简商务质感。",
+      "negative_strategy": "combined-text-v1",
+      "operator_account_id": "7c21bb80-45f7-4c53-a8b7-84b85ed69dca",
+      "output": {
+        "count": 1,
+        "response_format": "b64_json",
+        "size": "3840x2160"
+      },
+      "owner_account_id": "7c21bb80-45f7-4c53-a8b7-84b85ed69dca",
+      "positive_prompt": "单图电商主页促销主视觉，单张画面，单支商务钢笔为画面唯一主体。\n【确认商品与事实】一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。商品主体是钢笔。钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。用途为电商主页促销主视觉。用途为电商主页促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。最新要求画面为 3840x2160 横图。构图为钢笔居左，价格留白在右侧。画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。背景为石墨黑。整体风格为极简商务。\n【必须包含】黑色磨砂金属笔身；银色笔夹；石墨黑背景；钢笔居左；右侧纯净价格留白。\n【必须保留】黑色磨砂金属笔身；银色笔夹；商务钢笔外观；石墨黑背景；画幅固定为 3840x2160 横向构图。；单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。；保留黑色磨砂金属笔身与银色笔夹的已确认外观。；不添加未确认的钢笔型号、笔尖细节或品牌标识。；背景为纯净石墨黑，左右明度自然衔接。；右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。；全画面不出现任何文字、数字、价格或货币符号。；不出现水印、促销标签或贴纸。；不添加多余道具、装饰图形或渐变光效。；整体保持低对比、克制、干净的极简商务质感。；仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。\n【创意方向】唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。\n【构图、背景、光影与风格】画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。极简商务、石墨黑背景、磨砂金属质感、银色笔夹点睛、低对比影棚柔光、大面积纯净留白、克制高级。无画面文字。本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。",
+      "project_id": "7a0d26a7-9434-424e-aa0a-03c69278b99f",
+      "project_revision": 3,
+      "prompt": "单图电商主页促销主视觉，单张画面，单支商务钢笔为画面唯一主体。\n【确认商品与事实】一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。商品主体是钢笔。钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。用途为电商主页促销主视觉。用途为电商主页促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。最新要求画面为 3840x2160 横图。构图为钢笔居左，价格留白在右侧。画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。背景为石墨黑。整体风格为极简商务。\n【必须包含】黑色磨砂金属笔身；银色笔夹；石墨黑背景；钢笔居左；右侧纯净价格留白。\n【必须保留】黑色磨砂金属笔身；银色笔夹；商务钢笔外观；石墨黑背景；画幅固定为 3840x2160 横向构图。；单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。；保留黑色磨砂金属笔身与银色笔夹的已确认外观。；不添加未确认的钢笔型号、笔尖细节或品牌标识。；背景为纯净石墨黑，左右明度自然衔接。；右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。；全画面不出现任何文字、数字、价格或货币符号。；不出现水印、促销标签或贴纸。；不添加多余道具、装饰图形或渐变光效。；整体保持低对比、克制、干净的极简商务质感。；仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。\n【创意方向】唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。\n【构图、背景、光影与风格】画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。极简商务、石墨黑背景、磨砂金属质感、银色笔夹点睛、低对比影棚柔光、大面积纯净留白、克制高级。无画面文字。本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。\n\n禁止内容（Negative prompt）:\n画面中出现任何文字；画面中出现任何数字；画面中出现价格或货币符号；水印；促销标签或贴纸；品牌标识。避免出现与已确认需求冲突的内容：多余道具、装饰图形、渐变光效；未确认的钢笔型号、笔尖细节、品牌元素；钢笔被裁切或遮挡；右侧留白被物体、装饰或文字占用；改变石墨黑背景基调与低对比极简商务质感。",
+      "prompt_approval_id": "da38c256-5764-4d46-8bd3-7f02ab2093a6",
+      "prompt_artifact_digest": "cd065ceb35ea8ed40bd9e6e59ac492fadf3d248c7e435ec089955c52f19499df",
+      "prompt_artifact_id": "3da0e854-43ac-49bb-8d0f-6e0ef1199f9b",
+      "prompt_artifact_revision": 1,
+      "references": [],
+      "requirement_revision": 3,
+      "requirements": {
+        "assumptions": [
+          "用户最新一条消息明确将尺寸与构图从早前的 1:1 方图、钢笔居中且价格位于下方，更新为 3840x2160 横图、钢笔居左、价格留白在右侧，以最新消息为准。",
+          "用户未指定具体光影参数，按极简商务影棚柔光处理。",
+          "用户未指定钢笔型号、笔尖细节或品牌，仅按已描述的黑身银夹外观呈现，不添加品牌标识。",
+          "用户未指定右侧留白的具体宽度，按画面右侧大面积纯净留白处理，供后续添加价格。"
+        ],
+        "background": "纯净石墨黑背景，明度均匀，左右区域自然衔接；右侧留白与左侧背景保持同一背景基调，不放置道具、装饰图形、促销标签或渐变光效。",
+        "composition": "画面固定为 3840x2160 横向画幅。单支商务钢笔作为画面唯一主体，完整置于画面左侧，笔身不裁切、不遮挡；朝向与角度以完整展示黑色磨砂金属笔身与银色笔夹为准。画面右侧保留大面积纯净留白，作为后续添加价格的承接区，留白区域内不放置任何物体、装饰元素或画面文字。画面不出现任何文字、数字、价格或货币符号，不添加多余道具。",
+        "copy_lines": [],
+        "creative_direction": "唯一创意方向「黑场聚光 · 银夹点睛」：在石墨黑背景中，以单支商务钢笔作为画面唯一主体，用极简商务影棚柔光在黑色磨砂金属笔身上拉出柔和细腻的高光带，银色笔夹成为画面唯一亮部焦点，形成克制的质感对比。构图为 3840x2160 横向画幅，钢笔完整置于画面左侧，笔身不裁切、不遮挡，朝向与角度以完整展示黑身银夹外观为准；画面右侧保留大面积纯净石墨黑留白，明度与左侧背景自然衔接，作为后续添加价格的承接区，留白区不放置任何装饰元素。整体低对比、干净、高级，不做多余道具、渐变光效或装饰图形，促销感由留白与质感本身承担。全画面不出现任何文字、数字、价格或货币符号、水印、促销标签贴纸与品牌标识；仅呈现已确认的黑身银夹商务钢笔外观，不添加未确认的型号、笔尖细节或品牌元素。",
+        "facts": [
+          {
+            "basis": "user_declared",
+            "evidence_ids": [
+              "22b38d57-6b1b-43c9-9d90-54b8704d7d85"
+            ],
+            "text": "商品主体是钢笔。"
+          },
+          {
+            "basis": "user_declared",
+            "evidence_ids": [
+              "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+              "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+            ],
+            "text": "钢笔外观为黑色磨砂金属笔身、配银色笔夹的商务款。"
+          },
+          {
+            "basis": "user_declared",
+            "evidence_ids": [
+              "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+              "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+            ],
+            "text": "用途为电商主页促销主视觉。"
+          },
+          {
+            "basis": "user_declared",
+            "evidence_ids": [
+              "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+            ],
+            "text": "最新要求画面为 3840x2160 横图。"
+          },
+          {
+            "basis": "user_declared",
+            "evidence_ids": [
+              "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+            ],
+            "text": "构图为钢笔居左，价格留白在右侧。"
+          },
+          {
+            "basis": "user_declared",
+            "evidence_ids": [
+              "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+              "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+            ],
+            "text": "画面完全不出现文字、数字或价格，右侧只留纯净空白，由用户后续添加价格。"
+          },
+          {
+            "basis": "user_declared",
+            "evidence_ids": [
+              "22b38d57-6b1b-43c9-9d90-54b8704d7d85",
+              "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+            ],
+            "text": "背景为石墨黑。"
+          },
+          {
+            "basis": "user_declared",
+            "evidence_ids": [
+              "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+            ],
+            "text": "整体风格为极简商务。"
+          }
+        ],
+        "field_sources": {
+          "assumptions": "brief_draft",
+          "background": "visual_plan",
+          "composition": "visual_plan",
+          "copy_lines": "creative_direction",
+          "creative_direction": "creative_direction",
+          "facts": "brief_draft",
+          "forbidden": "brief_draft",
+          "lighting": "visual_plan",
+          "must_include": "brief_draft",
+          "must_preserve": "brief_draft+visual_plan",
+          "palette": "visual_plan",
+          "preservation_rules": "visual_plan",
+          "product_description": "brief_draft",
+          "purpose": "brief_draft",
+          "reference_asset_id": "brief_draft",
+          "reference_treatment": "visual_plan",
+          "reference_usage": "brief_draft",
+          "selling_points": "creative_direction",
+          "size": "brief_draft",
+          "style_keywords": "visual_plan",
+          "text_layout": "visual_plan",
+          "texts": "creative_direction",
+          "unresolved": "brief_draft"
+        },
+        "field_strengths": {
+          "assumptions": "not_applicable",
+          "background": "soft",
+          "composition": "soft",
+          "copy_lines": "soft",
+          "count": "hard",
+          "creative_direction": "soft",
+          "facts": "hard",
+          "forbidden": "hard",
+          "lighting": "soft",
+          "must_include": "hard",
+          "must_preserve": "hard",
+          "palette": "soft",
+          "preservation_rules": "soft",
+          "product_description": "hard",
+          "purpose": "soft",
+          "reference_asset_id": "hard",
+          "reference_treatment": "soft",
+          "reference_usage": "hard",
+          "selling_points": "not_applicable",
+          "size": "hard",
+          "style_keywords": "soft",
+          "text_layout": "soft",
+          "texts": "hard",
+          "unresolved": "not_applicable"
+        },
+        "forbidden": [
+          "画面中出现任何文字",
+          "画面中出现任何数字",
+          "画面中出现价格或货币符号",
+          "水印",
+          "促销标签或贴纸",
+          "品牌标识"
+        ],
+        "lighting": "采用极简商务影棚柔光：整体低对比、克制。黑色磨砂金属笔身呈现清晰而柔和的高光带，银色笔夹有细腻反光，并成为画面唯一亮部焦点；背景石墨黑保持纯净，不用强烈明暗反差或装饰性光效。",
+        "must_include": [
+          "黑色磨砂金属笔身",
+          "银色笔夹",
+          "石墨黑背景",
+          "钢笔居左",
+          "右侧纯净价格留白"
+        ],
+        "must_preserve": [
+          "黑色磨砂金属笔身",
+          "银色笔夹",
+          "商务钢笔外观",
+          "石墨黑背景",
+          "画幅固定为 3840x2160 横向构图。",
+          "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。",
+          "保留黑色磨砂金属笔身与银色笔夹的已确认外观。",
+          "不添加未确认的钢笔型号、笔尖细节或品牌标识。",
+          "背景为纯净石墨黑，左右明度自然衔接。",
+          "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。",
+          "全画面不出现任何文字、数字、价格或货币符号。",
+          "不出现水印、促销标签或贴纸。",
+          "不添加多余道具、装饰图形或渐变光效。",
+          "整体保持低对比、克制、干净的极简商务质感。",
+          "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。"
+        ],
+        "palette": [
+          "石墨黑",
+          "磨砂黑",
+          "银色",
+          "柔和灰白"
+        ],
+        "preservation_rules": [
+          "画幅固定为 3840x2160 横向构图。",
+          "单支商务钢笔为画面唯一主体，完整置于画面左侧，不裁切、不遮挡。",
+          "保留黑色磨砂金属笔身与银色笔夹的已确认外观。",
+          "不添加未确认的钢笔型号、笔尖细节或品牌标识。",
+          "背景为纯净石墨黑，左右明度自然衔接。",
+          "右侧保留大面积纯净留白，仅作后续价格承接区，不放置装饰元素。",
+          "全画面不出现任何文字、数字、价格或货币符号。",
+          "不出现水印、促销标签或贴纸。",
+          "不添加多余道具、装饰图形或渐变光效。",
+          "整体保持低对比、克制、干净的极简商务质感。",
+          "仅使用已批准需求卡与创意方向中的信息，不引入图片外的商品事实。"
+        ],
+        "product_description": "一支黑色磨砂金属笔身、配银色笔夹的商务钢笔。",
+        "purpose": "用于电商主页的促销主视觉，展示钢笔并在画面中预留后续添加价格的区域。",
+        "reference_asset_id": null,
+        "reference_treatment": "本方案不使用参考图（reference_usage=none），不借用任何外部图片的商品外观、视觉风格或构图，仅依据已批准需求卡与创意方向制定视觉方案。",
+        "reference_usage": "none",
+        "selling_points": [
+          {
+            "evidence_ids": [
+              "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+              "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+            ],
+            "text": "黑色磨砂金属笔身，商务款质感"
+          },
+          {
+            "evidence_ids": [
+              "77f5c858-d6df-4a9b-8914-d3cb1b717a04",
+              "4c09955a-0f66-4f18-b3db-1b4d0bfe58e5"
+            ],
+            "text": "银色笔夹，与黑色磨砂笔身形成明暗对比"
+          }
+        ],
+        "size": "3840x2160",
+        "style_keywords": [
+          "极简商务",
+          "石墨黑背景",
+          "磨砂金属质感",
+          "银色笔夹点睛",
+          "低对比影棚柔光",
+          "大面积纯净留白",
+          "克制高级"
+        ],
+        "text_layout": "无画面文字",
+        "texts": [],
+        "unresolved": [],
+        "user_locks": {}
+      },
+      "requirements_approval_id": "7f1e7167-d896-4d93-861a-511139795c48",
+      "requirements_artifact_id": "8385ab2d-71c8-4da9-9df9-2b19d79d3a14",
+      "requirements_digest": "3ceb5b26bcd051d6c2caf92a7bdf6cf9d0f6111a18ac26d5f98bfb7b9eb2232d",
+      "ruleset_version": "v3.rules.1",
+      "run_id": "499a983f-55a4-40e9-9a04-06ef61d99c22",
+      "service": {
+        "adapter_id": "openai-images",
+        "configuration_fingerprint": "6e20d5d7ad6e4b07df1204f45f3a07a16c84df2fc88e230e4c8f0e823493eee5",
+        "fingerprint": "6f22bc036df89004fde9d39e0961e00d12ff9be41e3b8624767125f86a3a14d0",
+        "model": "gpt-image-2-4k"
+      }
+    }
+  },
+  "observed_counts_before_final_confirmation": {
+    "generation_intents": 1,
+    "generation_jobs": 0,
+    "final_authorizations": 0,
+    "generations": 0,
+    "generation_usage": 1
+  },
+  "final_workflow": {
+    "stage": "S08",
+    "status": "blocked",
+    "issue": {
+      "code": "GENERATION_UNKNOWN",
+      "message": "上次生成结果尚未确认，可能已经计费。再次生成可能产生额外费用。",
+      "template_id": "GENERATION_UNKNOWN",
+      "params": {}
+    },
+    "generation_job": {
+      "id": "b06b5ba1-43b6-410b-baf6-36c75456acea",
+      "status": "unknown",
+      "request_id": "25609ed4-9b2a-4d85-b444-f99c1260640f",
+      "submit_attempted": true,
+      "result_asset_id": null,
+      "error_code": "VISUAL_OUTCOME_UNKNOWN",
+      "error_message": "生图结果未确认",
+      "created_at": "2026-11-10T00:20:53.892Z",
+      "updated_at": "2026-11-10T00:26:33.292Z"
+    },
+    "usage": {
+      "daily_limit": 20,
+      "used": 1,
+      "remaining": 19,
+      "window_started_at": "2026-11-09T00:26:48.543Z",
+      "window_expires_at": "2026-11-10T00:26:48.543Z",
+      "personal_active": 1,
+      "personal_limit": 1,
+      "instance_active": 1,
+      "instance_limit": 2,
+      "project_active": 1,
+      "project_limit": 1
+    },
+    "available_actions": [
+      {
+        "id": "verify_generation",
+        "label": "核实原任务",
+        "kind": "button",
+        "requires_text": false,
+        "text_label": null,
+        "requires_confirmation": false,
+        "effect": "read_only",
+        "read_only": true,
+        "requires_model_call": false,
+        "retry_mode": "none",
+        "automatic_retry": false
+      },
+      {
+        "id": "recover_generation",
+        "label": "找回原结果",
+        "kind": "button",
+        "requires_text": false,
+        "text_label": null,
+        "requires_confirmation": false,
+        "effect": "read_only",
+        "read_only": true,
+        "requires_model_call": false,
+        "retry_mode": "manual_only",
+        "automatic_retry": false
+      },
+      {
+        "id": "close_generation_tracking",
+        "label": "结束本地跟踪",
+        "kind": "confirm",
+        "requires_text": false,
+        "text_label": null,
+        "requires_confirmation": true,
+        "effect": "write",
+        "read_only": false,
+        "requires_model_call": false,
+        "retry_mode": "none",
+        "automatic_retry": false
+      }
+    ]
+  },
+  "actual_generation_records": [
+    {
+      "id": "b809be37-1256-488b-9b22-52f903c1574d",
+      "status": "unknown",
+      "stage": "submitting",
+      "error_code": "VISUAL_OUTCOME_UNKNOWN",
+      "error_message": "生图等待超时，结果未确认",
+      "remote_task_id": null,
+      "result_locator_json": null,
+      "result_asset_id": null,
+      "submit_attempted": 1,
+      "started_at": "2026-11-10T00:20:54.117Z",
+      "completed_at": "2026-11-10T00:25:54.167Z"
+    }
+  ],
+  "delivered_images": 0,
+  "horizontal_control_route_passed": false,
+  "current_counts": {
+    "generation_intents": 1,
+    "generation_jobs": 1,
+    "final_authorizations": 1,
+    "generations": 1,
+    "generation_usage": 1
+  },
+  "current_jobs": [
+    {
+      "id": "b06b5ba1-43b6-410b-baf6-36c75456acea",
+      "status": "unknown",
+      "submit_attempted": 1,
+      "result_asset_id": null,
+      "error_code": "VISUAL_OUTCOME_UNKNOWN",
+      "error_message": "生图结果未确认",
+      "created_at": "2026-11-10T00:20:53.892Z",
+      "updated_at": "2026-11-10T00:26:33.292Z"
+    }
+  ],
+  "assets": [],
+  "scope_result": {
+    "square_original": "failed_at_requirements",
+    "horizontal_control": "blocked_at_image_outcome_unknown",
+    "quality_review": "not_reached",
+    "delivery": "not_reached",
+    "download": "not_reached",
+    "refresh_preserves_unknown": true,
+    "image_requests_automatically_resent": false
+  }
+}

@@ -13,6 +13,7 @@ from app.timeutil import format_timestamp, utc_now
 from app.workflow import templates
 from app.workflow.adjudication import (
     ProtocolIssue,
+    gate_mode_for_target,
     governance_ruleset,
     review_output,
 )
@@ -240,6 +241,20 @@ def _validate_review(output: RoleOutput, target_id: str) -> None:
 async def _route(ctx: WorkflowContext, text: str) -> None:
     user_message, revision = await _record_user_turn(ctx, text)
     evidence_id = user_message.id
+    if ctx.consolidated:
+        from app.workflow.stages import s03
+
+        await set_intent(ctx, "image_request", "new_request")
+        # Scope and extraction are one assistant call in S03. A reference must
+        # be observed first; its completion returns to the same assistant.
+        if ctx.project.reference_asset_id and await s02.approved_report_for_current_asset(ctx) is None:
+            await set_stage(ctx, "S02", "active")
+            await s02.analyze(ctx)
+            return
+        await set_intent(ctx, "image_request", "new_request")
+        await set_stage(ctx, "S03", "active")
+        await s03._compose(ctx, "compose_brief", None, record_user_text=False)
+        return
     available_actions = (
         ["answer_intent_clarification"]
         if ctx.run is not None and ctx.run.status in {"needs_input", "blocked"}
@@ -270,30 +285,31 @@ async def _route(ctx: WorkflowContext, text: str) -> None:
         )
         route, action = _validate_intent(intent, evidence_id)
 
-        phase = "review"
-        review = await run_role(
-            ctx,
-            "output_reviewer",
-            STAGE,
-            {
-                "reviewed_role": "intent_router",
-                "target_kind": "intent_route",
-            },
-            approved_inputs=approved_inputs,
-            review_targets=[
+        if gate_mode_for_target("intent_route") != "off":
+            phase = "review"
+            review = await run_role(
+                ctx,
+                "output_reviewer",
+                STAGE,
                 {
-                    "target_id": evidence_id,
+                    "reviewed_role": "intent_router",
                     "target_kind": "intent_route",
-                    "user_text": text,
-                    "route": route,
-                    "action": action,
-                }
-            ],
-            required_rule_ids=_REQUIRED_RULES,
-            allowed_evidence_ids=(evidence_id,),
-            attempt=1,
-        )
-        _validate_review(review, evidence_id)
+                },
+                approved_inputs=approved_inputs,
+                review_targets=[
+                    {
+                        "target_id": evidence_id,
+                        "target_kind": "intent_route",
+                        "user_text": text,
+                        "route": route,
+                        "action": action,
+                    }
+                ],
+                required_rule_ids=_REQUIRED_RULES,
+                allowed_evidence_ids=(evidence_id,),
+                attempt=1,
+            )
+            _validate_review(review, evidence_id)
     except ApiError as exc:
         # Technical failure never turns into a guessed route or an auto retry.
         if exc.code == "CAPABILITY_NOT_READY":

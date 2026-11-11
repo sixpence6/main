@@ -328,7 +328,7 @@ async def recover_remote(app: FastAPI, job_id: str) -> str:
         return await _finalize_job(app, job_id, generation.id)
 
     if outcome is None and locator is None:
-        return "unknown"
+        return "unsupported" if adapter.capabilities.asynchronous is False and not remote_task_id else "unknown"
     if outcome is None:
         outcome = ProviderOutcome(
             state="succeeded",

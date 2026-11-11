@@ -14,6 +14,8 @@ class WorkflowRun(Base):
     sequence_no: Mapped[int] = mapped_column(Integer, nullable=False)
     stage: Mapped[str] = mapped_column(String(8), nullable=False, default="S01")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    role_policy: Mapped[str] = mapped_column(String(24), nullable=False, default="legacy", server_default="legacy")
+    requirements_state_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     intent_route: Mapped[str | None] = mapped_column(String(16), nullable=True)
     intent_action: Mapped[str | None] = mapped_column(String(24), nullable=True)
     requirement_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

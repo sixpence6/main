@@ -26,7 +26,7 @@ class BlockingLLM:
 def build_app():
     registry = AdapterRegistry()
     registry.register_llm("stub-llm", lambda role, client: BlockingLLM())
-    return create_app(settings=Settings(), registry=registry)
+    return create_app(settings=Settings(workflow_role_policy="legacy"), registry=registry)
 
 
 app = build_app()

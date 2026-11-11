@@ -184,13 +184,80 @@ class VisualData(StrictModel):
     preservation_rules: Annotated[list[str], Field(max_length=128)]
 
 
+RequirementField = Literal[
+    "product_description", "purpose", "facts", "creative_direction", "style_keywords",
+    "composition", "lighting", "texts", "must_include", "must_preserve", "forbidden",
+    "size", "reference_asset_id", "reference_usage", "assumptions", "unresolved",
+]
+
+
+class RequirementUpdate(StrictModel):
+    field: RequirementField
+    operation: Literal["set", "clear", "unknown", "conflict"]
+    value: object | None = None
+    evidence_ids: EvidenceIds
+
+
+class ClarificationOption(StrictModel):
+    id: Annotated[str, Field(pattern=r"^[A-Z]$")]
+    label: str = Field(min_length=1, max_length=180)
+    value: str = Field(max_length=300)
+    requires_detail: bool = False
+    delegates: bool = False
+
+
+class ClarificationQuestion(StrictModel):
+    id: Id
+    field: RequirementField
+    text: str = Field(min_length=1, max_length=300)
+    options: Annotated[list[ClarificationOption], Field(max_length=3)]
+    purpose: Literal["goal", "direction", "missing_fact", "conflict"] | None = None
+    delegatable: bool = False
+
+    @model_validator(mode="after")
+    def unique_options(self):
+        ids = [option.id for option in self.options]
+        if len(ids) != len(set(ids)):
+            raise ValueError("option IDs must be unique")
+        display = self.text + (" 请选择：" + "；".join(f"{o.id}. {o.label}" for o in self.options) + "。" if self.options else "")
+        if len(display) > 300 or any("\n" in value for value in [self.text, *(o.label for o in self.options)]):
+            raise ValueError("question must fit one complete display line")
+        return self
+
+
+class RequirementsAssistantData(StrictModel):
+    reply: str = Field(default="", max_length=4000)
+    scope: Literal["image_request", "out_of_scope", "mixed", "unclear"]
+    kind: Literal["conversation", "clarification", "requirements_change", "reference_usage_change", "prompt_change"]
+    reference_usage: Usage
+    brief: BriefData | None
+    updates: Annotated[list[RequirementUpdate], Field(max_length=32)]
+    clarifications: Annotated[list[ClarificationQuestion], Field(max_length=8)]
+
+    @model_validator(mode="after")
+    def unique_questions(self):
+        ids = [question.id for question in self.clarifications]
+        if len(ids) != len(set(ids)):
+            raise ValueError("question IDs must be unique")
+        fields = [update.field for update in self.updates]
+        if len(fields) != len(set(fields)):
+            raise ValueError("field updates must be unique")
+        return self
+
+
+class VisualPlannerData(StrictModel):
+    reply: str = Field(default="", max_length=4000)
+    creative: CreativeData
+    visual: VisualData
+
+
 class GenerationData(StrictModel):
     positive_prompt: str = Field(min_length=1, max_length=12000)
     negative_prompt: str = Field(max_length=6000)
     size: Size
     count: Literal[1]
     reference_asset_id: Id | None
-    requirement_coverage: Annotated[list[Coverage], Field(min_length=1, max_length=256)]
+    requirement_coverage: Annotated[list[Coverage], Field(max_length=256)]
 
 
 class QualityData(StrictModel):
@@ -257,18 +324,40 @@ ConversationEnvelope = _envelope(
     "conversation_router", ("ready", "blocked"), ConversationData
 )
 
+RequirementsAssistantEnvelope = _envelope(
+    "requirements_assistant", ("ready", "blocked", "needs_input"), RequirementsAssistantData
+)
+VisualPlannerEnvelope = _envelope(
+    "visual_planner", ("ready", "blocked", "needs_input"), VisualPlannerData
+)
+
 ENVELOPES: dict[str, type[BaseModel]] = {
+    "requirements_assistant": RequirementsAssistantEnvelope,
+    "reference_analyst": ReferenceEnvelope,
+    "visual_planner": VisualPlannerEnvelope,
+    "generation_engineer": GenerationEnvelope,
+}
+
+# Retired review roles are kept out of the active envelope registry.  Their
+# contracts remain available only for historical request replay and strict-mode
+# regression fixtures; no active prompt or DAG node references them.
+LEGACY_ENVELOPES: dict[str, type[BaseModel]] = {
     "conversation_router": ConversationEnvelope,
     "intent_router": IntentEnvelope,
-    "reference_analyst": ReferenceEnvelope,
     "requirements_consultant": RequirementsEnvelope,
     "creative_planner": CreativeEnvelope,
     "visual_director": VisualEnvelope,
-    "generation_engineer": GenerationEnvelope,
-    "quality_compliance": QualityEnvelope,
     "delivery_manager": DeliveryEnvelope,
+    "quality_compliance": QualityEnvelope,
     "output_reviewer": ReviewEnvelope,
 }
+
+
+def envelope_for(role: str) -> type[BaseModel]:
+    model = ENVELOPES.get(role) or LEGACY_ENVELOPES.get(role)
+    if model is None:
+        raise ContractError("未知角色")
+    return model
 
 ARTIFACT_DATA: dict[str, type[BaseModel]] = {
     "reference_report": ReferenceData,
@@ -283,6 +372,8 @@ ARTIFACT_DATA: dict[str, type[BaseModel]] = {
 }
 
 NEEDS_INPUT_ROLES = {
+    "requirements_assistant",
+    "visual_planner",
     "requirements_consultant",
     "creative_planner",
     "visual_director",
@@ -292,7 +383,7 @@ NEEDS_INPUT_ROLES = {
 
 def _validate_envelope(role: str, obj: object) -> BaseModel:
     try:
-        model = ENVELOPES[role].model_validate(obj)
+        model = envelope_for(role).model_validate(obj)
     except ValidationError as exc:
         raise ContractError("角色输出不符合 v2.0.0 契约") from exc
     if getattr(model, "role", None) != role:
@@ -310,9 +401,14 @@ def _validate_envelope(role: str, obj: object) -> BaseModel:
     elif status == "needs_input":
         if role not in NEEDS_INPUT_ROLES:
             raise ContractError("当前角色不允许 needs_input")
-        if not issues:
+        # Normal conversational clarification is not an error. Its structured
+        # question is sufficient; legacy producer failures still need issues.
+        if not issues and role != "requirements_assistant":
             raise ContractError("needs_input 必须至少一个 issue")
-        if role != "requirements_consultant":
+        if role == "requirements_assistant":
+            if data is None or not data.clarifications or questions:
+                raise ContractError("需求助手必须返回结构化澄清问题")
+        elif role != "requirements_consultant":
             if data is not None or questions:
                 raise ContractError("该角色 needs_input 必须 data 为空且 questions 为空")
         elif not questions:
@@ -323,7 +419,7 @@ def _validate_envelope(role: str, obj: object) -> BaseModel:
 
 
 def validate_role_output(role: str, raw: object) -> BaseModel:
-    if role not in ENVELOPES:
+    if role not in ENVELOPES and role not in LEGACY_ENVELOPES:
         raise ContractError("未知角色")
     return _validate_envelope(role, raw)
 

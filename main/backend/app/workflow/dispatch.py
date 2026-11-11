@@ -44,6 +44,7 @@ _ACTIONS: dict[str, dict[str, Any]] = {
     "confirm_requirements": {"label": "确认需求卡", "kind": "confirm", "requires_text": False, "text_label": None, "requires_confirmation": True},
     "revise_requirements": {"label": "修改需求", "kind": "text", "requires_text": True, "text_label": "说明需要修改的需求内容", "requires_confirmation": False},
     "compile_prompt": {"label": "编制生图提示词", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
+    "edit_prepared_prompt": {"label": "保存提示词", "kind": "button", "requires_text": False, "text_label": None, "requires_confirmation": False},
     "revise_prompt": {"label": "修改提示词", "kind": "text", "requires_text": True, "text_label": "说明提示词调整", "requires_confirmation": False},
     "abandon_generation": {
         "label": "放弃本次生成", "kind": "confirm", "requires_text": False,
@@ -241,6 +242,11 @@ def _views_for(module: Any, ctx: WorkflowContext) -> list[ActionView]:
         and not any(view.id == "revise_requirements" for view in views)
     ):
         views.append(action_view("revise_requirements"))
+    if ctx.direct:
+        views = [view.model_copy(update={
+            "requires_confirmation": False,
+            "kind": "button" if view.kind == "confirm" else view.kind,
+        }) for view in views]
     return views
 
 
@@ -282,6 +288,22 @@ def available_actions(ctx: WorkflowContext) -> list[ActionView]:
 async def handle_action(
     ctx: WorkflowContext, action: str, payload: dict[str, Any]
 ) -> None:
+    if ctx.direct and action == "confirm_requirements":
+        from app.workflow.collaboration import accept_generation
+
+        await accept_generation(ctx)
+        return
+    if ctx.direct and action == "compile_prompt":
+        from app.acceptance import latest_intent
+        from app.prompt_preparation import safe_preview
+
+        intent = await latest_intent(ctx.session_factory, project_id=ctx.project_id, run_id=ctx.run_id)
+        if intent is not None and intent.id in getattr(ctx.app.state, "generation_cycles", set()):
+            return
+        if await safe_preview(ctx) is not None:
+            # A repeated compile/refresh may observe a prepared prompt, but
+            # only the explicit confirm_prompt command can submit an image.
+            return
     module = owner(action)
     if module is None:
         raise ValueError(f"unknown action {action}")

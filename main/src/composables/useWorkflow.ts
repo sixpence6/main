@@ -43,6 +43,7 @@ function sameWorkflow(left: WorkflowView | null, right: WorkflowView): boolean {
   const leftLast = leftVersions[leftVersions.length - 1]
   const rightLast = rightVersions[rightVersions.length - 1]
   return (
+    left.interaction_mode === right.interaction_mode &&
     left.project_id === right.project_id &&
     left.project_revision === right.project_revision &&
     left.requirement_revision === right.requirement_revision &&

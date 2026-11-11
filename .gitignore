@@ -39,3 +39,11 @@ main/backend/backups/
 /.config/gh/
 /.local/
 /pytest-of-*/
+
+# Local migration archives and TLS material must never enter Git.
+/*.zip
+**/certs/
+*.key
+*.pem
+*.p12
+*.pfx

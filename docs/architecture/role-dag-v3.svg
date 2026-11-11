@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="570" viewBox="0 0 1120 570" role="img" aria-labelledby="title desc">
+<title id="title">四角色协作与自动交付</title><desc id="desc">需求助手、参考图分析师、视觉策划师、生成工程师协作，程序自动生图并交付，不经过需求、提示词或交付确认门禁。</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#64748b"/></marker></defs>
+<style>text{font-family:'Microsoft YaHei',sans-serif;fill:#1f2937}.title{font-size:26px;font-weight:700}.label{font-size:20px;font-weight:600}.small{font-size:16px;fill:#475569}.role{fill:white;stroke:#a78bfa;stroke-width:2}.program{fill:#eff6ff;stroke:#93c5fd;stroke-width:2}.edge{fill:none;stroke:#64748b;stroke-width:2;marker-end:url(#arrow)}</style>
+<rect width="1120" height="570" fill="#f8fafc"/><text x="40" y="50" class="title">四角色自然协作 → 自动生图与交付</text><text x="40" y="83" class="small">WORKFLOW_ROLE_POLICY=collaborative · 对话自然表达 · 信息足够即继续</text>
+<rect x="40" y="125" width="275" height="100" rx="14" class="role"/><text x="60" y="165" class="label">参考图分析师（按需）</text><text x="60" y="198" class="small">观察图片、文字与不确定处</text>
+<rect x="40" y="285" width="275" height="100" rx="14" class="role"/><text x="60" y="325" class="label">需求助手</text><text x="60" y="358" class="small">理解意图、记住选择、必要澄清</text>
+<rect x="420" y="285" width="275" height="100" rx="14" class="role"/><text x="440" y="325" class="label">视觉策划师</text><text x="440" y="358" class="small">创意、构图、色彩与光影</text>
+<rect x="800" y="285" width="275" height="100" rx="14" class="role"/><text x="820" y="325" class="label">生成工程师</text><text x="820" y="358" class="small">编写可执行图片提示词</text>
+<path d="M177 225V285" class="edge" stroke-dasharray="6 4"/><path d="M315 335H420" class="edge"/><path d="M695 335H800" class="edge"/>
+<rect x="420" y="450" width="655" height="75" rx="14" class="program"/><text x="443" y="481" class="label">程序执行：提交一次 → 保存图片 → 自动交付</text><text x="443" y="509" class="small">保留账号权限、幂等与真实技术错误处理</text><path d="M937 385V450" class="edge"/>
+</svg>

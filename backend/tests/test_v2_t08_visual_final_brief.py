@@ -952,3 +952,50 @@ async def test_visual_and_final_reviews_are_skipped_when_gates_are_off(full_sett
             "visual_director"
         ]
         assert visual.submit_calls == []
+
+
+async def test_approved_visual_plan_stays_resumable_from_loaded_context(full_settings):
+    """Approved S05 must expose finalize_requirements from the context snapshot.
+
+    A stale or locked side connection used to hide the approved artifact and
+    fall back to plan_visual, which left the stage stuck after a refresh.
+    """
+    script = Script(visual=[visual_data()], reviews=["pass", "pass"])
+    async with _environment(full_settings, script) as (application, client, llm, visual):
+        project = await _create_project(client)
+        await _seed_upstream(application, project["id"])
+
+        planned = await _act(client, project["id"], "plan_visual")
+        assert planned.status_code == 200, planned.text
+
+        ctx = await state.load_context(application, project["id"])
+        assert ctx.latest_artifact_statuses["visual_plan"] == "approved"
+        assert s05.available(ctx) == ["revise_visual", "finalize_requirements"]
+
+        view = await _view(client, project["id"])
+        assert [action["id"] for action in view["available_actions"]] == [
+            "revise_visual",
+            "finalize_requirements",
+        ]
+
+        refreshed = await _view(client, project["id"])
+        assert [action["id"] for action in refreshed["available_actions"]] == [
+            "revise_visual",
+            "finalize_requirements",
+        ]
+
+        before = await _counts(application, project["id"])
+        calls_before = len(llm.role_calls_received)
+        repeated = await _act(client, project["id"], "plan_visual")
+        assert repeated.status_code == 200, repeated.text
+        assert await _counts(application, project["id"]) == before
+        assert len(llm.role_calls_received) == calls_before
+        assert [action["id"] for action in repeated.json()["available_actions"]] == [
+            "revise_visual",
+            "finalize_requirements",
+        ]
+
+        finalized = await _act(client, project["id"], "finalize_requirements")
+        assert finalized.status_code == 200, finalized.text
+        assert finalized.json()["stage"] == "S06"
+        assert finalized.json()["status"] == "active"

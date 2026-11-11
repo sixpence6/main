@@ -218,6 +218,7 @@ async def test_secret_markers_stay_out_of_api_database_filenames_and_backup(full
         result = await create_backup(
             source=data_dir,
             output=backup_dir,
+            candidate_roots=[data_dir],
             timeout=10,
             coordinator=app.state.maintenance,
         )

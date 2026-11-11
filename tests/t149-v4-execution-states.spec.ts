@@ -390,7 +390,7 @@ describe('V4 执行、失败与恢复状态', () => {
     expect(harness!.fetch.writes).toHaveLength(1)
   })
 
-  it('结果未知时显示「结果未知，正在核实」，只呈现服务端给出的核实与恢复动作', async () => {
+  it('结果未知时显示「结果未知」，只呈现服务端给出的核实与恢复动作', async () => {
     await mountTask(
       workflow({
         status: 'blocked',
@@ -414,8 +414,9 @@ describe('V4 执行、失败与恢复状态', () => {
 
     const region = await taskRegion()
     expect(region).toHaveClass('is-unknown')
-    expect(region).toHaveTextContent('结果未知，正在核实')
-    expect(region.querySelector('.task-reason-label')).toHaveTextContent('结果未知，正在核实')
+    expect(region).toHaveTextContent('结果未知')
+    expect(region.querySelector('.task-reason-label')).toHaveTextContent('结果未知')
+    expect(region).not.toHaveTextContent('正在核实')
     expect(region.querySelector('.task-status-text')).toBeNull()
     const buttons = within(region).getAllByRole('button')
     expect(buttons.map((button) => button.textContent?.trim())).toEqual(['核实原任务', '获取原结果'])
@@ -482,4 +483,22 @@ describe('V4 执行、失败与恢复状态', () => {
     )
     expect(baseTaskStyle).not.toMatch(/animation\s*:/)
   })
+
+  it.each([
+    ['RECOVERY_UNSUPPORTED', '当前供应商连接不支持自动核实，本地请求 ID job-123。', 'remote_unknown', 'unknown'],
+    ['ORIGINAL_RESULT_UNAVAILABLE', '暂未取得原结果，请稍后核实原任务。', 'remote_unknown', 'unknown'],
+    ['LLM_TIMEOUT', '模型请求超时，输入已保留，可手动继续原流程。', 'technical_failure', 'failed'],
+  ] as const)('显示具体恢复反馈 %s', async (templateId, message, category, severity) => {
+    const state = reason(category, message, severity)
+    state.template_id = templateId
+    await mountTask(workflow({
+      status: severity === 'failed' ? 'failed' : 'blocked',
+      task_state: taskState(state, severity === 'failed' ? 'failed' : 'blocked'),
+      available_actions: [],
+    }))
+    const region = await taskRegion()
+    expect(region).toHaveTextContent(message)
+    expect(region).not.toHaveTextContent('正在核实')
+  })
+
 })

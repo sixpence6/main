@@ -1,15 +1,17 @@
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { ApiError, api } from '@/api/client'
 import { sessionRevision } from '@/auth/session'
 import {
   runWorkflowAction,
   type PromptPreviewView,
+  type ClarificationAnswer,
   type WorkflowAction,
   type WorkflowArtifact,
 } from '@/api/workflow'
 import type { MessageCreateResponse, StagedMessageAttachmentView } from '@/api/types'
 import { useWorkspace } from '@/composables/useWorkspace'
 import { useWorkflow } from '@/composables/useWorkflow'
+import { deliveryUnavailableText } from '@/workflow/projection'
 
 interface PendingAttachment {
   file: File
@@ -159,6 +161,11 @@ function firstRecord(value: unknown): Record<string, unknown> {
   return Array.isArray(value) && value.length ? record(value[0]) : {}
 }
 
+export type ChatSendOutcome =
+  | { status: 'sent'; response: MessageCreateResponse | null }
+  | { status: 'failed' }
+  | { status: 'noop' }
+
 export function useChatFlow() {
   const workspace = useWorkspace()
   const workflow = useWorkflow(workspace.projectParam)
@@ -176,6 +183,7 @@ export function useChatFlow() {
   const taskConfirmations = ref<Record<string, boolean>>({})
   let lastAutoAction = ''
   let autoArmed = false
+  let resumedAutoKey = ''
   let copyTimer: ReturnType<typeof setTimeout> | null = null
   let attachmentToken = 0
   let stageTask: Promise<StagedMessageAttachmentView> | null = null
@@ -218,6 +226,7 @@ export function useChatFlow() {
     return rows
   })
   const canConfirmRequirements = computed(() =>
+    view.value?.interaction_mode !== 'direct' &&
     Boolean(
       finalBrief.value &&
       view.value?.available_actions.some((action) => action.id === 'confirm_requirements'),
@@ -320,7 +329,7 @@ export function useChatFlow() {
       return '当前交付已撤销，图片不可访问；历史记录（如有）仅作只读回看，系统不会用其他版本替代。'
     }
     if (current.delivery.status === 'published' && !publishedAssetId.value) {
-      return '当前交付图片已过期、文件缺失或未通过内容门禁，不能预览或下载；系统不会用其他版本替代。'
+      return deliveryUnavailableText(current)
     }
     return ''
   })
@@ -421,7 +430,7 @@ export function useChatFlow() {
     const actions = current.available_actions.filter((action) => allowed.has(action.id))
     if (current.status !== 'active' || busy.value) return actions
     const resumable = current.available_actions.find((action) =>
-      RESUMABLE_AUTO_ACTION_IDS.has(action.id),
+      canAutoResume(action.id),
     )
     if (!resumable || actions.some((action) => action.id === resumable.id)) return actions
     // A refresh can leave a server-side stage active with no request in flight.
@@ -564,9 +573,38 @@ export function useChatFlow() {
     clearAttachmentState(false)
   }
 
+  function mergeResponseMessages(response: MessageCreateResponse): void {
+    const current = workspace.projectMessages.value
+    const responseMessages = [response.user_message, response.assistant_message]
+    const responseIds = new Set(responseMessages.map((message) => message.id))
+    const requestIds = new Set(
+      responseMessages
+        .map((message) => message.request_id)
+        .filter((requestId): requestId is string => Boolean(requestId)),
+    )
+    const merged = current.filter(
+      (message) =>
+        !responseIds.has(message.id) &&
+        (!message.request_id || !requestIds.has(message.request_id)),
+    )
+    for (const message of responseMessages) {
+      const alreadyPresent = merged.some(
+        (candidate) =>
+          candidate.id === message.id ||
+          (Boolean(message.request_id) &&
+            candidate.request_id === message.request_id &&
+            candidate.role === message.role),
+      )
+      if (!alreadyPresent) merged.push(message)
+    }
+    workspace.projectMessages.value = merged
+  }
+
   function applyMessageResponse(response: MessageCreateResponse): void {
     if (response.workflow) workflow.adopt(response.workflow)
     else if (view.value) void workflow.refresh()
+    workspace.currentProject.value = response.project
+    mergeResponseMessages(response)
   }
 
   function actionById(id: string): WorkflowAction | null {
@@ -612,7 +650,7 @@ export function useChatFlow() {
       return false
     }
     const sessionAtStart = sessionRevision.value
-    const resumePipeline = RESUMABLE_AUTO_ACTION_IDS.has(action.id)
+    const resumePipeline = canAutoResume(action.id)
     autoArmed = false
     busy.value = true
     flowError.value = ''
@@ -657,11 +695,17 @@ export function useChatFlow() {
     return executeTaskAction(action, body)
   }
 
+  function canAutoResume(actionId: string): boolean {
+    if (RESUMABLE_AUTO_ACTION_IDS.has(actionId)) return true
+    return view.value?.interaction_mode === 'direct' &&
+      ['confirm_requirements', 'compile_prompt', 'prepare_delivery', 'approve_delivery', 'publish_delivery'].includes(actionId)
+  }
+
   function autoAction(): WorkflowAction | null {
     const current = view.value
     if (!current) return null
     for (const action of current.available_actions) {
-      if (AUTO_ACTION_IDS.has(action.id)) return action
+      if (AUTO_ACTION_IDS.has(action.id) || (current.interaction_mode === 'direct' && canAutoResume(action.id))) return action
     }
     return null
   }
@@ -701,83 +745,90 @@ export function useChatFlow() {
     await autoAdvance(force)
   }
 
-  async function begin(content: string): Promise<void> {
+  async function begin(content: string): Promise<ChatSendOutcome> {
     const body = content.trim()
-    if (!body || busy.value) return
+    if (!body || busy.value) return { status: 'noop' }
     const sessionAtStart = sessionRevision.value
     autoArmed = true
     busy.value = true
     flowError.value = ''
     try {
       const project = await api.createProject()
-      if (sessionAtStart !== sessionRevision.value) return
+      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
       workspace.adoptCreatedProject(project)
       autoArmed = true
       const next = await runWorkflowAction(project.id, 'submit_request', {
         expected_revision: project.revision,
         text: body,
       })
-      if (sessionAtStart !== sessionRevision.value) return
+      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
       workflow.adopt(next)
       clearDraftIfUnchanged(body)
       await afterWorkflowChange(true)
+      return { status: 'sent', response: null }
     } catch (caught) {
-      if (sessionAtStart !== sessionRevision.value) return
+      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
       flowError.value = caught instanceof ApiError
         ? caught.message
         : '没有成功建立这次对话，请稍后重试。'
       await workspace.refreshProjectDetail()
+      return { status: 'failed' }
     } finally {
       busy.value = false
     }
   }
 
-  async function beginWithAttachment(body: string): Promise<void> {
+  async function beginWithAttachment(
+    body: string,
+    requestId?: string,
+  ): Promise<ChatSendOutcome> {
     const sessionAtStart = sessionRevision.value
     autoArmed = true
     busy.value = true
     flowError.value = ''
     try {
       const project = await api.createProject()
-      if (sessionAtStart !== sessionRevision.value) return
+      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
       keepAttachmentOnProjectChange = true
       workspace.adoptCreatedProject(project)
       autoArmed = true
       const staged = await ensureStagedAttachment(project.id)
-      if (!staged || sessionAtStart !== sessionRevision.value) return
+      if (!staged || sessionAtStart !== sessionRevision.value) return { status: 'failed' }
       const response = await api.sendMessage(project.id, {
         content: body,
         expected_revision: project.revision,
-        request_id: makeId(),
+        request_id: requestId ?? makeId(),
         attachment_asset_id: staged.asset.id,
       })
-      if (sessionAtStart !== sessionRevision.value) return
+      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
       applyMessageResponse(response)
       clearDraftIfUnchanged(body)
       clearAttachmentAfterSend()
       await afterWorkflowChange(true)
+      mergeResponseMessages(response)
+      return { status: 'sent', response }
     } catch (caught) {
-      if (sessionAtStart !== sessionRevision.value) return
+      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
       flowError.value = caught instanceof ApiError
         ? caught.message
         : '没有成功建立这次对话，请稍后重试。'
       await workspace.refreshProjectDetail()
+      return { status: 'failed' }
     } finally {
       busy.value = false
     }
   }
 
-  async function send(content: string): Promise<void> {
+  async function send(content: string, requestId?: string, answer?: ClarificationAnswer): Promise<ChatSendOutcome> {
     const body = content.trim()
-    if (!body || busy.value) return
+    if (!body || busy.value) return { status: 'noop' }
     if (pendingTaskAction.value) {
-      await submitTaskText(body)
-      return
+      const ok = await submitTaskText(body)
+      return ok ? { status: 'sent', response: null } : { status: 'failed' }
     }
     if (!workspace.currentProject.value) {
-      if (pendingAttachment.value) await beginWithAttachment(body)
-      else await begin(body)
-      return
+      if (pendingAttachment.value) return await beginWithAttachment(body, requestId)
+      return await begin(body)
     }
     const sessionAtStart = sessionRevision.value
     autoArmed = true
@@ -788,29 +839,53 @@ export function useChatFlow() {
       const staged = pendingAttachment.value
         ? await ensureStagedAttachment(project.id)
         : null
-      if (pendingAttachment.value && !staged) return
-      if (sessionAtStart !== sessionRevision.value) return
+      if (pendingAttachment.value && !staged) return { status: 'failed' }
+      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
       const expectedRevision = view.value?.project_revision ?? project.revision
       const response = await api.sendMessage(project.id, {
         content: body,
         expected_revision: expectedRevision,
-        request_id: makeId(),
+        request_id: requestId ?? makeId(),
         ...(staged ? { attachment_asset_id: staged.asset.id } : {}),
+        ...(answer ? { clarification_answer: answer } : {}),
       })
-      if (sessionAtStart !== sessionRevision.value) return
+      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
       applyMessageResponse(response)
       clearDraftIfUnchanged(body)
       if (staged) clearAttachmentAfterSend()
       await afterWorkflowChange(true)
+      // A detail refresh can race the write, so keep the response messages as
+      // the authoritative tail of this turn after auto-advance settles.
+      mergeResponseMessages(response)
+      return { status: 'sent', response }
     } catch (caught) {
-      if (sessionAtStart !== sessionRevision.value) return
+      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
       flowError.value = caught instanceof ApiError
         ? caught.message
         : '消息没有发送成功，请稍后重试。'
       await workspace.refreshProjectDetail()
       await workflow.refresh()
+      return { status: 'failed' }
     } finally {
       busy.value = false
+    }
+  }
+
+  const conversationQuestion = computed(() => view.value?.conversation_question ?? null)
+  const selectedOption = ref('')
+  async function answerQuestion(optionId: string): Promise<void> {
+    const question = conversationQuestion.value
+    if (!question || busy.value || pendingAttachment.value) return
+    selectedOption.value = optionId
+    try {
+      await send(optionId, makeId(), {
+        question_id: question.question_id,
+        option_id: optionId,
+        requirement_revision: question.requirement_revision,
+        message_id: question.message_id,
+      })
+    } finally {
+      selectedOption.value = ''
     }
   }
 
@@ -844,8 +919,8 @@ export function useChatFlow() {
     }
   }
 
-  async function confirmPrompt(): Promise<void> {
-    const preview = promptPreview.value
+  async function confirmPrompt(edits?: { positive_prompt: string; negative_prompt: string }): Promise<void> {
+    let preview = promptPreview.value
     if (!preview?.can_confirm || busy.value) return
     const action = actionById('confirm_prompt')
     if (!action) return
@@ -855,6 +930,24 @@ export function useChatFlow() {
     busy.value = true
     flowError.value = ''
     try {
+      if (edits && (edits.positive_prompt !== positivePrompt.value || edits.negative_prompt !== negativePrompt.value)) {
+        const save = actionById('edit_prepared_prompt')
+        if (!save || !await workflow.runAction(save, null, {
+          snapshot_id: preview.id,
+          snapshot_digest: preview.request_digest,
+          ...edits,
+        })) {
+          flowError.value = workflow.error.value || '提示词未能保存，请刷新后重试。'
+          return
+        }
+        if (sessionAtStart !== sessionRevision.value) return
+        preview = promptPreview.value
+        pendingPromptCommandId.value = makeId()
+        if (!preview?.can_confirm || preview.request.positive_prompt !== edits.positive_prompt || preview.request.negative_prompt !== edits.negative_prompt) {
+          flowError.value = '保存结果已变化，请检查当前提示词后重新确认。'
+          return
+        }
+      }
       const ok = await workflow.runAction(action, null, {
         snapshot_id: preview.id,
         snapshot_digest: preview.request_digest,
@@ -904,6 +997,50 @@ export function useChatFlow() {
     () => { void autoAdvance() },
     { flush: 'post' },
   )
+  /**
+   * Resume an already active run after the project detail and workflow view
+   * have loaded (initial navigation, a route return or a page refresh). The
+   * route watcher below deliberately disarms automation first, so this must
+   * wait for the loaded view and arm it again instead of calling autoAdvance
+   * from the project-param watcher.
+   */
+  watch(
+    [
+      () => workspace.currentProject.value?.id ?? '',
+      () => view.value?.stage ?? '',
+      () => view.value?.status ?? '',
+      () => view.value?.project_revision ?? -1,
+    ],
+    async ([projectId, stage, status, revision]) => {
+      if (!projectId || (status !== 'active' && !(view.value?.interaction_mode === 'direct' && status === 'needs_input'))) return
+      const current = view.value
+      if (
+        !current ||
+        current.project_id !== projectId ||
+        current.stage !== stage ||
+        current.status !== status ||
+        current.project_revision !== revision
+      ) return
+      if (!current.available_actions.some((action) => canAutoResume(action.id))) return
+      const key = [projectId, stage, revision].join(':')
+      if (key === resumedAutoKey) return
+      // Claim the key before the async tick so watcher re-entry cannot enqueue
+      // a second POST for the same project/stage/revision.
+      resumedAutoKey = key
+      await nextTick()
+      const loaded = view.value
+      if (
+        !loaded ||
+        loaded.project_id !== projectId ||
+        loaded.stage !== stage ||
+        loaded.status !== status ||
+        loaded.project_revision !== revision
+      ) return
+      autoArmed = true
+      await autoAdvance(true)
+    },
+    { flush: 'post' },
+  )
   watch(
     () => workspace.projectParam.value,
     () => {
@@ -914,6 +1051,7 @@ export function useChatFlow() {
       }
       lastAutoAction = ''
       autoArmed = false
+      resumedAutoKey = ''
       pendingRequirementRequestId.value = ''
       pendingPromptCommandId.value = ''
       pendingTaskAction.value = null
@@ -981,6 +1119,9 @@ export function useChatFlow() {
     chooseAttachment,
     removeAttachment,
     hasConversation,
+    conversationQuestion,
+    selectedOption,
+    answerQuestion,
     finalBrief,
     requirementRows,
     canConfirmRequirements,

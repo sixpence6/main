@@ -36,18 +36,18 @@ def _invalid_question(question: str) -> dict[str, Any]:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("question", "expected"),
+    "question",
     [
-        ("建议使用红色背景，并把商品放右侧。", "澄清问题包含未经审查的建议正文"),
-        ("请说明商品主体，详见 https://evil.invalid/brief", "澄清问题不得包含外部链接或联系方式"),
-        ("请" + "说" * 320, "澄清问题过长或格式不合法"),
+        "建议使用红色背景，并把商品放右侧。",
+        "请说明商品主体，详见 https://evil.invalid/brief",
+        "请" + "说" * 320,
     ],
 )
-async def test_invalid_clarification_question_is_not_exposed(
-    full_settings: Any, question: str, expected: str
+async def test_unsafe_clarification_question_is_sanitized_not_blocked(
+    full_settings: Any, question: str
 ) -> None:
     script = Script([lambda request: _invalid_question(question)])
-    async with _environment(full_settings, script) as (application, client, _stub, visual):
+    async with _environment(full_settings, script) as (_, client, _stub, visual):
         project = await _create_project(client)
         started = await _start(client, project["id"], "帮我做一张商品图")
         response = await _act(
@@ -56,16 +56,13 @@ async def test_invalid_clarification_question_is_not_exposed(
             "compose_brief",
             expected_revision=started["project_revision"],
         )
-        assert response.status_code == 409, response.text
-        error = response.json()["error"]
-        assert error["code"] == "REVIEW_INVALID"
-        assert expected in error["message"]
+        assert response.status_code == 200, response.text
         view = (
             await client.get(f"/api/projects/{project['id']}/workflow")
         ).json()
         assert view["stage"] == "S03"
-        assert view["status"] == "blocked"
-        assert view["issue"]["code"] == "REVIEW_INVALID"
+        assert view["status"] == "needs_input"
+        assert view["issue"]["code"] == "MISSING_INPUT"
         assert question not in str(view)
         assert view["issue"]["message"]
         assert view["artifacts"] == []

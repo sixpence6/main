@@ -130,6 +130,7 @@ export interface WorkflowVersion {
   prompt: Record<string, unknown> | null
   quality: Record<string, unknown> | null
   can_download: boolean
+  unavailable_reason?: string | null
   created_at: string
 }
 
@@ -243,7 +244,25 @@ export interface PromptPreviewView {
   command_context: Record<string, unknown>
 }
 
+export interface ClarificationAnswer {
+  question_id: string
+  option_id: string
+  requirement_revision: number
+  message_id: string
+}
+
+export interface ConversationQuestion {
+  question_id: string
+  field: string
+  text: string
+  options: { id: string; label: string }[]
+  requirement_revision: number
+  message_id: string
+}
+
 export interface WorkflowView {
+  conversation_question?: ConversationQuestion | null
+  interaction_mode?: 'direct' | 'legacy'
   project_id: string
   run_id: string | null
   stage: string | null

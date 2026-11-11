@@ -383,7 +383,7 @@ describe('T16 键盘、滚动、窄屏抽屉与图片放大', () => {
     expect(link).toHaveFocus()
   })
 
-  it('唯一输入框和附件、复制、最终确认等关键操作均有可见标签且可聚焦', async () => {
+  it('聊天及提示词输入框和关键操作均有可见标签且可聚焦', async () => {
     await mountProject(promptView())
     const input = composer()
     expect(input).toBeEnabled()
@@ -402,7 +402,9 @@ describe('T16 键盘、滚动、窄屏抽屉与图片放大', () => {
     expect(copy).toHaveFocus()
     confirm.focus()
     expect(confirm).toHaveFocus()
-    expect(screen.getAllByRole('textbox')).toHaveLength(1)
+    expect(screen.getAllByRole('textbox')).toHaveLength(3)
+    expect(screen.getByRole('textbox', { name: '正向提示词' })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: '反向提示词' })).toBeVisible()
 
     input.focus()
     expect(input).toHaveFocus()

@@ -659,7 +659,10 @@ async def _after_acceptance(ctx: WorkflowContext, intent: GenerationIntent) -> N
     # compiles/reviews the prompt and durably waits after this transaction.
     from app.generation_cycle import schedule_confirmed_cycle
 
-    schedule_confirmed_cycle(ctx.app, ctx.project_id, ctx.run_id, intent.id)
+    schedule_confirmed_cycle(
+        ctx.app, ctx.project_id, ctx.run_id, intent.id,
+        principal=ctx.principal if ctx.direct else None,
+    )
 
 
 async def _confirm(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
@@ -708,6 +711,7 @@ async def _confirm(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
         if (
             snapshot is not None
             and snapshot.get("artifact_digest") == artifact.digest
+            and (not ctx.direct or historical.artifact_id == artifact.id)
             and (
                 snapshot.get("project_revision") != ctx.project.revision
                 or snapshot.get("requirement_revision") != ctx.run.requirement_revision

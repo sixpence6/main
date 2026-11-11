@@ -59,11 +59,17 @@ from app.workflow.tables import (
 )
 
 STAGE = "S07"
-ACTIONS = ["compile_prompt", "revise_prompt", "confirm_prompt", "abandon_generation"]
+ACTIONS = ["compile_prompt", "revise_prompt", "confirm_prompt", "edit_prepared_prompt", "abandon_generation"]
 # Coverage is clause-scoped and token-aware. Natural-language prompt writing
 # may add a small, explicit set of connective words, but it can never be used
 # to stitch characters across clauses or to hide a numeric/semantic change.
 _CLAUSE_SPLIT = re.compile(r"[；;。\n，,、]+|(?<!\d)\.|\.(?!\d)|[!?！？]+")
+# A negative prompt often wraps all forbidden clauses in one lead-in such as
+# "禁止出现以下情况：" before listing the exact confirmed rules. That wrapper
+# is prompt formatting, not part of the rule, and must not defeat coverage.
+_NEGATIVE_CLAUSE_PREFIX = re.compile(
+    r"^\s*(?:禁止出现以下(?:情况|内容|画面|元素)?|禁止)\s*[:：]\s*"
+)
 _COVERAGE_TOKEN = re.compile(
     r"\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百千万亿]+|[A-Za-z]+|[^\W\d_]",
     re.UNICODE,
@@ -164,7 +170,7 @@ async def _producer_failed(
         intent_id=getattr(intent, "id", None) if intent is not None else None,
         detail={"error_code": exc.code},
     )
-    if exc.code in {"SERVICE_UNAVAILABLE", "CAPABILITY_NOT_READY"}:
+    if exc.code in {"SERVICE_UNAVAILABLE", "CAPABILITY_NOT_READY", "LLM_TIMEOUT", "LLM_RESPONSE_INVALID"}:
         await _mark_failed(ctx, exc.code)
 
 
@@ -195,21 +201,24 @@ async def _settle_exhausted_unsubmitted(ctx: WorkflowContext) -> None:
     )
 
 
-async def _ensure_budget(ctx: WorkflowContext) -> None:
+async def _ensure_budget(ctx: WorkflowContext, *, preserve_waiting: bool = False) -> None:
+    if ctx.direct:
+        return
     async with read_session(ctx.session_factory) as session:
         budget = await session.get(RevisionBudget, (ctx.run_id, "prompt_plan"))
     if budget is not None and budget.used >= budget.max_allowed:
         # A compile can be entered manually or from the post-confirmation
         # driver. Persist the exhausted state before returning the typed 409 so
         # the UI cannot keep showing an active "preparing prompt" spinner.
-        await _settle_exhausted_unsubmitted(ctx)
-        await state.set_stage(
-            ctx,
-            STAGE,
-            "blocked",
-            issue_code="REVISION_BUDGET_EXHAUSTED",
-            template_id="REVISION_BUDGET_EXHAUSTED",
-        )
+        if not preserve_waiting:
+            await _settle_exhausted_unsubmitted(ctx)
+            await state.set_stage(
+                ctx,
+                STAGE,
+                "blocked",
+                issue_code="REVISION_BUDGET_EXHAUSTED",
+                template_id="REVISION_BUDGET_EXHAUSTED",
+            )
         raise conflict(
             "REVISION_BUDGET_EXHAUSTED",
             "该产物已达到最多三次候选的上限，请保留当前结果或重新开始流程",
@@ -455,6 +464,13 @@ def _clauses(text: str) -> list[str]:
     return [clause for clause in _CLAUSE_SPLIT.split(text) if clause.strip()]
 
 
+def _coverage_clauses(text: str, *, binding: str) -> list[str]:
+    clauses = _clauses(text)
+    if binding == "negative_prompt":
+        clauses = [_NEGATIVE_CLAUSE_PREFIX.sub("", clause).strip() for clause in clauses]
+    return [clause for clause in clauses if clause]
+
+
 def _tokens(text: str) -> tuple[str, ...]:
     return tuple(token.casefold() for token in _COVERAGE_TOKEN.findall(text))
 
@@ -520,7 +536,13 @@ def _assess_requirement(
     requirements are never accepted by containment.
     """
     expected_clauses = [tokens for tokens in map(_tokens, _clauses(requirement)) if tokens]
-    actual_clauses = [tokens for tokens in map(_tokens, _clauses(field_value)) if tokens]
+    actual_clauses = [
+        tokens
+        for tokens in map(
+            _tokens, _coverage_clauses(field_value, binding=binding)
+        )
+        if tokens
+    ]
     if not expected_clauses:
         return {"covered": False, "content_intact": False, "explanations": []}
     allow_fillers = binding == "positive_prompt"
@@ -902,6 +924,70 @@ def _candidate_errors(
     ]
 
 
+_GENERATION_FIELDS = {
+    "positive_prompt",
+    "negative_prompt",
+    "size",
+    "count",
+    "reference_asset_id",
+    "requirement_coverage",
+}
+
+
+def _normalize_generation_data(
+    data: dict[str, Any], *, brief: dict[str, Any]
+) -> dict[str, Any]:
+    """Drop provider-only fields and fill fields the program already knows."""
+    cleaned = {key: value for key, value in data.items() if key in _GENERATION_FIELDS}
+    if "reference_asset_id" not in cleaned:
+        cleaned["reference_asset_id"] = brief.get("reference_asset_id")
+    return cleaned
+
+
+def _derive_requirement_coverage(
+    payload: dict[str, Any],
+    requirements: list[dict[str, Any]],
+    configured_size: str,
+    brief: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Build coverage from the actual prompt text when the provider omits it.
+
+    The program, not the model, owns the check that every confirmed hard rule
+    has a binding and an intact value. This fallback still runs the same
+    `_assess_requirement` check used by the normal candidate validator; it never
+    marks an uncovered rule as covered.
+    """
+    coverage: list[dict[str, Any]] = []
+    expected_reference = brief.get("reference_asset_id") or "null"
+    for item in requirements:
+        rule_id = item.get("rule_id")
+        requirement = item.get("requirement")
+        if not isinstance(rule_id, str) or not isinstance(requirement, str):
+            continue
+        for binding in item.get("allowed_bindings") or []:
+            value: str | None = None
+            if binding in {"positive_prompt", "negative_prompt"}:
+                field_value = payload.get(binding) or ""
+                if _assess_requirement(requirement, field_value, binding=binding)[
+                    "covered"
+                ]:
+                    value = requirement
+            elif binding == "size" and payload.get("size") == configured_size:
+                value = str(payload.get("size"))
+            elif binding == "count" and str(payload.get("count")) == "1":
+                value = "1"
+            elif binding == "reference_asset_id":
+                actual = payload.get("reference_asset_id") or "null"
+                if str(actual) == expected_reference:
+                    value = str(actual)
+            if value is not None:
+                coverage.append(
+                    {"rule_id": rule_id, "binding": binding, "value": value}
+                )
+                break
+    return coverage
+
+
 def _validated_payload(
     data: dict[str, Any],
     requirements: list[dict[str, Any]],
@@ -910,6 +996,11 @@ def _validated_payload(
     *,
     legacy: bool = False,
 ) -> tuple[dict[str, Any], list[CandidateDefect]]:
+    data = _normalize_generation_data(data, brief=brief)
+    if not data.get("requirement_coverage"):
+        data["requirement_coverage"] = _derive_requirement_coverage(
+            data, requirements, configured_size, brief
+        )
     try:
         payload = validate_data("prompt_plan", data).model_dump(mode="json")
     except ContractError:
@@ -918,6 +1009,14 @@ def _validated_payload(
         )
         return {}, [defect]
     defects = _candidate_defects(payload, requirements, brief, configured_size, legacy=legacy)
+    if gate_mode_for_target("prompt_plan") == "off":
+        structural = {
+            CandidateDefectCode.CONTRACT_INVALID,
+            CandidateDefectCode.SIZE_MISMATCH,
+            CandidateDefectCode.COUNT_MISMATCH,
+            CandidateDefectCode.REFERENCE_MISMATCH,
+        }
+        defects = [defect for defect in defects if defect.code in structural]
     return payload, defects
 
 
@@ -1080,7 +1179,22 @@ async def _reconfirm_prompt(
     reasons: list[str],
     *,
     reason: ReasonCode = ReasonCode.TRUE_DRIFT,
-) -> None:
+    candidate_revision: int | None = None,
+) -> bool:
+    if candidate_revision is not None:
+        approved = await state.latest_artifact(ctx, "prompt_plan", status="approved")
+        if approved is not None and approved.revision_no > candidate_revision:
+            await state.record_diagnostic(
+                ctx,
+                "stale_prompt_attempt_ignored",
+                {
+                    "candidate_revision": candidate_revision,
+                    "approved_revision": approved.revision_no,
+                    "intent_id": intent.id,
+                    "reasons": reasons[:10],
+                },
+            )
+            return False
     await _record_transition(
         ctx,
         reason,
@@ -1285,6 +1399,19 @@ async def _abandon_generation(
     )
 
 
+def _snapshot_identity(snapshot: dict[str, Any] | None) -> dict[str, Any] | None:
+    if snapshot is None:
+        return None
+    return {
+        key: snapshot[key]
+        for key in (
+            "snapshot_schema_version", "contract_version", "rules_version",
+            "artifact_id", "artifact_digest", "project_revision",
+            "requirement_revision", "snapshot_digest", "referenced_material_digest",
+        ) if key in snapshot
+    }
+
+
 async def _compile(
     ctx: WorkflowContext,
     revision_note: str | None,
@@ -1393,7 +1520,7 @@ async def _compile(
                         "final_brief": brief,
                         "final_brief_artifact_id": final_artifact.id,
                         "reference_asset_id": brief.get("reference_asset_id"),
-                        "execution_snapshot": execution_snapshot,
+                        "execution_snapshot": _snapshot_identity(execution_snapshot),
                     },
                     repair_codes=list(repair_codes),
                     attempt=reservation.revision_no,
@@ -1517,9 +1644,15 @@ async def _compile(
             raise _invalid_prompt()
 
         data = output.data if isinstance(output.data, dict) else {}
-        payload, defects = _validated_payload(
-            data, requirements, brief, configured_size
-        )
+        if ctx.direct:
+            payload = {**data, "size": configured_size, "count": 1,
+                       "reference_asset_id": brief.get("reference_asset_id")}
+            payload.setdefault("requirement_coverage", [])
+            defects = []
+        else:
+            payload, defects = _validated_payload(
+                data, requirements, brief, configured_size
+            )
         if defects:
             reason = classify_candidate_defects(defects)
             rule_ids = repair_codes_from_defects(defects)
@@ -1563,20 +1696,25 @@ async def _compile(
                     rule_ids=rule_ids,
                 )
                 continue
-            if reason == ReasonCode.TRUE_DRIFT and intent is not None:
-                await _reconfirm_prompt(
-                    ctx,
-                    intent,
-                    [defect.message for defect in defects],
-                    reason=reason,
+            if (
+                reason == ReasonCode.TRUE_DRIFT
+                and intent is not None
+                and not await _reconfirm_prompt(
+                    ctx, intent, [defect.message for defect in defects],
+                    reason=reason, candidate_revision=reservation.revision_no,
                 )
+            ):
+                return
             await _block_invalid_prompt(ctx, reservation)
             raise _invalid_prompt()
 
-        if intent is not None:
+        if intent is not None and not ctx.direct:
             drift = prompt_drift_errors(brief, payload)
-            if drift:
-                await _reconfirm_prompt(ctx, intent, drift, reason=ReasonCode.TRUE_DRIFT)
+            if drift and not await _reconfirm_prompt(
+                ctx, intent, drift, reason=ReasonCode.TRUE_DRIFT,
+                candidate_revision=reservation.revision_no,
+            ):
+                return
 
         previous = await state.latest_artifact(ctx, "prompt_plan")
         if previous is not None and previous.status == "candidate":
@@ -1748,6 +1886,11 @@ async def _compile(
         return
 
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
+    if action == "edit_prepared_prompt":
+        from app.prompt_preparation import edit_prepared_prompt
+
+        await edit_prepared_prompt(ctx, payload)
+        return
     if action == "confirm_prompt":
         from app.final_confirmation import confirm_prompt
 
@@ -1808,7 +1951,7 @@ async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> 
                 raise conflict("INTENT_STATE_INVALID", "原任务已不处于可修改状态。")
             # Check the durable candidate budget before hiding the displayed
             # candidate. If the budget is exhausted, the old prompt stays valid.
-            await _ensure_budget(ctx)
+            await _ensure_budget(ctx, preserve_waiting=True)
             await _invalidate_awaiting_prompts(ctx, intent.id)
             # A repaired text request is a fresh compile. Move the run back to
             # active so approve_and_wait can freeze the new candidate only after

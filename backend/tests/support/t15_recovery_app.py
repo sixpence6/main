@@ -136,7 +136,7 @@ def build_app():
     stub = LLMStub(role_responder=script)
     visual = LoggingVisual()
     return create_app(
-        settings=Settings(),
+        settings=Settings(workflow_role_policy="legacy"),
         registry=build_test_registry(llm=stub, visual=visual),
     )
 

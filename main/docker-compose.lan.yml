@@ -1,6 +1,6 @@
 # Controlled HTTPS/LAN overlay. Apply it explicitly:
-#   PUBLIC_HOSTNAME=10.13.51.8 PUBLIC_ORIGIN=https://10.13.51.8:8443 \
-#     PUBLIC_BIND_ADDRESS=10.13.51.8 docker compose -f docker-compose.yml \
+#   PUBLIC_HOSTNAME=192.168.1.10 PUBLIC_ORIGIN=https://192.168.1.10:8443 \
+#     PUBLIC_BIND_ADDRESS=192.168.1.10 docker compose -f docker-compose.yml \
 #     -f docker-compose.lan.yml up -d --build
 #
 # The backend stays on 127.0.0.1:8000 in the base file and is never published
@@ -11,7 +11,7 @@ name: ecommerce-image-workspace
 services:
   backend:
     environment:
-      APP_PUBLIC_URL: "${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required, for example https://10.13.51.8:8443}"
+      APP_PUBLIC_URL: "${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required, for example https://192.168.1.10:8443}"
       ALLOWED_ORIGINS: '["${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required}"]'
       ALLOWED_HOSTS: '["${PUBLIC_HOSTNAME:?PUBLIC_HOSTNAME is required}"]'
       ALLOW_LOOPBACK_HTTP: "false"

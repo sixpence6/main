@@ -436,6 +436,10 @@ async def _confirm_prompt_once(ctx, payload):
 
 async def confirm_prompt(ctx, payload):
     """Run the one-shot confirmation, translating a uniqueness race to a stable 409."""
+    if ctx.direct:
+        from app.workflow.alignment import require_generation
+
+        require_generation(ctx)
     try:
         return await _confirm_prompt_once(ctx, payload)
     except IntegrityError as error:

@@ -105,6 +105,7 @@ class WorkflowVersionView(BaseModel):
     snapshot_schema_version: str | None = None
     contract_version: str | None = None
     can_download: bool = False
+    unavailable_reason: str | None = None
     created_at: str
 
 
@@ -237,7 +238,18 @@ class PromptPreviewView(BaseModel):
     command_context: str | None = None
 
 
+class ConversationQuestionView(BaseModel):
+    question_id: str
+    field: str
+    text: str
+    options: list[dict[str, Any]]
+    requirement_revision: int
+    message_id: str
+
+
 class WorkflowView(BaseModel):
+    conversation_question: ConversationQuestionView | None = None
+    interaction_mode: Literal["direct", "legacy"] = "legacy"
     prompt_preview: PromptPreviewView | None = None
     project_id: str
     run_id: str | None = None

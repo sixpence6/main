@@ -513,7 +513,7 @@ def test_0015_upgrade_preserves_existing_messages_without_inventing_attachments(
         )
     command.upgrade(config, "head")
     with sqlite3.connect(settings.database_path) as db:
-        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0015",)
+        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0017",)
         assert db.execute(
             "SELECT content,turn_kind FROM messages WHERE id='message-1'"
         ).fetchall() == [("旧消息", "conversation")]

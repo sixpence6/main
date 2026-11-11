@@ -299,7 +299,7 @@ describe('T10 纯对话入口与首次文生图闭环', () => {
     const prompt = await screen.findByRole('region', { name: '提示词确认' })
     expect(prompt).toBeVisible()
     expect(screen.getByText('实际提示词')).toBeVisible()
-    expect(screen.getByText(PROMPT_PREVIEW.request.positive_prompt as string)).toBeVisible()
+    expect(screen.getByRole('textbox', { name: '正向提示词' })).toHaveValue(PROMPT_PREVIEW.request.positive_prompt as string)
     expect(screen.getByText('1 张 · 1024x1024')).toBeVisible()
     expect(screen.getByText('确认使用以上提示词生成')).toBeVisible()
 
@@ -386,7 +386,7 @@ describe('T10 纯对话入口与首次文生图闭环', () => {
     expect(screen.getByRole('region', { name: '任务状态' }).querySelector('.typing-dots')).toBeNull()
   })
 
-  it('打开已有对话不会自动执行业务动作', async () => {
+  it('打开已有 active 对话时自动继续当前步骤且只执行一次', async () => {
     harness = await mountWorkspace({
       config: configuredConfig(),
       viewportWidth: 1440,
@@ -397,14 +397,51 @@ describe('T10 纯对话入口与首次文生图闭环', () => {
         fetch.route('GET', WORKFLOW_PATH, () => ({
           body: view({ available_actions: [action('compose_brief', '整理需求')] }),
         }))
+        fetch.route('POST', ACTIONS_ROUTE, () => ({
+          body: view({
+            stage: 'S04',
+            project_revision: 2,
+            available_actions: [action('revise_creative', '修改创意方向')],
+          }),
+        }))
       },
     })
 
     await screen.findByRole('region', { name: '生图对话' })
     await new Promise((resolve) => setTimeout(resolve, 150))
-    const actionPosts = harness.fetch.requests.filter(
-      (request) => request.method === 'POST' && request.path.startsWith(ACTIONS_PATH),
-    )
-    expect(actionPosts).toHaveLength(0)
+    expect(harness.fetch.count('POST', ACTIONS_PATH + 'compose_brief')).toBe(1)
+    expect(harness.fetch.writes).toHaveLength(1)
+  })
+})
+
+describe('四角色直接生成兼容恢复', () => {
+  it.each([
+    ['S06', 'active', 'confirm_requirements'],
+    ['S07', 'needs_input', 'compile_prompt'],
+  ] as const)('打开 %s 对话后自动衔接，不展示确认卡或重复提交', async (stage, status, resumeAction) => {
+    let current = view({
+      interaction_mode: 'direct', stage, status,
+      artifacts: [FINAL_BRIEF],
+      available_actions: [action(resumeAction, '继续生成')],
+    })
+    harness = await mountWorkspace({
+      config: configuredConfig(),
+      viewportWidth: 1440,
+      url: '/projects/' + PROJECT_A + '/chat',
+      setup: (fetch) => {
+        fetch.route('GET', '/api/health', () => ({ body: { status: 'ok' } }))
+        fetch.route('GET', DETAIL_PATH, () => ({ body: detail(1, []) }))
+        fetch.route('GET', WORKFLOW_PATH, () => ({ body: current }))
+        fetch.route('POST', ACTIONS_PATH + resumeAction, () => {
+          current = { ...completedView(), interaction_mode: 'direct' }
+          return { body: current }
+        })
+      },
+    })
+    await vi.waitFor(() => expect(harness!.fetch.count('POST', ACTIONS_PATH + resumeAction)).toBe(1))
+    expect(screen.queryByRole('region', { name: '需求确认' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '提示词确认' })).not.toBeInTheDocument()
+    expect(harness.fetch.count('POST', ACTIONS_PATH + 'confirm_prompt')).toBe(0)
+    expect(harness.fetch.count('POST', ACTIONS_PATH + resumeAction)).toBe(1)
   })
 })

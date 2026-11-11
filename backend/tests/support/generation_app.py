@@ -92,7 +92,7 @@ def build_app():
         lambda role, client: visual,
         capabilities=visual.capabilities,
     )
-    return create_app(settings=Settings(), registry=registry)
+    return create_app(settings=Settings(workflow_role_policy="legacy"), registry=registry)
 
 
 app = build_app()

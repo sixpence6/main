@@ -658,6 +658,11 @@ async def _advance_to_review(app, job_id: str) -> None:
             and fresh.run.status == "active"
         ):
             await s10.handle(fresh, "prepare_delivery", {})
+        fresh = await state.load_context(app, project_id)
+        if fresh.direct and fresh.run is not None and fresh.run.id == run_id and fresh.run.stage == "S10":
+            from app.workflow.collaboration import deliver
+
+            await deliver(fresh)
     except (ApiError, GenerationGuardError) as exc:
         logger.warning("post-generation review chain stopped: %s", exc)
     except BaseException:
@@ -934,6 +939,23 @@ async def _verify(ctx: WorkflowContext) -> None:
     ):
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
     # Read-only: no provider call, no new intent, no count, no slot change.
+    if ctx.run.issue_code == _UNKNOWN_ISSUE:
+        job = await _latest_job(ctx.app, ctx.run_id)
+        if job is not None:
+            async with read_session(ctx.session_factory) as session:
+                generation = await session.get(Generation, job.generation_id) if job.generation_id else None
+            capabilities = ctx.registry.visual_capabilities(ctx.settings.visual().adapter_id or "")
+            unsupported = (
+                capabilities is not None and capabilities.asynchronous is False
+                and not job.remote_task_id
+                and (generation is None or not generation.remote_task_id and not generation.result_locator_json)
+            )
+            template_id = "RECOVERY_UNSUPPORTED" if unsupported else "ORIGINAL_RESULT_UNAVAILABLE"
+            await state.set_stage(
+                ctx, STAGE, "blocked", issue_code=_UNKNOWN_ISSUE,
+                template_id=template_id,
+                params={"job_id": job.id} if unsupported else {},
+            )
 
 
 async def _recover(ctx: WorkflowContext) -> None:
@@ -986,13 +1008,19 @@ async def _recover(ctx: WorkflowContext) -> None:
             "RESULT_RETRIEVAL_PENDING",
             "结果文件暂时无法找回，原任务与一次计数已保留，可稍后再次核实。",
         )
-    elif outcome == "unknown":
+    elif outcome in {"unknown", "unsupported"}:
         await _mark_unknown(
             ctx.app,
             job.id,
             error_code="VISUAL_OUTCOME_UNKNOWN",
             error_message="生图结果未确认",
             remote_task_id=job.remote_task_id,
+        )
+        template_id = "RECOVERY_UNSUPPORTED" if outcome == "unsupported" else "ORIGINAL_RESULT_UNAVAILABLE"
+        await state.set_stage(
+            ctx, STAGE, "blocked", issue_code=_UNKNOWN_ISSUE,
+            template_id=template_id,
+            params={"job_id": job.id} if outcome == "unsupported" else {},
         )
 
 

@@ -167,6 +167,7 @@ def classify_issue_code(code: str | None) -> ReasonCode:
     if code == "HARD_REQUIREMENT_FAILED":
         return ReasonCode.HARD_FAILURE
     if code in {
+        "LLM_RESPONSE_INVALID",
         "CONTRACT_ERROR",
         "PROMPT_REVIEW_INVALID",
         "REVIEW_INVALID",
@@ -185,6 +186,7 @@ def classify_issue_code(code: str | None) -> ReasonCode:
     if code in {
         "SERVICE_UNAVAILABLE",
         "CAPABILITY_NOT_READY",
+        "LLM_TIMEOUT",
         "TECHNICAL_UNAVAILABLE",
         "REVIEW_UNAVAILABLE",
         "PROCESS_INTERRUPTED",
@@ -211,6 +213,7 @@ def classify_api_error(code: str | None) -> ReasonCode:
     if code in {
         "PROMPT_REVIEW_INVALID",
         "REVIEW_INVALID",
+        "LLM_RESPONSE_INVALID",
         "CONTRACT_ERROR",
         "ACTION_NOT_AVAILABLE",
     }:

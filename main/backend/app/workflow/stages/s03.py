@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
 from typing import Any
 from uuid import uuid4
 
@@ -11,8 +12,13 @@ from app.db import read_session, write_transaction
 from app.errors import ApiError, conflict, validation_error
 from app.models import Message, Project
 from app.timeutil import format_timestamp, utc_now
-from app.workflow import templates
-from app.workflow.adjudication import ProtocolIssue, governance_ruleset, review_output
+from app.workflow import requirements, templates
+from app.workflow.adjudication import (
+    ProtocolIssue,
+    gate_mode_for_target,
+    governance_ruleset,
+    review_output,
+)
 from app.workflow.contracts import (
     BriefData,
     ContractError,
@@ -32,7 +38,7 @@ from app.workflow.state import (
     set_stage,
     start_artifact,
 )
-from app.workflow.tables import Artifact, WorkflowRun
+from app.workflow.tables import Artifact, DiagnosticEvent, WorkflowRun
 
 STAGE = "S03"
 ACTIONS = [
@@ -188,6 +194,259 @@ async def _user_messages(ctx: WorkflowContext) -> list[Message]:
         )
 
 
+async def _workflow_messages(ctx: WorkflowContext) -> list[Message]:
+    async with read_session(ctx.session_factory) as session:
+        return list(
+            (
+                await session.scalars(
+                    select(Message)
+                    .where(
+                        Message.project_id == ctx.project_id,
+                        Message.turn_kind == "workflow",
+                    )
+                    .order_by(Message.sequence_no.asc())
+                )
+            ).all()
+        )
+
+
+async def _conversation_messages(ctx: WorkflowContext) -> list[dict[str, str]]:
+    """Return a bounded, chronological transcript for the consultant.
+
+    The role call is stateless. Without the assistant turns, a reply like "A"
+    has no meaning and the model silently re-asks the question it just showed.
+    Keep the most recent messages within a small payload budget.
+    """
+    messages = await _workflow_messages(ctx)
+    selected: list[dict[str, str]] = []
+    total = 0
+    for message in reversed(messages):
+        text = message.content.strip()
+        if not text:
+            continue
+        text = text[:3000]
+        if selected and (len(selected) >= 24 or total + len(text) > 12_000):
+            break
+        selected.append({"role": message.role, "text": text})
+        total += len(text)
+    selected.reverse()
+    return selected
+
+
+async def _pending_clarification(ctx: WorkflowContext) -> str | None:
+    """Return the latest assistant clarification shown to the user.
+
+    A short reply such as "A" or "米色" only means something in the context of
+    the question and its example options. The consultant must see that turn;
+    passing user messages alone makes option-only answers impossible to resolve.
+    """
+    if ctx.direct:
+        questions = requirements.state_of(ctx).get("questions", [])
+        return "\n".join(requirements.render_question(q) for q in questions) or None
+    async with read_session(ctx.session_factory) as session:
+        message = await session.scalar(
+            select(Message)
+            .where(
+                Message.project_id == ctx.project_id,
+                Message.role == "assistant",
+                Message.turn_kind == "workflow",
+                Message.content.contains("请补充以下信息"),
+            )
+            .order_by(Message.sequence_no.desc())
+            .limit(1)
+        )
+    if message is None or not message.content.strip():
+        return None
+    return message.content.strip()[:4000]
+
+
+_QUESTION_LINE = re.compile(r"^\s*(\d{1,2})[.．]\s*(.+?)\s*$")
+_OPTION_LINE = re.compile(r"(?<![A-Za-z])([A-Za-z])(?:[.．、:：]\s*|\s+)([^；;。]+)")
+_ANSWER_TOKEN = re.compile(r"(?<!\d)(\d{1,2})\s*[.、:：]?\s*([A-Za-z])(?![A-Za-z])")
+_ANSWER_REQUESTS_MORE = (
+    "请提供",
+    "请说明",
+    "请给出",
+    "请补充",
+    "请直接说明",
+    "请先",
+    "另行",
+    "其他",
+    "以上都不是",
+)
+
+
+def _clarification_questions(pending: str | None) -> dict[int, dict[str, Any]]:
+    """Extract numbered questions and their example options from a report."""
+    if not pending:
+        return {}
+    start = pending.find("请补充以下信息")
+    if start < 0:
+        return {}
+    section = pending[start:]
+    end = section.find("回复方式")
+    if end >= 0:
+        section = section[:end]
+    questions: dict[int, dict[str, Any]] = {}
+    for line in section.splitlines():
+        match = _QUESTION_LINE.match(line)
+        if match is None:
+            continue
+        number = int(match.group(1))
+        text = match.group(2).strip()
+        options = {
+            option.group(1).upper(): option.group(2).strip()
+            for option in _OPTION_LINE.finditer(text)
+        }
+        questions[number] = {"text": text, "options": options}
+    return questions
+
+
+def _question_topics(question: str) -> set[str]:
+    # Questions often explain consequences after the example ("...，这决定价格区
+    # 的位置"). Classify the ask itself, not the whole paragraph, so a size
+    # question is not also treated as a price question.
+    text = question.split("例如", 1)[0]
+    if "必须保留" in text or ("保留" in text and "特征" in text):
+        return {"preserve"}
+    if any(marker in text for marker in ("画面文字", "促销标语", "文案", "标语")):
+        return {"texts"}
+    if any(marker in text for marker in ("尺寸", "比例", "画布")):
+        return {"size"}
+    if any(marker in text for marker in ("款式", "风格", "构图", "光影")):
+        return {"visual"}
+    if "价格" in text:
+        return {"price"}
+    return set()
+
+
+def _answer_is_complete(answer: str) -> bool:
+    text = answer.strip()
+    return bool(text) and not any(marker in text for marker in _ANSWER_REQUESTS_MORE)
+
+
+def _clarification_answers(
+    pending: str | None, reply: str | None
+) -> list[dict[str, Any]]:
+    """Resolve ``1A 2B 3C`` against the numbered questions it answers.
+
+    The model is good at writing questions but unreliable at counting free-form
+    answer positions. Resolving the numbers here prevents an answer from being
+    silently shifted to a later question when the user omits one.
+    """
+    questions = _clarification_questions(pending)
+    if not questions or not reply:
+        return []
+    answers: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for match in _ANSWER_TOKEN.finditer(reply):
+        number = int(match.group(1))
+        question = questions.get(number)
+        if question is None or number in seen:
+            continue
+        letter = match.group(2).upper()
+        answer = question["options"].get(letter)
+        if not answer:
+            continue
+        seen.add(number)
+        answers.append(
+            {
+                "number": number,
+                "question": question["text"][:300],
+                "option": letter,
+                "answer": answer[:300],
+                "topics": sorted(_question_topics(question["text"])),
+            }
+        )
+    return answers
+
+
+async def _clarification_history(ctx: WorkflowContext) -> list[dict[str, Any]]:
+    """Resolve every previous numbered reply, not just the latest one.
+
+    The model has already forgotten an answer once when the next report omitted
+    it. Keeping the resolved topics for the whole S03 conversation lets the
+    report and its questions stay consistent even when the model's partial draft
+    is incomplete.
+    """
+    messages = await _workflow_messages(ctx)
+    stored = requirements.state_of(ctx)
+    history: list[dict[str, Any]] = list(stored.get("answers") or [])
+    if stored.get("questions"):
+        for message in messages:
+            if message.role == "user" and message.project_revision > stored.get("revision", -1):
+                history.extend(
+                    {**answer, "reply_message_id": message.id}
+                    for answer in requirements.parse_answers(stored["questions"], message.content)
+                )
+    pending: str | None = None
+    for message in messages:
+        if message.role == "assistant" and "请补充以下信息" in message.content:
+            pending = message.content
+            continue
+        if message.role == "user" and pending is not None:
+            history.extend(
+                {**answer, "reply_message_id": message.id}
+                for answer in _clarification_answers(pending, message.content)
+            )
+            pending = None
+    deduplicated = {}
+    for answer in history:
+        key = (answer.get("reply_message_id"), answer.get("number"))
+        if key not in deduplicated:
+            deduplicated[key] = answer
+    return list(deduplicated.values())
+
+
+def _requirement_evidence(messages: list[Message], answers: list[dict[str, Any]]) -> dict[str, str]:
+    evidence = {message.id: message.content for message in messages}
+    for answer in answers:
+        message_id = answer.get("reply_message_id")
+        if message_id in evidence and not answer.get("requires_detail"):
+            evidence[message_id] += "\n已绑定选项：" + str(answer.get("answer", ""))
+    return evidence
+
+
+def _explicit_text_choice(text: str) -> bool | None:
+    # Read the latest explicit text decision so a later amendment can replace it.
+    for clause in reversed(re.split(r"[\n。；;]", text)):
+        if any(marker in clause for marker in (
+            "不要文字", "不要任何文字", "不要加字", "不需要文字",
+            "不出现文字", "不出现任何文字", "不包含文字", "无文字", "无画面文字",
+            "不加字", "不要文案", "无文案",
+        )):
+            return False
+        if any(marker in clause for marker in ("文字", "文案", "标语", "加字", "写上")):
+            return True
+    return None
+
+
+def _resolved_topics(answers: list[dict[str, Any]] | None) -> set[str]:
+    resolved: set[str] = set()
+    for answer in answers or []:
+        if answer.get("requires_detail") or not _answer_is_complete(str(answer.get("answer", ""))):
+            continue
+        resolved.update(str(topic) for topic in answer.get("topics", []))
+    return resolved
+
+
+def _drop_resolved_questions(
+    questions: list[str], answers: list[dict[str, Any]] | None, user_text: str = ""
+) -> list[str]:
+    resolved = _resolved_topics(answers)
+    if _explicit_text_choice(user_text) is False:
+        resolved.add("texts")
+    if not resolved:
+        return questions
+    remaining: list[str] = []
+    for question in questions:
+        topics = _question_topics(question)
+        if topics and topics <= resolved:
+            continue
+        remaining.append(question)
+    return remaining
+
+
 async def _record_user_text(ctx: WorkflowContext, text: str) -> Message:
     """Persist the exact additional user text and advance the requirement version."""
     now = format_timestamp(utc_now())
@@ -266,8 +525,30 @@ def _configured_size(ctx: WorkflowContext) -> str:
     return size
 
 
+def _requested_size(text: str) -> tuple[str, float] | None:
+    matches = list(re.finditer(r"(?<!\d)(\d{1,5})\s*([:：xX×])\s*(\d{1,5})(?!\d)", text))
+    if not matches:
+        return None
+    match = matches[-1]
+    width, height = int(match[1]), int(match[3])
+    if width <= 0 or height <= 0:
+        return None
+    return match[0], width / height
+
+
+def _size_question(size: str, requested: str) -> str:
+    return (
+        f"当前输出仅支持 {size}，与你的 {requested} 要求不一致。"
+        f"请选择：A. 明确接受 {size}，并按此尺寸调整构图；"
+        "B. 保留原比例，暂停本次流程。"
+    )
+
+
 def _text_authorized(messages: list[Message]) -> bool:
     text = "\n".join(message.content for message in messages)
+    explicit_choice = _explicit_text_choice(text)
+    if explicit_choice is not None:
+        return explicit_choice
     for marker in (
         "不要文字",
         "不要任何文字",
@@ -537,8 +818,8 @@ def _validate_partial_draft(
     reference_texts: dict[str, list[str]],
 ) -> None:
     _validate_text_hygiene(data)
-    if data.size != size:
-        raise _invalid_service()
+    # A partial brief may retain an unsupported user size while negotiating.
+    # Ready briefs still enforce the execution size in _validate_ready_draft.
     if data.reference_asset_id != reference_asset_id:
         raise _invalid_service()
     if data.reference_usage != reference_usage:
@@ -632,6 +913,8 @@ def _validate_ready_draft(
     reference_evidence: str | None,
     reference_texts: dict[str, list[str]],
 ) -> None:
+    if data.size != size:
+        raise conflict("SIZE_UNSUPPORTED", templates.render("SIZE_UNSUPPORTED"))
     if not data.product_description or not data.product_description.strip():
         raise _invalid_service()
     if not data.purpose or not data.purpose.strip():
@@ -669,31 +952,61 @@ _QUESTION_CONTACT = re.compile(
 )
 
 
-def _validated_questions(output: RoleOutput) -> list[str]:
-    """Only expose short, well-formed clarification questions.
+def _fallback_question(data: BriefData | None, *, product_missing: bool = False) -> str:
+    product = _clean_display(getattr(data, "product_description", None), limit=180)
+    if product_missing or not product:
+        return "请说明要展示的商品主体是什么？例如：A 米色托特包；B 黑色托特包。"
+    purpose = _clean_display(getattr(data, "purpose", None), limit=180)
+    if not purpose:
+        return "这张图主要用在什么场景？例如：A 电商商品主图；B 社交平台种草图。"
+    return "请补充这张商品图还需要明确的信息，例如画面比例、必须保留的细节或参考图用途。"
 
-    Whether a question really asks for a missing blocking fact is decided by the
-    independent S03 reviewer. This local guard only removes unsafe transport:
-    corrupted text, oversized or multi-line content, contact details and
-    unapproved suggestion bodies. The same function is used when a persisted
-    clarification is replayed.
+
+def _sanitize_questions(output: RoleOutput, data: BriefData | None) -> list[str]:
+    """Make clarification questions safe to display without blocking the turn.
+
+    Clarification is a transport concern, not an approval gate: one malformed
+    question must not 409 the whole answer and strand the user. Drop unsafe
+    items, clean the rest, cap their size and always leave one answerable
+    fallback so the conversation can continue.
     """
-    questions = [question.strip() for question in output.questions if question.strip()]
-    if not questions or len(questions) > 8:
-        raise _review_invalid("澄清问题数量不合法，未展示")
-    for question in questions:
-        if _has_corrupted_text(question):
-            raise _review_invalid("澄清问题包含乱码，未展示")
-        if len(question) > _MAX_QUESTION_CHARS or "\n" in question or "\r" in question:
-            raise _review_invalid("澄清问题过长或格式不合法，未展示")
-        if _QUESTION_CONTACT.search(question):
-            raise _review_invalid("澄清问题不得包含外部链接或联系方式")
-        if any(marker in question for marker in _QUESTION_SUGGESTION_MARKERS):
-            raise _review_invalid("澄清问题包含未经审查的建议正文，未展示")
-    text = "\n".join(questions)
-    if len(text) > _MAX_QUESTIONS_CHARS:
-        raise _review_invalid("澄清问题总长度不合法，未展示")
-    return questions
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    total = 0
+    for raw in output.questions:
+        if not isinstance(raw, str):
+            continue
+        if _has_corrupted_text(raw):
+            continue
+        if any(marker in raw for marker in _QUESTION_SUGGESTION_MARKERS):
+            continue
+        question = _clean_display(raw, limit=_MAX_QUESTION_CHARS)
+        question = _QUESTION_CONTACT.sub("（联系方式已移除）", question).strip()
+        if not question or question in seen:
+            continue
+        remaining = _MAX_QUESTIONS_CHARS - total
+        if remaining < 20:
+            break
+        if len(question) > remaining:
+            question = question[:remaining].rstrip()
+        if not question:
+            break
+        cleaned.append(question)
+        seen.add(question)
+        total += len(question)
+        if len(cleaned) == 8:
+            break
+    if not cleaned:
+        product_missing = data is not None and not _clean_display(
+            getattr(data, "product_description", None), limit=180
+        )
+        cleaned = [_fallback_question(data, product_missing=product_missing)]
+    return cleaned
+
+
+def _validated_questions(output: RoleOutput) -> list[str]:
+    """Backward-compatible safe questions for persisted clarification replay."""
+    return _sanitize_questions(output, None)
 
 
 def _joined_questions(output: RoleOutput) -> str:
@@ -749,6 +1062,14 @@ async def _run_review(
     allowed_evidence: tuple[str, ...],
     attempt: int,
 ) -> tuple[str, list[dict[str, Any]], list[str]]:
+    if (
+        target_kind == "requirements_questions"
+        or gate_mode_for_target(_RULESET.target_kind) == "off"
+    ):
+        # Clarification is a transport step, not an approval gate. When the
+        # global gate mode is off, brief drafts are also approved locally so a
+        # reviewer call can never stall the workflow.
+        return "pass", [], []
     try:
         output = await run_role(
             ctx,
@@ -856,8 +1177,29 @@ def _alignment_report(
     reference_asset_id: str | None,
     reference_usage: str,
     ready: bool,
+    answers: list[dict[str, Any]] | None = None,
+    user_text: str = "",
+    selected_size: str | None = None,
+    pending_update: bool = False,
+    resolved_fields: set[str] | None = None,
+    unresolved_fields: set[str] | None = None,
+    clarifications: list[dict[str, Any]] | None = None,
 ) -> str:
     """Build the user-facing requirements report from validated fields only."""
+    resolved_topics = _resolved_topics(answers)
+    if "texts" in (resolved_fields or set()):
+        resolved_topics.add("texts")
+    if "must_preserve" in (resolved_fields or set()):
+        resolved_topics.add("preserve")
+    if "texts" in (unresolved_fields or set()):
+        resolved_topics.discard("texts")
+    if "must_preserve" in (unresolved_fields or set()):
+        resolved_topics.discard("preserve")
+    text_choice = _explicit_text_choice(user_text)
+    if text_choice is False:
+        resolved_topics.add("texts")
+    elif text_choice is True:
+        resolved_topics.discard("texts")
     product = _clean_display(getattr(data, "product_description", None), limit=180)
     purpose = _clean_display(getattr(data, "purpose", None), limit=180)
     subject_label = "画面主体" if _is_no_product_text(product) else "商品主体"
@@ -867,7 +1209,11 @@ def _alignment_report(
     lighting = _clean_display(getattr(data, "lighting", None), limit=120)
     visual = "；".join(item for item in (style, composition, lighting) if item)
     texts = _join_display(getattr(data, "texts", []))
-    actual_size = _clean_display(getattr(data, "size", None), limit=40) or size
+    actual_size = _clean_display(getattr(data, "size", None), limit=40)
+    default_size = f"服务默认 {size}（尚未由用户确认）"
+    if not ready:
+        requested = _requested_size(selected_size or user_text)
+        actual_size = f"用户期望 {requested[0]}（执行尺寸待确认）" if requested else ""
     usage_labels = {
         "product": "商品参考（保留商品外观）",
         "style": "风格参考（只借视觉风格）",
@@ -885,28 +1231,45 @@ def _alignment_report(
     ]
     filled = sum(1 for _, value in basic if value)
     lines = ["需求对齐情况", f"- 基本信息：{filled}/3 项已明确"]
+    if pending_update:
+        lines[1] = "- 下列结构化字段沿用上轮记录；本轮补充已保存为原文，待尺寸确认后统一更新。"
     for label, value in basic:
-        lines.append(f"- {label}：{value or '待补充'}")
+        unknown = "尚未结构化" if data is None else "待补充"
+        lines.append(f"- {label}：{value or (default_size if label == '输出尺寸' else unknown)}")
+    if not ready and actual_size:
+        lines.append(f"- {default_size}")
+    if user_text:
+        lines.append(f"- 已收到的用户需求（原文）：{_clean_display(user_text, limit=800)}")
     feature_label = "必须保留的画面特征" if subject_label == "画面主体" else "必须保留的商品特征"
-    preserve_display = preserve or ("未指定（如无必须保留项，可继续）" if ready else "待补充")
-    visual_display = visual or ("待后续创意与视觉方案补全" if ready else "待补充")
-    texts_display = texts or ("无画面文字" if ready else "待补充")
+    if preserve:
+        preserve_display = preserve
+    elif "preserve" in resolved_topics:
+        preserve_display = "无（已确认）"
+    else:
+        preserve_display = "未指定（如无必须保留项，可继续）" if ready else ("尚未结构化" if data is None else "待补充")
+    visual_display = visual or ("待后续创意与视觉方案补全" if ready else ("尚未结构化" if data is None else "待补充"))
+    if texts:
+        texts_display = texts
+    elif "texts" in resolved_topics:
+        texts_display = "无画面文字（已确认）"
+    else:
+        texts_display = "无画面文字" if ready else ("尚未结构化" if data is None else "待补充")
     lines.append(f"- {feature_label}：{preserve_display}")
     lines.append(f"- 风格、构图与光影：{visual_display}")
     lines.append(f"- 画面文字：{texts_display}")
     lines.append(f"- 参考图用途：{usage}")
 
     missing: list[str] = []
-    if not ready:
+    if not ready and data is not None and not pending_update:
         if not product:
             missing.append(subject_label)
         if not purpose:
             missing.append("使用场景与目标")
-        if not preserve:
+        if not preserve and "preserve" not in resolved_topics:
             missing.append(f"{feature_label}（如没有必须保留项，请直接说明）")
         if not visual:
             missing.append("风格、构图与光影")
-        if not texts:
+        if not texts and "texts" not in resolved_topics:
             missing.append("画面文字（如不需要文字，请直接说明“不需要文字”）")
         if reference_asset_id is not None and reference_usage not in {
             "product",
@@ -932,24 +1295,28 @@ def _alignment_report(
             for index, question in enumerate(questions, 1)
         )
         lines.append("")
-        lines.append("推荐提示词（可直接复制后补充发送）")
-        confirmed: list[str] = []
-        if product:
-            confirmed.append(f"商品主体为{product}")
-        if purpose:
-            confirmed.append(f"使用场景与目标是{purpose}")
-        if preserve:
-            confirmed.append(f"必须保留{preserve}")
-        if visual:
-            confirmed.append(f"风格、构图与光影为{visual}")
-        prefix = "请继续整理这张商品图的需求。"
-        if confirmed:
-            prefix += "已确认：" + "；".join(confirmed) + "。"
-        tail = "；".join(questions)
-        if not tail.endswith(("。", "？", "！", "?", "!")):
-            tail += "。"
-        prompt = prefix + "还需要补充：" + tail
-        lines.append(prompt[:1600])
+        lines.append("回复方式")
+        selectable = {
+            index: [option.group(1).upper() for option in _OPTION_LINE.finditer(question)]
+            for index, question in enumerate(questions, 1)
+        }
+        if clarifications is not None:
+            by_display = {requirements.render_question(q): q for q in clarifications}
+            selectable = {
+                index: [option["id"] for option in by_display.get(question, {}).get("options", [])]
+                for index, question in enumerate(questions, 1)
+            }
+        example = " ".join(
+            f"{index}{options[0]}" for index, options in selectable.items() if options
+        )
+        placeholders = " ".join(f"{index}?" for index in range(1, len(questions) + 1))
+        if example:
+            lines.append(f"- 直接回复选项编号即可，例如「{example}」；也可以按编号补充自己的描述。")
+        else:
+            lines.append("- 请按编号用自然语言回答，例如「1. 黑色磨砂笔身，银色笔夹」。")
+        lines.append("- 请按题目编号逐条回复；未回复的题会继续保留。")
+        lines.append("- 回答过的问题不会重复询问，信息足够后会继续下一步。")
+        lines.append(f"- 可以复制这一行开始：{placeholders}（把 ? 换成你的选择或简短说明）")
     elif ready:
         lines.append("")
         lines.append("下一步：确认需求后将生成图片提示词；只有你确认提示词后，系统才会生成图片。")
@@ -1011,6 +1378,58 @@ def _blocked_template(output: RoleOutput) -> tuple[str, str]:
     return "MISSING_EVIDENCE", "SERVICE_UNAVAILABLE"
 
 
+async def _previous_partial(ctx: WorkflowContext, reference_usage: str) -> dict[str, Any] | None:
+    """Read only server-validated clarification data for this run/reference."""
+    persisted = requirements.current_data(ctx, reference_usage)
+    if persisted is not None:
+        return persisted
+    async with read_session(ctx.session_factory) as session:
+        events = list((await session.scalars(
+            select(DiagnosticEvent).where(
+                DiagnosticEvent.project_id == ctx.project_id,
+                DiagnosticEvent.event == "requirements_partial_validated",
+            ).order_by(DiagnosticEvent.created_at.desc()).limit(64)
+        )).all())
+    recovered: dict[str, Any] | None = None
+    for event in events:
+        detail = _json_dict(event.detail_json)
+        if (detail.get("run_id") == ctx.run_id
+            and detail.get("reference_asset_id") == ctx.project.reference_asset_id
+            and isinstance(detail.get("data"), dict)
+            and detail["data"].get("reference_usage") == reference_usage):
+            try:
+                validated = BriefData.model_validate(detail["data"]).model_dump(mode="json")
+            except ValueError:
+                continue
+            if recovered is None:
+                recovered = validated
+            else:
+                # Repair old runs that already lost a known field before this
+                # migration. Only fill gaps, never override a later known value.
+                for field in ("product_description", "purpose", "style_keywords", "composition", "lighting"):
+                    if recovered.get(field) in (None, "", []) and validated.get(field) not in (None, "", []):
+                        recovered[field] = validated[field]
+    return recovered
+
+
+async def _merge_requirement_output(
+    ctx: WorkflowContext, current: dict[str, Any] | None, output: RoleOutput,
+    messages: list[Message], answers: list[dict[str, Any]],
+) -> tuple[BriefData, dict[str, Any]]:
+    try:
+        return requirements.merge(
+            current, output.data or {}, updates=output.requirement_updates,
+            evidence=_requirement_evidence(messages, answers), strict=ctx.consolidated,
+            prior_sources=requirements.state_of(ctx).get("field_sources"),
+        )
+    except ApiError as exc:
+        from app.workflow.consolidated import checkpoint_after_validation
+
+        await checkpoint_after_validation(ctx, output)
+        await _fail_run(ctx, "LLM_RESPONSE_INVALID")
+        raise ApiError(409, "LLM_RESPONSE_INVALID", templates.render("LLM_RESPONSE_INVALID")) from exc
+
+
 async def _compose(
     ctx: WorkflowContext,
     action: str,
@@ -1036,6 +1455,9 @@ async def _compose(
     messages = await _user_messages(ctx)
     if not messages:
         raise conflict("MISSING_INPUT", "尚未收到用户需求描述")
+    pending_clarification = await _pending_clarification(ctx)
+    clarification_answers = await _clarification_history(ctx)
+    conversation = await _conversation_messages(ctx)
 
     reference_pair = await current_reference_report(ctx)
     reference_asset_id = ctx.project.reference_asset_id
@@ -1097,6 +1519,43 @@ async def _compose(
     message_ids = {message.id for message in messages}
     text_authorized = _text_authorized(messages)
     user_text = "\n\n".join(message.content for message in messages)
+    configured_dimensions = _requested_size(size)
+    requested_size: tuple[str, float] | None = None
+    original_size: tuple[str, float] | None = None
+    size_paused = False
+    # Replay decisions in message order: a bound code choice survives unrelated
+    # follow-up answers, while a later explicit size amendment replaces it.
+    for message in messages:
+        explicit = _requested_size(message.content)
+        if explicit:
+            requested_size = explicit
+            original_size = original_size or explicit
+            size_paused = False
+        elif (
+            configured_dimensions and configured_dimensions[1] > 1
+            and re.search(r"(?:接受|采用|改为|改成|使用)[^。\n]{0,20}(?:横图|横版)", message.content)
+            and not any(word in message.content for word in ("不接受", "不要", "不采用", "不改"))
+        ):
+            requested_size = configured_dimensions
+            size_paused = False
+        for answer in clarification_answers:
+            if answer.get("reply_message_id") != message.id or "size" not in answer.get("topics", []):
+                continue
+            if "保留原比例" in answer["answer"]:
+                requested_size = original_size
+                size_paused = True
+            elif selected := _requested_size(answer["answer"]):
+                requested_size = selected
+                size_paused = False
+    requested_conflict = size_paused or bool(
+        requested_size and configured_dimensions
+        and abs(requested_size[1] - configured_dimensions[1]) > 0.001
+    )
+    capabilities = ctx.registry.visual_capabilities(ctx.settings.visual().adapter_id or "")
+    executable_sizes = [size] if capabilities is None or capabilities.supported_image_sizes is None or size in capabilities.supported_image_sizes else []
+    if not executable_sizes:
+        await _fail_run(ctx, "CAPABILITY_NOT_READY")
+        raise ApiError(503, "CAPABILITY_NOT_READY", templates.render("CAPABILITY_NOT_READY", capability_label="图片生成"))
     conflict_hints = _reference_conflict_hints(messages, reference_payload)
 
     previous = await latest_artifact(ctx, "brief_draft")
@@ -1119,6 +1578,9 @@ async def _compose(
             },
         )
 
+    persisted_requirement = requirements.current_data(ctx, expected_usage)
+    if persisted_requirement is not None:
+        current_requirement = persisted_requirement
     if current_requirement is None:
         current_brief = await approved_artifact(ctx, "brief_draft")
         current_requirement = (
@@ -1127,9 +1589,30 @@ async def _compose(
             else None
         )
 
+    previous_partial = await _previous_partial(ctx, expected_usage)
+    if current_requirement is None and previous_partial is not None:
+        current_requirement = previous_partial
+
+    if not ctx.direct and requested_conflict and pending_clarification and "当前输出仅支持" in pending_clarification:
+        # Capability negotiation is deterministic. Retain follow-up details and
+        # the last validated partial without another model call for the same
+        # unsupported ratio. The accepted size still requires fresh composition.
+        requested = requested_size[0] if requested_size else "原比例"
+        report = _alignment_report(
+            BriefData.model_validate(previous_partial) if previous_partial else None,
+            questions=[_size_question(size, requested)], size=size,
+            reference_asset_id=reference_asset_id, reference_usage=expected_usage,
+            ready=False, answers=clarification_answers, user_text=user_text,
+            selected_size=requested, pending_update=True,
+        )
+        report += "\n\n本轮补充已保存；明确接受可执行尺寸后，会结合全部回答重新整理需求。"
+        await _append_assistant(ctx, report, ctx.project.revision)
+        await set_stage(ctx, STAGE, "needs_input", issue_code="SIZE_UNSUPPORTED", template_id="SIZE_UNSUPPORTED")
+        return
+
     latest = await latest_artifact(ctx, "brief_draft")
     attempt = (latest.revision_no if latest is not None else 0) + 1
-    if attempt > _MAX_CANDIDATES:
+    if attempt > _MAX_CANDIDATES and not ctx.direct:
         raise conflict(
             "REVISION_BUDGET_EXHAUSTED",
             "该产物已达到最多三次候选的上限，请保留当前结果或重新开始流程",
@@ -1138,7 +1621,9 @@ async def _compose(
     repair_codes: list[str] = []
     while True:
         try:
-            output = await run_role(
+            from app.workflow.consolidated import run_requirements
+
+            output = await run_requirements(
                 ctx,
                 "requirements_consultant",
                 STAGE,
@@ -1149,7 +1634,13 @@ async def _compose(
                         {"message_id": message.id, "text": message.content}
                         for message in messages
                     ],
+                    "conversation": conversation,
+                    "pending_clarification": pending_clarification,
+                    "clarification_answers": clarification_answers,
                     "configured_size": size,
+                    "executable_sizes": executable_sizes,
+                    "requested_size": requested_size[0] if requested_size else None,
+                    "size_requires_explicit_acceptance": requested_conflict,
                     "reference_asset_id": reference_asset_id,
                     "reference_usage": expected_usage,
                     "reference_report": reference_payload,
@@ -1170,16 +1661,48 @@ async def _compose(
         except ApiError as exc:
             await _fail_run(
                 ctx,
-                "CAPABILITY_NOT_READY"
-                if exc.code == "CAPABILITY_NOT_READY"
+                exc.code if exc.code in {"CAPABILITY_NOT_READY", "LLM_TIMEOUT", "LLM_RESPONSE_INVALID"}
                 else "SERVICE_UNAVAILABLE",
             )
             raise
 
+        if output is None:
+            return
+        if ctx.direct:
+            from app.workflow.collaboration import accept_requirements
+
+            await accept_requirements(
+                ctx, output, current_requirement, messages,
+                size_conflict=requested_conflict, requested_size=requested_size,
+                reference_usage=expected_usage,
+            )
+            return
+        if not ctx.consolidated and output.data is not None:
+            # Historical consultant envelopes have no delta field. Preserve
+            # explicit user cancellations while applying the same accumulator.
+            latest_text = _requirement_evidence(messages, clarification_answers)[messages[-1].id]
+            updates = list(output.requirement_updates)
+            if _explicit_text_choice(latest_text) is False:
+                updates.append({"field": "texts", "operation": "clear", "value": None,
+                                "evidence_ids": [messages[-1].id]})
+            if any(phrase in latest_text for phrase in ("没有必须保留", "无必须保留", "无需保留", "不需要保留", "没有特殊保留")):
+                updates.append({"field": "must_preserve", "operation": "clear", "value": None,
+                                "evidence_ids": [messages[-1].id]})
+            output = replace(output, requirement_updates=updates)
+        size_conflict = output.status in {"ready", "needs_input"} and (
+            requested_conflict
+            or (output.data is not None and output.data.get("size") not in {None, size})
+        )
+        if size_conflict:
+            requested = requested_size[0] if requested_size else str(output.data.get("size"))
+            output = replace(output, status="needs_input", questions=[_size_question(size, requested)])
+
         if output.status in {"needs_input", "blocked"}:
             partial_data: BriefData | None = None
             if output.data is not None:
-                partial_data = BriefData.model_validate(output.data)
+                partial_data, field_sources = await _merge_requirement_output(
+                    ctx, current_requirement, output, messages, clarification_answers,
+                )
                 _validate_partial_draft(
                     partial_data,
                     allowed=set(evidence),
@@ -1229,7 +1752,28 @@ async def _compose(
             if decision == "pass":
                 if output.status == "needs_input":
                     try:
-                        questions = _validated_questions(output)
+                        if ctx.consolidated and partial_data is not None and output.clarifications:
+                            remaining = []
+                            for question in output.clarifications:
+                                field = question["field"]
+                                source = field_sources.get(field, {})
+                                known = getattr(partial_data, field) not in (None, "", [])
+                                if source.get("status") in {"unknown", "conflict"} or field in partial_data.unresolved or not known and source.get("status") != "resolved":
+                                    remaining.append(question)
+                            output = replace(output, clarifications=remaining,
+                                             questions=[requirements.render_question(q) for q in remaining])
+                        if size_conflict:
+                            questions = output.questions
+                        elif ctx.consolidated:
+                            questions = _sanitize_questions(output, partial_data)
+                        else:
+                            questions = _drop_resolved_questions(
+                                _sanitize_questions(output, partial_data), clarification_answers, user_text,
+                            )
+                        if not questions:
+                            questions = [
+                                "请确认以上信息是否准确；如需调整，请直接说明要修改哪一项。"
+                            ]
                         question_text = "\n".join(questions)
                         report = _alignment_report(
                             partial_data,
@@ -1238,16 +1782,41 @@ async def _compose(
                             reference_asset_id=reference_asset_id,
                             reference_usage=expected_usage,
                             ready=False,
+                            answers=clarification_answers,
+                            user_text=user_text,
+                            resolved_fields={key for key, value in field_sources.items() if value.get("status") == "resolved"} if partial_data is not None else set(),
+                            unresolved_fields={key for key, value in field_sources.items() if value.get("status") in {"unknown", "conflict"}} if partial_data is not None else set(),
+                            clarifications=output.clarifications if ctx.consolidated and not size_conflict else None,
+                            selected_size=requested_size[0] if requested_size else None,
                         )
                     except ApiError as exc:
                         await _record_review_error(ctx, exc)
                         raise
+                    if partial_data is not None:
+                        await requirements.save(
+                            ctx, partial_data, sources=field_sources,
+                            questions=[q for q in output.clarifications if requirements.render_question(q) in questions],
+                            answers=clarification_answers,
+                        )
+                        await record_diagnostic(ctx, "requirements_partial_validated", {
+                            "run_id": ctx.run_id,
+                            "reference_asset_id": reference_asset_id,
+                            "requirement_revision": ctx.run.requirement_revision,
+                            "data": partial_data.model_dump(mode="json"),
+                        })
+                    elif previous_partial is not None:
+                        report += "\n\n上轮已核实的信息（本轮修改尚未结构化，请结合本轮原文确认）：\n" + _alignment_report(
+                            BriefData.model_validate(previous_partial), questions=[], size=size,
+                            reference_asset_id=reference_asset_id, reference_usage=expected_usage,
+                            ready=False, answers=clarification_answers,
+                        )
                     await _append_assistant(ctx, report, ctx.project.revision)
                     await set_stage(
                         ctx,
                         STAGE,
                         "needs_input",
-                        issue_code="MISSING_INPUT",
+                        issue_code="SIZE_UNSUPPORTED" if size_conflict else "MISSING_INPUT",
+                        template_id="SIZE_UNSUPPORTED" if size_conflict else None,
                         message=question_text,
                     )
                 else:
@@ -1270,7 +1839,10 @@ async def _compose(
             await _fail_run(ctx, "SERVICE_UNAVAILABLE")
             raise _invalid_service()
 
-        data = _normalize_ready_draft(BriefData.model_validate(output.data))
+        merged, field_sources = await _merge_requirement_output(
+            ctx, current_requirement, output, messages, clarification_answers,
+        )
+        data = _normalize_ready_draft(merged)
         try:
             _validate_ready_draft(
                 data,
@@ -1351,6 +1923,9 @@ async def _compose(
         )
 
         if decision == "pass":
+            await requirements.save(
+                ctx, data, sources=field_sources, questions=[], answers=clarification_answers,
+            )
             await record_diagnostic(
                 ctx,
                 "requirements_brief_approved",

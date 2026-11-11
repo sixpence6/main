@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from dataclasses import dataclass, replace
 from typing import Any
@@ -293,6 +294,23 @@ async def _classify_message(
     from app.workflow.contracts import ConversationData
     from app.workflow.roles import run_role
 
+    # In S03 clarification, a bare "A" or "米色" is an answer to the question
+    # the assistant just asked, not a new intent to classify. The router does
+    # not receive that question, so classifying it can silently drop the answer
+    # or turn it into MESSAGE_NOT_UNDERSTOOD. Route it deterministically.
+    if (
+        ctx.run is not None
+        and ctx.run.stage == "S03"
+        and ctx.run.status in {"needs_input", "blocked"}
+        and not has_reference_attachment
+    ):
+        return ConversationData(kind="clarification", reference_usage="none", evidence_ids=[])
+
+    if ctx.consolidated:
+        from app.workflow.consolidated import classify_message
+
+        return await classify_message(ctx, content, has_reference_attachment)
+
     output = await run_role(
         ctx,
         "conversation_router",
@@ -337,6 +355,8 @@ async def _plan_message_action(ctx: Any, decision: Any) -> tuple[str | None, str
     kind = decision.kind
     stage = ctx.run.stage
     status = ctx.run.status
+    if ctx.direct and stage == "S10" and status == "completed" and kind in {"requirements_change", "prompt_change"}:
+        return "request_new_version", None, "CONVERSATION_CHANGE_ACCEPTED"
     if kind == "conversation":
         return None, None, "CONVERSATION_ACK"
     if kind == "clarification":
@@ -420,6 +440,19 @@ async def _write_conversation_exchange(
         operation_id=request_id,
         turn_kind="conversation",
     )
+    if ctx.direct:
+        from app.workflow import alignment, requirements
+        state = requirements.state_of(ctx)
+        if alignment.STOP.search(content):
+            state.update(version=2, revision=ctx.project.revision,
+                         generation_intent=alignment.intent(state, content, user_message.id))
+            encoded = json.dumps(state, ensure_ascii=False)
+            async with write_transaction(ctx.session_factory) as session:
+                run = await session.get(WorkflowRun, ctx.run_id)
+                run.requirements_state_json = encoded
+            ctx.run.requirements_state_json = encoded
+            if ctx.run.stage in {"S01", "S03", "S04", "S05", "S06", "S07"}:
+                await workflow_state.set_stage(ctx, "S03", "needs_input")
     attachment = None
     if attachment_asset is not None:
         async with write_transaction(ctx.session_factory) as session:
@@ -435,7 +468,8 @@ async def _write_conversation_exchange(
         ctx.session_factory,
         project_id=ctx.project_id,
         role="assistant",
-        content=workflow_templates.render(template),
+        content=(ctx.natural_reply or "你可以直接描述想生成的画面。")
+        if ctx.direct else workflow_templates.render(template),
         project_revision=ctx.project.revision,
         operation_id=request_id,
         turn_kind="conversation",
@@ -684,7 +718,14 @@ async def _send_attachment_action(
     from app.workflow.stages import s01, s02, s03
 
     await _settle_pending_intent(ctx, "attachment_reference_change")
-    if ctx.run.stage == "S01" or ctx.run.intent_route is None:
+    if ctx.direct:
+        ctx.prepared_requirements = None
+    new_version = ctx.direct and ctx.run.stage == "S10" and ctx.run.status == "completed"
+    if new_version:
+        from app.workflow.stages import s10
+
+        await s10._request_new_version(ctx, {"text": content}, defer=True)
+    if not new_version and (ctx.run.stage == "S01" or ctx.run.intent_route is None):
         await _set_project_reference(ctx, asset.id)
         await workflow_state.record_diagnostic(
             ctx,
@@ -698,7 +739,8 @@ async def _send_attachment_action(
         )
         await s01.handle(ctx, action, {"text": content})
     else:
-        await s03.record_revision_text(ctx, content)
+        if not new_version:
+            await s03.record_revision_text(ctx, content)
         await _set_project_reference(ctx, asset.id)
         await s02.prepare_after_reference_change(ctx)
         await workflow_state.record_diagnostic(
@@ -706,8 +748,11 @@ async def _send_attachment_action(
             "reference_usage_selected",
             {"usage": usage, "asset_id": asset.id},
         )
+        if new_version:
+            await workflow_state.set_intent(ctx, "image_request", "new_request")
         await s02.analyze(ctx, usage=usage)
-        await s03.start_requirements_revision(ctx, content, record_user_text=False)
+        if not ctx.direct:
+            await s03.start_requirements_revision(ctx, content, record_user_text=False)
     attachment = await _bind_attachment_for_action(
         ctx,
         asset=asset,
@@ -740,6 +785,7 @@ async def _send_workflow_message(
     request_id: str | None,
     principal: Principal | None,
     attachment_asset_id: str | None = None,
+    clarification_answer: dict[str, Any] | None = None,
 ) -> MessageExchange:
     from app.workflow import dispatch
     from app.workflow import state as workflow_state
@@ -765,10 +811,20 @@ async def _send_workflow_message(
         )
         if existing is not None:
             return existing
+        from app.workflow.alignment import validate_answer
+        validate_answer(ctx, clarification_answer, content)
         if ctx.run.recovery_claim_id:
             raise conflict("PROJECT_BUSY", "项目正在恢复处理，请稍后再试")
         if ctx.project.revision != expected_revision:
             raise conflict("REVISION_CONFLICT", "项目已被其他操作更新，请刷新后重试")
+        if ctx.direct:
+            from app.workflow.alignment import unbound_option
+            from app.workflow.requirements import state_of
+            if unbound_option(state_of(ctx), content):
+                ctx.natural_reply = "目前没有待回答的选项，你可以直接描述想法或需要调整的地方。"
+                return await _write_conversation_exchange(
+                    ctx, content=content, request_id=effective_request_id, principal=principal,
+                )
         async with read_session(session_factory) as session:
             active = await session.scalar(
                 select(func.count())
@@ -794,6 +850,24 @@ async def _send_workflow_message(
                         )
                     ),
                 )
+            )
+        if (active or unconverged) and ctx.direct and attachment_asset_id is None:
+            # Feedback is a future intention; the submitted snapshot stays immutable.
+            from app.workflow.requirements import state_of
+            pending_state = state_of(ctx)
+            pending_state["pending_feedback"] = [
+                *pending_state.get("pending_feedback", []),
+                {"message_id": effective_request_id, "text": content,
+                 "run_id": ctx.run_id, "requirement_revision": ctx.project.revision},
+            ][-32:]
+            encoded = json.dumps(pending_state, ensure_ascii=False)
+            async with write_transaction(session_factory) as session:
+                run = await session.get(WorkflowRun, ctx.run_id)
+                run.requirements_state_json = encoded
+            ctx.run.requirements_state_json = encoded
+            ctx.natural_reply = "已记下这条后续修改意见。当前任务已经提交，结果状态确定后可以按这些意见继续调整。"
+            return await _write_conversation_exchange(
+                ctx, content=content, request_id=effective_request_id, principal=principal,
             )
         if active or unconverged:
             raise conflict("ACTIVE_GENERATION_EXISTS", "项目有正在进行的生成，请稍后再试")
@@ -983,6 +1057,7 @@ async def send_message(
     app: Any | None = None,
     request_id: str | None = None,
     attachment_asset_id: str | None = None,
+    clarification_answer: dict[str, Any] | None = None,
 ) -> MessageExchange:
     if not content.strip():
         raise validation_error("消息内容不能为空")
@@ -1005,6 +1080,7 @@ async def send_message(
                 request_id=request_id,
                 principal=principal,
                 attachment_asset_id=attachment_asset_id,
+                clarification_answer=clarification_answer,
             )
         # 旧项目的模型整理入口必须由后端统一暂停，前端禁用不具备授权效力。
         await ensure_legacy_entry_available(session, project_id)

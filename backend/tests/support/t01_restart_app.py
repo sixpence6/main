@@ -32,5 +32,5 @@ class NoImage(VisualStub):
         unexpected("fetch")
 
 
-settings = Settings(_env_file=None)
+settings = Settings(_env_file=None, workflow_role_policy="legacy")
 app = create_app(settings=settings, registry=build_test_registry(llm=NoText(), visual=NoImage()))

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
 
@@ -84,6 +84,21 @@ class WorkflowContext:
     http: Any
     locks: ProjectLocks
     principal: Principal | None = None
+    # Latest status per artifact kind for the current run, read in the same
+    # async session as the run itself. Stage availability must use this cached
+    # view instead of opening a second SQLite connection.
+    latest_artifact_statuses: dict[str, str] = field(default_factory=dict)
+    prepared_requirements: Any = None
+    natural_reply: str = ""
+
+    @property
+    def consolidated(self) -> bool:
+        return self.run is not None and (self.direct or self.run.role_policy == "consolidated")
+
+    @property
+    def direct(self) -> bool:
+        """Current four-role flow; other policies only replay historical workflows."""
+        return self.settings.workflow_role_policy == "collaborative"
 
     @property
     def project_id(self) -> str:
@@ -122,10 +137,20 @@ async def load_context(
             .order_by(WorkflowRun.sequence_no.desc())
             .limit(1)
         )
+        latest_artifact_statuses: dict[str, str] = {}
+        if run is not None:
+            rows = await session.execute(
+                select(Artifact.kind, Artifact.status)
+                .where(Artifact.run_id == run.id)
+                .order_by(Artifact.kind, Artifact.revision_no)
+            )
+            for kind, status in rows:
+                latest_artifact_statuses[kind] = status
     from app.workflow import adjudication
 
     adjudication.set_gate_mode(
-        getattr(app.state.settings, "workflow_gate_mode", "strict")
+        "off" if app.state.settings.workflow_role_policy == "collaborative"
+        else getattr(app.state.settings, "workflow_gate_mode", "strict")
     )
     return WorkflowContext(
         app=app,
@@ -137,6 +162,7 @@ async def load_context(
         http=app.state.http,
         locks=app.state.locks,
         principal=principal,
+        latest_artifact_statuses=latest_artifact_statuses,
     )
 
 
@@ -161,6 +187,7 @@ async def create_run(ctx: WorkflowContext, stage: str = "S01") -> WorkflowRun:
             project_id=ctx.project_id,
             sequence_no=(highest or 0) + 1,
             stage=stage,
+            role_policy=ctx.settings.workflow_role_policy,
             status="active",
             requirement_revision=ctx.project.revision,
             created_at=now,
@@ -193,6 +220,7 @@ async def start_new_run(
             project_id=ctx.project_id,
             sequence_no=(highest or 0) + 1,
             stage=stage,
+            role_policy=ctx.run.role_policy if ctx.run is not None else ctx.settings.workflow_role_policy,
             status="active",
             requirement_revision=(
                 requirement_revision
@@ -301,6 +329,8 @@ async def reserve_artifact_revision(
             )
             session.add(budget)
             await session.flush()
+        if ctx.direct:
+            budget.max_allowed = max(budget.max_allowed, budget.used + 1)
         if budget.used >= budget.max_allowed:
             raise conflict(
                 "REVISION_BUDGET_EXHAUSTED",
@@ -386,6 +416,8 @@ async def start_artifact(
             )
             session.add(budget)
             await session.flush()
+        if ctx.direct:
+            budget.max_allowed = max(budget.max_allowed, budget.used + 1)
         if revision_no is None:
             if budget.used >= budget.max_allowed:
                 raise conflict(
@@ -913,10 +945,13 @@ async def _build_versions(
         execution_snapshot = await _version_execution_snapshot(
             session, project_id, brief_artifact
         )
-        can_download = bool(
-            asset is not None
-            and delivery.filename
-            and (await can_access_asset(session, settings, asset, download=True)).allow
+        access = (
+            await can_access_asset(session, settings, asset, download=True)
+            if asset is not None else None
+        )
+        can_download = bool(access and access.allow and delivery.filename)
+        unavailable_reason = None if can_download else (
+            access.reason_code if access and not access.allow else "ASSET_UNAVAILABLE"
         )
         versions.append(
             WorkflowVersionView(
@@ -951,6 +986,7 @@ async def _build_versions(
                     else None
                 ),
                 can_download=can_download,
+                unavailable_reason=unavailable_reason,
                 created_at=job.created_at,
             )
         )
@@ -980,6 +1016,7 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
         )
         actions = [dispatch.action_view(initial_action)]
         return WorkflowView(
+            interaction_mode="direct" if ctx.direct else "legacy",
             project_id=ctx.project_id,
             status="none",
             project_revision=ctx.project.revision,
@@ -1167,7 +1204,7 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
     if preview is not None and preview["can_confirm"]:
         # Keep the explicit repair and abandonment choices beside final
         # confirmation; refreshing or reopening the page must not remove them.
-        actions = [dispatch.action_view("confirm_prompt")] + [
+        actions = [dispatch.action_view("confirm_prompt"), dispatch.action_view("edit_prepared_prompt")] + [
             view for view in actions if view.id != "confirm_prompt"
         ]
     task_state = build_task_state(
@@ -1181,7 +1218,36 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
         artifacts=artifact_views,
     )
 
+    if ctx.direct and intent_view is not None and intent_view.id in getattr(ctx.app.state, "generation_cycles", set()):
+        # The durable request already has a driver. Refreshing the page must
+        # observe it rather than issue a second prompt compilation.
+        actions = []
+    if ctx.direct:
+        task_state.progress.stage_label = {
+            "S01": "理解需求", "S02": "观察参考图", "S03": "理解需求",
+            "S04": "设计画面", "S05": "完善设计", "S06": "准备制图",
+            "S07": "编写提示词", "S08": "生成图片", "S09": "整理图片",
+            "S10": "交付图片",
+        }.get(ctx.run.stage, "处理请求")
+
+    from app.workflow.requirements import state_of
+    requirement_state = state_of(ctx)
+    pending_questions = requirement_state.get("questions", [])
+    conversation_question = None
+    if (ctx.direct and ctx.run.stage == "S03" and ctx.run.status == "needs_input"
+            and pending_questions and requirement_state.get("question_message_id")
+            and requirement_state.get("revision") == ctx.project.revision):
+        question = pending_questions[0]
+        conversation_question = {
+            "question_id": question["id"], "field": question["field"],
+            "text": question["text"],
+            "options": [{"id": o["id"], "label": o["label"]} for o in question["options"]],
+            "requirement_revision": requirement_state["revision"],
+            "message_id": requirement_state["question_message_id"],
+        }
     return WorkflowView(
+        conversation_question=conversation_question,
+        interaction_mode="direct" if ctx.direct else "legacy",
         prompt_preview=preview,
         project_id=ctx.project_id,
         run_id=ctx.run.id,

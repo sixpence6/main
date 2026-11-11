@@ -21,6 +21,7 @@ from app.workflow.adjudication import (
     RULESET_VERSION,
     ProtocolIssue,
     RuleSet,
+    gate_mode_for_target,
     governance_ruleset,
     review_output,
 )
@@ -425,6 +426,19 @@ def _legacy_evidence(
     return evidence
 
 
+def _gate_off_review(target_id: str) -> RoleOutput:
+    return RoleOutput(
+        role="output_reviewer",
+        status="ready",
+        data={
+            "results": [
+                {"target_id": target_id, "decision": "pass", "checks": []}
+            ]
+        },
+        model_fingerprint="gate-off",
+    )
+
+
 async def _review_text_target(
     ctx: WorkflowContext,
     *,
@@ -436,6 +450,8 @@ async def _review_text_target(
     reference_id: str | None,
     rules: tuple[str, ...],
 ) -> tuple[str, list[dict[str, Any]], RoleOutput]:
+    if gate_mode_for_target(target_kind) == "off":
+        return "pass", [], _gate_off_review(item.id)
     content_digest = _content_digest(content)
     snapshot_digest = _snapshot_digest(snapshot)
     allowed = _legacy_evidence(item, content_digest, snapshot_digest, reference_id)
@@ -653,6 +669,29 @@ async def _quality_review(
         (asset_bytes, asset.mime_type),
         (reference[1], reference[0].mime_type) if reference is not None else None,
     )
+    if gate_mode_for_target("quality_report") == "off":
+        data = {
+            "asset_id": asset.id,
+            "decision": "pass",
+            "checks": [
+                {
+                    "rule_id": rule,
+                    "outcome": "pass",
+                    "evidence_ids": [asset.id],
+                    "note": "内容审查已关闭，仅完成本地文件校验。",
+                }
+                for rule in rules
+            ],
+            "soft_feedback": [],
+            "limitations": ["内容审查已关闭，仅完成本地文件校验。"],
+            "user_summary": "内容审查已关闭，仅完成本地文件校验。",
+        }
+        try:
+            artifact = await start_artifact(ctx, "quality_report", data)
+        except ContractError:
+            await _block_stage(ctx, "QUALITY_INVALID", "REVIEW_UNAVAILABLE")
+            return None
+        return data, artifact
     try:
         output = await run_role(
             ctx,
@@ -707,6 +746,8 @@ async def _review_quality_report(
     snapshot_digest: str,
     reference: tuple[Asset, bytes, str] | None,
 ) -> tuple[str, list[dict[str, Any]], RoleOutput] | None:
+    if gate_mode_for_target("quality_report") == "off":
+        return "pass", [], _gate_off_review(artifact.id)
     reference_id = reference[0].id if reference is not None else None
     allowed = {artifact.id, asset.id, snapshot_digest}
     if reference_id:
@@ -784,6 +825,8 @@ async def _review_image_target(
     reference: tuple[Asset, bytes, str] | None,
     rules: tuple[str, ...],
 ) -> tuple[str, list[dict[str, Any]], RoleOutput] | None:
+    if gate_mode_for_target("image") == "off":
+        return "pass", [], _gate_off_review(asset.id)
     reference_id = reference[0].id if reference is not None else None
     allowed = {asset.id, quality_artifact.id, snapshot_digest}
     if reference_id:
@@ -899,48 +942,52 @@ async def _delivery_review(
         "snapshot": snapshot,
         "snapshot_digest": snapshot_digest,
     }
-    try:
-        review = await run_role(
-            ctx,
-            "output_reviewer",
-            STAGE,
-            {
-                "reviewed_role": "delivery_manager",
-                "target_kind": "delivery_manifest",
-                "ruleset_version": RULESET_VERSION,
-                "rules": _review_ruleset("delivery_manifest", LEGACY_DELIVERY_RULES).describe(),
-            },
-            approved_inputs={"delivery_manifest": data},
-            review_targets=[target],
-            required_rule_ids=LEGACY_DELIVERY_RULES,
-            allowed_evidence_ids=tuple(sorted(allowed)),
-        )
-    except ApiError:
-        await set_stage(
-            ctx,
-            STAGE,
-            "failed",
-            issue_code="REVIEW_UNAVAILABLE",
-            template_id="REVIEW_UNAVAILABLE",
-        )
-        raise
-    try:
-        decision, checks = _validate_review(
-            review,
-            artifact.id,
-            LEGACY_DELIVERY_RULES,
-            allowed,
-            target_kind="delivery_manifest",
-        )
-    except ApiError as exc:
-        await set_stage(
-            ctx,
-            STAGE,
-            "blocked" if exc.status_code == 409 else "failed",
-            issue_code=exc.code,
-            template_id=exc.code,
-        )
-        raise
+    if gate_mode_for_target("delivery_manifest") == "off":
+        review = _gate_off_review(artifact.id)
+        decision, checks = "pass", []
+    else:
+        try:
+            review = await run_role(
+                ctx,
+                "output_reviewer",
+                STAGE,
+                {
+                    "reviewed_role": "delivery_manager",
+                    "target_kind": "delivery_manifest",
+                    "ruleset_version": RULESET_VERSION,
+                    "rules": _review_ruleset("delivery_manifest", LEGACY_DELIVERY_RULES).describe(),
+                },
+                approved_inputs={"delivery_manifest": data},
+                review_targets=[target],
+                required_rule_ids=LEGACY_DELIVERY_RULES,
+                allowed_evidence_ids=tuple(sorted(allowed)),
+            )
+        except ApiError:
+            await set_stage(
+                ctx,
+                STAGE,
+                "failed",
+                issue_code="REVIEW_UNAVAILABLE",
+                template_id="REVIEW_UNAVAILABLE",
+            )
+            raise
+        try:
+            decision, checks = _validate_review(
+                review,
+                artifact.id,
+                LEGACY_DELIVERY_RULES,
+                allowed,
+                target_kind="delivery_manifest",
+            )
+        except ApiError as exc:
+            await set_stage(
+                ctx,
+                STAGE,
+                "blocked" if exc.status_code == 409 else "failed",
+                issue_code=exc.code,
+                template_id=exc.code,
+            )
+            raise
     if decision != "pass":
         await add_review(
             ctx,

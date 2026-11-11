@@ -16,6 +16,7 @@ from app.config import Settings
 from app.db import write_transaction
 from app.main import create_app
 from app.workflow import contracts, state
+from app.workflow.stages.s04 import _supported_by_facts
 from app.workflow.tables import Artifact, RevisionBudget, RoleCall
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
 from tests.support.auth import authenticated_client
@@ -277,6 +278,18 @@ async def _role_calls(application, run_id: str) -> list[RoleCall]:
                 )
             ).all()
         )
+
+
+def test_elaborated_selling_point_keeps_supported_product_fact():
+    """Creative wording may elaborate a concrete approved fact without drift."""
+    facts = [
+        "钢笔为磨砂黑笔身配银色笔夹",
+        "钢笔斜置居中，顶部单侧硬光打出高光与投影",
+    ]
+    assert _supported_by_facts(
+        "磨砂黑笔身搭配银色笔夹，一哑一亮、明暗反差形成克制的质感对比",
+        facts,
+    )
 
 
 async def test_plan_creative_uses_one_direction_and_a_separate_review(llm_settings):

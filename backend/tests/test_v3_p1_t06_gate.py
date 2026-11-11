@@ -40,7 +40,7 @@ STAGE_ACTIONS = {
     "S04": ("plan_creative", "revise_creative"),
     "S05": ("plan_visual", "revise_visual", "finalize_requirements"),
     "S06": ("confirm_requirements", "revise_requirements"),
-    "S07": ("compile_prompt", "revise_prompt", "confirm_prompt", "abandon_generation"),
+    "S07": ("compile_prompt", "revise_prompt", "confirm_prompt", "edit_prepared_prompt", "abandon_generation"),
     "S08": (
         "submit_generation",
         "verify_generation",
@@ -178,15 +178,18 @@ REVIEW_CATALOGUES = {
 }
 
 
-def test_four_personas_cover_every_work_unit_role() -> None:
+def test_four_personas_cover_every_active_model_role() -> None:
     labels = {
-        "appearance": "外观",
-        "planner": "策划",
+        "reference": "参考图分析师",
+        "appearance": "视觉",
+        "planner": "需求",
         "maker": "制图",
-        "inspector": "质检",
     }
     assert set(prompts.PERSONA_INCREMENTS) == set(labels)
     assert set(prompts.PERSONA_BY_ROLE) == set(prompts.ROLE_INCREMENTS)
+    assert set(prompts.ROLE_INCREMENTS) == set(prompts.ACTIVE_ROLE_INCREMENTS)
+    assert "output_reviewer" not in prompts.ROLE_INCREMENTS
+    assert "quality_compliance" not in prompts.ROLE_INCREMENTS
     for role in prompts.ROLE_INCREMENTS:
         system_prompt = prompts.build_system_prompt(role)
         persona = prompts.PERSONA_BY_ROLE[role]
@@ -263,10 +266,10 @@ def test_off_mode_also_relaxes_the_requirements_gate() -> None:
         adjudication.set_gate_mode("strict")
 
 
-def test_gate_mode_default_keeps_requirements_review_enabled() -> None:
+def test_gate_mode_default_disables_all_content_reviews() -> None:
     from app.config import Settings
 
-    assert Settings.model_fields["workflow_gate_mode"].default == "requirements_only"
+    assert Settings.model_fields["workflow_gate_mode"].default == "off"
 
 
 def test_every_stage_action_inventory_is_complete() -> None:

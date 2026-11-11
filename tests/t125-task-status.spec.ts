@@ -286,7 +286,7 @@ describe('T13 轻量任务状态、失败与真实恢复动作', () => {
       }))
 
       const region = await taskRegion()
-      const expectedLabel = item.severity === 'unknown' ? item.label + '，正在核实' : item.label
+      const expectedLabel = item.label
       expect(within(region).getByText(expectedLabel)).toBeVisible()
       if (item.severity === 'failed' || item.severity === 'unknown') {
         expect(within(region).queryByText(item.message)).not.toBeInTheDocument()

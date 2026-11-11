@@ -120,7 +120,8 @@ function view(overrides: Partial<WorkflowView> = {}): WorkflowView {
 
 function promptView(preview: PromptPreviewView = promptPreview()): WorkflowView {
   return view({
-    available_actions: [action('confirm_prompt', '确认使用以上提示词生成')],
+    interaction_mode: 'direct',
+    available_actions: [action('confirm_prompt', '确认使用以上提示词生成'), action('edit_prepared_prompt', '保存提示词')],
     prompt_preview: preview,
   })
 }
@@ -144,6 +145,7 @@ async function mountPromptCard(options: {
   fakeClock?: boolean
   confirmDelayMs?: number
   onConfirm?: (state: { view: WorkflowView }) => WorkflowView
+  saveFails?: boolean
 } = {}): Promise<{ state: { view: WorkflowView } }> {
   const state = { view: promptView(options.preview) }
   harness = await mountWorkspace({
@@ -155,7 +157,14 @@ async function mountPromptCard(options: {
       registerShell(fetch)
       fetch.route('GET', DETAIL_PATH, () => ({ body: detail() }))
       fetch.route('GET', WORKFLOW_PATH, () => ({ body: state.view }))
-      fetch.route('POST', ACTIONS_ROUTE, () => {
+      fetch.route('POST', ACTIONS_ROUTE, (request) => {
+        if (request.url.endsWith('/edit_prepared_prompt')) {
+          if (options.saveFails) return { status: 409, body: { error: { code: 'PROMPT_STALE', message: '提示词已变化，请刷新后再修改。' } } }
+          const payload = (request.body as { payload: { positive_prompt: string; negative_prompt: string } }).payload
+          const old = state.view.prompt_preview!
+          state.view = promptView({ ...old, id: 'edited-preview', request_digest: 'edited-digest', request: { ...old.request, ...payload } })
+          return { body: state.view }
+        }
         state.view = options.onConfirm?.(state) ?? completedView()
         return { body: state.view, delayMs: options.confirmDelayMs ?? 0 }
       })
@@ -184,10 +193,10 @@ describe('V3 提示词确认卡', () => {
     expect(cardQueries.getByText('v1.1')).toBeVisible()
     expect(cardQueries.getByText('待确认')).toBeVisible()
     expect(card.querySelector('.prompt-card-pill')).toHaveClass('is-pending')
-    expect(cardQueries.getByText(POSITIVE_PROMPT)).toBeVisible()
-    expect(cardQueries.getByText('避免')).toBeVisible()
-    expect(card.querySelector('.prompt-card-danger-icon')).not.toBeNull()
-    expect(cardQueries.getByText(NEGATIVE_PROMPT)).toBeVisible()
+    expect(cardQueries.getByRole('textbox', { name: '正向提示词' })).toHaveValue(POSITIVE_PROMPT)
+    expect(cardQueries.getByRole('textbox', { name: '反向提示词' })).toBeVisible()
+    expect(card.querySelector('.prompt-edit-help')).not.toBeNull()
+    expect(cardQueries.getByRole('textbox', { name: '反向提示词' })).toHaveValue(NEGATIVE_PROMPT)
     expect(cardQueries.getByText('输出')).toBeVisible()
     expect(cardQueries.getByText('1 张 · 1024x1024')).toBeVisible()
     expect(cardQueries.getByText('参考图')).toBeVisible()
@@ -196,6 +205,46 @@ describe('V3 提示词确认卡', () => {
     const cta = cardQueries.getByRole('button', { name: '确认使用以上提示词生成' })
     expect(cta).toBeEnabled()
     expect(cardQueries.getByRole('button', { name: '复制提示词' })).toBeEnabled()
+  })
+
+  it('当前流程先等待，编辑后点击确认才保存并提交新快照', async () => {
+    await mountPromptCard()
+    const card = await promptCard()
+    expect(harness!.fetch.writes).toHaveLength(0)
+    await harness!.user.clear(within(card).getByRole('textbox', { name: '正向提示词' }))
+    await harness!.user.type(within(card).getByRole('textbox', { name: '正向提示词' }), '用户修改后的白色背景提示词')
+    await harness!.user.clear(within(card).getByRole('textbox', { name: '反向提示词' }))
+    await harness!.user.type(within(card).getByRole('textbox', { name: '反向提示词' }), '不要文字')
+    expect(harness!.fetch.writes).toHaveLength(0)
+    await harness!.user.click(within(card).getByRole('button', { name: '确认使用以上提示词生成' }))
+    await harness!.waitFor(() => expect(harness!.fetch.writes.length).toBeGreaterThan(0))
+    const writes = harness!.fetch.writes
+    expect(writes.map((request) => request.url.split('/').at(-1))).toEqual(['edit_prepared_prompt', 'confirm_prompt'])
+    expect(writes[0]?.body).toMatchObject({ payload: { positive_prompt: '用户修改后的白色背景提示词', negative_prompt: '不要文字' } })
+    expect(writes[1]?.body).toMatchObject({ payload: { snapshot_id: 'edited-preview', snapshot_digest: 'edited-digest' } })
+    expect(within(card).getByText('用户修改后的白色背景提示词')).toBeVisible()
+  })
+
+  it('清空正向提示词后不能提交', async () => {
+    await mountPromptCard()
+    const card = await promptCard()
+    await harness!.user.clear(within(card).getByRole('textbox', { name: '正向提示词' }))
+    const confirm = within(card).getByRole('button', { name: '确认使用以上提示词生成' })
+    expect(confirm).toBeDisabled()
+    await harness!.user.click(confirm)
+    expect(harness!.fetch.writes).toHaveLength(0)
+  })
+
+  it('保存失败时保留编辑，不提交旧提示词', async () => {
+    await mountPromptCard({ saveFails: true })
+    const card = await promptCard()
+    const editor = within(card).getByRole('textbox', { name: '正向提示词' })
+    await harness!.user.clear(editor)
+    await harness!.user.type(editor, '保留这段修改')
+    await harness!.user.click(within(card).getByRole('button', { name: '确认使用以上提示词生成' }))
+    await harness!.waitFor(() => expect(harness!.fetch.writes.length).toBeGreaterThan(0))
+    expect(harness!.fetch.count('POST', ACTIONS_PATH + 'confirm_prompt')).toBe(0)
+    expect(within(card).getByRole('textbox', { name: '正向提示词' })).toHaveValue('保留这段修改')
   })
 
   it('检查中时 CTA 禁用但复制保持可用，重复点击不提交请求', async () => {
@@ -221,13 +270,13 @@ describe('V3 提示词确认卡', () => {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
 
     const copy = await screen.findByRole('button', { name: '复制提示词' })
-    const quote = document.querySelector('.prompt-card-quote')
+    const quote = screen.getByRole('textbox', { name: '正向提示词' }) as HTMLTextAreaElement
     expect(quote).not.toBeNull()
-    expect(quote?.textContent).toBe(POSITIVE_PROMPT)
+    expect(quote.value).toBe(POSITIVE_PROMPT)
     await harness!.user.click(copy)
     await harness!.clock.advance(0)
 
-    expect(writeText).toHaveBeenCalledWith(quote?.textContent)
+    expect(writeText).toHaveBeenCalledWith(quote.value)
     expect(screen.getByRole('button', { name: '已复制' })).toBeVisible()
     await harness!.clock.advance(1999)
     expect(screen.getByRole('button', { name: '已复制' })).toBeVisible()
@@ -285,7 +334,7 @@ describe('V3 提示词确认卡', () => {
     const card = await promptCard()
     const body = card.querySelector<HTMLElement>('.prompt-card-body')
     expect(body).not.toBeNull()
-    expect(within(body as HTMLElement).getByText(longPrompt)).toBeVisible()
+    expect(within(body as HTMLElement).getByRole('textbox', { name: '正向提示词' })).toHaveValue(longPrompt)
     expect(body!.querySelector('.prompt-card-actions')?.parentElement).toBe(body)
     expect(card).toHaveClass('is-narrow')
   })

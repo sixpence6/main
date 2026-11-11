@@ -103,7 +103,7 @@ def build_app():
         ProviderOutcome(state="succeeded", image_bytes=_png(), image_count=1)
     ]
     return create_app(
-        settings=Settings(),
+        settings=Settings(workflow_role_policy="legacy"),
         registry=build_test_registry(
             llm=LLMStub(role_responder=responder), visual=visual
         ),

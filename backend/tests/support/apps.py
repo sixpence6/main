@@ -34,6 +34,7 @@ def llm_settings(base: Settings, **overrides) -> Settings:
         "allowed_origins": TEST_ALLOWED_ORIGINS,
         "allow_loopback_http": True,
         "auth_cookie_secure": True,
+        "workflow_role_policy": base.workflow_role_policy,
         "llm_adapter": "stub-llm",
         "llm_base_url": "https://llm.invalid",
         "llm_api_key": "sk-test-llm",

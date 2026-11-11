@@ -18,3 +18,19 @@ backend/.ruff_cache
 backend/.scratch
 **/__pycache__
 **/*.pyc
+
+# Block secrets and private state at any depth, including future overrides.
+**/.env
+**/.env.*
+!**/.env.example
+**/.venv
+**/node_modules
+**/backups
+**/certs
+**/*.db*
+**/*.sqlite*
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+**/*.log

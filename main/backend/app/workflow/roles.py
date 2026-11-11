@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
@@ -11,10 +12,10 @@ from app.db import write_transaction
 from app.errors import ApiError
 from app.generation_guard import GenerationGuardError, ensure_project_owner_active
 from app.timeutil import format_timestamp, utc_now
-from app.workflow import prompts, templates
+from app.workflow import adjudication, prompts, templates
 from app.workflow.contracts import ContractError, digest_payload, validate_role_output
 from app.workflow.state import WorkflowContext, latest_approval, record_diagnostic
-from app.workflow.tables import RoleCall
+from app.workflow.tables import DiagnosticEvent, RoleCall
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,12 @@ class RoleOutput:
     model_fingerprint: str = "unavailable"
     role_call_id: str | None = None
     attempt: int = 1
+    requirement_updates: list[dict[str, Any]] = field(default_factory=list)
+    clarifications: list[dict[str, Any]] = field(default_factory=list)
+    reply: str = ""
+    conversation_only: bool = False
+    document: str | None = None
+    document_sources: list[dict[str, Any]] = field(default_factory=list)
 
     def require_data(self) -> dict[str, Any]:
         if self.status != "ready" or self.data is None:
@@ -131,8 +138,21 @@ async def _record_call(
         started_at=started_at,
         finished_at=format_timestamp(utc_now()),
     )
+    request = json.loads(request_json)
+    payload = request.get("payload", {})
+    metrics = {
+        "role_call_id": call.id, "role": role, "stage": stage, "status": status,
+        "request_chars": len(request_json),
+        "section_chars": {key: len(json.dumps(value, ensure_ascii=False, sort_keys=True)) for key, value in payload.items()},
+        "elapsed_seconds": round((datetime.fromisoformat(call.finished_at) - datetime.fromisoformat(started_at)).total_seconds(), 3),
+    }
     async with write_transaction(ctx.session_factory) as session:
         session.add(call)
+        session.add(DiagnosticEvent(
+            id=str(uuid4()), project_id=ctx.project_id, event="role_request_metrics",
+            detail_json=json.dumps(metrics, ensure_ascii=False, sort_keys=True),
+            created_at=call.finished_at,
+        ))
         await session.flush()
     return call
 
@@ -282,6 +302,7 @@ async def _run_request(
         system_prompt=system_prompt,
         payload=payload,
         images=tuple(images),
+        output_format="markdown" if payload.get("handoff_format") == "markdown" else "json",
     )
     request_digest = digest_payload({"system": system_prompt, "payload": payload})
     request_json = json.dumps(
@@ -372,7 +393,7 @@ async def _run_request(
             operation_id=operation_id,
         )
         raise ApiError(
-            503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE")
+            503, "LLM_TIMEOUT", templates.render("LLM_TIMEOUT")
         ) from None
     except ProviderError as exc:
         timed_out = (exc.error_code or "") == "LLM_TIMEOUT"
@@ -405,14 +426,26 @@ async def _run_request(
             role_call_id=call.id,
             operation_id=operation_id,
         )
-        raise ApiError(
-            503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE")
-        ) from None
+        public_code = "LLM_TIMEOUT" if timed_out else ("LLM_RESPONSE_INVALID" if invalid else "SERVICE_UNAVAILABLE")
+        raise ApiError(503, public_code, templates.render(public_code)) from None
 
-    raw = response.payload
+    document = response.text if request.output_format == "markdown" else None
+    document_sources = payload.get("markdown_sources") or []
+    if document is not None:
+        from app.workflow import markdown_handoff
+
+        # Preserve the original text before any program-owned projection.
+        if role != "requirements_assistant":
+            await markdown_handoff.save_document(ctx, role, document, document_sources)
+        raw = markdown_handoff.project_output(ctx, role, document, payload)
+    else:
+        # Historical adapters and saved JSON calls keep their original contract.
+        raw = response.payload
     try:
-        envelope = validate_role_output(role, _normalize_envelope_placement(raw))
-    except ContractError:
+        envelope = validate_role_output(
+            role, _normalize_envelope_placement(raw, role=role)
+        )
+    except ContractError as exc:
         call = await _record_call(
             ctx,
             role=role,
@@ -424,7 +457,7 @@ async def _run_request(
             request_json=request_json,
             response_json=json.dumps(raw, ensure_ascii=False, sort_keys=True),
             error_code="CONTRACT_INVALID",
-            error_message="模型输出不符合 v2.0.0 契约",
+            error_message=f"模型输出不符合 v2.0.0 契约：{exc}",
             model_fingerprint=response.model_fingerprint,
             started_at=started_at,
         )
@@ -441,9 +474,8 @@ async def _run_request(
             role_call_id=call.id,
             operation_id=operation_id,
         )
-        raise ApiError(
-            503, "SERVICE_UNAVAILABLE", templates.render("SERVICE_UNAVAILABLE")
-        ) from None
+        public_code = "LLM_RESPONSE_INVALID" if ctx.direct else "SERVICE_UNAVAILABLE"
+        raise ApiError(503, public_code, templates.render(public_code)) from None
 
     dumped = envelope.model_dump(mode="json")
     call = await _record_call(
@@ -455,7 +487,10 @@ async def _run_request(
         status="ok",
         request_digest=request_digest,
         request_json=request_json,
-        response_json=json.dumps(dumped, ensure_ascii=False, sort_keys=True),
+        response_json=json.dumps(
+            {"format": "markdown", "content": document, "projection": dumped}
+            if document is not None else dumped, ensure_ascii=False, sort_keys=True,
+        ),
         error_code=None,
         error_message=None,
         model_fingerprint=response.model_fingerprint,
@@ -483,28 +518,42 @@ async def _run_request(
         model_fingerprint=response.model_fingerprint,
         role_call_id=call.id,
         attempt=attempt,
+        document=document,
+        document_sources=document_sources,
     )
 
 
-def _normalize_envelope_placement(raw: object) -> object:
-    """Move issues/questions that a provider nested under data to the envelope.
+def _normalize_envelope_placement(raw: object, *, role: str | None = None) -> object:
+    """Normalize harmless envelope placement and extra top-level fields.
 
-    The role contract keeps issues and questions at the top level. Some real
-    providers occasionally place the empty lists inside data instead. Only
-    that exact placement is repaired; all values are still validated by the
-    strict envelope model afterwards.
+    The role contract keeps issues/questions at the top level. Some providers
+    place those lists inside data, add a descriptive top-level field such as
+    ``questions_note``, or return the data object without the envelope. Placement
+    is repaired and unknown top-level keys are dropped; every remaining value is
+    still validated by the strict envelope.
     """
 
     if not isinstance(raw, dict):
         return raw
-    data = raw.get("data")
+    allowed = {"role", "status", "data", "issues", "questions"}
+    normalized = {key: value for key, value in raw.items() if key in allowed}
+    if role is not None and not ({"role", "status", "data"} & normalized.keys()):
+        data = {key: value for key, value in raw.items() if key not in {"issues", "questions"}}
+        return {
+            "role": role,
+            "status": "ready",
+            "data": data,
+            "issues": raw.get("issues", []),
+            "questions": raw.get("questions", []),
+        }
+
+    data = normalized.get("data")
     if not isinstance(data, dict):
-        return raw
-    if "issues" in raw or "questions" in raw:
-        return raw
+        return normalized
+    if "issues" in normalized or "questions" in normalized:
+        return normalized
     if "issues" not in data and "questions" not in data:
-        return raw
-    normalized = dict(raw)
+        return normalized
     normalized_data = dict(data)
     normalized["issues"] = normalized_data.pop("issues", [])
     normalized["questions"] = normalized_data.pop("questions", [])
@@ -527,6 +576,13 @@ async def run_role(
     allowed_evidence_ids: tuple[str, ...] = (),
 ) -> RoleOutput:
     """Run exactly one fresh model role call, with strict validation and no retry."""
+    if ctx.direct and role not in prompts.ACTIVE_ROLE_INCREMENTS:
+        raise ApiError(409, "ROLE_RETIRED", "当前流程只使用四个协作角色。")
+    if (
+        role in {"output_reviewer", "quality_compliance"}
+        and adjudication.gate_mode_for_target("legacy_review") == "off"
+    ):
+        raise ApiError(409, "ROLE_RETIRED", "该审查角色已下线，请使用当前四角色流程。")
     await _ensure_model_call_allowed(ctx)
     generation_authorized = await latest_approval(ctx, "generation_prompt") is not None
     size = ctx.project.image_size or ctx.settings.visual().image_size
@@ -555,11 +611,18 @@ async def run_role(
         "review_targets": _jsonable(review_targets or []),
         "repair_codes": list(repair_codes or []),
     }
+    system = prompts.build_system_prompt(role, direct=ctx.direct)
+    if ctx.direct and ctx.settings.workflow_handoff_format == "markdown":
+        from app.workflow import markdown_handoff
+
+        context, sources = await markdown_handoff.build_context(ctx, role, input_data, approved_inputs)
+        payload.update(handoff_format="markdown", markdown_context=context, markdown_sources=sources)
+        system = markdown_handoff.system_prompt(role)
     return await _run_request(
         ctx,
         role,
         stage,
-        prompts.build_system_prompt(role),
+        system,
         payload,
         images=tuple(images or ()),
         capability=capability,

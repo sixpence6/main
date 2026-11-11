@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
 from typing import Any
 
 from sqlalchemy import select
@@ -102,32 +101,10 @@ _TEXT_LAYOUT_META_MARKERS = (
 )
 
 
-def _latest_status(ctx: WorkflowContext, kind: str) -> str | None:
-    """Read the latest artifact status for action display.
-
-    available() is synchronous by contract. The workflow itself only uses
-    SQLAlchemy; this read-only helper keeps the panel honest about which stage
-    action is legal without changing the shared state module.
-    """
-    try:
-        path = ctx.settings.database_path
-        if not path.exists():
-            return None
-        with sqlite3.connect(str(path), timeout=2.0) as connection:
-            row = connection.execute(
-                "SELECT status FROM artifacts WHERE run_id = ? AND kind = ? "
-                "ORDER BY revision_no DESC LIMIT 1",
-                (ctx.run_id, kind),
-            ).fetchone()
-        return row[0] if row else None
-    except (OSError, sqlite3.Error, ApiError):
-        return None
-
-
 def available(ctx: WorkflowContext) -> list[str]:
     if ctx.run is None or ctx.run.stage != STAGE:
         return []
-    visual_status = _latest_status(ctx, "visual_plan")
+    visual_status = ctx.latest_artifact_statuses.get("visual_plan")
     if visual_status == "approved":
         return ["revise_visual", "finalize_requirements"]
     if visual_status is not None:
@@ -238,6 +215,8 @@ async def _verify_dependencies(
 
 
 async def _require_review_pass(ctx: WorkflowContext, artifact: Artifact) -> None:
+    if ctx.direct:
+        return
     review = await _latest_review(ctx, artifact.id)
     if review is None or review.decision != "pass":
         raise conflict("ARTIFACT_NOT_APPROVED", "产物尚未通过独立审查")
@@ -972,7 +951,8 @@ async def _finalize(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
             return
 
     card = _compose_final_brief(ctx, brief, creative, visual)
-    await _ensure_budget(ctx, "final_brief")
+    if not ctx.direct:
+        await _ensure_budget(ctx, "final_brief")
     used, _ = await _budget_used(ctx, "final_brief")
     try:
         artifact = await start_artifact(ctx, "final_brief", card)
@@ -1009,11 +989,21 @@ async def _finalize(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
     )
     if decision == "pass":
         await set_stage(ctx, "S06", "active")
+        if ctx.direct:
+            from app.workflow.collaboration import accept_generation
+
+            await accept_generation(ctx)
 
 
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
     if action not in ACTIONS:
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    if ctx.consolidated and action in {"plan_visual", "revise_visual"}:
+        from app.workflow.consolidated import plan_visual
+
+        feedback = _feedback_text(payload) if action == "revise_visual" else None
+        await plan_visual(ctx, feedback=feedback)
+        return
     if action == "plan_visual":
         await _plan_visual(ctx, payload)
     elif action == "revise_visual":

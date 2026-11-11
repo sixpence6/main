@@ -17,7 +17,7 @@ from tests.conftest import migrate
 
 ROOT = Path(REPO_ROOT)
 MAIN_BACKEND = Path(MAIN_DIR) / "backend"
-EXPECTED_MIGRATION_HEAD = "0015"
+EXPECTED_MIGRATION_HEAD = "0017"
 
 
 def _read(path: Path) -> str:
@@ -45,11 +45,12 @@ def test_production_entry_layout_uses_one_source_and_aligned_artifacts():
     root_package = json.loads(_read(ROOT / "package.json"))
     main_package = json.loads(_read(ROOT / "main" / "package.json"))
     assert main_package["scripts"]["build"] == "vite build"
-    assert root_package["scripts"]["build"] == "vite build --config main/vite.config.ts"
+    assert root_package["scripts"]["build"] == "npm --workspace main run build"
     assert not (ROOT / "vite.config.ts").exists()
-    assert (ROOT / "package-lock.json").read_bytes() == (
-        ROOT / "main" / "package-lock.json"
-    ).read_bytes()
+    assert root_package["workspaces"] == ["main"]
+    assert not (ROOT / "main" / "package-lock.json").exists()
+    root_lock = json.loads(_read(ROOT / "package-lock.json"))
+    assert root_lock["packages"]["main"]["dependencies"] == main_package["dependencies"]
 
     migration_dir = MAIN_BACKEND / "migrations" / "versions"
     root_migration_dir = ROOT / "backend" / "migrations" / "versions"

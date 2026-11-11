@@ -496,19 +496,27 @@ async def _prepare(ctx: WorkflowContext) -> None:
         "byte_size": asset.byte_size,
         "sha256": asset.sha256,
     }
-    delivery = await run_role(
-        ctx,
-        "delivery_manager",
-        STAGE,
-        {
-            "target_asset": target_asset,
-            "requirement": requirement,
-            "image_approval": approval_evidence,
-            "delivery_scope": {"count": 1, "size": ctx.project.image_size},
-        },
-        capability="TEXT",
-        attempt=1,
-    )
+    if ctx.consolidated:
+        model_data = DeliveryData(
+            asset_id=asset.id, requirement_revision=ctx.run.requirement_revision,
+            filename_hint=_delivery_filename(asset, ctx.run.requirement_revision),
+            caption="图片已完成本地技术校验，请核对商品细节后确认发布。",
+        )
+        delivery = RoleOutput(role="delivery_manager", status="ready", data=model_data.model_dump(mode="json"))
+    else:
+        delivery = await run_role(
+            ctx,
+            "delivery_manager",
+            STAGE,
+            {
+                "target_asset": target_asset,
+                "requirement": requirement,
+                "image_approval": approval_evidence,
+                "delivery_scope": {"count": 1, "size": ctx.project.image_size},
+            },
+            capability="TEXT",
+            attempt=1,
+        )
     try:
         model = DeliveryData.model_validate(delivery.require_data())
     except ApiError:
@@ -838,7 +846,9 @@ async def _publish(ctx: WorkflowContext) -> None:
         or delivery.asset_digest != asset.sha256
     ):
         raise _digest_mismatch()
-    destination = f"published/{delivery.id}.{_file_extension(asset.mime_type)}"
+    # Each attempt owns its file. A losing concurrent publisher must never
+    # overwrite or delete the winner's committed destination during rollback.
+    destination = f"published/{delivery.id}-{uuid4()}.{_file_extension(asset.mime_type)}"
     try:
         await asyncio.to_thread(write_asset_file, ctx.settings, destination, data)
     except OSError:
@@ -1045,7 +1055,7 @@ async def _copy_reference_report(ctx: WorkflowContext, old_run_id: str) -> bool:
     return True
 
 
-async def _request_new_version(ctx: WorkflowContext, payload: dict[str, Any]) -> None:
+async def _request_new_version(ctx: WorkflowContext, payload: dict[str, Any], *, defer: bool = False) -> None:
     text = _feedback_text(payload)
     _job, _asset, delivery = await _current_delivery(ctx)
     old_run = _run_of(ctx)
@@ -1077,6 +1087,7 @@ async def _request_new_version(ctx: WorkflowContext, payload: dict[str, Any]) ->
                 project_revision=project.revision,
                 brief_snapshot_json=None,
                 operation_id=None,
+                turn_kind="workflow",
                 created_at=now,
             )
         )
@@ -1092,6 +1103,7 @@ async def _request_new_version(ctx: WorkflowContext, payload: dict[str, Any]) ->
             stage="S03",
             status="active",
             requirement_revision=project.revision,
+            role_policy=ctx.settings.workflow_role_policy if ctx.direct else old_run.role_policy,
             created_at=now,
             updated_at=now,
         )
@@ -1112,6 +1124,12 @@ async def _request_new_version(ctx: WorkflowContext, payload: dict[str, Any]) ->
     )
     await revoke_active_approval_types(ctx, revocation_types, "new_version")
 
+    if defer:
+        return
+    if ctx.direct:
+        from app.workflow.state import set_intent
+
+        await set_intent(ctx, "image_request", "new_request")
     has_reference = ctx.project.reference_asset_id is not None
     if has_reference:
         copied = await _copy_reference_report(ctx, old_run.id)
@@ -1121,6 +1139,13 @@ async def _request_new_version(ctx: WorkflowContext, payload: dict[str, Any]) ->
             from app.workflow.stages import s02
 
             await s02.analyze(ctx)
+            if ctx.direct:
+                return
+
+    if ctx.direct:
+        from app.workflow.stages import s03
+
+        await s03._compose(ctx, "compose_brief", None, record_user_text=False)
 
 
 def available(ctx: WorkflowContext) -> list[dict[str, Any]]:

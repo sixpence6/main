@@ -8,7 +8,6 @@
     "README.md",
     "THIRD_PARTY_NOTICES.md",
     "package.json",
-    "package-lock.json",
     "tsconfig.json",
     "vite.config.ts",
     "index.html",
@@ -29,7 +28,6 @@
     "README.md",
     "THIRD_PARTY_NOTICES.md",
     "package.json",
-    "package-lock.json",
     "tsconfig.json",
     "vite.config.ts",
     "index.html",
@@ -60,7 +58,12 @@
     ".venv",
     "node_modules",
     ".git",
-    ".scratch"
+    ".scratch",
+    "backups",
+    "certs",
+    ".local",
+    ".config",
+    ".worktrees"
   ],
   "forbidden_files": [
     ".env",
@@ -71,12 +74,21 @@
     ".db",
     ".db-wal",
     ".db-shm",
-    ".log"
+    ".log",
+    ".sqlite",
+    ".sqlite3",
+    ".pem",
+    ".key",
+    ".p12",
+    ".pfx",
+    ".map"
   ],
   "generated": [
     "backend/data/.gitkeep",
     "RELEASE-MANIFEST.json",
-    "SHA256SUMS"
+    "SHA256SUMS",
+    ".gitignore",
+    "package-lock.json"
   ],
   "build": {
     "command": "npm run build",

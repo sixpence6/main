@@ -10,7 +10,7 @@ import hashlib
 import json
 from uuid import uuid4
 
-from sqlalchemy import CheckConstraint, ForeignKey, String, Text, UniqueConstraint, select
+from sqlalchemy import CheckConstraint, ForeignKey, String, Text, UniqueConstraint, func, select
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.acceptance import GenerationIntent
@@ -578,3 +578,90 @@ async def historical_prompt_readable(session, job, artifact) -> bool:
         )
     except (ValueError, TypeError):
         return False
+
+
+async def edit_prepared_prompt(ctx, payload) -> None:
+    """Persist the user's exact text as a new waiting snapshot; never submit."""
+    from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+    from app.workflow.contracts import GenerationData
+    from app.workflow.state import add_approval
+
+    class Edit(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        snapshot_id: str
+        snapshot_digest: str
+        positive_prompt: str = Field(min_length=1, max_length=12000)
+        negative_prompt: str = Field(max_length=6000)
+
+    try:
+        edit = Edit.model_validate(payload)
+    except ValidationError:
+        raise conflict("PROMPT_INVALID", "提示词不能为空，正向最多 12000 字，反向最多 6000 字。") from None
+    if not edit.positive_prompt.strip():
+        raise conflict("PROMPT_INVALID", "请填写正向提示词。")
+    if ctx.principal is None:
+        raise final_confirmation_required()
+    now = format_timestamp(utc_now())
+    async with write_transaction(ctx.session_factory) as session:
+        await revalidate_principal(session, ctx.principal)
+        project = await session.get(Project, ctx.project_id)
+        run = await session.get(WorkflowRun, ctx.run_id)
+        old = await session.get(PreparedPrompt, edit.snapshot_id)
+        if (project is None or project.owner_account_id != ctx.principal.account_id
+                or project.revision != ctx.revision or run is None
+                or run.stage != "S07" or run.status != "needs_input"
+                or old is None or old.run_id != ctx.run_id
+                or old.status != "awaiting_confirmation"
+                or old.request_digest != edit.snapshot_digest):
+            raise conflict("PROMPT_STALE", "提示词已变化，请刷新后再修改。")
+        request = await validated_request(ctx, session, old)
+        source = await session.get(Artifact, old.artifact_id)
+        plan = json.loads(source.payload_json)
+        plan.update(positive_prompt=edit.positive_prompt, negative_prompt=edit.negative_prompt)
+        plan = GenerationData.model_validate(plan).model_dump(mode="json")
+        if digest_payload(plan) == source.digest:
+            return
+        revision = (await session.scalar(select(func.max(Artifact.revision_no)).where(
+            Artifact.run_id == ctx.run_id, Artifact.kind == "prompt_plan"
+        )) or 0) + 1
+        artifact = Artifact(
+            id=str(uuid4()), run_id=ctx.run_id, project_id=ctx.project_id,
+            kind="prompt_plan", revision_no=revision, status="approved",
+            payload_json=json.dumps(plan, ensure_ascii=False, sort_keys=True),
+            digest=digest_payload(plan), created_at=now,
+        )
+        session.add(artifact)
+        await session.flush()
+        checks = {"ruleset_version": request["ruleset_version"],
+                  "user_edited": True, "source_snapshot_id": old.id,
+                  "operator_account_id": ctx.principal.account_id,
+                  "content_review": "skipped"}
+        approval = await add_approval(
+            ctx, approval_type="generation_prompt", artifact=artifact,
+            approved_by="output_reviewer", checks=checks,
+            model_fingerprint="user-edit:exact-text", session=session,
+            requirement_digest=request["requirements_digest"],
+        )
+        final = await session.get(Artifact, request["requirements_artifact_id"])
+        actual = await build_request(ctx, plan, final, session=session)
+        actual.update(prompt_artifact_id=artifact.id,
+                      prompt_artifact_revision=artifact.revision_no,
+                      prompt_artifact_digest=artifact.digest,
+                      prompt_approval_id=approval.id,
+                      ruleset_version=request["ruleset_version"],
+                      approval_rules_version=approval.rules_version,
+                      approval_prompt_version=approval.prompt_version)
+        old.status = "invalidated"
+        snapshot = PreparedPrompt(
+            id=str(uuid4()), intent_id=old.intent_id, project_id=ctx.project_id,
+            run_id=ctx.run_id, artifact_id=artifact.id, approval_id=approval.id,
+            request_json=json.dumps(actual, ensure_ascii=False, sort_keys=True),
+            request_digest=digest_payload(actual), status="awaiting_confirmation", created_at=now,
+        )
+        session.add(snapshot)
+        write_audit(session, event_type="prompt.user_edited", result="success", now=utc_now(),
+                    actor_kind="account", actor_account_id=ctx.principal.account_id,
+                    target_kind="prepared_prompt", target_id=snapshot.id,
+                    after={"source_snapshot_id": old.id, "request_digest": snapshot.request_digest})
+        await session.flush()

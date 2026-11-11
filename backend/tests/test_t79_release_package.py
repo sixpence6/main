@@ -35,7 +35,7 @@ def test_release_manifest_is_the_only_package_contract_and_rejects_forbidden_fil
     manifest = tool.load_manifest()
     assert manifest.package == "ecommerce-image-workspace"
     assert manifest.version == "0.1.0"
-    assert tool.migration_head(manifest.source_root) == head_revision() == "0015"
+    assert tool.migration_head(manifest.source_root) == head_revision() == "0017"
     assert manifest.source_root == ROOT / "main"
     assert "backend/app/production.py" in manifest.required
     assert "tests/test_t79_release_package.py" not in manifest.include
@@ -115,7 +115,7 @@ def test_release_artifact_excludes_secrets_tests_data_and_has_verifiable_hashes(
 
     manifest = json.loads((package_dir / "RELEASE-MANIFEST.json").read_text(encoding="utf-8"))
     assert manifest["package"] == "ecommerce-image-workspace"
-    assert manifest["migration_head"] == head_revision() == "0015"
+    assert manifest["migration_head"] == head_revision() == "0017"
     assert manifest["source_commit"] == subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
         capture_output=True,
@@ -138,3 +138,44 @@ def test_release_artifact_excludes_secrets_tests_data_and_has_verifiable_hashes(
         archive_names = archive.namelist()
         assert any(name.endswith("/README.md") for name in archive_names)
         assert not any("/tests/" in name or name.endswith("/.env") for name in archive_names)
+
+
+@pytest.mark.parametrize("name", [
+    "backend/.env.production", "src/.env.local", "docker/certs/server.key",
+    "backend/backups/snapshot.json", "dist/assets/private.map", "backend/private.sqlite3",
+])
+def test_release_rejects_environment_overrides_and_private_material(name: str):
+    tool = _load_tool()
+    assert tool.forbidden_reason(name, tool.load_manifest())
+
+
+def test_release_selects_new_production_sources_without_staging_them():
+    tool = _load_tool()
+    selected, _, issues = tool.validate(tool.load_manifest())
+    assert not issues
+    assert "backend/app/workflow/markdown_handoff.py" in selected
+    assert "backend/app/workflow/alignment.py" in selected
+    assert "backend/migrations/versions/0017_role_policy_requirements.py" in selected
+
+
+def test_release_standalone_layout_has_no_parent_workspace_dependency(tmp_path: Path):
+    import shutil
+
+    tool = _load_tool()
+    for name in ("package.json", "docker/Dockerfile", "docker-compose.yml"):
+        destination = tmp_path / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / "main" / name, destination)
+    tool.materialize_standalone_layout(tmp_path)
+    lock = json.loads((tmp_path / "package-lock.json").read_text())
+    package = json.loads((tmp_path / "package.json").read_text())
+    assert lock["packages"][""]["dependencies"] == package["dependencies"]
+    assert "main" not in lock["packages"]
+    assert not any(entry.get("link") for entry in lock["packages"].values())
+    dockerfile = (tmp_path / "docker/Dockerfile").read_text()
+    assert "main/" not in dockerfile
+    assert "--workspace" not in dockerfile
+    assert "COPY --from=build /app/dist" in dockerfile
+    compose = (tmp_path / "docker-compose.yml").read_text()
+    assert "context: .." not in compose
+    assert "dockerfile: docker/Dockerfile" in compose

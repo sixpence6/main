@@ -418,11 +418,16 @@ async def test_concurrent_manual_recovery_shares_one_budget_and_one_replay(
         assert len(llm.role_calls_received) == 1
 
         llm.gate = asyncio.Event()
+        entered = asyncio.Event()
+        original_complete = llm.complete
+
+        async def observed_complete(request):
+            entered.set()
+            return await original_complete(request)
+
+        llm.complete = observed_complete
         first = asyncio.create_task(_continue(client, setup["project_id"], setup["revision"]))
-        for _ in range(200):
-            if len(llm.role_calls_received) >= 2:
-                break
-            await asyncio.sleep(0.01)
+        await asyncio.wait_for(entered.wait(), timeout=10)
         assert len(llm.role_calls_received) == 2
 
         second = await _continue(client, setup["project_id"], setup["revision"])

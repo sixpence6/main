@@ -18,6 +18,7 @@ from app.services.assets import (
 from app.workflow import templates
 from app.workflow.adjudication import (
     ProtocolIssue,
+    gate_mode_for_target,
     governance_ruleset,
     review_output,
 )
@@ -398,36 +399,60 @@ async def analyze(ctx: WorkflowContext, usage: object = None) -> None:
             required_rule_ids=("G02_REFERENCE_USAGE", "G02_OBSERVATION_GROUNDED"),
             allowed_evidence_ids=(expected_evidence,),
         )
-        report_data = _validate_report(report, resolved_usage, expected_evidence)
+        report_data = (
+            {**report.require_data(), "reference_usage": resolved_usage}
+            if ctx.direct else _validate_report(report, resolved_usage, expected_evidence)
+        )
+        if ctx.direct:
+            for section in ("observations", "texts"):
+                for item in report_data.get(section, []):
+                    item["evidence_ids"] = [expected_evidence]
         artifact = await start_artifact(ctx, _REPORT_KIND, report_data)
 
-        phase = "review"
-        review = await run_role(
-            ctx,
-            "output_reviewer",
-            STAGE,
-            {
-                "reviewed_role": "reference_analyst",
-                "target_kind": _REPORT_KIND,
-                "reference_asset_id": asset.id,
-                "reference_usage": resolved_usage,
-            },
-            review_targets=[
+        if gate_mode_for_target(_REPORT_KIND) == "off":
+            review = RoleOutput(
+                role="output_reviewer",
+                status="ready",
+                data={
+                    "results": [
+                        {
+                            "target_id": artifact.id,
+                            "decision": "pass",
+                            "checks": [],
+                        }
+                    ]
+                },
+                model_fingerprint="gate-off",
+            )
+            decision, checks = "pass", []
+        else:
+            phase = "review"
+            review = await run_role(
+                ctx,
+                "output_reviewer",
+                STAGE,
                 {
-                    "target_id": artifact.id,
+                    "reviewed_role": "reference_analyst",
                     "target_kind": _REPORT_KIND,
                     "reference_asset_id": asset.id,
                     "reference_usage": resolved_usage,
-                    "report": report_data,
-                }
-            ],
-            images=(image,),
-            capability="VISION",
-            attempt=1,
-            required_rule_ids=REQUIRED_REVIEW_RULES,
-            allowed_evidence_ids=(artifact.id, expected_evidence),
-        )
-        decision, checks = _validate_review(review, artifact.id, expected_evidence)
+                },
+                review_targets=[
+                    {
+                        "target_id": artifact.id,
+                        "target_kind": _REPORT_KIND,
+                        "reference_asset_id": asset.id,
+                        "reference_usage": resolved_usage,
+                        "report": report_data,
+                    }
+                ],
+                images=(image,),
+                capability="VISION",
+                attempt=1,
+                required_rule_ids=REQUIRED_REVIEW_RULES,
+                allowed_evidence_ids=(artifact.id, expected_evidence),
+            )
+            decision, checks = _validate_review(review, artifact.id, expected_evidence)
     except ApiError as error:
         await _set_failure(ctx, phase=phase, error=error)
         raise
@@ -456,6 +481,10 @@ async def analyze(ctx: WorkflowContext, usage: object = None) -> None:
         # default reference usage. Continue to requirements without an extra
         # click. The independent upload path instead asks for the necessary use.
         await set_stage(ctx, "S03", "active")
+        if ctx.direct:
+            from app.workflow.stages import s03
+
+            await s03._compose(ctx, "compose_brief", None, record_user_text=False)
         return
 
     await set_stage(

@@ -502,3 +502,21 @@ async def test_concurrent_duplicate_review_calls_model_once(settings, full_setti
         assert rows[ids["assistant_message_id"]] == "approved"
         assert rows[ids["generation_id"]] == "legacy_unreviewed"
         assert rows[ids["generated_id"]] == "legacy_unreviewed"
+
+@pytest.mark.asyncio
+async def test_off_mode_skips_legacy_reviewer(settings, full_settings):
+    """S11 历史结果回看在门禁关闭时直接通过，不调用 output_reviewer。"""
+    gate_off = full_settings.model_copy(update={"workflow_gate_mode": "off"})
+    script = Script()
+    async with _environment(settings, gate_off, script) as (client, stub, _, ids):
+        item = _legacy(
+            await _workflow(client, ids["project_id"]), "message", ids["assistant_message_id"]
+        )
+        response = await _act(client, ids["project_id"], item["id"])
+        assert response.status_code == 200, response.text
+        view = response.json()
+        assert _legacy(view, "message", ids["assistant_message_id"])["status"] == "approved"
+        assert stub.role_calls_received == []
+        approvals = _approval_rows(settings)
+        assert len(approvals) == 1
+        assert approvals[0]["model_fingerprint"] == "gate-off"

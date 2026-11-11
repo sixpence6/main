@@ -182,7 +182,7 @@ describe('V2 空态与连接状态', () => {
     })
 
     expect(screen.getByRole('heading', { name: '发来商品图片，或告诉我你想做什么样的电商图片' })).toBeVisible()
-    expect(screen.getByText('用一句话描述商品、用途和画面感觉即可。需要确认时，我会把要点整理给你。')).toBeVisible()
+    expect(screen.getByText('描述你想要的画面，四位助手会协作完成设计和生图。')).toBeVisible()
     for (const suggestion of SUGGESTIONS) {
       expect(screen.getByRole('button', { name: suggestion })).toBeVisible()
     }

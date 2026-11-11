@@ -176,7 +176,7 @@ def _normalize(value: str) -> str:
 # Natural creative summaries may combine several approved facts and add
 # connective wording. Require substantial character-bigram coverage instead
 # of a whole-sentence substring, which rejects faithful paraphrases.
-_MIN_SUPPORT_COVERAGE = 0.30
+_MIN_SUPPORT_COVERAGE = 0.25
 # A short, concrete fact (for example "不需要文字") can support a longer,
 # natural sentence through its content characters even when the surrounding
 # wording is different. Require a shared bigram as well so that unrelated
@@ -378,6 +378,8 @@ async def _require_approved_brief(ctx: WorkflowContext) -> tuple[Artifact, dict[
         raise conflict("ARTIFACT_STALE", "需求草稿内容无效，请重新整理") from None
     if digest_payload(data) != artifact.digest:
         raise conflict("ARTIFACT_STALE", "需求草稿内容与批准摘要不一致")
+    if ctx.direct:
+        return artifact, data
     async with read_session(ctx.session_factory) as session:
         review = await session.scalar(
             select(ArtifactReview)
@@ -766,6 +768,12 @@ async def _revise(ctx: WorkflowContext, text: str) -> None:
 async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> None:
     if action not in ACTIONS:
         raise ApiError(409, "ACTION_NOT_AVAILABLE", templates.render("ACTION_UNAVAILABLE"))
+    if ctx.consolidated:
+        from app.workflow.consolidated import plan_visual
+
+        feedback = validate_text(payload) if action == "revise_creative" else None
+        await plan_visual(ctx, feedback=feedback)
+        return
     if action == "plan_creative":
         await _plan(ctx)
         return

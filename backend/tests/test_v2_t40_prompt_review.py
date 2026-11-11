@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import io
+import json
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 
 import pytest
 from httpx import AsyncClient
@@ -13,11 +15,25 @@ from app.db import write_transaction
 from app.main import create_app
 from app.models import Project
 from app.workflow import state
+from app.workflow.stages import s07 as s07_module
+from app.workflow.stages.s07 import _assess_requirement
+from app.workflow.tables import Artifact
 from tests.support.adapters import LLMStub, VisualStub, build_test_registry
 from tests.support.apps import migrate
 from tests.support.auth import authenticated_client
 
 REVIEW_RULES = ("G03_CONFIRMATION", "G05_EXECUTION_BOUNDARY")
+
+
+async def _stored_legacy_prompt(app, prompt):
+    # Legacy confirmation has no v3 prepared preview. Keep its text private in
+    # the public API while testing the compiler's stored candidate directly.
+    assert prompt["payload"] is None
+    async with app.state.session_factory() as session:
+        artifact = await session.get(Artifact, prompt["id"])
+        assert artifact is not None
+        return {**prompt, "payload": json.loads(artifact.payload_json)}
+
 
 
 def png_bytes(width: int = 640, height: int = 480, color=(230, 230, 230)) -> bytes:
@@ -343,6 +359,7 @@ async def test_compile_prompt_builds_only_confirmed_candidate_and_gets_independe
         )
         prompt = next(artifact for artifact in view["artifacts"] if artifact["kind"] == "prompt_plan")
         assert prompt["status"] == "approved"
+        prompt = await _stored_legacy_prompt(app, prompt)
         assert prompt["payload"]["positive_prompt"] == engineer_data["positive_prompt"]
         assert prompt["payload"]["negative_prompt"] == "；".join(brief["forbidden"])
         assert prompt["payload"]["size"] == "1024x1024"
@@ -381,6 +398,7 @@ async def test_natural_prompt_wording_keeps_confirmed_requirement_coverage(full_
         view = response.json()
         prompt = next(artifact for artifact in view["artifacts"] if artifact["kind"] == "prompt_plan")
         assert prompt["status"] == "approved"
+        prompt = await _stored_legacy_prompt(app, prompt)
         assert "主体居中，四周留白充足" in prompt["payload"]["positive_prompt"]
         assert visual.submit_calls == []
 
@@ -403,6 +421,7 @@ async def test_multi_clause_requirement_coverage_is_accepted(full_settings):
             artifact for artifact in view["artifacts"] if artifact["kind"] == "prompt_plan"
         )
         assert prompt["status"] == "approved"
+        prompt = await _stored_legacy_prompt(app, prompt)
         assert "电商主图；用于大屏展示" in prompt["payload"]["positive_prompt"]
 
 
@@ -431,6 +450,7 @@ async def test_nested_issues_questions_are_hoisted_before_reviewer_validation(fu
         view = response.json()
         prompt = next(artifact for artifact in view["artifacts"] if artifact["kind"] == "prompt_plan")
         assert prompt["status"] == "approved"
+        prompt = await _stored_legacy_prompt(app, prompt)
         assert visual.submit_calls == []
 
 
@@ -468,6 +488,7 @@ async def test_compile_prompt_keeps_original_reference_id_and_explicit_usage(ful
         assert response.status_code == 200, response.text
         view = response.json()
         prompt = next(artifact for artifact in view["artifacts"] if artifact["kind"] == "prompt_plan")
+        prompt = await _stored_legacy_prompt(app, prompt)
         assert prompt["payload"]["reference_asset_id"] == setup["reference_id"]
         assert "参考图仅用于商品外观，不复制背景" in prompt["payload"]["positive_prompt"]
         coverage = prompt["payload"]["requirement_coverage"]
@@ -787,9 +808,86 @@ async def test_compile_prompt_skips_reviewer_when_gates_off(full_settings):
             artifact for artifact in view["artifacts"] if artifact["kind"] == "prompt_plan"
         )
         assert prompt["status"] == "approved"
+        prompt = await _stored_legacy_prompt(app, prompt)
         approvals = [
             item for item in view["approvals"] if item["approval_type"] == "generation_prompt"
         ]
         assert len(approvals) == 1
         assert approvals[0]["approved_by"] == "output_reviewer"
         assert visual.submit_calls == []
+
+
+def test_negative_prompt_lead_in_does_not_break_confirmed_rule_coverage():
+    requirement = "在价格留白区之外添加任何文字"
+    negative_prompt = (
+        "禁止出现以下情况：在价格留白区之外添加任何文字；"
+        "生成价格数字或促销语等文字内容；"
+        "把钢笔改成其他颜色、材质或款式。"
+    )
+
+    assessment = _assess_requirement(
+        requirement, negative_prompt, binding="negative_prompt"
+    )
+
+    assert assessment["covered"] is True
+    assert assessment["content_intact"] is True
+
+
+@pytest.mark.asyncio
+async def test_stale_prompt_attempt_does_not_abandon_newer_preview(monkeypatch):
+    recorded = []
+
+    async def fake_latest(_ctx, kind, *, status=None):
+        assert kind == "prompt_plan"
+        assert status == "approved"
+        return SimpleNamespace(revision_no=4)
+
+    async def fake_record(_ctx, name, payload):
+        recorded.append((name, payload))
+
+    async def fake_abandon(*_args, **_kwargs):
+        raise AssertionError("a stale attempt must not abandon the intent")
+
+    monkeypatch.setattr(s07_module.state, "latest_artifact", fake_latest)
+    monkeypatch.setattr(s07_module.state, "record_diagnostic", fake_record)
+    monkeypatch.setattr(s07_module, "abandon_intent", fake_abandon)
+
+    ctx = SimpleNamespace(
+        project=SimpleNamespace(id="project-1"),
+        run=SimpleNamespace(id="run-1"),
+    )
+    result = await s07_module._reconfirm_prompt(
+        ctx,
+        SimpleNamespace(id="intent-1"),
+        ["coverage drift"],
+        candidate_revision=3,
+    )
+
+    assert result is False
+    assert recorded[-1][0] == "stale_prompt_attempt_ignored"
+    assert recorded[-1][1]["approved_revision"] == 4
+
+
+def test_bare_generation_data_without_coverage_passes_in_gate_off_mode():
+    from app.workflow import adjudication
+    from app.workflow.stages.s07 import _hard_requirements, _validated_payload
+
+    brief = base_brief()
+    data = {
+        "positive_prompt": "磨砂玻璃咖啡杯，杯身印有蓝色鲸鱼图案，主体居中，柔和侧光，1024x1024。",
+        "negative_prompt": "禁止出现价格标签、促销文案。",
+        "size": "1024x1024",
+        "count": 1,
+        "reference_usage": "none",
+    }
+    adjudication.set_gate_mode("off")
+    try:
+        payload, defects = _validated_payload(
+            data, _hard_requirements(brief), brief, "1024x1024"
+        )
+    finally:
+        adjudication.set_gate_mode("strict")
+
+    assert defects == []
+    assert payload["reference_asset_id"] is None
+    assert payload["requirement_coverage"]

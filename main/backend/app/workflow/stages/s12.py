@@ -53,7 +53,7 @@ ACTIONS = [
     "cleanup_expired",
 ]
 
-_TECHNICAL_RUN_CODES = {"SERVICE_UNAVAILABLE", "REVIEW_UNAVAILABLE", "CAPABILITY_NOT_READY"}
+_TECHNICAL_RUN_CODES = {"SERVICE_UNAVAILABLE", "REVIEW_UNAVAILABLE", "CAPABILITY_NOT_READY", "LLM_TIMEOUT", "LLM_RESPONSE_INVALID"}
 # Reviewer contract defects surface as typed rejections, never as outages.
 _REVIEW_PROTOCOL_CODES = {"REVIEW_INVALID", "REVIEW_REJECTED"}
 # A malformed reviewer answer may be replayed once the contract is fixed; a
@@ -96,8 +96,8 @@ async def _stage_error(
     if error.code in _REVIEW_PROTOCOL_CODES:
         await set_stage(ctx, stage, "blocked", issue_code=error.code, template_id=error.code)
         return error.code
-    if error.code == "CAPABILITY_NOT_READY":
-        template_id = "CAPABILITY_NOT_READY"
+    if error.code in {"CAPABILITY_NOT_READY", "LLM_TIMEOUT", "LLM_RESPONSE_INVALID"}:
+        template_id = error.code
     elif error.code == "REVIEW_UNAVAILABLE":
         template_id = "REVIEW_UNAVAILABLE"
     else:
@@ -151,6 +151,16 @@ def _is_recoverable_checkpoint(ctx: WorkflowContext, checkpoint: dict[str, Any])
     status = checkpoint.get("status")
     if status in _RECOVERABLE_CALL_STATUSES or status == "capability":
         return True
+    # A provider that returns non-JSON is a transient technical failure, not a
+    # substantive rejection. Keep it explicitly recoverable so the user can
+    # re-run the same persisted request instead of being stuck with a failed
+    # run whose "continue" action has no eligible checkpoint.
+    if (
+        status == "invalid"
+        and checkpoint.get("phase") == "producer"
+        and checkpoint.get("error_code") in {"LLM_RESPONSE_INVALID", "CONTRACT_INVALID"}
+    ):
+        return True
     # A review that completed at the provider but failed the stage's semantic
     # validation has no error checkpoint. Its completed request is still the
     # exact, safe unit to replay when the run is parked on REVIEW_UNAVAILABLE.
@@ -171,10 +181,10 @@ def _is_recoverable_checkpoint(ctx: WorkflowContext, checkpoint: dict[str, Any])
         status == "completed"
         and checkpoint.get("phase") == "producer"
         and checkpoint.get("stage") == "S03"
-        and checkpoint.get("role") == "requirements_consultant"
+        and checkpoint.get("role") in {"requirements_consultant", "requirements_assistant"}
         and ctx.run is not None
         and ctx.run.status == "failed"
-        and ctx.run.issue_code == "SERVICE_UNAVAILABLE"
+        and ctx.run.issue_code in {"SERVICE_UNAVAILABLE", "LLM_RESPONSE_INVALID"}
     )
 
 
@@ -238,6 +248,8 @@ def _verify_checkpoint(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None
 
 
 async def _ensure_budget(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
+    if ctx.direct:
+        return
     if checkpoint.get("phase") == "review":
         return
     kind = _ARTIFACT_KIND_BY_STAGE.get(str(checkpoint.get("stage")))
@@ -1290,6 +1302,25 @@ async def _resume_review(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> No
 
 async def _resume_producer(ctx: WorkflowContext, checkpoint: dict[str, Any]) -> None:
     stage = str(checkpoint.get("stage"))
+    role = str(checkpoint.get("role"))
+    if ctx.consolidated and role in {"requirements_assistant", "visual_planner"}:
+        request_raw, _, _ = _request_parts(checkpoint)
+        output = await run_role_request(
+            ctx, role, stage, request_raw,
+            capability=str(checkpoint.get("capability") or "TEXT"),
+            attempt=int(checkpoint.get("attempt") or 1),
+        )
+        if role == "requirements_assistant":
+            message = await _latest_user_message(ctx)
+            if message is None:
+                raise _unavailable()
+            ctx.prepared_requirements = (message.content, output)
+            await s03._compose(ctx, "compose_brief", None, record_user_text=False)
+        else:
+            from app.workflow.consolidated import plan_visual
+
+            await plan_visual(ctx, output=output)
+        return
     if stage == "S01":
         await _resume_s01_producer(ctx, checkpoint)
         return
@@ -1375,11 +1406,16 @@ async def _continue(ctx: WorkflowContext) -> None:
         await s09._load_candidate(ctx)
     await _ensure_budget(ctx, checkpoint)
     capability = str(checkpoint.get("capability") or "TEXT")
-    _ensure_capability(ctx, capability)
+    if not ctx.direct:
+        _ensure_capability(ctx, capability)
     operation_id = str(checkpoint.get("operation_id") or "")
     await claim_recovery(ctx, operation_id, stage=str(checkpoint.get("stage")))
     try:
-        if checkpoint.get("phase") == "review":
+        if ctx.direct:
+            from app.workflow.collaboration import resume
+
+            await resume(ctx, str(checkpoint.get("stage")))
+        elif checkpoint.get("phase") == "review":
             await _resume_review(ctx, checkpoint)
         else:
             await _resume_producer(ctx, checkpoint)
