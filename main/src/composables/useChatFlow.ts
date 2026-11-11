@@ -180,7 +180,6 @@ export function useChatFlow() {
   const pendingRequirementRequestId = ref('')
   const pendingPromptCommandId = ref('')
   let pendingPromptCommandKey = ''
-  let promptScopeRevision = 0
   const pendingTaskAction = ref<WorkflowAction | null>(null)
   const taskConfirmations = ref<Record<string, boolean>>({})
   let lastAutoAction = ''
@@ -904,8 +903,8 @@ export function useChatFlow() {
     if (changed ? !(preview.can_edit ?? preview.can_confirm) || !actionById('edit_prepared_prompt')
       : !preview.can_confirm || !actionById('confirm_prompt')) return false
     const sessionAtStart = sessionRevision.value
-    const scopeAtStart = promptScopeRevision
-    const isCurrent = () => sessionAtStart === sessionRevision.value && scopeAtStart === promptScopeRevision
+    const scopeAtStart = contextRevision
+    const isCurrent = () => !disposed && sessionAtStart === sessionRevision.value && scopeAtStart === contextRevision
       && workspace.projectParam.value === projectId && view.value?.project_id === projectId
     // Editing replaces prompt artifacts and approvals, but cannot change the
     // identity, requirements, output, references or service the user reviewed.
@@ -1075,7 +1074,6 @@ export function useChatFlow() {
       resumedAutoKey = ''
       pendingRequirementRequestId.value = ''
       pendingPromptCommandId.value = ''
-      promptScopeRevision += 1
       pendingTaskAction.value = null
       taskConfirmations.value = {}
       flowError.value = ''
@@ -1102,7 +1100,6 @@ export function useChatFlow() {
       if (pendingAttachment.value) clearAttachmentState(true)
       pendingRequirementRequestId.value = ''
       pendingPromptCommandId.value = ''
-      promptScopeRevision += 1
       pendingTaskAction.value = null
       taskConfirmations.value = {}
       flowError.value = ''
@@ -1117,7 +1114,6 @@ export function useChatFlow() {
     { flush: 'sync' },
   )
   onBeforeUnmount(() => {
-    promptScopeRevision += 1
     disposed = true
     contextRevision += 1
     autoArmed = false
