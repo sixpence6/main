@@ -21,20 +21,74 @@ FEEDBACK = re.compile(r"不好看|没.{0,3}感觉|太乱|不够高级|产品太�
 DIRECT = re.compile(r"直接(做|生成|制作)|不用问|不必问|你(来定|决定|安排)|帮我选|不知道|随便")
 
 
-# Positive task signals keep descriptive briefs valid without imperative verbs.
-VISUAL_BRIEF = re.compile(r"主图|宣传图|产品图|商品图|海报|详情页|封面|背景|构图|灯光|棚拍|特写|留白|极简|冷白|自然光|电商|poster|product photo", re.I)
-EDIT = re.compile(r"换成|替换|改成|调整|改为|去掉|保留|加上|增加|减少|再.{0,6}(一点|一些)|文案|文字|提示词")
+# Actual revisions and field assignments, rather than bare visual nouns.
+EDIT = re.compile(r"换成|替换|改成|调整|改为|去掉|保留|加上|增加|减少|再.{0,6}(一点|一些)|(?:文案|文字|提示词)(?:为|是|[:：])")
+COPY_DECLARATION = re.compile(r"(?:文案|文字|标语)(?:原文|内容)?\s*(?:为|是|写为|写上|[:：])")
 DELEGATION = re.compile(r"^(?:(?:那就|都|你来定|你决定|你安排|帮我选|随便|不知道|直接做|直接生成|直接制作|不用问|不必问)[，,。！!\s]*)+$")
 SOCIAL = re.compile(r"^(?:(?:你好|您好|嗨|哈喽|早上好|晚上好|谢谢(?:你|您)?|多谢|感谢(?:你|您)?|辛苦了|好的|好吧|收到|明白了|继续|hello|hi|hey|thanks|thank you|ok)[呀啊哦呢啦！!。,.，\s]*)+$", re.I)
 CONSULTATION = re.compile(r"你(?:能|可以|会|是|有什么|有啥)|能(?:做什么|帮.{0,6}什么)|可以做什么|支持什么|有什么功能|介绍一下|怎么|如何|为什么|区别|哪个好|讨论|咨询|聊聊|先聊|what can you|who are you|can you explain", re.I)
 
 
+def speech_text(text: str) -> str:
+    """Interpret the instruction, keeping declared/quoted image copy as data."""
+    instruction = COPY_DECLARATION.split(text, maxsplit=1)[0]
+    return re.sub(r'“[^”]*”|「[^」]*」|"[^"\n]*"|‘[^’]*’', " ", instruction).strip()
+
+
+def explicit_request(text: str) -> bool:
+    instruction = speech_text(text)
+    if PAUSE.search(instruction) or re.search(r"(?:做|制作|生成|画)(?:些|点)?什么|做哪些", instruction):
+        return False
+    if re.search(r"(?:帮我|给我|为我|替我)(?:直接|重新|再|先)?(?:做|生成|制作|画|改|调整|设计)", instruction):
+        return True
+    for clause in re.split(r"[，,。；;！!\n]", instruction):
+        if re.match(
+            r"^\s*(?:请|麻烦|现在|那就|直接|重新|再|开始|继续|我想要?|我要|我需要|按.{0,24}(?:方向|要求|方案))*"
+            r"(?:生成|制作|重做|做|画|换成|替换|改成|改为|调整|去掉|加上|增加|减少|保留|设计)",
+            clause,
+        ) or re.match(r"^\s*(?:请)?(?:给|为).{1,24}(?:做|制作|生成|画)", clause):
+            return True
+    return False
+
+
+def commentary(text: str) -> bool:
+    """An opinion is context, unless the user also asks for an actual action."""
+    if explicit_request(text):
+        return False
+    return bool(re.match(
+        r"^\s*(?:(?:我|我们)(?:很|挺|更|比较)?(?:喜欢|满意|觉得|认为|感觉)|"
+        r"(?:这个|这张|这版|看起来|感觉).{0,50}(?:不错|喜欢|好看|挺好|适合))",
+        speech_text(text),
+    ))
+
+
 def conversational(text: str) -> bool:
-    """Speech acts that carry no requirement mutation or creation authority."""
+    """A requested action wins over capability wording or declared image copy."""
+    if explicit_request(text):
+        return False
+    instruction = speech_text(text)
     return bool(
-        SOCIAL.fullmatch(text.strip()) or CONSULTATION.search(text)
-        or re.fullmatch(r"(?:在吗|在不在|有人吗|嗯|嗯嗯|好|哈+)[？?。！!\s]*", text)
+        SOCIAL.fullmatch(instruction) or CONSULTATION.search(instruction)
+        or re.match(r"^(?:我|我们)(?:想先?|希望|只是想)?(?:了解|知道|讨论|聊)", instruction)
+        or re.fullmatch(r"(?:在吗|在不在|有人吗|嗯|嗯嗯|好|哈+)[？?。！!\s]*", instruction)
     )
+
+
+def revision_request(text: str) -> bool:
+    """Only an actual change/field assignment can enter in-flight feedback."""
+    if conversational(text) or commentary(text):
+        return False
+    return bool(EDIT.search(speech_text(text)) or COPY_DECLARATION.search(text))
+
+
+def copy_cancelled(state: dict[str, Any], text: str) -> bool:
+    """A bare '不用' cancels copy only in the context of a pending copy question."""
+    if not any(q.get("field") == "texts" for q in state.get("questions", [])):
+        return False
+    return bool(re.fullmatch(
+        r"(?:(?:不需要|不用|无需|不要|没有)(?:任何)?(?:加|加上|放|放上)?(?:文字|文案|字)?(?:了|吧)?|无(?:文字|文案|字))[。！!\s]*",
+        text.strip(),
+    ))
 
 
 def grounded_request(text: str, brief: dict[str, Any] | None = None) -> bool:
@@ -42,9 +96,16 @@ def grounded_request(text: str, brief: dict[str, Any] | None = None) -> bool:
 
     This also accepts arbitrary product names without requiring creation verbs.
     """
-    if conversational(text) or DELEGATION.fullmatch(text.strip()) or STOP.search(text):
+    if conversational(text) or commentary(text) or DELEGATION.fullmatch(text.strip()) or STOP.search(speech_text(text)):
         return False
-    if REQUEST.search(text) or VISUAL_BRIEF.search(text):
+    if explicit_request(text):
+        return True
+    # A descriptive brief names an output target as part of the utterance;
+    # mentioning a background/style keyword by itself is not an instruction.
+    if re.match(
+        r"^[^？?！!\n]{1,120}(?:主图|宣传图|产品图|商品图|海报|详情页|封面)(?:[，,、；;\s]|$)",
+        speech_text(text),
+    ):
         return True
     subject = (brief or {}).get("product_description")
     if not isinstance(subject, str):
@@ -75,24 +136,60 @@ def deterministic_answer(state: dict[str, Any], text: str) -> bool:
     )
 
 
+def free_text_answer(
+    state: dict[str, Any], text: str, brief: dict[str, Any] | None
+) -> bool:
+    """Ground a free answer in a pending field, independently of model kind.
+
+    Open questions accept concrete user text without requiring a model echo;
+    option questions can also match the proposed field. Explicit copy cancellation
+    answers a pending texts question. Only an aesthetic question accepts a stated
+    preference; social speech, discussion and delegation never supply facts.
+    """
+    reply = text.strip()
+    if conversational(reply) or STOP.search(speech_text(reply)) or DELEGATION.fullmatch(reply):
+        return False
+    if copy_cancelled(state, reply):
+        return True
+    proposed = brief or {}
+    for question in state.get("questions", []):
+        preference_answer = False
+        if commentary(reply):
+            # A preference can answer a pending aesthetic question, but cannot
+            # answer a missing product fact or mutate an already prepared task.
+            preference = re.match(r"^(?:我)?(?:(?:更|比较)?喜欢|觉得|认为)(.+)", reply)
+            if question["field"] not in SOFT_FIELDS or preference is None:
+                continue
+            candidate = preference[1].strip()
+            preference_answer = True
+        else:
+            candidate = reply
+        if len(candidate) >= 2 and (
+            not question.get("options") or preference_answer
+            or candidate in str(proposed.get(question["field"], ""))
+        ):
+            return True
+    return False
+
+
 def intent(previous: dict[str, Any], text: str, message_id: str) -> dict[str, Any]:
     prior = previous.get("generation_intent", {})
     if prior.get("status") == "paused" and message_id == prior.get("superseded_request_message_id"):
         return dict(prior)
     if unbound_option(previous, text):
         return {"status": "discussion", "message_id": message_id}
-    if STOP.search(text):
+    if STOP.search(speech_text(text)):
         return {
             "status": "paused",
             "message_id": message_id,
             "superseded_request_message_id": prior.get("superseded_request_message_id")
             or prior.get("message_id"),
         }
-    if not previous.get("questions") and FEEDBACK.search(text) and not REQUEST.search(text):
+    if not previous.get("questions") and FEEDBACK.search(text) and not explicit_request(text):
         return {"status": "discussion", "message_id": message_id}
     # A migrated v1 state is context, never fresh creation authority.
     descriptive_request = not prior and grounded_request(text, previous.get("data"))
-    if (REQUEST.search(text) and not conversational(text) and not DELEGATION.fullmatch(text.strip())) or descriptive_request:
+    if (explicit_request(text) and not DELEGATION.fullmatch(text.strip())) or descriptive_request:
         return {"status": "requested", "message_id": message_id}
     return dict(prior) if prior else {"status": "discussion", "message_id": message_id}
 

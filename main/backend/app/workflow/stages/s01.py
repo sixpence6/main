@@ -243,7 +243,7 @@ async def _route(ctx: WorkflowContext, text: str) -> None:
     from app.workflow import alignment
 
     if ctx.consolidated and ctx.prepared_requirements is None and (
-        alignment.conversational(text) or alignment.STOP.search(text)
+        alignment.conversational(text) or alignment.commentary(text) or alignment.STOP.search(alignment.speech_text(text))
         or alignment.DELEGATION.fullmatch(text.strip())
     ):
         from app.workflow.consolidated import classify_message
@@ -256,7 +256,7 @@ async def _route(ctx: WorkflowContext, text: str) -> None:
                                   revision=ctx.project.revision, turn_kind="conversation")
             # Explicit historical submit_request discussions used this idle stage.
             # No brief or authorization is created, and ordinary greetings stay S01.
-            if alignment.STOP.search(text):
+            if alignment.STOP.search(alignment.speech_text(text)):
                 await set_stage(ctx, "S03", "needs_input")
             return
     user_message, revision = await _record_user_turn(ctx, text)
