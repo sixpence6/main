@@ -1,6 +1,7 @@
 """Chat intent regressions: authenticated API, temporary SQLite, scripted models."""
 
 import asyncio
+import json
 from uuid import uuid4
 
 import pytest
@@ -20,12 +21,22 @@ from tests.test_v2_t05_requirements import _create_project, _environment, _start
 from tests.test_v2_t40_prompt_review import png_bytes
 
 BRIEF = "米色托特包电商主图，极简冷白背景，不加文字"
-CHAT = ["你好", "谢谢", "你能帮我做什么", "我们先讨论一下背景风格"]
+CHAT = [
+    "你好",
+    "谢谢",
+    "你能帮我做什么",
+    "我们先讨论一下背景风格",
+    "我觉得冷白背景比较适合钢笔主图",
+    "我喜欢这个背景",
+    "我很喜欢这个文案",
+]
 REQUESTS = [
     BRIEF,
     "帮我做一张" + BRIEF,
     "你好，帮我做一张钢笔宣传图，极简冷白背景",
     "制作钢笔主图，极简冷白背景，文案为你好",
+    pytest.param("你可以帮我做一张钢笔主图，极简冷白背景，无文字", id="polite-request"),
+    pytest.param("制作钢笔主图，极简冷白背景，文案为为什么选择我们", id="question-word-copy"),
 ]
 
 
@@ -177,7 +188,20 @@ async def test_chat_preserves_lifecycle_even_when_model_returns_wrong_ready_brie
 
 @pytest.mark.parametrize("text", REQUESTS)
 async def test_first_message_prepares_prompt_and_only_confirm_submits(full_settings, text):
-    async with _environment(settings_for(full_settings), ConsolidatedScript()) as (
+    copy = text.partition("文案为")[2]
+    script = ConsolidatedScript(
+        answers=[
+            lambda request: answer(
+                request,
+                kind="requirements_change",
+                texts=[copy],
+                style_keywords=["极简", "冷白背景"],
+            )
+        ]
+        if copy
+        else None
+    )
+    async with _environment(settings_for(full_settings), script) as (
         app,
         client,
         llm,
@@ -191,6 +215,11 @@ async def test_first_message_prepares_prompt_and_only_confirm_submits(full_setti
         view = await _view(client, project_id)
         assert view["prompt_preview"] and view["prompt_preview"]["can_confirm"], view
         assert {"visual_planner", "generation_engineer"} <= set(production_calls(llm))
+        if copy:
+            brief = next(
+                item["payload"] for item in view["artifacts"] if item["kind"] == "brief_draft"
+            )
+            assert brief["texts"] == [copy]
         assert visual.submit_calls == []
         visual.submit_outcome = image_result()
         await confirm(client, project_id, view)
@@ -350,3 +379,83 @@ async def test_greeting_does_not_answer_pending_free_text_copy_question(full_set
         assert await snapshot(app, client, project_id) == before
         assert production_calls(llm) == calls
         assert visual.submit_calls == []
+
+
+@pytest.mark.parametrize(
+    "phase,text",
+    [
+        ("new", "我觉得冷白背景比较适合钢笔主图"),
+        ("prompt", "我喜欢这个背景"),
+    ],
+)
+async def test_product_opinion_does_not_authorize_or_revise_production(full_settings, phase, text):
+    async with _environment(settings_for(full_settings), ConsolidatedScript()) as (
+        app,
+        client,
+        llm,
+        visual,
+    ):
+        project_id = (await _create_project(client))["id"]
+        # Also make the old no-run organize path offer a complete invented brief.
+        llm.responder = lambda request: OrganizeResult(
+            outcome="review",
+            assistant_message="可以开始准备主图。",
+            brief=BriefData(
+                product_description="钢笔", purpose="电商主图", prompt="钢笔，冷白背景"
+            ),
+        )
+        if phase == "prompt":
+            await _start(client, project_id, BRIEF)
+            await _drain(app)
+            assert (await _view(client, project_id))["prompt_preview"]["can_confirm"]
+        before = await snapshot(app, client, project_id)
+        calls = production_calls(llm)
+        response = await send(client, project_id, text)
+        assert response.status_code == 200, response.text
+        assert response.json()["assistant_message"]["turn_kind"] == "conversation"
+        assert await snapshot(app, client, project_id) == before
+        assert production_calls(llm) == calls
+        assert visual.submit_calls == []
+
+
+async def test_active_copy_praise_is_not_pending_feedback_when_model_says_conversation(
+    full_settings,
+):
+    def conversation(request):
+        response = answer(request, kind="conversation")
+        response["data"].update(brief=None, reply="很高兴你喜欢这个文案。")
+        return response
+
+    script = ConsolidatedScript()
+    async with _environment(settings_for(full_settings), script) as (app, client, llm, visual):
+        project_id = (await _create_project(client))["id"]
+        await _start(client, project_id, BRIEF)
+        await _drain(app)
+        script.answers = [conversation]
+        gate = asyncio.Event()
+        visual.gate = gate
+        visual.submit_outcome = image_result()
+        try:
+            await confirm(client, project_id, await _view(client, project_id))
+            for _ in range(1000):
+                if visual.submit_calls:
+                    break
+                await asyncio.sleep(0.01)
+            assert len(visual.submit_calls) == 1
+            before = await snapshot(app, client, project_id)
+            calls = production_calls(llm)
+            response = await send(client, project_id, "我很喜欢这个文案")
+            assert response.status_code == 200, response.text
+            assert response.json()["assistant_message"]["turn_kind"] == "conversation"
+            after = await snapshot(app, client, project_id)
+            before_state = json.loads(before["workflow_runs"][0]["requirements_state_json"])
+            after_state = json.loads(after["workflow_runs"][0]["requirements_state_json"])
+            assert after_state.get("pending_feedback", []) == before_state.get(
+                "pending_feedback", []
+            )
+            assert after == before
+            assert production_calls(llm) == calls
+            assert len(visual.submit_calls) == 1
+        finally:
+            gate.set()
+            await _drain(app)
