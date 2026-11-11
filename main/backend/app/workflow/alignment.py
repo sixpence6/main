@@ -136,38 +136,35 @@ def deterministic_answer(state: dict[str, Any], text: str) -> bool:
     )
 
 
-def free_text_answer(
-    state: dict[str, Any], text: str, brief: dict[str, Any] | None
-) -> bool:
-    """Ground a free answer in a pending field, independently of model kind.
+def free_text_answer(state: dict[str, Any], text: str) -> bool:
+    """Recognize a concrete answer to a pending question, with or without options.
 
-    Open questions accept concrete user text without requiring a model echo;
-    option questions can also match the proposed field. Explicit copy cancellation
-    answers a pending texts question. Only an aesthetic question accepts a stated
-    preference; social speech, discussion and delegation never supply facts.
+    The user's answer need not echo an option or a model-proposed value. A stated
+    preference answers only an aesthetic question; an unnamed demonstrative such
+    as '这个背景' supplies no selection. Social speech and discussion supply no facts.
     """
     reply = text.strip()
     if conversational(reply) or STOP.search(speech_text(reply)) or DELEGATION.fullmatch(reply):
         return False
     if copy_cancelled(state, reply):
         return True
-    proposed = brief or {}
     for question in state.get("questions", []):
-        preference_answer = False
         if commentary(reply):
-            # A preference can answer a pending aesthetic question, but cannot
-            # answer a missing product fact or mutate an already prepared task.
             preference = re.match(r"^(?:我)?(?:(?:更|比较)?喜欢|觉得|认为)(.+)", reply)
             if question["field"] not in SOFT_FIELDS or preference is None:
                 continue
             candidate = preference[1].strip()
-            preference_answer = True
         else:
             candidate = reply
-        if len(candidate) >= 2 and (
-            not question.get("options") or preference_answer
-            or candidate in str(proposed.get(question["field"], ""))
-        ):
+        if re.match(r"^(?:这个|那个|这张|那张|这版|那版|这款|那款|这样|那样|它)", candidate):
+            named_option = any(
+                len(value) >= 2 and value in candidate
+                for option in question.get("options", [])
+                for value in (str(option.get("value", "")), str(option.get("label", "")))
+            )
+            if not named_option:
+                continue
+        if len(candidate) >= 2:
             return True
     return False
 

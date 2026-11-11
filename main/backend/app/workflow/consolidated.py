@@ -76,7 +76,7 @@ async def run_requirements(
     if ctx.direct and messages and data.scope == "image_request" and data.kind != "conversation":
         text = messages[-1].content
         brief = data.brief.model_dump(mode="json") if data.brief else {}
-        field_answer = alignment.free_text_answer(stored, text, brief)
+        field_answer = alignment.free_text_answer(stored, text)
         grounded = (
             alignment.grounded_request(text, brief)
             or alignment.deterministic_answer(stored, text) or field_answer
@@ -273,7 +273,7 @@ async def classify_message(
     known = bool(current and current.get("product_description"))
     answer = alignment.deterministic_answer(stored, content)
     brief = data.brief.model_dump(mode="json") if data.brief else None
-    answer = answer or alignment.free_text_answer(stored, content, brief)
+    answer = answer or alignment.free_text_answer(stored, content)
     grounded = alignment.grounded_request(content, brief)
     # Scope and fabricated defaults are not authority to start or revise a task.
     if not has_reference_attachment and (
