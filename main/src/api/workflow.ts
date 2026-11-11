@@ -241,7 +241,10 @@ export interface PromptPreviewView {
   request: Record<string, unknown>
   created_at: string
   can_confirm: boolean
-  command_context: Record<string, unknown>
+  source_markdown?: string | null
+  parse_warning?: string | null
+  can_edit?: boolean
+  command_context: string | Record<string, unknown>
 }
 
 export interface ClarificationAnswer {
