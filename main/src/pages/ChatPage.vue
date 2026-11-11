@@ -87,9 +87,12 @@ interface PendingSend {
   text: string
   sentAt: string
   status: 'sending' | 'failed'
+  projectId: string | null
+  contextRevision: number
 }
 
 const pendingSend = ref<PendingSend | null>(null)
+let pageContextRevision = 0
 const retryingProject = ref(false)
 const requirementSubmitting = ref(false)
 const requirementConfirmed = ref(false)
@@ -105,6 +108,33 @@ let bottomFrame = 0
 let ignoreScrollUntil = 0
 let contentObserver: ResizeObserver | null = null
 let footerObserver: ResizeObserver | null = null
+
+function isCurrentPendingSend(id: string): boolean {
+  const pending = pendingSend.value
+  return Boolean(pending && pending.id === id && pending.contextRevision === pageContextRevision
+    && pending.projectId === projectParam.value)
+}
+
+function invalidatePageContext(projectId: string | null, allowCreatedProjectAdoption = true): void {
+  pageContextRevision += 1
+  const pending = pendingSend.value
+  const adoptingCreatedProject = allowCreatedProjectAdoption && Boolean(pending?.projectId === null && projectId
+    && currentProject.value?.id === projectId)
+  // The first send adopts its pending bubble when it creates the project.
+  pendingSend.value = adoptingCreatedProject && pending
+    ? { ...pending, projectId, contextRevision: pageContextRevision }
+    : null
+  retryingProject.value = false
+  requirementSubmitting.value = false
+  requirementConfirmed.value = false
+  taskActionPending.value = false
+  taskPendingLabel.value = ''
+  taskRecovered.value = false
+  taskRecoveredRunId = null
+  lightboxOpen.value = false
+  lightboxItem.value = null
+}
+
 const title = computed(() => currentProject.value ? displayProjectTitle(currentProject.value.title) : '新对话')
 const usageText = computed(() => {
   const usage = flow.workflow.view.value?.usage
@@ -291,6 +321,7 @@ function markTaskRecovered(): void {
 
 async function onTaskAction(action: WorkflowAction): Promise<void> {
   if (taskActionDisabled(action)) return
+  const contextAtStart = pageContextRevision
   const isRecovery = RECOVERY_ACTION_IDS.has(action.id) && !action.requires_text
   if (isRecovery) {
     taskRecovered.value = false
@@ -303,7 +334,7 @@ async function onTaskAction(action: WorkflowAction): Promise<void> {
   try {
     await runTaskAction(action)
   } finally {
-    if (isRecovery) {
+    if (isRecovery && contextAtStart === pageContextRevision) {
       taskActionPending.value = false
       taskPendingLabel.value = ''
       if (flow.workflow.view.value?.status === 'completed') markTaskRecovered()
@@ -509,6 +540,7 @@ watch(
 )
 
 watch(sessionRevision, () => {
+  invalidatePageContext(projectParam.value, false)
   promptCardScope += 1
   promptDrafts.clear()
   activePromptDraftKey = ''
@@ -568,6 +600,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   promptCardScope += 1
+  pageContextRevision += 1
+  pendingSend.value = null
   if (composerFrame) cancelAnimationFrame(composerFrame)
   if (bottomFrame) cancelAnimationFrame(bottomFrame)
   contentObserver?.disconnect()
@@ -597,37 +631,40 @@ async function submit(): Promise<void> {
     text: value,
     sentAt: new Date().toISOString(),
     status: 'sending',
+    projectId: projectParam.value,
+    contextRevision: pageContextRevision,
   }
   pendingSend.value = pending
   await nextTick()
+  if (!isCurrentPendingSend(pending.id)) return
   composerInput.value?.focus({ preventScroll: true })
   try {
     const result = await send(value, pending.id)
-    if (pendingSend.value?.id !== pending.id) return
+    if (!isCurrentPendingSend(pending.id)) return
     if (result.status === 'failed') {
-      pendingSend.value = { ...pending, status: 'failed' }
+      pendingSend.value = { ...pendingSend.value!, status: 'failed' }
     } else {
       pendingSend.value = null
     }
   } catch {
-    if (pendingSend.value?.id === pending.id) {
-      pendingSend.value = { ...pending, status: 'failed' }
+    if (isCurrentPendingSend(pending.id)) {
+      pendingSend.value = { ...pendingSend.value!, status: 'failed' }
     }
   }
 }
 
 async function retryPendingSend(): Promise<void> {
   const pending = pendingSend.value
-  if (!pending || pending.status !== 'failed' || busy.value) return
+  if (!pending || pending.status !== 'failed' || busy.value || !isCurrentPendingSend(pending.id)) return
   pendingSend.value = { ...pending, status: 'sending' }
   try {
     const result = await send(pending.text, pending.id)
-    if (pendingSend.value?.id !== pending.id) return
+    if (!isCurrentPendingSend(pending.id)) return
     if (result.status === 'sent') pendingSend.value = null
-    else pendingSend.value = { ...pending, status: 'failed' }
+    else pendingSend.value = { ...pendingSend.value!, status: 'failed' }
   } catch {
-    if (pendingSend.value?.id === pending.id) {
-      pendingSend.value = { ...pending, status: 'failed' }
+    if (isCurrentPendingSend(pending.id)) {
+      pendingSend.value = { ...pendingSend.value!, status: 'failed' }
     }
   }
 }
@@ -694,11 +731,12 @@ function applySuggestion(text: string): void {
 
 async function withBusyFlag(flag: Ref<boolean>, run: () => Promise<void>): Promise<void> {
   if (flag.value) return
+  const contextAtStart = pageContextRevision
   flag.value = true
   try {
     await run()
   } finally {
-    flag.value = false
+    if (contextAtStart === pageContextRevision) flag.value = false
   }
 }
 
@@ -708,10 +746,10 @@ async function retryProjectError(): Promise<void> {
 
 async function confirmRequirementCard(): Promise<void> {
   if (busy.value || requirementSubmitting.value) return
-  const projectAtStart = projectParam.value
+  const contextAtStart = pageContextRevision
   await withBusyFlag(requirementSubmitting, async () => {
     await confirmRequirements()
-    if (projectParam.value === projectAtStart && !flowError.value && !canConfirmRequirements.value) {
+    if (contextAtStart === pageContextRevision && !flowError.value && !canConfirmRequirements.value) {
       requirementConfirmed.value = true
     }
   })
@@ -734,9 +772,8 @@ watch(
 
 watch(
   () => projectParam.value,
-  () => {
-    requirementConfirmed.value = false
-    requirementSubmitting.value = false
+  (projectId) => {
+    invalidatePageContext(projectId)
   },
   { flush: 'sync' },
 )
@@ -745,7 +782,7 @@ watch(
   () => projectMessages.value.map((message) => message.id),
   (_ids, previousIds) => {
     const pending = pendingSend.value
-    if (!pending || pending.status !== 'sending') return
+    if (!pending || pending.status !== 'sending' || !isCurrentPendingSend(pending.id)) return
     const known = new Set(previousIds ?? [])
     const arrived = projectMessages.value.some(
       (message) =>

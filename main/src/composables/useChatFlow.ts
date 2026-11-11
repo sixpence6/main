@@ -188,6 +188,8 @@ export function useChatFlow() {
   // continuation for the rest of this visit, including late status refreshes.
   let autoResumeOnLoad = true
   let contextRevision = 0
+  let busySequence = 0
+  let autoBusySequence = 0
   let disposed = false
   let resumedAutoKey = ''
   let copyTimer: ReturnType<typeof setTimeout> | null = null
@@ -195,6 +197,35 @@ export function useChatFlow() {
   let stageTask: Promise<StagedMessageAttachmentView> | null = null
   let stageTaskKey = ''
   let keepAttachmentOnProjectChange = false
+
+  function beginBusy(): number {
+    const sequence = ++busySequence
+    busy.value = true
+    return sequence
+  }
+
+  function endBusy(sequence: number): void {
+    if (sequence === busySequence) busy.value = false
+  }
+
+  function beginAutoBusy(): number {
+    const sequence = ++autoBusySequence
+    autoBusy.value = true
+    return sequence
+  }
+
+  function endAutoBusy(sequence: number): void {
+    if (sequence === autoBusySequence) autoBusy.value = false
+  }
+
+  // A stale request must not release a newer conversation's busy state.
+  function invalidateContextWork(): void {
+    contextRevision += 1
+    busySequence += 1
+    busy.value = false
+    autoBusySequence += 1
+    autoBusy.value = false
+  }
 
   /**
    * Sending no longer disables the composer, so a response must not erase text
@@ -656,32 +687,34 @@ export function useChatFlow() {
       return false
     }
     const sessionAtStart = sessionRevision.value
+    const contextAtStart = contextRevision
+    const isCurrent = () => !disposed && sessionAtStart === sessionRevision.value
+      && contextAtStart === contextRevision && workspace.projectParam.value === projectId
     const resumePipeline = canAutoResume(action.id)
     autoArmed = false
-    busy.value = true
+    const busySequenceAtStart = beginBusy()
     flowError.value = ''
     try {
       const ok = await workflow.runAction(action, taskText?.trim() ?? null, taskActionPayload(action))
       if (!ok) {
-        if (sessionAtStart === sessionRevision.value) {
+        if (isCurrent()) {
           flowError.value = workflow.error.value || '操作没有完成，请稍后重试。'
         }
         return false
       }
-      if (sessionAtStart !== sessionRevision.value || workspace.projectParam.value !== projectId) {
-        return false
-      }
+      if (!isCurrent()) return false
       delete taskConfirmations.value[action.id]
       pendingTaskAction.value = null
       if (taskText !== null) clearDraftIfUnchanged(taskText)
       await workspace.refreshProjectDetail()
+      if (!isCurrent()) return false
       if (resumePipeline) {
         autoArmed = true
         await autoAdvance(true)
       }
-      return true
+      return isCurrent()
     } finally {
-      busy.value = false
+      endBusy(busySequenceAtStart)
     }
   }
 
@@ -725,7 +758,7 @@ export function useChatFlow() {
     const contextAtStart = contextRevision
     const sessionAtStart = sessionRevision.value
     const isCurrent = () => !disposed && contextAtStart === contextRevision && sessionAtStart === sessionRevision.value
-    autoBusy.value = true
+    const autoBusySequenceAtStart = beginAutoBusy()
     try {
       for (let step = 0; step < 8; step += 1) {
         if (!isCurrent() || !autoArmed) return
@@ -751,7 +784,7 @@ export function useChatFlow() {
         await workspace.refreshProjectDetail()
       }
     } finally {
-      autoBusy.value = false
+      endAutoBusy(autoBusySequenceAtStart)
     }
   }
 
@@ -777,7 +810,7 @@ export function useChatFlow() {
     // workflow turn below can arm continuation after classification completes.
     autoArmed = false
     autoResumeOnLoad = false
-    busy.value = true
+    let busySequenceAtStart = beginBusy()
     flowError.value = ''
     const creating = !workspace.currentProject.value
     try {
@@ -788,6 +821,7 @@ export function useChatFlow() {
         keepAttachmentOnProjectChange = Boolean(pendingAttachment.value)
         workspace.adoptCreatedProject(project)
         contextAtStart = contextRevision
+        busySequenceAtStart = beginBusy()
         autoResumeOnLoad = false
       }
       const staged = pendingAttachment.value
@@ -830,7 +864,7 @@ export function useChatFlow() {
       if (!isCurrent()) return { status: 'noop' }
       return { status: 'failed' }
     } finally {
-      busy.value = false
+      endBusy(busySequenceAtStart)
     }
   }
 
@@ -839,6 +873,8 @@ export function useChatFlow() {
   async function answerQuestion(optionId: string): Promise<void> {
     const question = conversationQuestion.value
     if (!question || busy.value || pendingAttachment.value) return
+    const contextAtStart = contextRevision
+    const sessionAtStart = sessionRevision.value
     selectedOption.value = optionId
     try {
       await send(optionId, makeId(), {
@@ -848,7 +884,9 @@ export function useChatFlow() {
         message_id: question.message_id,
       })
     } finally {
-      selectedOption.value = ''
+      if (contextAtStart === contextRevision && sessionAtStart === sessionRevision.value) {
+        selectedOption.value = ''
+      }
     }
   }
 
@@ -859,9 +897,13 @@ export function useChatFlow() {
     const action = actionById('confirm_requirements')
     if (!action) return
     const sessionAtStart = sessionRevision.value
+    const contextAtStart = contextRevision
+    const projectId = current.project_id
+    const isCurrent = () => !disposed && sessionAtStart === sessionRevision.value
+      && contextAtStart === contextRevision && workspace.projectParam.value === projectId
     if (!pendingRequirementRequestId.value) pendingRequirementRequestId.value = makeId()
     autoArmed = true
-    busy.value = true
+    const busySequenceAtStart = beginBusy()
     flowError.value = ''
     try {
       const ok = await workflow.runAction(action, null, {
@@ -870,7 +912,7 @@ export function useChatFlow() {
         requirement_revision: current.requirement_revision,
         request_id: pendingRequirementRequestId.value,
       })
-      if (sessionAtStart !== sessionRevision.value) return
+      if (!isCurrent()) return
       if (!ok) {
         flowError.value = workflow.error.value || '操作没有完成，请稍后重试。'
         return
@@ -878,7 +920,7 @@ export function useChatFlow() {
       pendingRequirementRequestId.value = ''
       await afterWorkflowChange(true)
     } finally {
-      busy.value = false
+      endBusy(busySequenceAtStart)
     }
   }
 
@@ -919,7 +961,7 @@ export function useChatFlow() {
     )
     const initialContext = requestContext(preview.request)
     autoArmed = false
-    busy.value = true
+    const busySequenceAtStart = beginBusy()
     flowError.value = ''
     try {
       if (changed) {
@@ -976,21 +1018,27 @@ export function useChatFlow() {
       await afterWorkflowChange(true)
       return isCurrent()
     } finally {
-      busy.value = false
+      endBusy(busySequenceAtStart)
     }
   }
 
   async function copyPrompt(text?: string): Promise<void> {
     const value = text ?? positivePrompt.value
     if (!value) return
+    const contextAtStart = contextRevision
+    const sessionAtStart = sessionRevision.value
+    const isCurrent = () => contextAtStart === contextRevision && sessionAtStart === sessionRevision.value
     try {
       if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
       await navigator.clipboard.writeText(value)
+      if (!isCurrent()) return
       copied.value = true
       if (copyTimer) clearTimeout(copyTimer)
-      copyTimer = setTimeout(() => { copied.value = false }, 2000)
+      copyTimer = setTimeout(() => {
+        if (isCurrent()) copied.value = false
+      }, 2000)
     } catch {
-      flowError.value = '复制失败，请手动选择提示词文本。'
+      if (isCurrent()) flowError.value = '复制失败，请手动选择提示词文本。'
     }
   }
 
@@ -999,10 +1047,17 @@ export function useChatFlow() {
   }
 
   async function retry(): Promise<void> {
+    const projectId = workspace.projectParam.value
+    const contextAtStart = contextRevision
+    const sessionAtStart = sessionRevision.value
+    const isCurrent = () => !disposed && projectId === workspace.projectParam.value
+      && contextAtStart === contextRevision && sessionAtStart === sessionRevision.value
     autoArmed = true
     flowError.value = ''
     await workflow.refresh()
+    if (!isCurrent()) return
     await workspace.refreshProjectDetail()
+    if (!isCurrent()) return
     await autoAdvance(true)
   }
 
@@ -1062,7 +1117,7 @@ export function useChatFlow() {
   watch(
     () => workspace.projectParam.value,
     () => {
-      contextRevision += 1
+      invalidateContextWork()
       autoResumeOnLoad = true
       if (keepAttachmentOnProjectChange) {
         keepAttachmentOnProjectChange = false
@@ -1076,8 +1131,13 @@ export function useChatFlow() {
       pendingPromptCommandId.value = ''
       pendingTaskAction.value = null
       taskConfirmations.value = {}
+      selectedOption.value = ''
       flowError.value = ''
       copied.value = false
+      if (copyTimer) {
+        clearTimeout(copyTimer)
+        copyTimer = null
+      }
     },
     { flush: 'sync' },
   )
@@ -1093,7 +1153,7 @@ export function useChatFlow() {
   watch(
     sessionRevision,
     () => {
-      contextRevision += 1
+      invalidateContextWork()
       autoArmed = false
       autoResumeOnLoad = true
       resumedAutoKey = ''
@@ -1102,6 +1162,7 @@ export function useChatFlow() {
       pendingPromptCommandId.value = ''
       pendingTaskAction.value = null
       taskConfirmations.value = {}
+      selectedOption.value = ''
       flowError.value = ''
       attachmentError.value = ''
       lastAutoAction = ''
@@ -1115,7 +1176,7 @@ export function useChatFlow() {
   )
   onBeforeUnmount(() => {
     disposed = true
-    contextRevision += 1
+    invalidateContextWork()
     autoArmed = false
     const current = pendingAttachment.value
     if (current?.staged && current.stagedProjectId) {
