@@ -167,12 +167,15 @@ async def test_chat_preserves_lifecycle_even_when_model_returns_wrong_ready_brie
             before = await snapshot(app, client, project_id)
             calls, submits = production_calls(llm), len(visual.submit_calls)
             for text in CHAT:
+                # This concrete preference answers first()'s pending style question.
+                if phase == "clarification" and text == "我觉得冷白背景比较适合钢笔主图":
+                    continue
                 response = await send(client, project_id, text)
                 assert response.status_code == 200, response.text
                 body = response.json()
                 assert body["user_message"]["content"] == text
                 assert body["assistant_message"]["content"].strip()
-                assert body["assistant_message"]["turn_kind"] == "conversation"
+                assert body["assistant_message"]["turn_kind"] == "conversation", text
                 assert production_calls(llm) == calls
                 assert len(visual.submit_calls) == submits
                 assert await snapshot(app, client, project_id) == before, text
@@ -459,3 +462,39 @@ async def test_active_copy_praise_is_not_pending_feedback_when_model_says_conver
         finally:
             gate.set()
             await _drain(app)
+
+
+@pytest.mark.parametrize("text", ["我喜欢冷白背景", "我觉得冷白背景比较适合钢笔主图"])
+async def test_concrete_preference_answers_current_aesthetic_question(full_settings, text):
+    def clarified(request):
+        return answer(
+            request,
+            kind="clarification",
+            product_description="钢笔",
+            purpose="商务送礼",
+            style_keywords=["冷白背景"],
+        )
+
+    async with _environment(
+        settings_for(full_settings), ConsolidatedScript(answers=[first, clarified])
+    ) as (app, client, llm, visual):
+        project_id = (await _create_project(client))["id"]
+        before = await _start(client, project_id, "帮我做钢笔宣传图，送礼用")
+        assert before["conversation_question"]["field"] == "style_keywords"
+        assert before["conversation_question"]["options"]
+        response = await send(client, project_id, text)
+        assert response.status_code == 200, response.text
+        assert response.json()["assistant_message"]["turn_kind"] == "workflow", text
+        await _drain(app)
+        view = await _view(client, project_id)
+        brief = next(item["payload"] for item in view["artifacts"] if item["kind"] == "brief_draft")
+        assert any("冷白背景" in value for value in brief["style_keywords"])
+        assert view["requirement_revision"] > before["requirement_revision"]
+        assert view["conversation_question"] is None
+        assert view["prompt_preview"] and view["prompt_preview"]["can_confirm"]
+        assert {"visual_planner", "generation_engineer"} <= set(production_calls(llm))
+        assert visual.submit_calls == []
+        visual.submit_outcome = image_result()
+        await confirm(client, project_id, view)
+        await _drain(app)
+        assert len(visual.submit_calls) == 1

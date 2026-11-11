@@ -74,3 +74,17 @@ npm run check
 ```
 
 结果：**6 failed, 1 passed, 30 deselected in 11.89s**，无夹具错误。通过项是礼貌请求的底层意图判断；失败项为含“为什么”的文案被暂停、两个首条请求未准备、两条意见返回 workflow，以及生成中赞赏被写入 pending_feedback。新增测试 lint 通过。未合并应用修复，尚无本次补充用例的集成绿灯证据；父任务应以 37 个用例作为当前后端回归文件的集成计数。
+
+## 当前字段回答的上下文修正（2026-11-12，尚未集成）
+
+评审确认：原生命周期测试把“我觉得冷白背景比较适合钢笔主图”在所有阶段都当作闲聊，但 `first()` 在 S03 正在询问 `style_keywords`，提供深浅背景选项且允许自由输入；这句话在该上下文是有效的具体字段回答。现仅在 lifecycle 的 clarification 阶段跳过这一句，其余四阶段仍保留；模糊的“我喜欢这个背景”继续在全部五阶段检查 conversation 和问题/状态不变。conversation 断言增加正文诊断，便于定位失败输入。
+
+新增两个正向 API 用例分别发送“我喜欢冷白背景”“我觉得冷白背景比较适合钢笔主图”，检查背景偏好保存、需求版本前进、问题清除、提示词准备，以及确认前零图片提交、确认后一次提交。仅要求保存内容包含具体背景偏好，不强制把原句归一化为某个固定列表项。文件现共 **39 个收集用例**。
+
+```powershell
+# cwd: C:/Users/28425/.codex/worktrees/chat-intent-tests/新建文件夹/backend
+# 使用上文相同 TEMP/TMP/PYTHONDONTWRITEBYTECODE 设置
+& 'D:/Desktop/新建文件夹/backend/.venv/Scripts/python.exe' -m pytest -p no:cacheprovider -q tests/test_chat_intent_routing.py -k concrete_preference --tb=short
+```
+
+本分支原应用上的定向结果：**2 passed, 37 deselected in 5.75s**。新增测试 lint 与 diff 空白检查通过。本次未运行 lifecycle 或全量检查；这两个正向用例通过不代表其余闲聊、模糊指代或集成验收已经通过。父任务负责最终组合后的全量证据。
