@@ -6,7 +6,9 @@ import pytest
 from sqlalchemy import func, select
 
 from app.adapters.base import ProviderOutcome
-from app.final_confirmation import FinalAuthorization
+from app.errors import ApiError
+from app.final_confirmation import FinalAuthorization, execution_request, frozen_brief
+from app.models import Generation
 from app.prompt_preparation import PreparedPrompt
 from app.workflow.contracts import digest_payload
 from app.workflow.tables import Approval, Artifact, GenerationJob
@@ -133,3 +135,46 @@ async def test_bound_legacy_empty_snapshot_can_be_read_edited_and_confirmed_with
         await _drain(app)
         assert len(visual.submit_calls) == 1 and len(llm.role_calls_received) == calls
         assert visual.submit_calls[0].prompt == f"{BOARD_POSITIVE}\n\n禁止内容（Negative prompt）:\n{BOARD_NEGATIVE}"
+
+
+@pytest.mark.parametrize("completed", [True, False], ids=["completed-result-read", "running-with-old-result"])
+async def test_legacy_authorized_prompt_body_guard_distinguishes_execution_from_readback(full_settings, completed):
+    async with _environment(settings_for(full_settings), BoardMarkdownScript()) as (app, client, llm, visual):
+        visual.submit_outcome = ProviderOutcome(state="succeeded", image_bytes=png_bytes(1024, 1024), image_count=1)
+        project = await _create_project(client)
+        await start_board(app, client, project["id"])
+        view = await _view(client, project["id"])
+        preview = view["prompt_preview"]
+        confirmed = await action(client, project["id"], view, "confirm_prompt", final_payload(preview))
+        assert confirmed.status_code == 200, confirmed.text
+        await _drain(app)
+        assert len(visual.submit_calls) == 1
+        await seed_bound_legacy_empty_snapshot(app, preview["id"])
+        # Model pre-fix authorized records without breaking their durable bindings.
+        async with app.state.session_factory() as session:
+            snapshot = await session.get(PreparedPrompt, preview["id"])
+            authorization = await session.scalar(select(FinalAuthorization))
+            generation = await session.get(Generation, authorization.generation_id)
+            job = await session.get(GenerationJob, authorization.job_id)
+            canonical = json.loads(generation.request_canonical)
+            canonical["request"] = json.loads(snapshot.request_json)
+            generation.request_canonical = json.dumps(canonical, ensure_ascii=False, sort_keys=True)
+            generation.request_digest = digest_payload(canonical)
+            generation.prompt = canonical["request"]["prompt"]
+            generation.brief_snapshot_json = json.dumps(frozen_brief(canonical["request"]), ensure_ascii=False)
+            authorization.snapshot_digest = snapshot.request_digest
+            job.request_digest = generation.request_digest
+            generation_id = generation.id
+            assert generation.submit_attempted and generation.result_asset_id
+            if not completed:
+                generation.status = "running"
+                generation.stage = "submitting"
+            await session.commit()
+        if completed:
+            request = await execution_request(app, generation_id)
+            assert request["positive_prompt"] == "## 正向提示词"
+        else:
+            with pytest.raises(ApiError) as error:
+                await execution_request(app, generation_id)
+            assert error.value.code == "PROMPT_EMPTY"
+        assert len(visual.submit_calls) == 1
