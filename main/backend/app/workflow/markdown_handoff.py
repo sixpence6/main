@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from app.db import write_transaction
 from app.errors import ApiError, conflict
 from app.models import Project
+from app.prompt_content import extract_prompt, has_prompt_body
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import alignment, requirements
 from app.workflow.contracts import BriefData, digest_payload
@@ -285,11 +286,10 @@ def project_output(ctx, role: str, doc: str, payload: dict) -> dict:
                        "preservation_rules": [*brief.get("must_include", []), *brief.get("must_preserve", [])][:128]},
         }
     elif role == "generation_engineer":
-        positive = section(doc, "正向提示词", "生成提示词", "Positive Prompt")
-        negative = section(doc, "反向提示词", "负向提示词", "Negative Prompt")
-        if not positive:
-            positive = doc
-        positive = re.sub(r"^```[^\n]*\n|\n```$", "", positive.strip()).strip()
+        prompt = extract_prompt(doc)
+        positive, negative = prompt.positive_prompt, prompt.negative_prompt
+        if not has_prompt_body(positive):
+            raise ApiError(409, "PROMPT_EMPTY", "提示词没有可用正文，请重新整理后继续。")
         if len(positive) > 12000 or len(negative) > 6000:
             raise ApiError(409, "PROMPT_TOO_LONG", "提示词超过可编辑长度，原文已保存，请精简后继续。")
         envelope["data"] = {"positive_prompt": positive, "negative_prompt": negative,
