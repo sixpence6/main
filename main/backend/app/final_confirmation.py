@@ -23,7 +23,12 @@ from app.errors import conflict, validation_error
 from app.generation_guard import generation_authorization_ref, job_authorization_ref
 from app.models import Base, Generation, Project
 from app.ownership import require_owned_project
-from app.prompt_preparation import PreparedPrompt, final_confirmation_required, validated_request
+from app.prompt_preparation import (
+    PreparedPrompt,
+    final_confirmation_required,
+    require_prompt_body,
+    validated_request,
+)
 from app.timeutil import format_timestamp
 from app.workflow.contracts import digest_payload
 from app.workflow.tables import Approval, Artifact, GenerationJob, WorkflowRun
@@ -172,6 +177,15 @@ async def require_authorized_attempt(session, generation_id):
         or generation.confirmed_revision != request["project_revision"]
     ):
         raise final_confirmation_required()
+    # Shared guards also protect readback/publication of already submitted jobs.
+    # Preserve those facts; only a still-unsubmitted attempt needs a body here.
+    if not (
+        generation.submit_attempted
+        or generation.remote_task_id
+        or generation.result_locator_json
+        or generation.result_asset_id
+    ):
+        require_prompt_body(request)
     return authorization, snapshot, request
 
 
