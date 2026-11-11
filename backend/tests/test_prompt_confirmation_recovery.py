@@ -46,6 +46,14 @@ async def test_empty_model_prompt_blocks_and_exposes_explicit_recovery(full_sett
         await _view(client, project["id"])
         await _drain(app)
         assert len(llm.role_calls_received) == calls and visual.submit_calls == []
+        llm.role_responder = BoardMarkdownScript().responder
+        recovered = await action(client, project["id"], view, "compile_prompt", {})
+        assert recovered.status_code == 200, recovered.text
+        await _drain(app)
+        current = await _view(client, project["id"])
+        assert current["prompt_preview"]["can_confirm"] is True, current
+        assert current["prompt_preview"]["request"]["positive_prompt"] == BOARD_POSITIVE
+        assert visual.submit_calls == []
 
 
 async def seed_bound_legacy_empty_snapshot(app, snapshot_id):
