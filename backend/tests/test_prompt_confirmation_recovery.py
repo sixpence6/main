@@ -99,7 +99,8 @@ async def test_bound_legacy_empty_snapshot_can_be_read_edited_and_confirmed_with
         assert preview["source_markdown"] == BOARD_MARKDOWN
         assert preview["parse_warning"]
         assert preview["can_confirm"] is False and preview["can_edit"] is True
-        assert [item["id"] for item in view["available_actions"]] == ["edit_prepared_prompt"]
+        actions = {item["id"] for item in view["available_actions"]}
+        assert "edit_prepared_prompt" in actions and "confirm_prompt" not in actions
         calls = len(llm.role_calls_received)
         assert (await _view(client, project["id"]))["prompt_preview"] == preview
         edited = await action(client, project["id"], view, "edit_prepared_prompt", {
@@ -110,6 +111,7 @@ async def test_bound_legacy_empty_snapshot_can_be_read_edited_and_confirmed_with
         newer = current["prompt_preview"]
         assert newer["id"] != preview["id"] and newer["request_digest"] != preview["request_digest"]
         assert newer["can_confirm"] is True
+        assert newer["source_markdown"] is None and newer["parse_warning"] is None
         assert newer["request"]["positive_prompt"] == BOARD_POSITIVE
         assert newer["request"]["negative_prompt"] == BOARD_NEGATIVE
         assert any(item["id"] == "confirm_prompt" for item in current["available_actions"])

@@ -1143,7 +1143,7 @@ watch(
               <div class="prompt-card-body">
                 <p v-if="!promptConfirmed" class="prompt-edit-help">请检查提示词，可直接修改；点击确认后才会生成图片。</p>
                 <p v-if="!promptConfirmed && promptPreview?.parse_warning" class="prompt-parse-warning" role="status">
-                  提示词解析异常：{{ promptPreview.parse_warning }}。请检查并编辑正文后再确认生成。
+                  {{ promptPreview.parse_warning }}
                 </p>
                 <div v-if="!promptConfirmed && promptSourceAvailable" class="prompt-source-recovery">
                   <p class="prompt-edit-help">使用完整原文会将包含原文的全部内容填入正向提示词，并清空反向提示词以免重复。请检查、编辑后明确确认；此按钮不会保存或生成。</p>

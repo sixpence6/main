@@ -98,7 +98,7 @@ def available(ctx: WorkflowContext) -> list[str]:
         return ["revise_prompt", "abandon_generation"]
     if (
         ctx.run.status == "blocked"
-        and ctx.run.issue_code in {"PROMPT_REQUIRES_RECONFIRMATION", "PROMPT_INVALID"}
+        and ctx.run.issue_code in {"PROMPT_REQUIRES_RECONFIRMATION", "PROMPT_INVALID", "PROMPT_EMPTY"}
     ):
         # The rejection happened before image execution. The same counted
         # intent can be reopened, so offer a safe recompile instead of forcing
@@ -170,7 +170,9 @@ async def _producer_failed(
         intent_id=getattr(intent, "id", None) if intent is not None else None,
         detail={"error_code": exc.code},
     )
-    if exc.code in {"SERVICE_UNAVAILABLE", "CAPABILITY_NOT_READY", "LLM_TIMEOUT", "LLM_RESPONSE_INVALID"}:
+    if exc.code == "PROMPT_EMPTY":
+        await state.set_stage(ctx, STAGE, "blocked", issue_code=exc.code, message=exc.message)
+    elif exc.code in {"SERVICE_UNAVAILABLE", "CAPABILITY_NOT_READY", "LLM_TIMEOUT", "LLM_RESPONSE_INVALID"}:
         await _mark_failed(ctx, exc.code)
 
 
@@ -1921,7 +1923,7 @@ async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> 
     elif (
         action == "compile_prompt"
         and status == "blocked"
-        and ctx.run.issue_code == "PROMPT_INVALID"
+        and ctx.run.issue_code in {"PROMPT_INVALID", "PROMPT_EMPTY"}
     ):
         await state.set_stage(ctx, STAGE, "active")
         status = "active"
