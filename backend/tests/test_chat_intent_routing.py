@@ -283,3 +283,70 @@ async def test_explicit_pause_on_first_message_never_prepares_images(full_settin
         assert (await _view(client, project_id)).get("prompt_preview") is None
         assert production_calls(llm) == []
         assert visual.submit_calls == []
+
+
+def copy_question_script(kind):
+    question = {
+        "id": "copy",
+        "field": "texts",
+        "options": [],
+        "text": "请提供要放到图上的文案原文；不需要文字也可以直接告诉我。",
+    }
+
+    def pending(request):
+        return answer(request, status="needs_input", questions=[question], texts=[])
+
+    def ready(request):
+        return answer(request, kind=kind, texts=[], style_keywords=["极简", "冷白背景"])
+
+    return ConsolidatedScript(answers=[pending, ready])
+
+
+@pytest.mark.parametrize("kind", ["clarification", "requirements_change"])
+async def test_no_copy_answer_continues_authorized_request_regardless_of_model_kind(
+    full_settings, kind
+):
+    async with _environment(settings_for(full_settings), copy_question_script(kind)) as (
+        app,
+        client,
+        llm,
+        visual,
+    ):
+        project_id = (await _create_project(client))["id"]
+        view = await _start(
+            client, project_id, "制作米色托特包电商主图，极简冷白背景，文案稍后确定"
+        )
+        assert view["conversation_question"]["field"] == "texts"
+        assert view["conversation_question"]["options"] == []
+        response = await send(client, project_id, "不用")
+        assert response.status_code == 200, response.text
+        assert response.json()["assistant_message"]["turn_kind"] == "workflow"
+        await _drain(app)
+        view = await _view(client, project_id)
+        brief = next(item["payload"] for item in view["artifacts"] if item["kind"] == "brief_draft")
+        assert brief["texts"] == []
+        assert view["conversation_question"] is None
+        assert view["prompt_preview"] and view["prompt_preview"]["can_confirm"]
+        assert {"visual_planner", "generation_engineer"} <= set(production_calls(llm))
+        assert visual.submit_calls == []
+
+
+async def test_greeting_does_not_answer_pending_free_text_copy_question(full_settings):
+    async with _environment(
+        settings_for(full_settings), copy_question_script("requirements_change")
+    ) as (app, client, llm, visual):
+        project_id = (await _create_project(client))["id"]
+        view = await _start(
+            client, project_id, "制作米色托特包电商主图，极简冷白背景，文案稍后确定"
+        )
+        assert view["conversation_question"]["field"] == "texts"
+        assert view["conversation_question"]["options"] == []
+        before = await snapshot(app, client, project_id)
+        calls = production_calls(llm)
+        response = await send(client, project_id, "你好")
+        assert response.status_code == 200, response.text
+        assert response.json()["assistant_message"]["turn_kind"] == "conversation"
+        assert response.json()["assistant_message"]["content"].strip()
+        assert await snapshot(app, client, project_id) == before
+        assert production_calls(llm) == calls
+        assert visual.submit_calls == []
