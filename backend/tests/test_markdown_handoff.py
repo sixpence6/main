@@ -232,3 +232,67 @@ def test_question_heading_is_detected_without_a_fixed_markdown_template():
     assert len(question) == 1
     assert question[0]["text"] == "更喜欢哪种画面方向？"
     assert [option["id"] for option in question[0]["options"]] == ["A", "B", "C"]
+
+BOARD_REQUEST = "我要生成大富翁棋盘，32格，路径最好是蜿蜒不规则的，然后收尾要闭环"
+BOARD_MARKDOWN = "# 大富翁棋盘 · 生成提示词\n\n## 正向提示词\n\n**画面类型**\n俯视32格棋盘……\n\n**路径形态**\n蜿蜒不规则，首尾闭环……\n\n## 反向提示词\n\n**路径错误**\n不要断路、分叉……"
+BOARD_POSITIVE = "**画面类型**\n俯视32格棋盘……\n\n**路径形态**\n蜿蜒不规则，首尾闭环……"
+BOARD_NEGATIVE = "**路径错误**\n不要断路、分叉……"
+
+
+class BoardMarkdownScript(MarkdownScript):
+    def __init__(self, prompt=BOARD_MARKDOWN):
+        super().__init__()
+        self.prompt = prompt
+
+    def responder(self, request):
+        response = super().responder(request)
+        role = request.payload["task"]["role"]
+        docs = {
+            "requirements_assistant": "# 主体\n大富翁棋盘，32格。\n\n# 用途\n游戏棋盘。\n\n# 已确定方向\n路径蜿蜒不规则，首尾闭环。",
+            "visual_planner": "# 画面方案\n俯视32格棋盘，路径蜿蜒不规则，首尾闭环。",
+            "generation_engineer": self.prompt,
+        }
+        return RoleResponse(payload={}, model_fingerprint="board-md-stub", text=docs.get(role, response.text))
+
+
+async def start_board(app, client, project_id):
+    """Keep the original request and answer the existing purpose gate if asked."""
+    result = await _start(client, project_id, BOARD_REQUEST)
+    await _drain(app)
+    view = await _view(client, project_id)
+    if view.get("conversation_question"):
+        response = await send(client, project_id, "用于游戏棋盘，其他视觉细节你来定，保持32格蜿蜒闭环。")
+        assert response.status_code in {200, 409}, response.text
+        result = response.json()
+        await _drain(app)
+    return result
+
+
+@pytest.mark.parametrize(("document", "positive", "negative"), [
+    pytest.param(BOARD_MARKDOWN, BOARD_POSITIVE, BOARD_NEGATIVE, id="nested-board-markdown"),
+    pytest.param("俯视32格棋盘，蜿蜒闭环。", "俯视32格棋盘，蜿蜒闭环。", "", id="short-paragraph-empty-negative"),
+])
+async def test_board_prompt_body_reaches_preview_and_exact_visual_submission(full_settings, document, positive, negative):
+    script = BoardMarkdownScript(document)
+    async with _environment(settings_for(full_settings), script) as (app, client, llm, visual):
+        visual.submit_outcome = ProviderOutcome(state="succeeded", image_bytes=png_bytes(1024, 1024), image_count=1)
+        project = await _create_project(client)
+        await start_board(app, client, project["id"])
+        await _drain(app)
+        view = await _view(client, project["id"])
+        assert view["stage"] == "S07" and view["status"] == "needs_input", view
+        assert visual.submit_calls == []
+        preview = view["prompt_preview"]
+        assert preview["request"]["positive_prompt"] == positive
+        assert preview["request"]["negative_prompt"] == negative
+        assert preview["can_confirm"] is True
+        calls = len(llm.role_calls_received)
+        assert (await _view(client, project["id"]))["prompt_preview"] == preview
+        assert len(llm.role_calls_received) == calls and visual.submit_calls == []
+        confirmed = await final_click(client, {"project_id": project["id"], "workflow": view})
+        assert confirmed.status_code == 200, confirmed.text
+        await _drain(app)
+        assert len(visual.submit_calls) == 1
+        expected = positive if not negative else f"{positive}\n\n禁止内容（Negative prompt）:\n{negative}"
+        assert preview["request"]["prompt"] == expected
+        assert visual.submit_calls[0].prompt == expected
