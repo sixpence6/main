@@ -53,3 +53,24 @@ npm run check
 4. 人工确认自然回复、待答问题仍可回答、闲聊后同一提示词仍可确认、完成后真实新请求仍可准备，以及 provider 只在最终确认后提交。
 
 接口交接：`/messages` 保留现有请求形状；闲聊助手必须 `turn_kind=conversation`，制作准备助手必须 `workflow`。绑定的混合选项正文应支持 `A，但别太暗`。等待最终确认的闲聊必须保留原 snapshot 和 command_context 的可用性。未作真实外部模型或图片服务调用；脚本适配器验收不能替代真实服务验收。
+
+## 评审补充回归（尚未集成）
+
+`c4d8a4a` 在首轮 24 个用例后新增 3 个无选项文案问题回归：两种模型 kind 下“不用”应保存 `texts=[]` 并继续准备；问候保留问题。原应用定向结果为 **3 failed, 24 deselected in 8.00s**：两种 kind 都把“不用”保存为图片文字 `['不用']`，问候仍返回 workflow。这是原基线证据，不代表后端 worker 当前代码的状态。
+
+随后针对 spec 评审的三项发现，测试文件增加到 **37 个收集用例**。新增意见分类与两个制作对照，并用独立 API 用例直接检查：
+
+- 新会话“我觉得冷白背景比较适合钢笔主图”即使遇到错误 ready/完整 brief，也只对话。
+- 等待提示词时“我喜欢这个背景”保留精确 snapshot、intent 和 usage。
+- 生成中“我很喜欢这个文案”不追加 pending_feedback；夹具在需要模型分类时返回 conversation，不能以名词命中代替语义判断。
+- “你可以帮我做一张钢笔主图，极简冷白背景，无文字”和“制作钢笔主图，极简冷白背景，文案为为什么选择我们”均可准备；文案脚本响应按实际请求设置，保存的 texts 必须保留原文。
+
+原生命周期场景的 CHAT 列表也增加上述三种意见/赞赏，集成时会在各状态依次检查。以下只运行新增的 7 个定向用例，未重跑整个后端文件、前端或 npm check：
+
+```powershell
+# cwd: C:/Users/28425/.codex/worktrees/chat-intent-tests/新建文件夹/backend
+# 使用上文相同 TEMP/TMP/PYTHONDONTWRITEBYTECODE 设置
+& 'D:/Desktop/新建文件夹/backend/.venv/Scripts/python.exe' -m pytest -p no:cacheprovider -q tests/test_chat_intent_routing.py -k 'product_opinion or active_copy_praise or polite-request or question-word-copy' --tb=short
+```
+
+结果：**6 failed, 1 passed, 30 deselected in 11.89s**，无夹具错误。通过项是礼貌请求的底层意图判断；失败项为含“为什么”的文案被暂停、两个首条请求未准备、两条意见返回 workflow，以及生成中赞赏被写入 pending_feedback。新增测试 lint 通过。未合并应用修复，尚无本次补充用例的集成绿灯证据；父任务应以 37 个用例作为当前后端回归文件的集成计数。

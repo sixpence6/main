@@ -814,7 +814,7 @@ async def _send_workflow_message(
             if ctx.project.revision != expected_revision:
                 raise conflict("REVISION_CONFLICT", "项目已被其他操作更新，请刷新后重试")
             alignment.validate_answer(ctx, clarification_answer, content)
-            if alignment.conversational(content) or alignment.STOP.search(content) or alignment.DELEGATION.fullmatch(content.strip()):
+            if alignment.conversational(content) or alignment.commentary(content) or alignment.STOP.search(alignment.speech_text(content)) or alignment.DELEGATION.fullmatch(content.strip()):
                 ctx.natural_reply = conversation_reply(content)
                 return await _write_conversation_exchange(
                     ctx, content=content, request_id=fresh_request_id, principal=principal,
@@ -878,7 +878,7 @@ async def _send_workflow_message(
 
             # Obvious edits are already user-grounded; retaining this fast path
             # avoids a new model call for established in-flight feedback.
-            if alignment.EDIT.search(content) and not alignment.conversational(content):
+            if alignment.revision_request(content):
                 from app.workflow.contracts import ConversationData
                 decision = ConversationData(kind="requirements_change", reference_usage="none", evidence_ids=[])
             else:
