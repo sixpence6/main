@@ -7,7 +7,7 @@
 - 应用版本 0.1.0；当前工作区生产源码快照，包含未提交的前后端修订和新增模块。
 - 前端源码及 dist 构建产物、后端源码、空配置模板、依赖锁、Docker/Compose、数据库迁移 0001–0017、部署说明。
 - ZIP 共 207 个文件；迁移包是全新部署包，backend/data 仅保留空 .gitkeep。
-- ZIP SHA256：`931485a9d998ed7f5e895a3eb71f5d710b9e6493bb8087f9967166f8db7f3a93`。
+- ZIP SHA256：`c222e19d834f110e8911858dbc82ea4a4cfb828c1edff058bf77ba969681bc15`。
 - RELEASE-MANIFEST.json 的 source_commit 是开发基线；source_dirty=true / source_snapshot 说明纳入工作区修订。逐文件 SHA256 固定实际发布内容。
 
 ## 密钥和隐私检查
@@ -41,3 +41,11 @@
 本次核验未发现密钥或用户运行数据进入发布物。依赖审计反映检查时 advisory 数据；未执行镜像操作系统漏洞扫描或全面渗透测试。目标设备仍须自行填写模型配置、创建新管理员；未使用真实供应商密钥执行付费模型调用。已有用户数据如需迁移，应经受控本地备份单独传输，不上传 GitHub。
 
 部署步骤见包内 README.md。Windows 首次运行先执行 `Copy-Item backend/.env.example backend/.env`，配置后运行 `docker compose up -d --build`，再执行 `docker compose exec backend python -m app.auth.cli init-admin`。
+
+## README 部署说明修订
+
+本修订发布为 `v0.1.0-migration.20261111.1`。补齐 Windows / Linux 首次部署、配置示例、管理员初始化、访问验证、HTTPS、原生运行和常见故障排查，修正备份目录层级与本机命令路径。
+
+与上一版 ZIP 比较，文件集合不变，只有 README.md、RELEASE-MANIFEST.json、SHA256SUMS 内容变化；前后端代码、依赖锁、镜像构建配置与前端产物逐字节相同。此前镜像构建和运行核验适用于这些未修改文件，本轮未重新执行付费模型调用或扩展部署安全验收。
+
+修订 ZIP 已重新验证所有文件哈希和 ZIP CRC，检查 README 与工作区源文件一致；真实密钥匹配为 0，Gitleaks 扫描为 0 条泄露，11 项打包回归测试通过。原始 Release 保留供追溯，新下载应选择此修订版。
