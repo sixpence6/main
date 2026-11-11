@@ -1,0 +1,355 @@
+/* 工作台外壳：应用源码样式，只使用 tokens.css 的暖色变量。 */
+/* 这里只在工作台外壳渲染时锁滚动。登录、账号安全、管理员账号等独立路由
+   不属于工作台外壳，必须保留文档级滚动，否则内容超出一屏会被直接裁掉。 */
+body:has(.pure-shell) {
+  overflow: hidden;
+}
+
+/* 统一滚动条：8px、细线色拇指，悬停加深；暗色壳层单独使用反色细线。 */
+.drawer-content,
+.main-panel:not(.is-chat) {
+  scrollbar-color: var(--line-hairline) transparent;
+  scrollbar-width: thin;
+}
+.drawer-content::-webkit-scrollbar,
+.main-panel:not(.is-chat)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.drawer-content::-webkit-scrollbar-track,
+.main-panel:not(.is-chat)::-webkit-scrollbar-track {
+  background: transparent;
+}
+.drawer-content::-webkit-scrollbar-thumb,
+.main-panel:not(.is-chat)::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-pill);
+  background: var(--line-hairline);
+}
+.drawer-content::-webkit-scrollbar-thumb:hover,
+.main-panel:not(.is-chat)::-webkit-scrollbar-thumb:hover {
+  background: var(--line-hover);
+}
+
+/* Head：全宽实色顶栏，直接贴齐页面边缘。 */
+.app-header {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-start;
+  height: var(--topbar-height);
+  margin: 0;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-bottom: 1px solid var(--line-hairline);
+  border-radius: 0;
+  background: var(--surface-panel);
+}
+
+.app-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-page);
+  font-weight: 600;
+  line-height: var(--text-page-line);
+  letter-spacing: 0.04em;
+}
+
+/* Side 与 Body 各自滚动。 */
+.app-sidebar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: var(--sidebar-width);
+  height: 100%;
+  padding: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 0;
+  border-right: 1px solid var(--line-inverse);
+  border-radius: 0;
+  background: var(--surface-shell);
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+.app-sidebar.is-mobile {
+  width: 100%;
+  height: auto;
+  min-height: 100%;
+  padding: 0;
+  border-right: 0;
+  overflow: visible;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.icon-button:hover {
+  border-color: var(--line-hairline);
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.composer-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.primary-button,
+.secondary-button,
+.button-danger {
+  min-height: 36px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-body);
+}
+
+.primary-button {
+  border: 1px solid var(--action-primary);
+  background: var(--action-primary);
+  color: var(--surface-panel);
+}
+
+.primary-button:hover:not(:disabled) {
+  border-color: var(--action-primary-hover);
+  background: var(--action-primary-hover);
+}
+
+.secondary-button {
+  border: 1px solid var(--line-hairline);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+}
+
+.secondary-button:hover:not(:disabled) {
+  border-color: var(--action-link);
+  background: var(--surface-canvas);
+}
+
+.primary-button:disabled,
+.secondary-button:disabled,
+.button-danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.button-danger {
+  border: 1px solid var(--state-danger);
+  background: var(--state-danger);
+  color: var(--surface-panel);
+}
+
+.button-danger:hover:not(:disabled) {
+  border-color: var(--state-danger);
+  background: var(--state-danger);
+}
+
+.unsaved-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+
+.unsaved-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(44, 39, 35, 0.48);
+}
+
+.unsaved-dialog {
+  position: relative;
+  width: min(440px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: var(--space-6);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-overlay);
+}
+
+.unsaved-dialog h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-section);
+  line-height: var(--text-section-line);
+}
+
+.unsaved-dialog p {
+  margin: 0 0 var(--space-2);
+}
+
+.unsaved-list {
+  margin: var(--space-2) 0;
+  padding-left: 20px;
+  color: var(--text-primary);
+}
+
+.unsaved-list li + li {
+  margin-top: var(--space-1);
+}
+
+.unsaved-hint {
+  color: var(--text-muted);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-line);
+}
+
+.unsaved-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+@media (max-width: 767px) {
+  .unsaved-dialog {
+    padding: var(--space-4);
+  }
+
+  .unsaved-actions button {
+    flex: 1 1 140px;
+  }
+}
+
+/* 抽屉 */
+.drawer-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+}
+
+.drawer-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 100vw;
+  overflow: hidden;
+  border-right: 1px solid var(--line-hairline);
+  border-left: 0;
+  /* Ticket #151 overrides screen-spec §8's 272px with a 264px drawer. */
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-overlay);
+}
+
+.drawer-slide-enter-active,
+.drawer-slide-leave-active {
+  transition: opacity var(--dur-slow) var(--ease-out);
+}
+
+.drawer-slide-enter-active .drawer-panel,
+.drawer-slide-leave-active .drawer-panel {
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+
+.drawer-slide-enter-from,
+.drawer-slide-leave-to {
+  opacity: 0;
+}
+
+.drawer-slide-enter-from .drawer-panel,
+.drawer-slide-leave-to .drawer-panel {
+  transform: translateX(-100%);
+}
+
+.drawer-head {
+  display: flex;
+  flex: none;
+  gap: var(--space-4);
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--line-hairline);
+}
+
+.drawer-head h2 {
+  margin: 0;
+  font-size: var(--text-section);
+  line-height: var(--text-section-line);
+}
+
+.drawer-description {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.drawer-close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+}
+
+.drawer-content {
+  flex: 1;
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (max-width: 767px) {
+  .app-header {
+    margin: var(--space-2) var(--space-2) 0;
+    padding-inline: var(--space-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .app-sidebar {
+    transition: none;
+  }
+
+  .drawer-slide-enter-active,
+  .drawer-slide-leave-active,
+  .drawer-slide-enter-active .drawer-panel,
+  .drawer-slide-leave-active .drawer-panel {
+    transition: none;
+  }
+}
+
+
