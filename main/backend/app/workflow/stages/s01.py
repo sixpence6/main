@@ -252,12 +252,16 @@ async def _route(ctx: WorkflowContext, text: str) -> None:
         if decision.kind == "conversation" and ctx.prepared_requirements is None:
             await _append_message(ctx, role="user", content=text,
                                   revision=ctx.project.revision, turn_kind="conversation")
-            await _append_message(ctx, role="assistant", content=ctx.natural_reply,
+            await _append_message(ctx, role="assistant", content=ctx.natural_reply or templates.render("INTENT_UNCLEAR"),
                                   revision=ctx.project.revision, turn_kind="conversation")
             # Explicit historical submit_request discussions used this idle stage.
             # No brief or authorization is created, and ordinary greetings stay S01.
             if alignment.STOP.search(alignment.speech_text(text)):
                 await set_stage(ctx, "S03", "needs_input")
+            elif ctx.run.status == "active":
+                # A conversation response cannot leave an initial submit action
+                # looking as though requirements are actively being prepared.
+                await set_stage(ctx, ctx.run.stage, "needs_input")
             return
     user_message, revision = await _record_user_turn(ctx, text)
     evidence_id = user_message.id
