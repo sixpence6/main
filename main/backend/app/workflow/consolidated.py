@@ -73,20 +73,20 @@ async def run_requirements(
     data = RequirementsAssistantData.model_validate(output.data)
     messages = await s03._user_messages(ctx)
     stored = requirements.state_of(ctx)
-    if messages and data.scope == "image_request" and data.kind != "conversation":
+    if ctx.direct and messages and data.scope == "image_request" and data.kind != "conversation":
         text = messages[-1].content
         brief = data.brief.model_dump(mode="json") if data.brief else {}
-        field_answer = any(
-            len(text.strip()) >= 2 and text.strip() in str(brief.get(q["field"], ""))
-            or (q["field"] == "texts" and re.search(r"不需要|不用|无需|不要|没有|无文字", text))
-            for q in stored.get("questions", [])
-        )
+        field_answer = alignment.free_text_answer(stored, text, brief)
         grounded = (
             alignment.grounded_request(text, brief)
             or alignment.deterministic_answer(stored, text) or field_answer
-            or bool(stored.get("data") and alignment.EDIT.search(text))
+            or bool(stored.get("data") and alignment.revision_request(text))
+            or bool(input_data.get("reference_report") and (
+                stored.get("generation_intent", {}).get("status") == "requested"
+                or ctx.run.intent_route == "image_request"
+            ))
         )
-        if alignment.conversational(text) or not grounded:
+        if alignment.conversational(text) or (alignment.commentary(text) and not field_answer) or not grounded:
             await s03._append_assistant(ctx, conversation_reply(text), ctx.project.revision)
             await set_stage(ctx, "S03", "needs_input")
             return None
@@ -272,24 +272,16 @@ async def classify_message(
     kind = data.kind
     known = bool(current and current.get("product_description"))
     answer = alignment.deterministic_answer(stored, content)
-    # Free answers are grounded against the field actually being asked, rather
-    # than treating every S03 message as an answer. Social acts are excluded below.
-    if data.kind == "clarification" and data.brief is not None:
-        brief = data.brief.model_dump(mode="json")
-        answer = answer or any(
-            (len(content.strip()) >= 2 and content.strip() in str(brief.get(q["field"], "")))
-            or (q["field"] == "texts" and re.search(r"不需要|不用|无需|不要|没有|无文字", content))
-            for q in stored.get("questions", [])
-        )
-    grounded = alignment.grounded_request(
-        content, data.brief.model_dump(mode="json") if data.brief else None
-    )
+    brief = data.brief.model_dump(mode="json") if data.brief else None
+    answer = answer or alignment.free_text_answer(stored, content, brief)
+    grounded = alignment.grounded_request(content, brief)
     # Scope and fabricated defaults are not authority to start or revise a task.
     if not has_reference_attachment and (
         alignment.conversational(content)
-        or bool(alignment.STOP.search(content))
+        or bool(alignment.STOP.search(alignment.speech_text(content)))
+        or (alignment.commentary(content) and not answer)
         or (alignment.DELEGATION.fullmatch(content.strip()) and not answer)
-        or (not answer and not grounded and not (known and alignment.EDIT.search(content)))
+        or (not answer and not grounded and not (known and alignment.revision_request(content)))
     ):
         kind = "conversation"
         if data.kind != "conversation":

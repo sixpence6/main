@@ -234,7 +234,9 @@ def project_output(ctx, role: str, doc: str, payload: dict) -> dict:
         messages = data.get("user_messages") or []
         latest = messages[-1] if messages else {"message_id": "current_user_message", "text": data.get("pending_user_message") or data.get("user_text") or ""}
         text, message_id = str(latest.get("text", "")), str(latest.get("message_id", "current_user_message"))
-        discussion = bool(alignment.conversational(text) or alignment.STOP.search(text) or (
+        discussion = bool(alignment.conversational(text)
+            or (alignment.commentary(text) and not alignment.free_text_answer(stored, text, brief))
+            or alignment.STOP.search(alignment.speech_text(text)) or (
             alignment.DELEGATION.fullmatch(text.strip()) and not alignment.deterministic_answer(stored, text)
         ) or (
             alignment.FEEDBACK.search(text) and not alignment.REQUEST.search(text)
