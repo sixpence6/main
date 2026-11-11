@@ -1,0 +1,60 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+/* 用 min-height 而不是 height：独立路由页（账号安全、登录等）内容超出一屏时
+   由文档自然滚动，固定高度会让溢出内容被裁掉。 */
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring-light);
+  outline-offset: 2px;
+}
+
+/* 暗色壳层上的焦点环需要更亮的颜色（--focus-ring-light 在暗壳层上对比度不足）。 */
+.app-sidebar:focus-visible,
+.app-sidebar :focus-visible,
+.workspace-topbar:focus-visible,
+.workspace-topbar :focus-visible {
+  outline-color: var(--focus-ring-dark);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

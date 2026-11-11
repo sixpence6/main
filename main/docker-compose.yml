@@ -1,0 +1,54 @@
+name: ecommerce-image-workspace
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    image: ecommerce-image-backend:local
+    container_name: ecommerce-image-backend
+    env_file:
+      - ./backend/.env
+    environment:
+      APP_DATA_DIR: /app/backend/data
+      APP_BACKUP_DIR: /app/backups
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./backend/data:/app/backend/data
+      - ./backups:/app/backups
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 6
+    stop_grace_period: 30s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ecommerce-image-workspace:local
+    container_name: ecommerce-image-workspace
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8090:80"
+    environment:
+      API_UPSTREAM: ${API_UPSTREAM:-http://backend:8000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
