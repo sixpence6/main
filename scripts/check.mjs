@@ -41,6 +41,7 @@ const backendTests = full
       'tests/test_llm_thinking_mode.py',
       'tests/test_markdown_handoff.py',
       'tests/test_prompt_content.py',
+      'tests/test_prompt_confirmation_recovery.py',
     ]
 
 function checkDependencyGraph() {
