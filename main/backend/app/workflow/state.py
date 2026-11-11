@@ -98,7 +98,9 @@ class WorkflowContext:
     @property
     def direct(self) -> bool:
         """Current four-role flow; other policies only replay historical workflows."""
-        return self.settings.workflow_role_policy == "collaborative"
+        return self.settings.workflow_role_policy == "collaborative" or (
+            self.run is not None and self.run.role_policy == "collaborative"
+        )
 
     @property
     def project_id(self) -> str:
@@ -150,6 +152,7 @@ async def load_context(
 
     adjudication.set_gate_mode(
         "off" if app.state.settings.workflow_role_policy == "collaborative"
+        or (run is not None and run.role_policy == "collaborative")
         else getattr(app.state.settings, "workflow_gate_mode", "strict")
     )
     return WorkflowContext(

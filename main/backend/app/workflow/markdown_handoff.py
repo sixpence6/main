@@ -42,7 +42,9 @@ def system_prompt(role: str) -> str:
         "requirements_assistant": (
             "理解用途、主体与想要的感觉，累计已回答内容。信息不足时先提出一个关键问题，"
             "可给 A/B/C 至多三个具体选项，允许用户自由回答或委托。不要反复询问已回答项。"
-            "用户只咨询或暂停时正常交流。用途与方向明确或已委托时整理需求供视觉策划继续。"
+            "问候、感谢、询问能力、咨询或暂停时自然交流，不整理需求、不编造商品、不输出创作方案。"
+            "待回答的问题不意味着本轮一定是回答。你来定只委托当前审美问题，不能代填主体或文案。"
+            "用途与方向明确或已委托当前审美问题时整理需求供视觉策划继续。"
             "商品身份、准确文案和硬冲突仍不清楚时先问，不靠猜测补全。可用标题组织主体、用途、"
             "已确定方向、画面文字和限制，但无需固定标题或全部填写。"
         ),
@@ -231,7 +233,9 @@ def project_output(ctx, role: str, doc: str, payload: dict) -> dict:
         messages = data.get("user_messages") or []
         latest = messages[-1] if messages else {"message_id": "current_user_message", "text": data.get("pending_user_message") or data.get("user_text") or ""}
         text, message_id = str(latest.get("text", "")), str(latest.get("message_id", "current_user_message"))
-        discussion = bool(alignment.STOP.search(text) or (
+        discussion = bool(alignment.conversational(text) or alignment.STOP.search(text) or (
+            alignment.DELEGATION.fullmatch(text.strip()) and not alignment.deterministic_answer(stored, text)
+        ) or (
             alignment.FEEDBACK.search(text) and not alignment.REQUEST.search(text)
             and not stored.get("questions")
         ))

@@ -359,7 +359,7 @@ async def accept_requirements(
         )
         or any(a["field"] == q["field"] and a["requires_detail"] for a in answers)
     ]
-    generation_intent = alignment.intent(stored, latest.content, latest.id)
+    generation_intent = alignment.intent({**stored, "data": result}, latest.content, latest.id)
     if output.conversation_only and generation_intent["status"] != "paused":
         generation_intent = {"status": "discussion", "message_id": latest.id}
     all_questions = list(questions)
