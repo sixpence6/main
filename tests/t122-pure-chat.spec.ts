@@ -190,7 +190,6 @@ async function mountFirstSendFlow(): Promise<{ state: FlowState; calls: string[]
   }
   const calls: string[] = []
   const actionViews: Record<string, WorkflowView> = {
-    submit_request: view({ stage: 'S03', status: 'active', project_revision: 1, requirement_revision: 1, available_actions: [action('compose_brief', '整理需求')] }),
     compose_brief: view({ stage: 'S04', status: 'active', project_revision: 2, requirement_revision: 2, available_actions: [action('plan_creative', '构思画面')] }),
     plan_creative: view({ stage: 'S05', status: 'active', project_revision: 3, requirement_revision: 2, available_actions: [action('plan_visual', '规划视觉')] }),
     plan_visual: view({ stage: 'S06', status: 'active', project_revision: 4, requirement_revision: 3, available_actions: [action('finalize_requirements', '整理需求卡')] }),
@@ -211,14 +210,17 @@ async function mountFirstSendFlow(): Promise<{ state: FlowState; calls: string[]
         return { body: detail(state.project.revision, [sampleMessage({ id: 'message-' + state.detailCalls, content: '请做一张商品主图' })]) }
       })
       fetch.route('GET', WORKFLOW_PATH, () => ({ body: state.view }))
-      fetch.route('POST', MESSAGES_PATH, () => ({
-        body: {
+      fetch.route('POST', MESSAGES_PATH, (request) => {
+        const body = request.body as { content: string; request_id: string }
+        state.project = { ...state.project, revision: 1 }
+        state.view = { ...state.view, project_revision: 1 }
+        return { body: {
           project: state.project,
-          user_message: sampleMessage({ id: 'message-user-2', content: '继续调整', turn_kind: 'conversation' }),
-          assistant_message: sampleMessage({ id: 'message-assistant-2', role: 'assistant', content: '收到。', turn_kind: 'conversation' }),
+          user_message: sampleMessage({ id: 'message-user-1', role: 'user', content: body.content, request_id: body.request_id, turn_kind: 'workflow' }),
+          assistant_message: sampleMessage({ id: 'message-assistant-1', role: 'assistant', content: '开始整理需求。', request_id: body.request_id, turn_kind: 'workflow' }),
           workflow: state.view,
-        },
-      }))
+        } }
+      })
       fetch.route('POST', ACTIONS_ROUTE, (request) => {
         const id = request.path.slice(ACTIONS_PATH.length)
         calls.push(id)
@@ -273,12 +275,14 @@ describe('T10 纯对话入口与首次文生图闭环', () => {
     expect(screen.getByRole('button', { name: '确认需求并生成提示词' })).toBeVisible()
 
     expect(harness!.fetch.count('POST', '/api/projects')).toBe(1)
-    expect(harness!.fetch.last('POST', ACTIONS_PATH + 'submit_request')?.body).toEqual({
+    expect(harness!.fetch.count('POST', MESSAGES_PATH)).toBe(1)
+    expect(harness!.fetch.count('POST', ACTIONS_PATH + 'submit_request')).toBe(0)
+    expect(harness!.fetch.last('POST', MESSAGES_PATH)?.body).toMatchObject({
       expected_revision: 0,
-      text: '做一张米色亚麻托特包的电商主图，文案为 WARM MORNING',
+      content: '做一张米色亚麻托特包的电商主图，文案为 WARM MORNING',
     })
+    expect((harness!.fetch.last('POST', MESSAGES_PATH)?.body as { request_id: string }).request_id).toMatch(/^[0-9a-f-]{36}$/)
     expect(calls).toEqual([
-      'submit_request',
       'compose_brief',
       'plan_creative',
       'plan_visual',
@@ -286,6 +290,43 @@ describe('T10 纯对话入口与首次文生图闭环', () => {
     ])
     expect(harness!.fetch.count('POST', ACTIONS_PATH + 'confirm_requirements')).toBe(0)
     expect(harness!.fetch.count('POST', ACTIONS_PATH + 'confirm_prompt')).toBe(0)
+  })
+
+  it('新会话闲聊经 messages 保留同一项目，随后制作请求仍走 messages', async () => {
+    const messages: ProjectDetailResponse['messages'] = []
+    const waiting = view({ run_id: null, stage: null, status: 'none', project_revision: 0, requirement_revision: 0, available_actions: [] })
+    let current = waiting
+    harness = await mountWorkspace({
+      config: configuredConfig(), viewportWidth: 1440, url: '/',
+      setup(fetch) {
+        fetch.json('POST', '/api/projects', project(0))
+        fetch.route('GET', '/api/health', () => ({ body: { status: 'ok' } }))
+        fetch.route('GET', DETAIL_PATH, () => ({ body: detail(current.project_revision, messages) }))
+        fetch.route('GET', WORKFLOW_PATH, () => ({ body: current }))
+        fetch.route('POST', MESSAGES_PATH, (request) => {
+          const body = request.body as { content: string; request_id: string }
+          const chat = body.content === '你好'
+          if (!chat) current = promptView()
+          const kind = chat ? 'conversation' : 'workflow'
+          const user = sampleMessage({ id: 'u-' + messages.length, role: 'user', content: body.content, request_id: body.request_id, turn_kind: kind })
+          const assistant = sampleMessage({ id: 'a-' + messages.length, role: 'assistant', content: chat ? '你好，可以先聊聊你的需求。' : '请确认提示词。', request_id: body.request_id, turn_kind: kind })
+          messages.push(user, assistant)
+          return { body: { project: project(current.project_revision), user_message: user, assistant_message: assistant, workflow: chat ? null : current } }
+        })
+      },
+    })
+    await fillAndSend('你好')
+    expect(await screen.findByText('你好，可以先聊聊你的需求。')).toBeVisible()
+    expect(harness.fetch.count('POST', MESSAGES_PATH)).toBe(1)
+    expect(harness.fetch.count('POST', ACTIONS_ROUTE)).toBe(0)
+    expect(screen.queryByRole('region', { name: '提示词确认' })).not.toBeInTheDocument()
+    expect(harness.router.currentRoute.value.path).toBe('/projects/' + PROJECT_A + '/chat')
+    await fillAndSend('制作米色托特包电商主图，极简冷白背景')
+    expect(await screen.findByRole('region', { name: '提示词确认' })).toBeVisible()
+    expect(harness.fetch.count('POST', '/api/projects')).toBe(1)
+    expect(harness.fetch.count('POST', MESSAGES_PATH)).toBe(2)
+    expect(harness.fetch.count('POST', ACTIONS_ROUTE)).toBe(0)
+    expect(harness.fetch.last('POST', MESSAGES_PATH)?.body).toMatchObject({ content: '制作米色托特包电商主图，极简冷白背景' })
   })
 
   it('需求确认后展示实际提示词全文、输出与额度，可复制，点击后才提交最终确认并内联显示结果', async () => {
