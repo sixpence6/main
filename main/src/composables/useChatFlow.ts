@@ -3,7 +3,6 @@ import { ApiError, api } from '@/api/client'
 import { sessionRevision } from '@/auth/session'
 import { hasValidPromptEdits } from '@/utils/promptContent'
 import {
-  runWorkflowAction,
   type PromptPreviewView,
   type ClarificationAnswer,
   type WorkflowAction,
@@ -186,6 +185,11 @@ export function useChatFlow() {
   const taskConfirmations = ref<Record<string, boolean>>({})
   let lastAutoAction = ''
   let autoArmed = false
+  // Navigation may resume an authorized run; a classified chat turn controls
+  // continuation for the rest of this visit, including late status refreshes.
+  let autoResumeOnLoad = true
+  let contextRevision = 0
+  let disposed = false
   let resumedAutoKey = ''
   let copyTimer: ReturnType<typeof setTimeout> | null = null
   let attachmentToken = 0
@@ -704,20 +708,28 @@ export function useChatFlow() {
       ['confirm_requirements', 'compile_prompt', 'prepare_delivery', 'approve_delivery', 'publish_delivery'].includes(actionId)
   }
 
+  function canRunAutomatically(action: WorkflowAction): boolean {
+    return !action.requires_confirmation && !action.requires_text && action.retry_mode !== 'manual_only'
+  }
+
   function autoAction(): WorkflowAction | null {
     const current = view.value
-    if (!current) return null
+    if (!current || (current.status !== 'active' && !(current.interaction_mode === 'direct' && current.status === 'needs_input'))) return null
     for (const action of current.available_actions) {
-      if (AUTO_ACTION_IDS.has(action.id) || (current.interaction_mode === 'direct' && canAutoResume(action.id))) return action
+      if (canRunAutomatically(action) && (AUTO_ACTION_IDS.has(action.id) || (current.interaction_mode === 'direct' && canAutoResume(action.id)))) return action
     }
     return null
   }
 
   async function autoAdvance(force = false): Promise<void> {
-    if (!autoArmed || autoBusy.value || (busy.value && !force)) return
+    if (disposed || !autoArmed || autoBusy.value || (busy.value && !force)) return
+    const contextAtStart = contextRevision
+    const sessionAtStart = sessionRevision.value
+    const isCurrent = () => !disposed && contextAtStart === contextRevision && sessionAtStart === sessionRevision.value
     autoBusy.value = true
     try {
       for (let step = 0; step < 8; step += 1) {
+        if (!isCurrent() || !autoArmed) return
         const action = autoAction()
         const current = view.value
         if (!action || !current) return
@@ -732,6 +744,7 @@ export function useChatFlow() {
         if (key === lastAutoAction) return
         lastAutoAction = key
         const ok = await workflow.runAction(action)
+        if (!isCurrent()) return
         if (!ok) {
           lastAutoAction = ''
           return
@@ -748,103 +761,44 @@ export function useChatFlow() {
     await autoAdvance(force)
   }
 
-  async function begin(content: string): Promise<ChatSendOutcome> {
-    const body = content.trim()
-    if (!body || busy.value) return { status: 'noop' }
-    const sessionAtStart = sessionRevision.value
-    autoArmed = true
-    busy.value = true
-    flowError.value = ''
-    try {
-      const project = await api.createProject()
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      workspace.adoptCreatedProject(project)
-      autoArmed = true
-      const next = await runWorkflowAction(project.id, 'submit_request', {
-        expected_revision: project.revision,
-        text: body,
-      })
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      workflow.adopt(next)
-      clearDraftIfUnchanged(body)
-      await afterWorkflowChange(true)
-      return { status: 'sent', response: null }
-    } catch (caught) {
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      flowError.value = caught instanceof ApiError
-        ? caught.message
-        : '没有成功建立这次对话，请稍后重试。'
-      await workspace.refreshProjectDetail()
-      return { status: 'failed' }
-    } finally {
-      busy.value = false
-    }
-  }
-
-  async function beginWithAttachment(
-    body: string,
-    requestId?: string,
-  ): Promise<ChatSendOutcome> {
-    const sessionAtStart = sessionRevision.value
-    autoArmed = true
-    busy.value = true
-    flowError.value = ''
-    try {
-      const project = await api.createProject()
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      keepAttachmentOnProjectChange = true
-      workspace.adoptCreatedProject(project)
-      autoArmed = true
-      const staged = await ensureStagedAttachment(project.id)
-      if (!staged || sessionAtStart !== sessionRevision.value) return { status: 'failed' }
-      const response = await api.sendMessage(project.id, {
-        content: body,
-        expected_revision: project.revision,
-        request_id: requestId ?? makeId(),
-        attachment_asset_id: staged.asset.id,
-      })
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      applyMessageResponse(response)
-      clearDraftIfUnchanged(body)
-      clearAttachmentAfterSend()
-      await afterWorkflowChange(true)
-      mergeResponseMessages(response)
-      return { status: 'sent', response }
-    } catch (caught) {
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      flowError.value = caught instanceof ApiError
-        ? caught.message
-        : '没有成功建立这次对话，请稍后重试。'
-      await workspace.refreshProjectDetail()
-      return { status: 'failed' }
-    } finally {
-      busy.value = false
-    }
-  }
-
   async function send(content: string, requestId?: string, answer?: ClarificationAnswer): Promise<ChatSendOutcome> {
     const body = content.trim()
-    if (!body || busy.value) return { status: 'noop' }
+    if (!body || busy.value || autoBusy.value || workflow.actionBusy.value || disposed) return { status: 'noop' }
+    // An existing route may still be loading its project. Do not create a
+    // second conversation while its detail request is in flight.
+    if (!workspace.currentProject.value && workspace.projectParam.value) return { status: 'noop' }
     if (pendingTaskAction.value) {
       const ok = await submitTaskText(body)
       return ok ? { status: 'sent', response: null } : { status: 'failed' }
     }
-    if (!workspace.currentProject.value) {
-      if (pendingAttachment.value) return await beginWithAttachment(body, requestId)
-      return await begin(body)
-    }
     const sessionAtStart = sessionRevision.value
-    autoArmed = true
+    let contextAtStart = contextRevision
+    const isCurrent = () => !disposed && sessionAtStart === sessionRevision.value && contextAtStart === contextRevision
+    // A message is not permission to resume a saved job. Only the server's
+    // workflow turn below can arm continuation after classification completes.
+    autoArmed = false
+    autoResumeOnLoad = false
     busy.value = true
     flowError.value = ''
-    const project = workspace.currentProject.value
+    const creating = !workspace.currentProject.value
     try {
+      let project = workspace.currentProject.value
+      if (!project) {
+        project = await api.createProject()
+        if (!isCurrent()) return { status: 'noop' }
+        keepAttachmentOnProjectChange = Boolean(pendingAttachment.value)
+        workspace.adoptCreatedProject(project)
+        contextAtStart = contextRevision
+        autoResumeOnLoad = false
+      }
       const staged = pendingAttachment.value
         ? await ensureStagedAttachment(project.id)
         : null
+      if (!isCurrent()) return { status: 'noop' }
       if (pendingAttachment.value && !staged) return { status: 'failed' }
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      const expectedRevision = view.value?.project_revision ?? project.revision
+      const expectedRevision = !creating && view.value?.project_id === project.id
+        ? view.value.project_revision
+        : project.revision
       const response = await api.sendMessage(project.id, {
         content: body,
         expected_revision: expectedRevision,
@@ -852,22 +806,29 @@ export function useChatFlow() {
         ...(staged ? { attachment_asset_id: staged.asset.id } : {}),
         ...(answer ? { clarification_answer: answer } : {}),
       })
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
+      if (!isCurrent()) return { status: 'noop' }
       applyMessageResponse(response)
+      autoArmed = response.assistant_message.turn_kind === 'workflow'
       clearDraftIfUnchanged(body)
       if (staged) clearAttachmentAfterSend()
-      await afterWorkflowChange(true)
+      await workspace.refreshProjectDetail()
+      if (!isCurrent()) return { status: 'noop' }
+      await autoAdvance(true)
+      if (!isCurrent()) return { status: 'noop' }
       // A detail refresh can race the write, so keep the response messages as
       // the authoritative tail of this turn after auto-advance settles.
       mergeResponseMessages(response)
       return { status: 'sent', response }
     } catch (caught) {
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
+      if (!isCurrent()) return { status: 'noop' }
+      autoArmed = false
       flowError.value = caught instanceof ApiError
         ? caught.message
-        : '消息没有发送成功，请稍后重试。'
+        : creating ? '没有成功建立这次对话，请稍后重试。' : '消息没有发送成功，请稍后重试。'
       await workspace.refreshProjectDetail()
+      if (!isCurrent()) return { status: 'noop' }
       await workflow.refresh()
+      if (!isCurrent()) return { status: 'noop' }
       return { status: 'failed' }
     } finally {
       busy.value = false
@@ -1066,6 +1027,7 @@ export function useChatFlow() {
       () => view.value?.project_revision ?? -1,
     ],
     async ([projectId, stage, status, revision]) => {
+      if (disposed || !autoResumeOnLoad || busy.value || autoBusy.value) return
       if (!projectId || (status !== 'active' && !(view.value?.interaction_mode === 'direct' && status === 'needs_input'))) return
       const current = view.value
       if (
@@ -1075,13 +1037,16 @@ export function useChatFlow() {
         current.status !== status ||
         current.project_revision !== revision
       ) return
-      if (!current.available_actions.some((action) => canAutoResume(action.id))) return
+      if (!current.available_actions.some((action) => canAutoResume(action.id) && canRunAutomatically(action))) return
       const key = [projectId, stage, revision].join(':')
       if (key === resumedAutoKey) return
       // Claim the key before the async tick so watcher re-entry cannot enqueue
       // a second POST for the same project/stage/revision.
       resumedAutoKey = key
+      const contextAtStart = contextRevision
+      const sessionAtStart = sessionRevision.value
       await nextTick()
+      if (disposed || !autoResumeOnLoad || busy.value || autoBusy.value || contextAtStart !== contextRevision || sessionAtStart !== sessionRevision.value) return
       const loaded = view.value
       if (
         !loaded ||
@@ -1098,6 +1063,8 @@ export function useChatFlow() {
   watch(
     () => workspace.projectParam.value,
     () => {
+      contextRevision += 1
+      autoResumeOnLoad = true
       if (keepAttachmentOnProjectChange) {
         keepAttachmentOnProjectChange = false
       } else if (pendingAttachment.value) {
@@ -1128,6 +1095,10 @@ export function useChatFlow() {
   watch(
     sessionRevision,
     () => {
+      contextRevision += 1
+      autoArmed = false
+      autoResumeOnLoad = true
+      resumedAutoKey = ''
       if (pendingAttachment.value) clearAttachmentState(true)
       pendingRequirementRequestId.value = ''
       pendingPromptCommandId.value = ''
@@ -1147,6 +1118,9 @@ export function useChatFlow() {
   )
   onBeforeUnmount(() => {
     promptScopeRevision += 1
+    disposed = true
+    contextRevision += 1
+    autoArmed = false
     const current = pendingAttachment.value
     if (current?.staged && current.stagedProjectId) {
       void api.discardMessageAttachment(current.stagedProjectId, current.staged.asset.id).catch(() => undefined)

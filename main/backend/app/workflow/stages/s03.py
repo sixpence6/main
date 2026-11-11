@@ -210,14 +210,24 @@ async def _workflow_messages(ctx: WorkflowContext) -> list[Message]:
         )
 
 
-async def _conversation_messages(ctx: WorkflowContext) -> list[dict[str, str]]:
+async def _conversation_messages(
+    ctx: WorkflowContext, *, include_conversation: bool = False
+) -> list[dict[str, str]]:
     """Return a bounded, chronological transcript for the consultant.
 
     The role call is stateless. Without the assistant turns, a reply like "A"
     has no meaning and the model silently re-asks the question it just showed.
     Keep the most recent messages within a small payload budget.
     """
-    messages = await _workflow_messages(ctx)
+    if include_conversation:
+        async with read_session(ctx.session_factory) as session:
+            messages = list((await session.scalars(
+                select(Message).where(Message.project_id == ctx.project_id)
+                .order_by(Message.sequence_no.desc()).limit(48)
+            )).all())
+        messages.reverse()
+    else:
+        messages = await _workflow_messages(ctx)
     selected: list[dict[str, str]] = []
     total = 0
     for message in reversed(messages):

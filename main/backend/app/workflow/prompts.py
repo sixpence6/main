@@ -65,6 +65,7 @@ ACTIVE_ROLE_INCREMENTS: Final[dict[str, str]] = {'reference_analyst': '【任务
                         'UNAUTHORIZED_ACTION；需要新增或修改需求时返回 needs_input、data=null、questions=[] 与 '
                         'REQUIREMENT_DRIFT。输出只是执行候选，经用户显式提交后才可能由程序执行。',
  'requirements_assistant': '【任务】统一完成范围判断、消息归因、需求增量和集中澄清。程序负责累积状态，不能把已有值改成未知。\n'
+                           '【对话优先】问候、感谢、能力说明、咨询与讨论用 kind=conversation，自然回复 reply，brief=null，updates=[]、clarifications=[]；任何阶段都不能把这些话当作待回答问题的答案。不能从助手建议或默认值编造商品与制作请求。只有用户本轮提供创作描述、明确修改或实际回答才更新需求。无动词的商品与画面描述也可作为制作请求。你来定仅委托当前可委托的审美问题，不授权空任务或补齐主体、文案事实。确认提示词只能由用户点击。\n'
                            '【输入】user_text、完整当前对话、current_requirement、field_sources、clarification_answers、当前阶段、已批准参考报告与可执行尺寸。pending_user_message '
                            '是本轮尚未入库的用户文字，其唯一临时证据 ID 为 current_user_message，程序随后会绑定真实消息。\n'
                            '【输出】data={scope,kind,reference_usage,brief,updates,clarifications}。scope '

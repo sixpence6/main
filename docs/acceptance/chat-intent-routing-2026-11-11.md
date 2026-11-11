@@ -1,0 +1,55 @@
+# 对话意图路由验收记录（2026-11-11）
+
+状态：测试与行为契约已编写，应用实现尚未在本分支合入。以下是基线红灯证据，不能当作集成通过或发布声明。
+
+## 范围与基线
+
+- 基线：`fc7f6868d6e1499aa436e55b8dc2104a245b409e`。
+- 测试分支：`codex/chat-intent-tests`。
+- 工作树：`C:/Users/28425/.codex/worktrees/chat-intent-tests/新建文件夹`。
+- 本分支只修改 `backend/tests/**`、`tests/**` 及本次两份文档，未修改应用、package 配置或 `scripts/check.mjs`。
+- [目标契约](../architecture/chat-intent-routing-2026-11-11.md) 与测试新增后仍基于上述应用代码验证。未合并其他 worker 分支。已只读核对前端实现提交 `8b12a893a2006a8c8e59784f27b77b585742e78f` 的 `turn_kind` 契约。
+
+## 测试构成
+
+后端新增 24 个收集用例：6 个非制作意图、4 个真实请求分类、5 个生命周期场景（每个依次检查问候/感谢/能力询问/讨论）、4 个首消息制作及最终确认、2 个审美回答、2 个缺商品回答、1 个显式暂缓。
+
+生命周期测试在问候时可遇到错误的 `image_request/ready` 模型响应；新会话旧 organize 适配器也故意返回凭空填好的商品和 prompt。S03 用先提问、随后错误 ready 的脚本验证程序保护。测试断言生产角色调用、provider 次数、真实数据库和 workflow 投影，非仅检查脚本声明的分类。
+
+前端新增“首条闲聊后在同一项目继续制作”用例，覆盖首条响应 `workflow=null`；更新两份现有测试中的首消息 mock/断言为 `/messages`，请求正文为 `content/expected_revision/request_id`，制作响应助手 `turn_kind=workflow`，动作序列移除 `submit_request`。两文件共 14 个用例；全前端现为 236 个。
+
+## 实际执行与结果
+
+Windows PowerShell。每条命令显式指定下述 cwd；Python 仍使用原虚拟环境：
+
+```powershell
+# cwd: C:/Users/28425/.codex/worktrees/chat-intent-tests/新建文件夹/backend
+$env:TEMP = 'D:/Desktop/新建文件夹/backend/.pytest_tmp_chat_intent'
+$env:TMP = $env:TEMP
+$env:PYTHONDONTWRITEBYTECODE = '1'
+& 'D:/Desktop/新建文件夹/backend/.venv/Scripts/python.exe' -m pytest -p no:cacheprovider -q tests/test_chat_intent_routing.py --tb=short
+```
+
+结果：**14 failed, 10 passed in 26.68s**。无收集或夹具错误。预期失败包括：问候/感谢/能力询问误判 requested；五个生命周期中的闲聊不满足 conversation/状态保护；四个首条真实请求未通过完整准备与确认契约；绑定 `A，但别太暗` 返回 `409 QUESTION_EXPIRED`；显式暂缓的首消息仍返回 workflow 而非 conversation。生成中前置条件等待 provider 已开始，并在 finally 释放受控 gate。
+
+```powershell
+# cwd: C:/Users/28425/.codex/worktrees/chat-intent-tests/新建文件夹
+& 'D:/Desktop/新建文件夹/backend/.venv/Scripts/python.exe' -m ruff check --no-cache backend/tests/test_chat_intent_routing.py --ignore E501
+npm run typecheck
+npm run check
+```
+
+结果：新增后端测试 lint **通过**，typecheck **通过**。`npm run check` 的依赖图和 typecheck 通过；前端 **233 passed, 3 failed（30 files，2 failed/28 passed）**，在前端阶段退出，后端 lint/targeted suite 未由该次总检查执行。3 个失败均在本次调整的首条消息路径：T122 首次制作、T122 首条闲聊、T152 首次等待提示。原应用仍调用 `submit_request`，与目标断言冲突。直接执行后端回归的结果如上。
+
+执行环境备注：C 盘工作树内 Python 临时文件写入返回 PermissionError，故 TEMP/TMP 指向 D 盘独立临时目录；这不改变应用导入位置。`backend/tests/conftest.py` 从本工作树的 `main/backend` 导入。初次 `npm run check` 因工作树缺 `.venv` 退出；建立指向原环境的忽略项 junction 后执行，才得到上述前端阶段结果。共享 node_modules junction 使用父任务提供的环境。未改配置绕过检查。
+
+## 集成待验证项（由父任务补录）
+
+本分支的红灯只证明回归断言已建立。合并审阅后的后端、前端、测试与父任务 `scripts/check.mjs` 修改后，需要记录：
+
+1. 集成提交及实际运行目录。
+2. `npm run check` 最终退出码与各阶段结果，确认 targeted suite 包含 `tests/test_chat_intent_routing.py`。
+3. 新增后端 24 个用例和前端 236 个用例的实际通过/失败情况；若计数改变，说明新增或调整原因。
+4. 人工确认自然回复、待答问题仍可回答、闲聊后同一提示词仍可确认、完成后真实新请求仍可准备，以及 provider 只在最终确认后提交。
+
+接口交接：`/messages` 保留现有请求形状；闲聊助手必须 `turn_kind=conversation`，制作准备助手必须 `workflow`。绑定的混合选项正文应支持 `A，但别太暗`。等待最终确认的闲聊必须保留原 snapshot 和 command_context 的可用性。未作真实外部模型或图片服务调用；脚本适配器验收不能替代真实服务验收。
