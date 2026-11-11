@@ -242,14 +242,10 @@ describe('T152 发送后立即上屏与等待反馈', () => {
           },
         }))
         fetch.route('GET', WORKFLOW_PATH, () => ({ body: workflow() }))
-        fetch.route('POST', ACTIONS_PATH + 'submit_request', () => ({
-          body: workflow({
-            stage: 'S03',
-            status: 'active',
-            project_revision: 1,
-            available_actions: [],
-          }),
-        }))
+        fetch.route('POST', MESSAGES_PATH, (request) => {
+          const body = request.body as { content: string; request_id: string }
+          return { body: successBody(body.request_id, body.content, '开始整理需求。') }
+        })
       },
     })
 
@@ -269,6 +265,8 @@ describe('T152 发送后立即上屏与等待反馈', () => {
       expect(screen.queryByText('正在理解你的需求…')).not.toBeInTheDocument()
     })
     expect(screen.getAllByText(SEND_TEXT)).toHaveLength(1)
+    expect(harness.fetch.count('POST', MESSAGES_PATH)).toBe(1)
+    expect(harness.fetch.count('POST', ACTIONS_PATH + 'submit_request')).toBe(0)
   })
 
   it('减少动态效果时等待提示保留静态文字并停用脉冲动画', () => {
