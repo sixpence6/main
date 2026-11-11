@@ -26,7 +26,23 @@ EDIT = re.compile(r"换成|替换|改成|调整|改为|去掉|保留|加上|增�
 COPY_DECLARATION = re.compile(r"(?:文案|文字|标语)(?:原文|内容)?\s*(?:为|是|写为|写上|[:：])")
 DELEGATION = re.compile(r"^(?:(?:那就|都|你来定|你决定|你安排|帮我选|随便|不知道|直接做|直接生成|直接制作|不用问|不必问)[，,。！!\s]*)+$")
 SOCIAL = re.compile(r"^(?:(?:你好|您好|嗨|哈喽|早上好|晚上好|谢谢(?:你|您)?|多谢|感谢(?:你|您)?|辛苦了|好的|好吧|收到|明白了|继续|hello|hi|hey|thanks|thank you|ok)[呀啊哦呢啦！!。,.，\s]*)+$", re.I)
+GRATITUDE = re.compile(
+    r"(?:(?:(?:非常|十分|真的|真是|特别|衷心|万分|太|很)?(?:感谢|谢谢|多谢)"
+    r"(?:你们|您们|你|您)?(?:了|的(?:帮助|解答|耐心|支持))?|"
+    r"(?:你|您)?(?:真是|真的)?帮(?:了)?(?:我)?(?:大忙|很大(?:的)?忙)(?:了)?)[呀啊哦呢啦\s]*)+"
+)
 CONSULTATION = re.compile(r"你(?:能|可以|会|是|有什么|有啥)|能(?:做什么|帮.{0,6}什么)|可以做什么|支持什么|有什么功能|介绍一下|怎么|如何|为什么|区别|哪个好|讨论|咨询|聊聊|先聊|what can you|who are you|can you explain", re.I)
+
+
+def substantive_text(text: str) -> str:
+    """Remove wholly social clauses, retaining any actual answer or instruction."""
+    return "，".join(
+        clause.strip()
+        for clause in re.split(r"[，,。；;！!？?\n]", text)
+        if clause.strip() and not (
+            SOCIAL.fullmatch(clause.strip()) or GRATITUDE.fullmatch(clause.strip())
+        )
+    )
 
 
 def speech_text(text: str) -> str:
@@ -67,6 +83,10 @@ def conversational(text: str) -> bool:
     if explicit_request(text):
         return False
     instruction = speech_text(text)
+    substantive = substantive_text(instruction)
+    if instruction and not substantive:
+        return True
+    instruction = substantive
     return bool(
         SOCIAL.fullmatch(instruction) or CONSULTATION.search(instruction)
         or re.match(r"^(?:我|我们)(?:想先?|希望|只是想)?(?:了解|知道|讨论|聊)", instruction)
@@ -143,8 +163,8 @@ def free_text_answer(state: dict[str, Any], text: str) -> bool:
     preference answers only an aesthetic question; an unnamed demonstrative such
     as '这个背景' supplies no selection. Social speech and discussion supply no facts.
     """
-    reply = text.strip()
-    if conversational(reply) or STOP.search(speech_text(reply)) or DELEGATION.fullmatch(reply):
+    reply = substantive_text(text)
+    if not reply or conversational(reply) or STOP.search(speech_text(reply)) or DELEGATION.fullmatch(reply):
         return False
     if copy_cancelled(state, reply):
         return True

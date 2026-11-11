@@ -24,6 +24,8 @@ BRIEF = "米色托特包电商主图，极简冷白背景，不加文字"
 CHAT = [
     "你好",
     "谢谢",
+    "非常感谢",
+    "谢谢你，帮大忙了",
     "你能帮我做什么",
     "我们先讨论一下背景风格",
     "我觉得冷白背景比较适合钢笔主图",
@@ -464,7 +466,9 @@ async def test_active_copy_praise_is_not_pending_feedback_when_model_says_conver
             await _drain(app)
 
 
-@pytest.mark.parametrize("text", ["我喜欢冷白背景", "我觉得冷白背景比较适合钢笔主图"])
+@pytest.mark.parametrize(
+    "text", ["我喜欢冷白背景", "我觉得冷白背景比较适合钢笔主图", "谢谢你，我喜欢冷白背景"]
+)
 async def test_concrete_preference_answers_current_aesthetic_question(full_settings, text):
     def clarified(request):
         return answer(
@@ -498,3 +502,34 @@ async def test_concrete_preference_answers_current_aesthetic_question(full_setti
         await confirm(client, project_id, view)
         await _drain(app)
         assert len(visual.submit_calls) == 1
+
+
+@pytest.mark.parametrize("text", ["非常感谢", "谢谢你，帮大忙了"])
+async def test_social_thanks_preserves_pending_style_question_despite_wrong_ready(
+    full_settings, text
+):
+    def wrong_ready(request):
+        return answer(
+            request,
+            kind="clarification",
+            product_description="钢笔",
+            purpose="商务送礼",
+            style_keywords=["冷白背景"],
+        )
+
+    async with _environment(
+        settings_for(full_settings), ConsolidatedScript(answers=[first, wrong_ready])
+    ) as (app, client, llm, visual):
+        project_id = (await _create_project(client))["id"]
+        view = await _start(client, project_id, "帮我做钢笔宣传图，送礼用")
+        assert view["conversation_question"]["field"] == "style_keywords"
+        before = await snapshot(app, client, project_id)
+        calls = production_calls(llm)
+        response = await send(client, project_id, text)
+        assert response.status_code == 200, response.text
+        await _drain(app)
+        assert response.json()["assistant_message"]["turn_kind"] == "conversation", text
+        assert response.json()["assistant_message"]["content"].strip()
+        assert await snapshot(app, client, project_id) == before, text
+        assert production_calls(llm) == calls
+        assert visual.submit_calls == []
