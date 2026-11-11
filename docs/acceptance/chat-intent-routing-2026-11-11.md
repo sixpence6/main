@@ -1,6 +1,6 @@
 # 对话意图路由验收记录（2026-11-11）
 
-状态：测试与行为契约已编写，应用实现尚未在本分支合入。以下是基线红灯证据，不能当作集成通过或发布声明。
+状态：本次修复已于 2026-11-12 合入本地 visual/v3，两路 code-review 和最终 npm run check 均通过。前半部分保留各分支当时的红灯与待办历史；最终结果见文末。不代表 v3 整体发布或运行数据恢复。
 
 ## 范围与基线
 
@@ -88,3 +88,21 @@ npm run check
 ```
 
 本分支原应用上的定向结果：**2 passed, 37 deselected in 5.75s**。新增测试 lint 与 diff 空白检查通过。本次未运行 lifecycle 或全量检查；这两个正向用例通过不代表其余闲聊、模糊指代或集成验收已经通过。父任务负责最终组合后的全量证据。
+
+## 2026-11-12 最终集成验收
+
+- 实际目录：`D:/Desktop/新建文件夹`。最终代码快照：`2c7020de5d12b403a7d9c77f7047c4c9f29dced1`，已快进合入本地 `visual/v3`。
+- 在该快照执行根目录 `npm run check`，退出码 **0**：依赖图、typecheck、前端 **31 文件 / 265 用例通过**、后端 Ruff 通过、后端 targeted suite **355 passed in 369.96s**；检查脚本明确包含 `tests/test_chat_intent_routing.py`。本地日志：`.git/chat-intent-check-final-integrated.log`。
+- 本次聊天意图测试由初始 24 项扩展为最终 **44 项**：补充具体审美回答、模糊指代、普通感谢与感谢后真实答案、模型误报 ready/完整 brief、五个生命周期的状态保护等。worker 对最终文件另运行聊天 44 项和对齐 26 项，均通过。
+- 前端 265 项与此前 236 项的差异包含同期另一任务的提示词相关测试；最终后端 355 项也包含其提示词内容与恢复测试，不能把全部新增计为本任务独立编写。
+- 两路 code-review 最终均 PASS，Standards 0 项、Spec 0 项；初审问题及最后的感谢语 P2 均修复。审查范围、分支 tip 与历史失败见 [审查记录](../reviews/chat-intent-routing-20261111.md)。
+- 自动化验证覆盖首条闲聊后同项目继续制作、原问题仍可回答、闲聊保留提示词快照、实际答案继续准备以及确认后才提交 provider。模型与图片适配器使用脚本，未调用真实外部服务；未将这些证据声明为人工浏览器或真实模型验收。
+
+## 本地合并与清理
+
+- 三个实现分支的最终 tip 均为最终代码快照祖先；合并后使用 `git branch -d` 删除 `codex/chat-intent-backend`、`codex/chat-intent-frontend`、`codex/chat-intent-tests`，未强制删除。
+- 先验证并仅移除四个依赖 junction，再检查三个工作区无任何 reparse point。后端和前端工作区通过应用工具归档，确认两个目录消失且归档附件存在。
+- 测试工作区归档被工具拒绝：`The task's primary checkout cannot be removed.` 因此保留干净的 detached 工作区 `C:/Users/28425/.codex/worktrees/chat-intent-tests/新建文件夹`；实现分支已删除，未绕过应用保护移除目录。
+- 本任务临时测试缓存移到忽略的 `.scratch/chat-intent-test-caches/` 保留。清理后复核主项目关键源文件、node_modules、Python、根 backend/.env 与 backend/data 仍存在，关键文件大小与清理前记录一致；不把这一局部检查扩大为全部数据完整性证明。
+- 同期任务的 `main/backend/data` 与 `main/backups` 原运行数据仍未确认恢复。根 `backend/data` 不是替代库，本次没有覆盖运行数据。详见 [清理事故记录](../reviews/prompt-content-recovery-20261111.md)。
+- 本轮仅本地提交，未推送远程。
