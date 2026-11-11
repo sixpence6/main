@@ -459,3 +459,23 @@ describe('提示词正文丢失后的恢复', () => {
     expect(harness!.fetch.count('POST', ACTIONS_PATH + 'edit_prepared_prompt')).toBe(0)
   })
 })
+
+
+describe('行内标题原文恢复', () => {
+  it('支持包含正文的标题，不隐藏恢复入口或阻止有效编辑确认', async () => {
+    const source = '# 正向提示词：猫\n# 反向提示词：模糊'
+    await mountPromptCard({ preview: promptPreview({
+      can_confirm: false, can_edit: true, parse_warning: PARSE_WARNING,
+      source_markdown: source,
+      request: { positive_prompt: '## 正向提示词', negative_prompt: '', prompt: '## 正向提示词' },
+    }) })
+    const card = await promptCard()
+    await harness!.user.click(within(card).getByRole('button', { name: '使用完整原文编辑' }))
+    expect(within(card).getByRole('textbox', { name: '正向提示词' })).toHaveValue(source)
+    expect(harness!.fetch.writes).toHaveLength(0)
+    const confirm = within(card).getByRole('button', { name: '确认使用以上提示词生成' })
+    expect(confirm).toBeEnabled()
+    await harness!.user.click(confirm)
+    await harness!.waitFor(() => expect(harness!.fetch.count('POST', ACTIONS_PATH + 'confirm_prompt')).toBe(1))
+  })
+})
