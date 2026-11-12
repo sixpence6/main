@@ -370,7 +370,7 @@ async def accept_requirements(
         if request is not None:
             intent_state["generation_intent"] = {"status": "requested", "message_id": request.id}
     generation_intent = alignment.intent(intent_state, latest.content, latest.id)
-    if output.conversation_only and generation_intent["status"] != "paused":
+    if output.conversation_only and generation_intent["status"] not in {"paused", "requested"}:
         generation_intent = {"status": "discussion", "message_id": latest.id}
     all_questions = list(questions)
     questions, rounds = alignment.choose_questions(

@@ -22,6 +22,7 @@ from tests.test_v2_t40_prompt_review import png_bytes
 
 BRIEF = "米色托特包电商主图，极简冷白背景，不加文字"
 CHAT = [
+    "\u4e3a\u4ec0\u4e48\u8fd9\u4e2a\u80cc\u666f\u66f4\u5408\u9002",
     "你好",
     "谢谢",
     "非常感谢",
