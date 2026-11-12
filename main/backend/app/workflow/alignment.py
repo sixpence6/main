@@ -203,6 +203,8 @@ def intent(previous: dict[str, Any], text: str, message_id: str) -> dict[str, An
     if unbound_option(previous, text):
         return {"status": "discussion", "message_id": message_id}
     if STOP.search(speech_text(text)):
+        if prior.get("status") != "requested":
+            return {"status": "discussion", "message_id": message_id}
         return {
             "status": "paused",
             "message_id": message_id,

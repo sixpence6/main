@@ -79,6 +79,13 @@ async def test_copy_declaration_does_not_swallow_pause(full_settings, text):
         assert (await persisted_requirements(app, project_id))["generation_intent"]["status"] == "paused"
         assert production_calls(llm) == []
         assert visual.submit_calls == []
+        explicit = await send(client, project_id, "现在重新制作钢笔主图，极简冷白背景")
+        assert explicit.status_code == 200, explicit.text
+        await _drain(app)
+        resumed = await persisted_requirements(app, project_id)
+        assert resumed["generation_intent"]["status"] == "requested"
+        assert production_calls(llm) == ["visual_planner", "generation_engineer"]
+        assert visual.submit_calls == []
 
 
 @pytest.mark.parametrize(

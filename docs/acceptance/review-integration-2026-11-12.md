@@ -1,65 +1,45 @@
-# Review integration 验收记录（2026-11-12）
+# GitHub 分支集成验收（2026-11-12）
 
-状态：**集成进行中，未判定通过。** 本记录用于本轮修复范围与待验证事项交接，不构成发布批准，也不改变历史 release 的结论。
+本记录覆盖本轮审查阻断修复及 `origin/main` 的安全集成，不宣告 v3 整体验收或生产发布完成。
 
-## 基线与证据边界
+## 固定基线与集成
 
-| 项目 | 记录 |
+- 开发基线：`8ed65fc3838f925ace643d7c239efcd84ead1386`（PR #170，包含 PR #169）。
+- 主分支基线：`1c87c34c45d74939d72293fddb7f7dd2c3c3128e`。
+- 修复提交：`f44f081`；集成候选：`fe8b980`，保留两侧提交历史。
+- 六个子智能体分别负责后端修复、后端回归、Docker/导出修复、部署回归、文档、只读集成审计；由父智能体串行集成。最终 Standards / Spec 使用全新上下文并行审查。
+- 主分支两条独有提交属于发布快照导入与字节保留。只读历史比对确认应用源码对应开发历史 `fc7f686`；没有主分支独有应用功能修复需回退覆盖。
+- 应用、前端、构建布局冲突保留开发增量；忽略规则补齐运行数据和私钥排除。旧 standalone lock、dist、manifest、checksums、安全报告按原始 Git blob 归档到 [历史发布档案](../releases/2026-11-12-main-1c87c34/README.md)。源码只保留根 workspace lock，构建产物不再跟踪；现有 tags / releases 未改动。
+
+## 本轮行为修复
+
+1. 文案声明只屏蔽文案值，保留后续独立暂停指令；“先讨论”分句保存为暂停。文案内的暂停词不能改变制作意图。
+2. 待答审美问题接受“我很喜欢冷白背景”“我们更喜欢冷白背景”；无当前问题的意见和模糊指代仍保持对话。
+3. 普通对话的本轮 `reference_usage=none`，已有项目参考绑定保持原样，避免 Markdown 问候触发 schema 异常。
+4. 源码 HTTPS 模板路径匹配仓库根 context，standalone 导出同步转换为包内路径；根 `.dockerignore` 限定前端构建输入并排除运行资料。
+5. 新增真实消息入口及部署导出回归，纳入 `npm run check`。修正两项测试的时间依赖：任务请求由 deferred 显式释放；Windows npm 子进程设置有界超时。
+
+每次图片执行仍要求用户明确确认可编辑提示词；本轮 HTTP 测试只替换模型和图片适配器，检查 SQLite 状态与调用次数，不调用真实供应商。
+
+## 已取得证据
+
+| 检查 | 结果与限制 |
 | --- | --- |
-| 日期 | 2026-11-12（Asia/Shanghai） |
-| 共享工作树 | `C:/Users/28425/.codex/worktrees/review-integration/新建文件夹` |
-| 文档实施起始 HEAD | `8ed65fc3838f925ace643d7c239efcd84ead1386` |
-| 最终集成版本 | 待负责人冻结；共享目录存在并行修改，起始 HEAD 不代表最终测试快照 |
-| 规范 | `AGENTS.md`、`docs/architecture/hld_v3.md`、`docs/architecture/workflow-gates-v3.md` |
-| 历史发布参考 | `docs/operations/release-clean-package.md`、`release-production-entry.md`、`release-gate.md`；`docs/acceptance/release-clean-package.md`、`release-gate.md` |
-| 文档实施归属 | 5 号；仅 `README.md`、`main/README.md` 与本文件；未提交 Git |
+| 后端新回归 | 修前 7 失败、9 通过；18 项暂停 / 文案 / 审美 / 参考图回归通过；含“冷白背景”不能恢复已暂停请求、重新明确制作可恢复的断言；另 5 项生命周期保护通过 |
+| 部署及原发布测试 | 22 通过、1 跳过；跳过项是 Python 子进程无法连接 Docker 命名管道，已由父进程下述真实哨兵构建补证 |
+| 源码 Docker | HTTP / HTTPS 前端及后端镜像构建通过，使用独立 review 标签 |
+| 构建上下文哨兵 | 只用假文件；13 项必需输入保留，14 项模拟敏感或运行输入全部排除 |
+| Standalone ZIP | 由候选源码重新构建前端后导出；源码 SHA 为 `fe8b980`、`source_dirty=false`；207 个清单文件逐项大小与 SHA256 一致 |
+| ZIP Docker | HTTP / HTTPS 前端及后端镜像构建通过；后端修复完成后重新构建 |
+| 仓库外前端 | 在 `D:/Desktop/codex-review-standalone-20261112/` 解压，独立 `npm ci`、typecheck、build 通过 |
+| 隔离运行 | ZIP 后端从空 tmpfs 数据库迁移至 `0017 (head)`，`/api/health` 返回 `{"status":"ok"}`；HTTP 前端健康通过；临时容器已停止并自动删除 |
+| 最终根组合检查 | 本轮最新候选重新检查中；先前候选全量检查被旧规格断言冲突中止，不计通过 |
+| 最终完整套件 | 待最终根组合检查结束后运行 |
+| Standards 审查 | 固定候选 `fe8b980` 无发现；独立核验归档 7 个原始 blob |
+| Spec 审查 | 前一补审使用了过时的原始 checkout，已弃用；已请求在集成工作树核验后复审 |
 
-HLD 的 R1 → R2 → R3 串行门槛继续适用。workflow-gates 的审计快照和旧用例数量不能自动关闭当前问题；顶部现行修订与历史流程须区分读取。本轮文档不宣称 v3 已完成、部署已成功或当前 ZIP 与历史发布物一致。
+验证日志与候选产物保存在原工作区 `release-artifacts/review-temp/` 和 `release-artifacts/review-candidate/`，均为忽略的本机产物。Python 在受保护 C 盘目录不能写缓存，因此 TEMP / TMP、RUFF_CACHE_DIR 与 pytest cache 定向到隔离 D 盘临时目录。首次环境失败和并行期测试失败不计为最终通过。
 
-## 已确认的修复范围
+## 边界
 
-此处的“已确认”只表示下列文档修改已落盘并可由 diff 核对；功能修复与运行结果须按后文补证。
-
-| 范围 | 本轮文档修复 | 证据 |
-| --- | --- | --- |
-| 源码入口 | 删除源码 `main/` 是独立部署根、仓库文件与旧迁移包一致的描述；明确源码使用根 npm workspace / 锁文件，前端构建写入 `main/dist/` | `README.md`；`main/README.md` 源码 workspace 节 |
-| 配置与命令目录 | 区分源码根 `backend/.env` / `backend/data/` 与 ZIP 解压根同名相对路径；源码原生入口明确导入 `main/backend/app/`，后续 ZIP 命令单独限定操作目录 | `main/README.md` 源码与 standalone 节；静态核对 `main/backend/app/config.py`、根 `backend/alembic.ini` |
-| 发布物边界 | standalone ZIP 为生成的扁平产物，需要独立锁文件、适配后的 Docker 配置与本次构建 `dist/`；不把 checkout 中的旧 manifest / 摘要当成当前产物证据 | 两份 README；构建与隔离验证仍待执行 |
-| 历史追溯 | 保留历史 tags / releases 的地位；旧验收只对应其记录的版本，不能预填本轮通过 | 两份 README；历史 release 文档未修改 |
-| 验收交接 | 新建本记录，区分文档实施、实测结果与待验证事项 | 本文件 |
-
-历史 manifest、摘要及构建文件的归档由集成负责人处理；5 号没有执行归档、删除、重建发布附件或修改历史 tags / releases。并行工作者的代码、测试、Docker 与打包工具改动不由本记录代签已修复。
-
-## 本轮实际检查
-
-| 检查 | 工作目录与命令 | 当前结果 | 证据与限制 |
-| --- | --- | --- | --- |
-| 文档静态核对 | 共享工作树根；对照根 `package.json`、`main/package.json`、Vite 配置、配置加载与迁移路径 | 已核对文档目录约定；不代表运行通过 | 两份 README diff；不以静态阅读替代部署 |
-| 仓库规定检查 | 共享工作树根；`npm run check` | 失败，退出码 1 | 依赖图、typecheck 阶段完成；前端 32 文件中 30 通过、2 失败，268 项中 266 通过、2 失败；后端 lint / 定向测试未执行 |
-| 最终集成复验 | 冻结后的共享工作树；`npm run check` | 待执行 | 并行修改期间的一次运行不能代表最终集成快照 |
-
-本次前端失败详情（来源：本会话 `npm run check` 终端输出，运行开始时间 08:45:13；未另存日志文件）：
-
-- `tests/check-command.spec.ts:11`：`prints the check plan without running the stages` 超过 5000ms 超时。尚未判定是否与并行运行负载有关。
-- `tests/t125-task-status.spec.ts:266`：任务进行中输入补充说明后，发送按钮未满足 `toBeDisabled()`。本次仅记录观察，不推测根因。
-
-这两项不在 5 号的文件所有权内，未修改测试或业务代码。后端 lint / 定向测试未执行，不能按命令预期覆盖范围记为通过。`git diff --check -- README.md main/README.md` 退出 0；新验收记录另做空白与本地链接核对。最终集成须修复或解释失败并重新运行。
-
-## 待验证事项
-
-| 项目 | 所需证据 | 当前状态 |
-| --- | --- | --- |
-| 业务代码修复范围 | 各实施者提供实际 diff、复现输入、定向回归、剩余未知；集成负责人确认最终纳入范围 | 待汇总；本文不推测具体缺陷已关闭 |
-| 源码 workspace | 根锁文件干净安装、唯一前端依赖图、类型、前端测试、后端 lint 与定向测试；按失败范围补验 | 当前检查失败，最终快照待复验 |
-| 源码 Docker | 基础 / HTTPS Compose 配置渲染；正确构建上下文、Dockerfile COPY 路径、模板参数、环境文件和数据挂载；镜像构建、启动与健康检查 | 待验证 |
-| 源码原生入口 | 隔离空数据根上的依赖安装、迁移到实际 head、生产入口自检、静态页 / API 与管理员初始化 | 待验证；不得使用真实数据根作验收夹具 |
-| Standalone 生成 | 最终白名单、锁文件与 Docker 配置转换；`tools/release_package.py --check --require-dist --json`；由当前源码重新生成包 | 待验证 |
-| Standalone 独立性 | ZIP 在仓库外隔离解压；独立 `npm ci` / 构建 / 类型检查、Python 安装迁移启动；Docker 与 HTTPS 入口不得依赖仓库父目录 | 待验证 |
-| 产物摘要与隔离 | 最终 `RELEASE-MANIFEST.json`、源码与构建归属、逐文件 SHA256、外部 ZIP 摘要；秘密 / 数据 / 测试 / 缓存排除检查 | 待验证；归档旧文件不等于生成新证据 |
-| 工作流与恢复 | 对本轮受影响范围提供 HTTP / SQLite / adapter 证据；每次图片执行须用户确认提示词，读取 / 重启 / 恢复不得补发调用 | 待实施者与集成复验；不能用旧 workflow-gates 结果代签 |
-| 正式开放所需补证 | 实际供应商、可信 TLS、第二设备、备份恢复及故障关闭按受影响范围复验，不能以桩或静态页代替 | 本轮尚未提供证据 |
-| 最终双轴审查 | 在最终 diff 上分别执行 Standards 与 Spec 审查，记录发现与处理结论 | 待通知后独立审查；本次文档实施不是最终 Standards 审查 |
-
-尚无本轮真实模型 / 图片调用、用量计数、确认快照、图片可见性或受控恢复结果可写入。若后续涉及 workflow-gates 场景，按其第 8 节记录规则与代码版本、隔离环境、输入、候选预算、调用次数、计数及资源结果，逐项判定，不以测试总数关闭整条交付链。
-
-本轮保留开放状态，待最终代码快照、命令输出与发布物证据齐全后由集成负责人更新结论。
+未改动现有运行中的应用容器或生产数据，未发布新 GitHub Release。真实供应商、可信 TLS 与第二设备、备份恢复及 v3 各阶段验收需各自证据；本轮的构建、桩测试和健康检查不代替这些结论。尚未完成最新候选的完整检查与可核验的独立审查，不合并远端主分支。
