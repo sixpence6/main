@@ -83,7 +83,22 @@ async def _delivery_setup(app, client) -> dict:
 
 
 def _published_path(app, delivery_id: str) -> Path:
-    return app.state.settings.resolved_data_dir() / "published" / f"{delivery_id}.png"
+    rows = _rows(
+        app.state.settings.database_path,
+        "select a.relative_path from assets a join deliveries d on d.asset_id = a.id "
+        "where d.id = ?",
+        (delivery_id,),
+    )
+    assert len(rows) == 1
+    path = app.state.settings.resolved_data_dir() / rows[0]["relative_path"]
+    assert path.parent == app.state.settings.resolved_data_dir() / "published"
+    return path
+
+
+def _published_files(app, delivery_id: str) -> list[Path]:
+    return list((app.state.settings.resolved_data_dir() / "published").glob(
+        f"{delivery_id}-*.png"
+    ))
 
 
 def _asset_source(app, asset_id: str) -> Path:
@@ -182,7 +197,7 @@ async def test_publish_revalidates_every_fact_in_the_final_write_transaction(
         asset_id = delivery["asset_id"]
         source = _asset_source(app, asset_id)
         original_bytes = source.read_bytes()
-        destination = _published_path(app, delivery["id"])
+        assert not _published_files(app, delivery["id"])
         manifest_original = _rows(
             app.state.settings.database_path,
             "select payload_json from artifacts where id = ?",
@@ -221,7 +236,7 @@ async def test_publish_revalidates_every_fact_in_the_final_write_transaction(
         blocked = await _post_action(client, setup["project_id"], "publish_delivery")
         assert blocked.status_code == 409, blocked.text
         assert blocked.json()["error"]["code"] == expected_code, blocked.text
-        assert not destination.exists()
+        assert not _published_files(app, delivery["id"])
         delivery_status = _rows(
             app.state.settings.database_path,
             "select status from deliveries where id = ?",
@@ -260,6 +275,7 @@ async def test_publish_revalidates_every_fact_in_the_final_write_transaction(
         assert retried.status_code == 200, retried.text
         assert retried.json()["stage"] == "S10"
         assert retried.json()["status"] == "completed", retried.json()
+        destination = _published_path(app, delivery["id"])
         assert destination.exists()
         assert hashlib.sha256(destination.read_bytes()).hexdigest() == delivery["asset_digest"]
         assert _rows(
@@ -281,7 +297,7 @@ async def test_publish_filesystem_and_database_failures_leave_retryable_state(
     async with _environment(full_settings, llm, visual, prompt_responder) as (app, client):
         setup = await _delivery_setup(app, client)
         delivery = setup["delivery"]
-        destination = _published_path(app, delivery["id"])
+        assert not _published_files(app, delivery["id"])
         import app.workflow.stages.s10 as s10
 
         original_write = s10.write_asset_file
@@ -294,7 +310,7 @@ async def test_publish_filesystem_and_database_failures_leave_retryable_state(
         failed = await _post_action(client, setup["project_id"], "publish_delivery")
         assert failed.status_code == 409, failed.text
         assert failed.json()["error"]["code"] == "ASSET_UNAVAILABLE"
-        assert not destination.exists()
+        assert not _published_files(app, delivery["id"])
         assert _rows(
             app.state.settings.database_path,
             "select status from deliveries where id = ?",
@@ -310,7 +326,7 @@ async def test_publish_filesystem_and_database_failures_leave_retryable_state(
         failed = await _post_action(client, setup["project_id"], "publish_delivery")
         assert failed.status_code == 409, failed.text
         assert failed.json()["error"]["code"] == "ASSET_UNAVAILABLE"
-        assert not destination.exists()
+        assert not _published_files(app, delivery["id"])
         assert _rows(
             app.state.settings.database_path,
             "select status from deliveries where id = ?",
@@ -325,6 +341,7 @@ async def test_publish_filesystem_and_database_failures_leave_retryable_state(
         retried = await _post_action(client, setup["project_id"], "publish_delivery")
         assert retried.status_code == 200, retried.text
         assert retried.json()["status"] == "completed"
+        destination = _published_path(app, delivery["id"])
         assert destination.exists()
         assert hashlib.sha256(destination.read_bytes()).hexdigest() == delivery["asset_digest"]
         assert _rows(
