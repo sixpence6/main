@@ -28,6 +28,8 @@
 
 新会话、S03 待澄清、等待最终提示词确认、正在生成和生成完成五个上下文中，问候、感谢、能力询问、纯讨论、意见表达和赞赏只增加对话消息。不得调用 `visual_planner`、`generation_engineer` 或新增图片提交；不得修改已保存 brief、待答问题、generation intent、prepared snapshot、job、计数和占用。
 
+明确的暂缓指令（如“先讨论”“我们先讨论一下背景”“请先讨论”）不属于状态不变的纯讨论：已有制作上下文中须将 generation intent 保存为 paused，后续普通字段回答不能恢复准备，需用户重新明确请求制作。普通讨论（如“我们讨论一下背景风格”）仍只新增对话，不改变制作意图；图片文案中的暂停词仍是数据。
+
 S03 闲聊不消耗当前问题，问题内容及其 `question_id/message_id/requirement_revision` 绑定保留。等待提示词时闲聊保留同一 snapshot 的全文、ID、digest、command_context 和确认可用性；用闲聊前的确认上下文仍能确认该快照。生成中测试用受控图片适配器暂停提交，隔离任务自然完成造成的状态变化。模型已经返回 conversation 时也必须满足这一保护；程序不能仅因“文案”等名词存在，就把赞赏写入 pending_feedback。
 
 测试比较工作流投影、项目制作字段、持久化 requirements JSON、artifact、job、intent、usage 行；允许消息及更新时间变化。额度视图中随墙钟滑动的窗口起止显示值不作相等比较，真实 usage 记录与额度数字仍必须相等。
