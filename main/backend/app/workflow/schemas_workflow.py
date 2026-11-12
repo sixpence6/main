@@ -235,6 +235,9 @@ class PromptPreviewView(BaseModel):
     request: dict[str, Any]
     created_at: str
     can_confirm: bool = False
+    can_edit: bool = False
+    source_markdown: str | None = None
+    parse_warning: str | None = None
     command_context: str | None = None
 
 

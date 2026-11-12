@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.acceptance import (
     GenerationIntent,
@@ -98,7 +98,7 @@ def available(ctx: WorkflowContext) -> list[str]:
         return ["revise_prompt", "abandon_generation"]
     if (
         ctx.run.status == "blocked"
-        and ctx.run.issue_code in {"PROMPT_REQUIRES_RECONFIRMATION", "PROMPT_INVALID"}
+        and ctx.run.issue_code in {"PROMPT_REQUIRES_RECONFIRMATION", "PROMPT_INVALID", "PROMPT_EMPTY"}
     ):
         # The rejection happened before image execution. The same counted
         # intent can be reopened, so offer a safe recompile instead of forcing
@@ -170,7 +170,9 @@ async def _producer_failed(
         intent_id=getattr(intent, "id", None) if intent is not None else None,
         detail={"error_code": exc.code},
     )
-    if exc.code in {"SERVICE_UNAVAILABLE", "CAPABILITY_NOT_READY", "LLM_TIMEOUT", "LLM_RESPONSE_INVALID"}:
+    if exc.code == "PROMPT_EMPTY":
+        await state.set_stage(ctx, STAGE, "blocked", issue_code=exc.code, message=exc.message)
+    elif exc.code in {"SERVICE_UNAVAILABLE", "CAPABILITY_NOT_READY", "LLM_TIMEOUT", "LLM_RESPONSE_INVALID"}:
         await _mark_failed(ctx, exc.code)
 
 
@@ -1106,22 +1108,31 @@ async def _ensure_image_unsubmitted(
                 select(GenerationJob)
                 .where(
                     GenerationJob.run_id == ctx.run_id,
-                    GenerationJob.intent_id == intent.id,
+                    # Unlinked same-run tasks cannot prove this intent is unsubmitted.
+                    or_(
+                        GenerationJob.intent_id == intent.id,
+                        GenerationJob.intent_id.is_(None),
+                    ),
                 )
                 .order_by(GenerationJob.created_at.desc())
             )
         ).all()
     if not jobs:
         return
-    job = jobs[0]
-    proven_unsubmitted = (
-        job.submit_attempted == 0
-        and job.status in {"created", "submit_pending"}
-        and not job.remote_task_id
+    unsafe_job = next(
+        (
+            job
+            for job in jobs
+            if not (
+                job.submit_attempted == 0
+                and job.status in {"created", "submit_pending"}
+                and not job.remote_task_id
+            )
+            and not (allow_known_rejection and job.status in {"rejected", "failed"})
+        ),
+        None,
     )
-    if allow_known_rejection and job.status in {"rejected", "failed"}:
-        return
-    if proven_unsubmitted:
+    if unsafe_job is None:
         return
     await _record_transition(
         ctx,
@@ -1129,9 +1140,9 @@ async def _ensure_image_unsubmitted(
         "stop_auto_advance",
         intent_id=intent.id,
         detail={
-            "job_id": job.id,
-            "job_status": job.status,
-            "submit_attempted": job.submit_attempted,
+            "job_id": unsafe_job.id,
+            "job_status": unsafe_job.status,
+            "submit_attempted": unsafe_job.submit_attempted,
         },
     )
     await state.set_stage(
@@ -1921,7 +1932,7 @@ async def handle(ctx: WorkflowContext, action: str, payload: dict[str, Any]) -> 
     elif (
         action == "compile_prompt"
         and status == "blocked"
-        and ctx.run.issue_code == "PROMPT_INVALID"
+        and ctx.run.issue_code in {"PROMPT_INVALID", "PROMPT_EMPTY"}
     ):
         await state.set_stage(ctx, STAGE, "active")
         status = "active"

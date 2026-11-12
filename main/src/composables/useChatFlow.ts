@@ -1,8 +1,8 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { ApiError, api } from '@/api/client'
 import { sessionRevision } from '@/auth/session'
+import { hasValidPromptEdits } from '@/utils/promptContent'
 import {
-  runWorkflowAction,
   type PromptPreviewView,
   type ClarificationAnswer,
   type WorkflowAction,
@@ -179,16 +179,53 @@ export function useChatFlow() {
   const attachmentError = ref('')
   const pendingRequirementRequestId = ref('')
   const pendingPromptCommandId = ref('')
+  let pendingPromptCommandKey = ''
   const pendingTaskAction = ref<WorkflowAction | null>(null)
   const taskConfirmations = ref<Record<string, boolean>>({})
   let lastAutoAction = ''
   let autoArmed = false
+  // Navigation may resume an authorized run; a classified chat turn controls
+  // continuation for the rest of this visit, including late status refreshes.
+  let autoResumeOnLoad = true
+  let contextRevision = 0
+  let busySequence = 0
+  let autoBusySequence = 0
+  let disposed = false
   let resumedAutoKey = ''
   let copyTimer: ReturnType<typeof setTimeout> | null = null
   let attachmentToken = 0
   let stageTask: Promise<StagedMessageAttachmentView> | null = null
   let stageTaskKey = ''
   let keepAttachmentOnProjectChange = false
+
+  function beginBusy(): number {
+    const sequence = ++busySequence
+    busy.value = true
+    return sequence
+  }
+
+  function endBusy(sequence: number): void {
+    if (sequence === busySequence) busy.value = false
+  }
+
+  function beginAutoBusy(): number {
+    const sequence = ++autoBusySequence
+    autoBusy.value = true
+    return sequence
+  }
+
+  function endAutoBusy(sequence: number): void {
+    if (sequence === autoBusySequence) autoBusy.value = false
+  }
+
+  // A stale request must not release a newer conversation's busy state.
+  function invalidateContextWork(): void {
+    contextRevision += 1
+    busySequence += 1
+    busy.value = false
+    autoBusySequence += 1
+    autoBusy.value = false
+  }
 
   /**
    * Sending no longer disables the composer, so a response must not erase text
@@ -650,32 +687,34 @@ export function useChatFlow() {
       return false
     }
     const sessionAtStart = sessionRevision.value
+    const contextAtStart = contextRevision
+    const isCurrent = () => !disposed && sessionAtStart === sessionRevision.value
+      && contextAtStart === contextRevision && workspace.projectParam.value === projectId
     const resumePipeline = canAutoResume(action.id)
     autoArmed = false
-    busy.value = true
+    const busySequenceAtStart = beginBusy()
     flowError.value = ''
     try {
       const ok = await workflow.runAction(action, taskText?.trim() ?? null, taskActionPayload(action))
       if (!ok) {
-        if (sessionAtStart === sessionRevision.value) {
+        if (isCurrent()) {
           flowError.value = workflow.error.value || '操作没有完成，请稍后重试。'
         }
         return false
       }
-      if (sessionAtStart !== sessionRevision.value || workspace.projectParam.value !== projectId) {
-        return false
-      }
+      if (!isCurrent()) return false
       delete taskConfirmations.value[action.id]
       pendingTaskAction.value = null
       if (taskText !== null) clearDraftIfUnchanged(taskText)
       await workspace.refreshProjectDetail()
+      if (!isCurrent()) return false
       if (resumePipeline) {
         autoArmed = true
         await autoAdvance(true)
       }
-      return true
+      return isCurrent()
     } finally {
-      busy.value = false
+      endBusy(busySequenceAtStart)
     }
   }
 
@@ -701,20 +740,28 @@ export function useChatFlow() {
       ['confirm_requirements', 'compile_prompt', 'prepare_delivery', 'approve_delivery', 'publish_delivery'].includes(actionId)
   }
 
+  function canRunAutomatically(action: WorkflowAction): boolean {
+    return !action.requires_confirmation && !action.requires_text && action.retry_mode !== 'manual_only'
+  }
+
   function autoAction(): WorkflowAction | null {
     const current = view.value
-    if (!current) return null
+    if (!current || (current.status !== 'active' && !(current.interaction_mode === 'direct' && current.status === 'needs_input'))) return null
     for (const action of current.available_actions) {
-      if (AUTO_ACTION_IDS.has(action.id) || (current.interaction_mode === 'direct' && canAutoResume(action.id))) return action
+      if (canRunAutomatically(action) && (AUTO_ACTION_IDS.has(action.id) || (current.interaction_mode === 'direct' && canAutoResume(action.id)))) return action
     }
     return null
   }
 
   async function autoAdvance(force = false): Promise<void> {
-    if (!autoArmed || autoBusy.value || (busy.value && !force)) return
-    autoBusy.value = true
+    if (disposed || !autoArmed || autoBusy.value || (busy.value && !force)) return
+    const contextAtStart = contextRevision
+    const sessionAtStart = sessionRevision.value
+    const isCurrent = () => !disposed && contextAtStart === contextRevision && sessionAtStart === sessionRevision.value
+    const autoBusySequenceAtStart = beginAutoBusy()
     try {
       for (let step = 0; step < 8; step += 1) {
+        if (!isCurrent() || !autoArmed) return
         const action = autoAction()
         const current = view.value
         if (!action || !current) return
@@ -729,6 +776,7 @@ export function useChatFlow() {
         if (key === lastAutoAction) return
         lastAutoAction = key
         const ok = await workflow.runAction(action)
+        if (!isCurrent()) return
         if (!ok) {
           lastAutoAction = ''
           return
@@ -736,7 +784,7 @@ export function useChatFlow() {
         await workspace.refreshProjectDetail()
       }
     } finally {
-      autoBusy.value = false
+      endAutoBusy(autoBusySequenceAtStart)
     }
   }
 
@@ -745,103 +793,45 @@ export function useChatFlow() {
     await autoAdvance(force)
   }
 
-  async function begin(content: string): Promise<ChatSendOutcome> {
-    const body = content.trim()
-    if (!body || busy.value) return { status: 'noop' }
-    const sessionAtStart = sessionRevision.value
-    autoArmed = true
-    busy.value = true
-    flowError.value = ''
-    try {
-      const project = await api.createProject()
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      workspace.adoptCreatedProject(project)
-      autoArmed = true
-      const next = await runWorkflowAction(project.id, 'submit_request', {
-        expected_revision: project.revision,
-        text: body,
-      })
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      workflow.adopt(next)
-      clearDraftIfUnchanged(body)
-      await afterWorkflowChange(true)
-      return { status: 'sent', response: null }
-    } catch (caught) {
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      flowError.value = caught instanceof ApiError
-        ? caught.message
-        : '没有成功建立这次对话，请稍后重试。'
-      await workspace.refreshProjectDetail()
-      return { status: 'failed' }
-    } finally {
-      busy.value = false
-    }
-  }
-
-  async function beginWithAttachment(
-    body: string,
-    requestId?: string,
-  ): Promise<ChatSendOutcome> {
-    const sessionAtStart = sessionRevision.value
-    autoArmed = true
-    busy.value = true
-    flowError.value = ''
-    try {
-      const project = await api.createProject()
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      keepAttachmentOnProjectChange = true
-      workspace.adoptCreatedProject(project)
-      autoArmed = true
-      const staged = await ensureStagedAttachment(project.id)
-      if (!staged || sessionAtStart !== sessionRevision.value) return { status: 'failed' }
-      const response = await api.sendMessage(project.id, {
-        content: body,
-        expected_revision: project.revision,
-        request_id: requestId ?? makeId(),
-        attachment_asset_id: staged.asset.id,
-      })
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      applyMessageResponse(response)
-      clearDraftIfUnchanged(body)
-      clearAttachmentAfterSend()
-      await afterWorkflowChange(true)
-      mergeResponseMessages(response)
-      return { status: 'sent', response }
-    } catch (caught) {
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      flowError.value = caught instanceof ApiError
-        ? caught.message
-        : '没有成功建立这次对话，请稍后重试。'
-      await workspace.refreshProjectDetail()
-      return { status: 'failed' }
-    } finally {
-      busy.value = false
-    }
-  }
-
   async function send(content: string, requestId?: string, answer?: ClarificationAnswer): Promise<ChatSendOutcome> {
     const body = content.trim()
-    if (!body || busy.value) return { status: 'noop' }
+    if (!body || busy.value || autoBusy.value || workflow.actionBusy.value || disposed) return { status: 'noop' }
+    // An existing route may still be loading its project. Do not create a
+    // second conversation while its detail request is in flight.
+    if (!workspace.currentProject.value && workspace.projectParam.value) return { status: 'noop' }
     if (pendingTaskAction.value) {
       const ok = await submitTaskText(body)
       return ok ? { status: 'sent', response: null } : { status: 'failed' }
     }
-    if (!workspace.currentProject.value) {
-      if (pendingAttachment.value) return await beginWithAttachment(body, requestId)
-      return await begin(body)
-    }
     const sessionAtStart = sessionRevision.value
-    autoArmed = true
-    busy.value = true
+    let contextAtStart = contextRevision
+    const isCurrent = () => !disposed && sessionAtStart === sessionRevision.value && contextAtStart === contextRevision
+    // A message is not permission to resume a saved job. Only the server's
+    // workflow turn below can arm continuation after classification completes.
+    autoArmed = false
+    autoResumeOnLoad = false
+    let busySequenceAtStart = beginBusy()
     flowError.value = ''
-    const project = workspace.currentProject.value
+    const creating = !workspace.currentProject.value
     try {
+      let project = workspace.currentProject.value
+      if (!project) {
+        project = await api.createProject()
+        if (!isCurrent()) return { status: 'noop' }
+        keepAttachmentOnProjectChange = Boolean(pendingAttachment.value)
+        workspace.adoptCreatedProject(project)
+        contextAtStart = contextRevision
+        busySequenceAtStart = beginBusy()
+        autoResumeOnLoad = false
+      }
       const staged = pendingAttachment.value
         ? await ensureStagedAttachment(project.id)
         : null
+      if (!isCurrent()) return { status: 'noop' }
       if (pendingAttachment.value && !staged) return { status: 'failed' }
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
-      const expectedRevision = view.value?.project_revision ?? project.revision
+      const expectedRevision = !creating && view.value?.project_id === project.id
+        ? view.value.project_revision
+        : project.revision
       const response = await api.sendMessage(project.id, {
         content: body,
         expected_revision: expectedRevision,
@@ -849,25 +839,32 @@ export function useChatFlow() {
         ...(staged ? { attachment_asset_id: staged.asset.id } : {}),
         ...(answer ? { clarification_answer: answer } : {}),
       })
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
+      if (!isCurrent()) return { status: 'noop' }
       applyMessageResponse(response)
+      autoArmed = response.assistant_message.turn_kind === 'workflow'
       clearDraftIfUnchanged(body)
       if (staged) clearAttachmentAfterSend()
-      await afterWorkflowChange(true)
+      await workspace.refreshProjectDetail()
+      if (!isCurrent()) return { status: 'noop' }
+      await autoAdvance(true)
+      if (!isCurrent()) return { status: 'noop' }
       // A detail refresh can race the write, so keep the response messages as
       // the authoritative tail of this turn after auto-advance settles.
       mergeResponseMessages(response)
       return { status: 'sent', response }
     } catch (caught) {
-      if (sessionAtStart !== sessionRevision.value) return { status: 'noop' }
+      if (!isCurrent()) return { status: 'noop' }
+      autoArmed = false
       flowError.value = caught instanceof ApiError
         ? caught.message
-        : '消息没有发送成功，请稍后重试。'
+        : creating ? '没有成功建立这次对话，请稍后重试。' : '消息没有发送成功，请稍后重试。'
       await workspace.refreshProjectDetail()
+      if (!isCurrent()) return { status: 'noop' }
       await workflow.refresh()
+      if (!isCurrent()) return { status: 'noop' }
       return { status: 'failed' }
     } finally {
-      busy.value = false
+      endBusy(busySequenceAtStart)
     }
   }
 
@@ -876,6 +873,8 @@ export function useChatFlow() {
   async function answerQuestion(optionId: string): Promise<void> {
     const question = conversationQuestion.value
     if (!question || busy.value || pendingAttachment.value) return
+    const contextAtStart = contextRevision
+    const sessionAtStart = sessionRevision.value
     selectedOption.value = optionId
     try {
       await send(optionId, makeId(), {
@@ -885,7 +884,9 @@ export function useChatFlow() {
         message_id: question.message_id,
       })
     } finally {
-      selectedOption.value = ''
+      if (contextAtStart === contextRevision && sessionAtStart === sessionRevision.value) {
+        selectedOption.value = ''
+      }
     }
   }
 
@@ -896,9 +897,13 @@ export function useChatFlow() {
     const action = actionById('confirm_requirements')
     if (!action) return
     const sessionAtStart = sessionRevision.value
+    const contextAtStart = contextRevision
+    const projectId = current.project_id
+    const isCurrent = () => !disposed && sessionAtStart === sessionRevision.value
+      && contextAtStart === contextRevision && workspace.projectParam.value === projectId
     if (!pendingRequirementRequestId.value) pendingRequirementRequestId.value = makeId()
     autoArmed = true
-    busy.value = true
+    const busySequenceAtStart = beginBusy()
     flowError.value = ''
     try {
       const ok = await workflow.runAction(action, null, {
@@ -907,7 +912,7 @@ export function useChatFlow() {
         requirement_revision: current.requirement_revision,
         request_id: pendingRequirementRequestId.value,
       })
-      if (sessionAtStart !== sessionRevision.value) return
+      if (!isCurrent()) return
       if (!ok) {
         flowError.value = workflow.error.value || '操作没有完成，请稍后重试。'
         return
@@ -915,38 +920,87 @@ export function useChatFlow() {
       pendingRequirementRequestId.value = ''
       await afterWorkflowChange(true)
     } finally {
-      busy.value = false
+      endBusy(busySequenceAtStart)
     }
   }
 
-  async function confirmPrompt(edits?: { positive_prompt: string; negative_prompt: string }): Promise<void> {
+  async function confirmPrompt(edits?: { positive_prompt: string; negative_prompt: string }): Promise<boolean> {
     let preview = promptPreview.value
-    if (!preview?.can_confirm || busy.value) return
-    const action = actionById('confirm_prompt')
-    if (!action) return
+    const initial = view.value
+    const projectId = workspace.projectParam.value
+    if (!preview || !initial || !projectId || initial.project_id !== projectId || busy.value) return false
+    if ((preview.request.project_id !== undefined && preview.request.project_id !== projectId)
+      || (preview.request.run_id !== undefined && preview.request.run_id !== initial.run_id)
+      || (preview.request.requirement_revision !== undefined
+        && preview.request.requirement_revision !== initial.requirement_revision)) {
+      flowError.value = '提示词所属项目或需求已变化，请刷新后重新检查。'
+      return false
+    }
+    const submitted = edits ? { ...edits } : { positive_prompt: positivePrompt.value, negative_prompt: negativePrompt.value }
+    if (!hasValidPromptEdits(submitted.positive_prompt, submitted.negative_prompt)) {
+      flowError.value = '请填写有效提示词正文；空内容、仅标题或仅代码围栏不能确认。'
+      return false
+    }
+    const changed = submitted.positive_prompt !== positivePrompt.value || submitted.negative_prompt !== negativePrompt.value
+    if (changed ? !(preview.can_edit ?? preview.can_confirm) || !actionById('edit_prepared_prompt')
+      : !preview.can_confirm || !actionById('confirm_prompt')) return false
     const sessionAtStart = sessionRevision.value
-    if (!pendingPromptCommandId.value) pendingPromptCommandId.value = makeId()
-    autoArmed = true
-    busy.value = true
+    const scopeAtStart = contextRevision
+    const isCurrent = () => !disposed && sessionAtStart === sessionRevision.value && scopeAtStart === contextRevision
+      && workspace.projectParam.value === projectId && view.value?.project_id === projectId
+    // Editing replaces prompt artifacts and approvals, but cannot change the
+    // identity, requirements, output, references or service the user reviewed.
+    const requestContext = (request: Record<string, unknown>) => JSON.stringify(
+      Object.entries(request).filter(([key]) => ![
+        'positive_prompt', 'negative_prompt', 'prompt', 'project_revision', 'snapshot_id', 'snapshot_digest',
+        'prompt_artifact_id', 'prompt_artifact_revision', 'prompt_artifact_digest',
+        'prompt_approval_id', 'approval_rules_version', 'approval_prompt_version',
+      ].includes(key)).sort(([left], [right]) => left.localeCompare(right)),
+      (_key, value: unknown) => value && typeof value === 'object' && !Array.isArray(value)
+        ? Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))) : value,
+    )
+    const initialContext = requestContext(preview.request)
+    autoArmed = false
+    const busySequenceAtStart = beginBusy()
     flowError.value = ''
     try {
-      if (edits && (edits.positive_prompt !== positivePrompt.value || edits.negative_prompt !== negativePrompt.value)) {
-        const save = actionById('edit_prepared_prompt')
-        if (!save || !await workflow.runAction(save, null, {
+      if (changed) {
+        const oldId = preview.id
+        const oldDigest = preview.request_digest
+        const save = actionById('edit_prepared_prompt')!
+        const saved = await workflow.runAction(save, null, {
           snapshot_id: preview.id,
           snapshot_digest: preview.request_digest,
-          ...edits,
-        })) {
+          ...submitted,
+        })
+        if (!isCurrent()) return false
+        if (!saved) {
           flowError.value = workflow.error.value || '提示词未能保存，请刷新后重试。'
-          return
+          return false
         }
-        if (sessionAtStart !== sessionRevision.value) return
         preview = promptPreview.value
-        pendingPromptCommandId.value = makeId()
-        if (!preview?.can_confirm || preview.request.positive_prompt !== edits.positive_prompt || preview.request.negative_prompt !== edits.negative_prompt) {
-          flowError.value = '保存结果已变化，请检查当前提示词后重新确认。'
-          return
+        if (!preview || preview.id === oldId || preview.request_digest === oldDigest || !preview.can_confirm
+          || preview.request.positive_prompt !== submitted.positive_prompt
+          || preview.request.negative_prompt !== submitted.negative_prompt
+          || view.value?.run_id !== initial.run_id
+          || view.value?.requirement_revision !== initial.requirement_revision
+          || requestContext(preview.request) !== initialContext) {
+          flowError.value = '保存结果或生成上下文已变化，请检查当前提示词后重新确认。'
+          return false
         }
+      }
+      // A recoverable historical preview intentionally has only an edit action.
+      const action = actionById('confirm_prompt')
+      if (!isCurrent() || !preview.can_confirm || !action || !preview.command_context
+        || !preview.id || !preview.request_digest) {
+        if (isCurrent()) flowError.value = '当前提示词尚不可确认，请检查保存结果后重试。'
+        return false
+      }
+      const commandKey = JSON.stringify([sessionAtStart, scopeAtStart, projectId, preview.id,
+        preview.request_digest, preview.command_context])
+      if (!pendingPromptCommandId.value || pendingPromptCommandKey !== commandKey) {
+        pendingPromptCommandId.value = makeId()
+        pendingPromptCommandKey = commandKey
       }
       const ok = await workflow.runAction(action, null, {
         snapshot_id: preview.id,
@@ -954,29 +1008,37 @@ export function useChatFlow() {
         command_id: pendingPromptCommandId.value,
         command_context: preview.command_context,
       })
-      if (sessionAtStart !== sessionRevision.value) return
+      if (!isCurrent()) return false
       if (!ok) {
         flowError.value = workflow.error.value || '操作没有完成，请稍后重试。'
-        return
+        return false
       }
       pendingPromptCommandId.value = ''
+      autoArmed = true
       await afterWorkflowChange(true)
+      return isCurrent()
     } finally {
-      busy.value = false
+      endBusy(busySequenceAtStart)
     }
   }
 
   async function copyPrompt(text?: string): Promise<void> {
     const value = text ?? positivePrompt.value
     if (!value) return
+    const contextAtStart = contextRevision
+    const sessionAtStart = sessionRevision.value
+    const isCurrent = () => contextAtStart === contextRevision && sessionAtStart === sessionRevision.value
     try {
       if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
       await navigator.clipboard.writeText(value)
+      if (!isCurrent()) return
       copied.value = true
       if (copyTimer) clearTimeout(copyTimer)
-      copyTimer = setTimeout(() => { copied.value = false }, 2000)
+      copyTimer = setTimeout(() => {
+        if (isCurrent()) copied.value = false
+      }, 2000)
     } catch {
-      flowError.value = '复制失败，请手动选择提示词文本。'
+      if (isCurrent()) flowError.value = '复制失败，请手动选择提示词文本。'
     }
   }
 
@@ -985,10 +1047,17 @@ export function useChatFlow() {
   }
 
   async function retry(): Promise<void> {
+    const projectId = workspace.projectParam.value
+    const contextAtStart = contextRevision
+    const sessionAtStart = sessionRevision.value
+    const isCurrent = () => !disposed && projectId === workspace.projectParam.value
+      && contextAtStart === contextRevision && sessionAtStart === sessionRevision.value
     autoArmed = true
     flowError.value = ''
     await workflow.refresh()
+    if (!isCurrent()) return
     await workspace.refreshProjectDetail()
+    if (!isCurrent()) return
     await autoAdvance(true)
   }
 
@@ -1012,6 +1081,7 @@ export function useChatFlow() {
       () => view.value?.project_revision ?? -1,
     ],
     async ([projectId, stage, status, revision]) => {
+      if (disposed || !autoResumeOnLoad || busy.value || autoBusy.value) return
       if (!projectId || (status !== 'active' && !(view.value?.interaction_mode === 'direct' && status === 'needs_input'))) return
       const current = view.value
       if (
@@ -1021,13 +1091,16 @@ export function useChatFlow() {
         current.status !== status ||
         current.project_revision !== revision
       ) return
-      if (!current.available_actions.some((action) => canAutoResume(action.id))) return
+      if (!current.available_actions.some((action) => canAutoResume(action.id) && canRunAutomatically(action))) return
       const key = [projectId, stage, revision].join(':')
       if (key === resumedAutoKey) return
       // Claim the key before the async tick so watcher re-entry cannot enqueue
       // a second POST for the same project/stage/revision.
       resumedAutoKey = key
+      const contextAtStart = contextRevision
+      const sessionAtStart = sessionRevision.value
       await nextTick()
+      if (disposed || !autoResumeOnLoad || busy.value || autoBusy.value || contextAtStart !== contextRevision || sessionAtStart !== sessionRevision.value) return
       const loaded = view.value
       if (
         !loaded ||
@@ -1044,6 +1117,8 @@ export function useChatFlow() {
   watch(
     () => workspace.projectParam.value,
     () => {
+      invalidateContextWork()
+      autoResumeOnLoad = true
       if (keepAttachmentOnProjectChange) {
         keepAttachmentOnProjectChange = false
       } else if (pendingAttachment.value) {
@@ -1056,8 +1131,13 @@ export function useChatFlow() {
       pendingPromptCommandId.value = ''
       pendingTaskAction.value = null
       taskConfirmations.value = {}
+      selectedOption.value = ''
       flowError.value = ''
       copied.value = false
+      if (copyTimer) {
+        clearTimeout(copyTimer)
+        copyTimer = null
+      }
     },
     { flush: 'sync' },
   )
@@ -1073,11 +1153,16 @@ export function useChatFlow() {
   watch(
     sessionRevision,
     () => {
+      invalidateContextWork()
+      autoArmed = false
+      autoResumeOnLoad = true
+      resumedAutoKey = ''
       if (pendingAttachment.value) clearAttachmentState(true)
       pendingRequirementRequestId.value = ''
       pendingPromptCommandId.value = ''
       pendingTaskAction.value = null
       taskConfirmations.value = {}
+      selectedOption.value = ''
       flowError.value = ''
       attachmentError.value = ''
       lastAutoAction = ''
@@ -1090,6 +1175,9 @@ export function useChatFlow() {
     { flush: 'sync' },
   )
   onBeforeUnmount(() => {
+    disposed = true
+    invalidateContextWork()
+    autoArmed = false
     const current = pendingAttachment.value
     if (current?.staged && current.stagedProjectId) {
       void api.discardMessageAttachment(current.stagedProjectId, current.staged.asset.id).catch(() => undefined)

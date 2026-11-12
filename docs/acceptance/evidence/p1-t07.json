@@ -1,0 +1,195 @@
+{
+  "ticket": "#93",
+  "batch": "P2 / T07 — typed reasons and bounded original-intent text repair",
+  "code": {
+    "baseline_head": "2ea9e39",
+    "app_code_head": "d2e6293",
+    "branch": "integration/v3",
+    "rule_version": "v3.rules.1",
+    "prompt_version": "2.0.0",
+    "rule_catalog_version": "v3.rules.1",
+    "migration_head": "0010",
+    "files": [
+      "main/backend/app/workflow/reasons.py",
+      "main/backend/app/workflow/state.py",
+      "main/backend/app/workflow/dispatch.py",
+      "main/backend/app/workflow/stages/s07.py",
+      "main/backend/app/workflow/stages/s09.py",
+      "backend/tests/test_v3_p1_t07_text_repair.py",
+      "backend/tests/test_v3_p1_t02_adjudication.py",
+      "backend/tests/test_v2_t40_prompt_review.py",
+      "backend/tests/test_t66_replay_drift.py",
+      "backend/tests/test_t87_gate_regressions.py",
+      "backend/tests/test_t65_generation_cycle.py"
+    ],
+    "commit": "d2e6293"
+  },
+  "environment": {
+    "type": "isolated-temp-sqlite",
+    "backend_python": "backend/.venv/Scripts/python.exe",
+    "data_root": "temp",
+    "network": "stubbed"
+  },
+  "scope": [
+    "normal",
+    "S12"
+  ],
+  "inputs": [
+    "S06 confirmation -> accepted GenerationIntent -> S07 compile_prompt -> independent output_reviewer -> S08 submit_generation, with temporary SQLite persistence",
+    "Coverage mapping defect where the positive prompt still contains every confirmed fragment; one auto repair followed by a valid candidate",
+    "Three consecutive invalid coverage mappings; bounded budget exhaustion before any fourth model call",
+    "Unconfirmed selling point text that is true drift; intent abandonment and U1 reconfirmation",
+    "GenerationJob status=unknown with submit_attempted=1 while the first model call is gated; no second model call and no image resubmission",
+    "Project revision (dependency) change between attempts; disabled account between attempts",
+    "S12 continue_workflow review replay of the same persisted prompt_plan candidate with unchanged RevisionBudget.used",
+    "Typed reason taxonomy and candidate defect classification independent of localized error copy"
+  ],
+  "commands": [
+    "cd backend && .\\.venv\\Scripts\\python.exe -m ruff check --ignore E501 ../main/backend/app/workflow/reasons.py ../main/backend/app/workflow/state.py ../main/backend/app/workflow/dispatch.py ../main/backend/app/workflow/stages/s07.py ../main/backend/app/workflow/stages/s09.py tests/test_v3_p1_t07_text_repair.py tests/test_v3_p1_t02_adjudication.py tests/test_v2_t40_prompt_review.py tests/test_t66_replay_drift.py tests/test_t87_gate_regressions.py tests/test_t65_generation_cycle.py",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests/test_v3_p1_t07_text_repair.py -q",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests/test_v3_p0_baseline.py tests/test_t87_gate_regressions.py tests/test_v3_p1_t02_adjudication.py tests/test_v3_p1_t03_review_catalogue.py tests/test_v3_p1_t04_production_reviews.py tests/test_v3_p1_t05_image_delivery.py tests/test_v3_p1_t06_gate.py tests/test_v3_p1_t07_text_repair.py tests/test_v2_t15_recovery.py -q -rxX",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests/test_v2_t40_prompt_review.py tests/test_t66_replay_drift.py tests/test_t87_gate_regressions.py tests/test_t03_intent_review.py tests/test_v2_t04_reference_analysis.py tests/test_v2_t15_recovery.py tests/test_v2_t17_restart_recovery.py -q -rxX",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests/test_t65_generation_cycle.py tests/test_t66_replay_drift.py tests/test_t67_generation_quota.py tests/test_t68_recovery.py tests/test_t69_local_closure.py tests/test_t70_r2_gate.py -q -rxX",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests/test_v2_t12_quality.py tests/test_v2_t13_delivery.py tests/test_v2_t16_unknown_recovery.py tests/test_v2_t44_versions.py tests/test_v2_t49_legacy_review.py tests/test_t59_isolation.py tests/test_t61_history_recovery_gate.py tests/test_t75_delivery_history.py tests/test_t75_image_size_gate.py -q -rxX",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests/test_t01_boot.py tests/test_t01_process.py tests/test_t02_projects.py tests/test_t03_organize.py tests/test_t03_process.py tests/test_t04_brief.py tests/test_t05_assets.py tests/test_t06_generation.py tests/test_t06_process.py tests/test_t07_idempotency.py tests/test_t08_async.py tests/test_t09_reference_versions.py tests/test_t10_restart.py tests/test_t11_retrieve.py tests/test_t15_contract.py tests/test_t20_foundation_workflow.py tests/test_openai_chat_adapter.py tests/test_openai_images_adapter.py tests/test_prompt_guard.py -q -rxX",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests/test_t54_maintenance_backup.py tests/test_t55_auth_foundation.py tests/test_t56_account_links.py tests/test_t57_sessions.py tests/test_t58_account_status.py tests/test_t60_ownership_closure.py tests/test_t62_background_ownership.py tests/test_t63_legacy_claim.py tests/test_t64_r1_gate.py tests/test_t71_session_binding.py tests/test_t78_production_entry.py tests/test_t79_release_package.py tests/test_t80_https_lan.py tests/test_t81_backup_schedule.py tests/test_t82_restore.py tests/test_t83_retention_secrets.py -q -rxX",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests/test_v2_t01_legacy.py tests/test_v2_t02_capabilities.py tests/test_v2_t05_requirements.py tests/test_v2_t06_reference_requirements.py tests/test_v2_t08_visual_final_brief.py tests/test_v2_t09_confirmation.py tests/test_v2_t11_generation.py tests/test_v2_t20_retention.py tests/test_v2_t37_creative.py tests/test_v2_t48_retrieval.py -q -rxX",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest -q -rxX"
+  ],
+  "commands_output": [
+    {
+      "command": "ruff check --ignore E501 changed files",
+      "result": "All checks passed!"
+    },
+    {
+      "command": "pytest tests/test_v3_p1_t07_text_repair.py -q",
+      "result": "8 passed in 7.61s"
+    },
+    {
+      "command": "P1 suite + t15 -q -rxX",
+      "result": "100 passed, 8 xfailed in 84.54s"
+    },
+    {
+      "command": "prompt/drift/recovery group -q -rxX",
+      "result": "100 passed, 7 xfailed in 178.29s"
+    },
+    {
+      "command": "R2 group t65/t66/t67/t68/t69/t70 -q -rxX",
+      "result": "46 passed in 76.41s"
+    },
+    {
+      "command": "adjacent group t12/t13/t16/t44/t49/t59/t61/t75 -q -rxX",
+      "result": "78 passed in 103.76s"
+    },
+    {
+      "command": "foundation/adapter chunk -q -rxX",
+      "result": "183 passed, 2 failed in 219.48s"
+    },
+    {
+      "command": "security/ops chunk -q -rxX",
+      "result": "143 passed, 1 failed in 127.15s"
+    },
+    {
+      "command": "v2 legacy chunk -q -rxX",
+      "result": "122 passed, 2 failed in 172.68s"
+    },
+    {
+      "command": "full pytest -q -rxX",
+      "result": "timed out at 600000ms; 762 tests collected; no single aggregate result"
+    }
+  ],
+  "candidate_budget": {
+    "artifact": "prompt_plan",
+    "limit": 3,
+    "used": 3,
+    "used_scope": "maximum observed 3; normal 1, one auto repair 2, exhausted 3; true drift/unknown/dependency/disabled cases 1",
+    "reset_scope": "not reset; reservation is persisted before the model call and S12 review replay leaves RevisionBudget.used unchanged",
+    "note": "reserve_artifact_revision increments used before generation_engineer; start_artifact(..., revision_no=reserved) reuses the slot; invalid attempts leave no artifact; exhaustion returns 409 before the next model call"
+  },
+  "calls": {
+    "model_text": 10,
+    "model_vision": 0,
+    "image_generation": 0,
+    "note": "T07 counting-stub probes: 3 role calls for the one-repair scenario, 3 for the exhausted scenario, and 4 for true drift/unknown/dependency/disabled scenarios (one producer each); no real provider network calls and no image generation."
+  },
+  "acceptance": {
+    "WG3-AC-07": "pass",
+    "WG3-AC-08": "pass",
+    "WG3-AC-10": "pass",
+    "WG3-AC-09": "not-covered — owned by #95/T09"
+  },
+  "ticket_items": {
+    "1_typed_reasons": "pass — ReasonCode distinguishes missing information, repairable composition, true drift, content rejection, missing evidence, protocol error, technical failure, remote unknown and authorization invalid; tests classify by code, not localized copy",
+    "2_original_intent_preconditions": "pass — _require_confirmed reloaded per attempt; dependency revision and disabled account stop before the second producer call; unknown GenerationJob blocks before another call",
+    "3_bounded_candidates": "pass — reservation before model, limit 3, exhaustion 409, no image retry budget; T07 gates the first call and observes used==1 before release",
+    "4_no_new_counts": "pass — repair keeps one intent, one usage and three unreleased slots; one visual submit; accepted count is not rolled back",
+    "5_true_drift_isolation": "pass — unconfirmed selling point abandons the intent, releases slots, creates no prompt artifact and submits no image; reviewer reject is not auto-sampled",
+    "6_compatible_safe_read": "pass — candidate payload remains null in workflow view; diagnostics carry reason codes only, no reviewer raw text; public error codes unchanged",
+    "7_http_continuous_execution": "pass — confirm_requirements through S07 review to S08 submit; SQLite assertions cover snapshot, intent, RevisionBudget, accepted count and image submit count",
+    "8_wg3_ac_07_08_persistence": "pass — prompt_candidate_reserved, candidate_invalid, auto_repair, prompt_candidate_approved diagnostics persisted; t02 S07 replay asserts RevisionBudget.used==1 before and after S12 continue",
+    "9_test_and_evidence_location": "pass — backend/tests and docs/acceptance only; no scaffolding or temp evidence under main/"
+  },
+  "probes": {
+    "file": "backend/tests/test_v3_p1_t07_text_repair.py",
+    "unit_cases": 2,
+    "http_cases": 6,
+    "results": "8 passed in 7.61s"
+  },
+  "routing": {
+    "typed_issue_codes": [
+      "missing_information",
+      "repairable_composition",
+      "true_drift",
+      "content_rejection",
+      "missing_evidence",
+      "protocol_error",
+      "technical_failure",
+      "remote_unknown",
+      "authorization_invalid"
+    ],
+    "public_errors": [
+      "409 PROMPT_INVALID",
+      "409 PROMPT_REQUIRES_RECONFIRMATION",
+      "409 REVISION_BUDGET_EXHAUSTED",
+      "409 GENERATION_UNKNOWN",
+      "503 REVIEW_UNAVAILABLE (reviewer model outage only)",
+      "409 ACTION_NOT_AVAILABLE"
+    ],
+    "retry_policy": "zero automatic retries after a technical failure or unknown submission; bounded repair only for pure coverage-mapping defects with content intact and a proven-unsubmitted image; reviewer revise/reject/unknown are not auto-sampled"
+  },
+  "unmigrated": {
+    "recovery budget across crash/concurrency and remote verification": "#94/T08",
+    "multi-sentence coverage and numeric/negation/quantity semantic accuracy": "#95/T09",
+    "S06 field synthesis, strength layering and immutable snapshot": "#96-#98",
+    "full typed reason/action response contract": "P4"
+  },
+  "known_red_baseline": [
+    "tests/test_t11_retrieve.py::test_failed_download_can_retrieve_same_version_and_downloads_real_file",
+    "tests/test_t11_retrieve.py::test_retrieval_stays_failed_while_waiting_and_blocks_other_write",
+    "tests/test_v2_t48_retrieval.py::test_retrieve_failed_result_updates_same_generation_after_gates",
+    "tests/test_v2_t48_retrieval.py::test_g06_unknown_keeps_retrieved_asset_quarantined",
+    "tests/test_t83_retention_secrets.py::test_secret_markers_stay_out_of_api_database_filenames_and_backup"
+  ],
+  "known_red_note": "The four retrieval failures are existing RESULT_FETCH_FAILED paths and still fail in isolation. The retention/secrets failure reports BackupError SOURCE_CHOICE_REQUIRED because multiple non-empty data sources exist, including the pre-existing main/backend/data/app.db; it still fails in isolation and is environmental/pre-existing. None is caused by the S07/dispatch changes.",
+  "approval_results": {
+    "normal_path": "generation_prompt approval is written only after output_reviewer pass; invalid candidates create no artifact and no approval",
+    "repair_path": "the first invalid candidate creates no artifact; the second valid candidate is persisted with the reserved revision and approved after review",
+    "true_drift": "no generation_prompt approval; latest GenerationIntent is abandoned and slots are released",
+    "exhausted": "no prompt_plan artifact and no approval; RevisionBudget.used==3 and the next action is rejected before any model call"
+  },
+  "results": {
+    "ui": "not touched; no browser/device acceptance",
+    "resources": "temporary SQLite per case; counting LLMStub and VisualStub; no real network; no image generation",
+    "artifacts": "at most one approved prompt_plan in repair scenarios; zero prompt artifacts in true drift/exhausted/blocked scenarios"
+  },
+  "residual_unknowns": [
+    "full single-run pytest could not finish under the 600000ms tool limit; 762 tests were collected, and the split groups overlap so they are not a single aggregate full-suite pass",
+    "model_text is a counting-stub measurement, not a production provider measurement; real token/latency/cost data is unavailable",
+    "the unsubmitted proof relies on the latest GenerationJob (submit_attempted/status/remote_task_id); legacy rows without a job are treated as unsubmitted, and remote verification is extended by #94/T08",
+    "process crash before the model returns and concurrent recovery were not exercised here; #94 owns real crash/concurrency recovery",
+    "S12 S07 review recovery reuses the persisted review request and keeps the budget unchanged, but does not create a new typed reason diagnostic; the full reason/action response contract is P4",
+    "reviewer revise is typed but not auto-replayed; existing explicit revise behavior is preserved pending the P4 response contract"
+  ],
+  "p2_entry": "Continue with #94/T08 (recovery must not reset budget and must not resend images), then #95/T09 (multi-sentence coverage and semantic accuracy). P3 #96-#98 and P4 remain open.",
+  "acceptance_notes": "Docs and historical pass records are not used as current completion; the completion claim rests on the T07 HTTP tests and the exact command outputs above. The full-suite timeout is recorded as a residual unknown rather than claiming an aggregate pass."
+}

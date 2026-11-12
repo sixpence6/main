@@ -1,0 +1,122 @@
+{
+  "ticket": "#101",
+  "batch": "P5 / T15 — shared workspace shell, chat and current/history results routes",
+  "code": {
+    "baseline_head": "bf24d9c",
+    "app_code_head": "cd81248",
+    "branch": "ticket/101",
+    "rule_version": "v3.rules.2",
+    "prompt_version": "2.0.0",
+    "rule_catalog_version": "v3.rules.2",
+    "migration_head": "0011",
+    "files": [
+      "main/src/router/index.ts",
+      "main/src/pages/ChatPage.vue",
+      "main/src/pages/ResultsPage.vue",
+      "main/src/api/workflow.ts",
+      "main/src/composables/useWorkflow.ts",
+      "main/src/composables/useWorkspace.ts",
+      "main/src/components/ConversationPanel.vue",
+      "main/src/components/ProjectDrawer.vue",
+      "main/src/components/ReferenceUploader.vue",
+      "main/src/components/workflow/WorkflowPanel.vue",
+      "tests/t101-shared-shell.spec.ts",
+      "tests/t02-project-read.spec.ts",
+      "tests/t03-first-project.spec.ts",
+      "tests/t07-navigation-conflict.spec.ts",
+      "tests/t71-session-isolation.spec.ts",
+      "tests/t73-u1-workbench.spec.ts",
+      "tests/t77-r3-gate.spec.ts"
+    ],
+    "commit": "cd81248"
+  },
+  "environment": {
+    "type": "jsdom frontend integration harness with real Vue Router and App, HTTP doubles only",
+    "node": "Node runtime bundled with DSH",
+    "test_runner": "vitest 5.0.5",
+    "typechecker": "vue-tsc 3.3.13",
+    "network": "stubbed; no provider, image or external network call",
+    "data_root": "in-memory test harness"
+  },
+  "scope": [
+    "root / is the single empty chat workspace; project creation only happens after an explicit send",
+    "/projects/:projectId/chat and /projects/:projectId/results share WorkspaceLayout and render one primary body",
+    "project results has no composer, feedback form or editable canvas",
+    "explicit ?version=<run_id> selects that published/downlodable version and its own prompt",
+    "invalid, missing, unpublished, revoked and non-downloadable versions show a safe unavailable state without falling back to another image",
+    "return-to-chat and return-to-modify only navigate; return-to-modify focuses the labelled composer",
+    "same-project chat/results/chat keeps the per-project page draft; the URL never contains the draft text",
+    "account lifecycle invalidation clears the draft and returns to the empty workspace",
+    "legacy route redirects remain side-effect free and existing HTTP doubles/route guards still pass"
+  ],
+  "inputs": [
+    "Real createWebHistory router with the full App, WorkspaceLayout, ProjectDrawer and HTTP fetch controller from tests/support/workspace.ts",
+    "completedView() with a current published delivery and one older published version, each with its own prompt, asset id, filename and requirement revision",
+    "Explicit ?version=run-old, ?version=run-missing, ?version=run-unavailable with status candidate or can_download=false",
+    "Project detail with a generated result asset width=1536 height=1024 and version metadata",
+    "A typed per-project draft followed by project-chat -> project-results -> project-chat navigation",
+    "FakeBroadcastChannel session invalidation switching account A to account B"
+  ],
+  "commands": [
+    "cd .worktrees/t101/main && D:/Desktop/新建文件夹/node_modules/.bin/vue-tsc.cmd --noEmit -p tsconfig.json",
+    "cd .worktrees/t101 && D:/Desktop/新建文件夹/node_modules/.bin/vitest.cmd run --config vitest.config.ts tests/t101-shared-shell.spec.ts",
+    "cd .worktrees/t101 && D:/Desktop/新建文件夹/node_modules/.bin/vitest.cmd run --config vitest.config.ts",
+    "cd .worktrees/t101 && git diff --check"
+  ],
+  "commands_output": [
+    {
+      "command": "vue-tsc --noEmit -p tsconfig.json",
+      "result": "exit 0, no diagnostics"
+    },
+    {
+      "command": "vitest run tests/t101-shared-shell.spec.ts",
+      "result": "1 file passed; 10 tests passed in 3.72s"
+    },
+    {
+      "command": "vitest run full frontend suite",
+      "result": "39 files passed; 183 tests passed in 23.72s"
+    },
+    {
+      "command": "git diff --check",
+      "result": "clean (no whitespace errors)"
+    }
+  ],
+  "calls": {
+    "model_text": 0,
+    "model_vision": 0,
+    "image_generation": 0,
+    "provider_network": 0,
+    "note": "All reads/writes are intercepted HTTP doubles; the tests assert zero POSTs and zero writes for history selection, download href rendering, back navigation and account cleanup."
+  },
+  "acceptance": {
+    "FE3-AC-06": "pass — shared-shell chat/results routes and history selection add no revision, confirmation, intent or model call; history selection and back navigation assert zero writes",
+    "FE3-AC-07": "pass — current and explicit history images/download URLs match the selected accessible version; missing, unpublished, revoked and non-downloadable cases render 结果不可用 with no image fallback",
+    "FE3-AC-08": "pass — results body has no composer or feedback form; 返回对话修改 only navigates to project-chat#composer and focuses the composer; zero writes",
+    "FE3-AC-12": "partial frontend — same-project body switch preserves the draft; account lifecycle invalidation clears it; full-suite T71 covers A→B→A and same-account relogin",
+    "WG3-AC-11": "partial — route identity and late-response/session isolation regression suite passes; browser-level cookie/cache evidence remains release scope"
+  },
+  "ticket_items": {
+    "1_shared_shell_routes_and_one_body": "pass — / -> ChatPage (name describe), /projects/:id/chat -> ChatPage, /projects/:id/results -> ResultsPage; results hides 需求工作台 composer and feedback; account/auth pages retain their existing routes",
+    "2_empty_new_creation_and_legacy_bookmarks": "pass — root mount makes no project POST until send; legacy /describe,/confirm,/generate,/results redirects and existing T77 route checks pass; URLs contain only stable project/run ids",
+    "3_identity_project_access_then_version_resources": "pass — results reads project detail and workflow through the authenticated harness; explicit version requires status=published, can_download=true and an asset; invalid/unpublished/revoked/missing variants show safe state without another image",
+    "4_back_to_chat_and_modify": "pass — both buttons only navigate; back-to-modify focuses #workspace-prompt; test asserts no POST message, no workflow action and no write",
+    "5_shell_draft_attachment_and_return_position": "pass — per-project reactive draft survives chat/results/chat; account invalidation clears it and returns to the empty workspace; existing T71 session suite passes in the full run",
+    "6_U1_U2_U3_business_fact_sources_and_no_stale_current": "pass — current result only comes from currentPublishedVersion matching run/delivery/asset/revision; history only from explicit version and never used as current fallback",
+    "7_existing_app_router_harness_and_http_doubles": "pass — tests mount the real App/router/harness and use HTTP doubles; commands/results above are from this run",
+    "8_test_and_evidence_location": "pass — production code stays under main/, tests under tests/, acceptance evidence under docs/acceptance; no test scaffold in main/"
+  },
+  "probes": {
+    "file": "tests/t101-shared-shell.spec.ts",
+    "test_cases": 10,
+    "route_cases": 3,
+    "safe_state_variants": 3,
+    "results": "10 passed in 3.72s"
+  },
+  "residual_unknowns": [
+    "This is jsdom evidence, not a real browser: cookie persistence, browser back/forward cache, actual downloads and OS focus behavior remain release/browser scope.",
+    "No real provider, image service or network call is involved; call counts are HTTP-double observations.",
+    "Responsive layout, drawer focus trap and mobile soft-keyboard behavior remain T22/T25 scope.",
+    "The current result image is displayed from its authenticated asset URL; actual binary download is not followed in jsdom."
+  ],
+  "acceptance_notes": "Completion is based on the full frontend suite and the focused T15 file run above, plus vue-tsc. Historical docs and earlier pass records are not used as evidence. Source commit cd81248; this evidence is committed separately."
+}

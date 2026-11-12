@@ -1,0 +1,105 @@
+{
+  "ticket": "#88",
+  "batch": "P1 / T02 — server rule catalogue and unified effective adjudication",
+  "code": {
+    "integration_head": "ef92b33",
+    "branch": "integration/v3",
+    "rule_version": "v3.rules.1",
+    "prompt_version": "2.0.0",
+    "files": [
+      "main/backend/app/workflow/adjudication.py",
+      "main/backend/app/workflow/stages/s07.py",
+      "main/backend/app/workflow/stages/s12.py",
+      "main/backend/app/workflow/contracts.py",
+      "main/backend/app/workflow/prompts.py",
+      "backend/tests/test_v3_p1_t02_adjudication.py"
+    ]
+  },
+  "environment": {
+    "type": "isolated-temp-sqlite",
+    "backend_python": "backend/.venv/Scripts/python.exe",
+    "data_root": "temp",
+    "network": "stubbed"
+  },
+  "inputs": [
+    "confirmed brief",
+    "prompt candidate",
+    "reviewer output (pass/revise/reject/unknown, blocking/advisory, duplicate instance, forged rule, illegal evidence)"
+  ],
+  "commands": [
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests\\test_v3_p1_t02_adjudication.py -q",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests\\test_v3_p0_baseline.py -q",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests\\test_v2_t40_prompt_review.py -q",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m ruff check --select E501,F,E9,I ../main/backend/app/workflow/adjudication.py ../main/backend/app/workflow/stages/s12.py tests/test_v3_p1_t02_adjudication.py"
+  ],
+  "candidate_budget": {
+    "artifact": "prompt_plan",
+    "limit": 3,
+    "used": 1
+  },
+  "calls": {
+    "model_text": 4,
+    "model_vision": 0,
+    "image_generation": 0
+  },
+  "acceptance": {
+    "WG3-AC-01": "covered for S07: blocking rules all not_applicable / missing / empty evidence never approve; zero image submits; candidate stays invisible",
+    "WG3-AC-02": "covered for S07 normal + recovery: advisory pass/fail/unknown/not_applicable never change a satisfied blocking gate, and cannot rescue a failing one",
+    "WG3-AC-03": "covered for S07: unknown rule, illegal evidence id/type, wrong target, contradictory declaration, duplicate instance all rejected as typed 409 PROMPT_REVIEW_INVALID (not REVIEW_UNAVAILABLE)",
+    "WG3-AC-12": "partial: prompt_plan path only; image/qc boundary is #91"
+  },
+  "probes": {
+    "file": "backend/tests/test_v3_p1_t02_adjudication.py",
+    "unit_cases": 14,
+    "http_cases": 6,
+    "results": "20 passed"
+  },
+  "routing": {
+    "typed_issue_codes": [
+      "UNKNOWN_RULE",
+      "ILLEGAL_EVIDENCE",
+      "WRONG_TARGET",
+      "CONTRADICTION",
+      "DUPLICATE_INSTANCE",
+      "MISSING_RESULT",
+      "INVALID_OUTCOME",
+      "UNSUPPORTED_DECISION"
+    ],
+    "http_status": 409,
+    "http_code": "PROMPT_REVIEW_INVALID",
+    "outage_code_retained_only_for": "model call failure (REVIEW_UNAVAILABLE)"
+  },
+  "unmigrated_consumers": {
+    "s01": "#89",
+    "s02": "#89",
+    "s03": "#89",
+    "s04": "#90",
+    "s05": "#90",
+    "s09": "#91",
+    "s10": "#91",
+    "s11": "#91",
+    "s12_other_stages": "#89/#90/#91"
+  },
+  "known_red_baseline": [
+    "tests/test_t03_intent_review.py::test_failed_s01_review_can_be_continued_from_completed_checkpoint",
+    "tests/test_t11_retrieve.py::test_failed_download_can_retrieve_same_version_and_downloads_real_file",
+    "tests/test_t11_retrieve.py::test_retrieval_stays_failed_while_waiting_and_blocks_other_write"
+  ],
+  "slots": {
+    "rolling_24h_accepted": 0,
+    "personal_active": 0,
+    "instance_concurrency": 0
+  },
+  "results": {
+    "ui": "unchanged (rules payload surfaced only to the model; UI in P5)",
+    "resources": [
+      "no byte outlet exercised: visual.submit_calls == [] on every negative case",
+      "prompt_plan payload remains None until approval"
+    ]
+  },
+  "residual_unknowns": [
+    "8 remaining stages still on their own validators until #89/#90/#91",
+    "RULESET_VERSION only governs S07 in this batch",
+    "frontend presentation of rules deferred to P5 (#101/#102)"
+  ]
+}

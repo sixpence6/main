@@ -21,9 +21,14 @@ from app.corrections import correction_for_intent
 from app.db import read_session, write_transaction
 from app.errors import conflict, validation_error
 from app.generation_guard import generation_authorization_ref, job_authorization_ref
-from app.models import Base, Generation, Project
+from app.models import Asset, Base, Generation, Project
 from app.ownership import require_owned_project
-from app.prompt_preparation import PreparedPrompt, final_confirmation_required, validated_request
+from app.prompt_preparation import (
+    PreparedPrompt,
+    final_confirmation_required,
+    require_prompt_body,
+    validated_request,
+)
 from app.timeutil import format_timestamp
 from app.workflow.contracts import digest_payload
 from app.workflow.tables import Approval, Artifact, GenerationJob, WorkflowRun
@@ -172,6 +177,15 @@ async def require_authorized_attempt(session, generation_id):
         or generation.confirmed_revision != request["project_revision"]
     ):
         raise final_confirmation_required()
+    # Shared guards also protect readback/publication of already submitted jobs.
+    # Preserve those facts; only a still-unsubmitted attempt needs a body here.
+    if not (
+        generation.submit_attempted
+        or generation.remote_task_id
+        or generation.result_locator_json
+        or generation.result_asset_id
+    ):
+        require_prompt_body(request)
     return authorization, snapshot, request
 
 
@@ -191,7 +205,27 @@ async def execution_request(app, generation_id):
         ctx = await load_context(app, authorization.project_id)
         if ctx.run is None or ctx.run.id != authorization.run_id:
             raise final_confirmation_required()
-        return await validated_request(ctx, session, snapshot, authorized=True)
+        generation = await session.get(Generation, generation_id)
+        job = await session.get(GenerationJob, authorization.job_id)
+        result = (
+            await session.get(Asset, generation.result_asset_id)
+            if generation.result_asset_id else None
+        )
+        # S10 also reads this request before publishing an existing image.
+        # Only a completed, bound result exempts that read from the new body
+        # rule. Claiming a real submit sets running/submitting, so even an old
+        # submit_attempted marker cannot exempt either pre-provider check.
+        completed_result = (
+            generation.status == "succeeded"
+            and generation.stage == "done"
+            and result is not None
+            and result.kind == "generated"
+            and result.project_id == authorization.project_id
+            and job.result_asset_id == result.id
+        )
+        return await validated_request(
+            ctx, session, snapshot, authorized=True, check_body=not completed_result
+        )
 
 
 async def _confirm_prompt_once(ctx, payload):

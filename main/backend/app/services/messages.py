@@ -291,18 +291,19 @@ async def _settle_pending_intent(ctx: Any, reason: str) -> None:
 async def _classify_message(
     ctx: Any, content: str, *, has_reference_attachment: bool = False
 ) -> Any:
+    from app.workflow import alignment, requirements
     from app.workflow.contracts import ConversationData
     from app.workflow.roles import run_role
 
-    # In S03 clarification, a bare "A" or "米色" is an answer to the question
-    # the assistant just asked, not a new intent to classify. The router does
-    # not receive that question, so classifying it can silently drop the answer
-    # or turn it into MESSAGE_NOT_UNDERSTOOD. Route it deterministically.
+    # A bound option has a deterministic meaning. Ordinary free text, including
+    # greetings while a question is pending, still needs message classification.
     if (
         ctx.run is not None
         and ctx.run.stage == "S03"
         and ctx.run.status in {"needs_input", "blocked"}
         and not has_reference_attachment
+        and (alignment.deterministic_answer(requirements.state_of(ctx), content)
+             or not ctx.consolidated)
     ):
         return ConversationData(kind="clarification", reference_usage="none", evidence_ids=[])
 
@@ -440,10 +441,10 @@ async def _write_conversation_exchange(
         operation_id=request_id,
         turn_kind="conversation",
     )
-    if ctx.direct:
+    if ctx.direct and ctx.run is not None:
         from app.workflow import alignment, requirements
         state = requirements.state_of(ctx)
-        if alignment.STOP.search(content):
+        if alignment.PAUSE.search(alignment.speech_text(content)):
             state.update(version=2, revision=ctx.project.revision,
                          generation_intent=alignment.intent(state, content, user_message.id))
             encoded = json.dumps(state, ensure_ascii=False)
@@ -469,7 +470,9 @@ async def _write_conversation_exchange(
         project_id=ctx.project_id,
         role="assistant",
         content=(ctx.natural_reply or "你可以直接描述想生成的画面。")
-        if ctx.direct else workflow_templates.render(template),
+        if ctx.direct or ctx.consolidated or (
+            ctx.run is None and ctx.settings.workflow_role_policy == "consolidated"
+        ) else workflow_templates.render(template),
         project_revision=ctx.project.revision,
         operation_id=request_id,
         turn_kind="conversation",
@@ -798,8 +801,26 @@ async def _send_workflow_message(
         raise validation_error("消息内容过长")
     async with locks.hold(project_id):
         ctx = await workflow_state.load_context(app, project_id, principal=principal)
+        # Social/consultative speech does not create a workflow merely to answer.
+        # Other input uses the assistant classifier and its grounded brief once.
+        if ctx.run is None and attachment_asset_id is None and settings.workflow_role_policy in {"consolidated", "collaborative"}:
+            from app.workflow import alignment
+            from app.workflow.consolidated import conversation_reply
+
+            fresh_request_id = request_id or str(uuid4())
+            existing = await _existing_request_exchange(ctx, fresh_request_id, content, principal)
+            if existing is not None:
+                return existing
+            if ctx.project.revision != expected_revision:
+                raise conflict("REVISION_CONFLICT", "项目已被其他操作更新，请刷新后重试")
+            alignment.validate_answer(ctx, clarification_answer, content)
+            if alignment.conversational(content) or alignment.commentary(content) or alignment.STOP.search(alignment.speech_text(content)) or alignment.DELEGATION.fullmatch(content.strip()):
+                ctx.natural_reply = conversation_reply(content)
+                return await _write_conversation_exchange(
+                    ctx, content=content, request_id=fresh_request_id, principal=principal,
+                )
         if ctx.run is None:
-            if attachment_asset_id is None:
+            if attachment_asset_id is None and settings.workflow_role_policy not in {"consolidated", "collaborative"}:
                 raise conflict(
                     "LEGACY_FLOW_DISABLED",
                     workflow_templates.render("LEGACY_FLOW_DISABLED"),
@@ -851,8 +872,22 @@ async def _send_workflow_message(
                     ),
                 )
             )
+        decision = None
         if (active or unconverged) and ctx.direct and attachment_asset_id is None:
-            # Feedback is a future intention; the submitted snapshot stays immutable.
+            from app.workflow import alignment
+
+            # Obvious edits are already user-grounded; retaining this fast path
+            # avoids a new model call for established in-flight feedback.
+            if alignment.revision_request(content):
+                from app.workflow.contracts import ConversationData
+                decision = ConversationData(kind="requirements_change", reference_usage="none", evidence_ids=[])
+            else:
+                decision = await _classify_message(ctx, content)
+            if decision.kind == "conversation":
+                return await _write_conversation_exchange(
+                    ctx, content=content, request_id=effective_request_id, principal=principal,
+                )
+            # Actual feedback is a future intention; the submitted snapshot stays immutable.
             from app.workflow.requirements import state_of
             pending_state = state_of(ctx)
             pending_state["pending_feedback"] = [
@@ -912,9 +947,10 @@ async def _send_workflow_message(
                 principal=principal,
             )
 
-        decision = await _classify_message(
-            ctx, content, has_reference_attachment=attachment_asset is not None
-        )
+        if decision is None:
+            decision = await _classify_message(
+                ctx, content, has_reference_attachment=attachment_asset is not None
+            )
         if (
             attachment_asset is None
             and decision.reference_usage != "none"
@@ -1068,7 +1104,10 @@ async def send_message(
             .where(WorkflowRun.project_id == project_id)
             .limit(1)
         )
-        if workflow_started is not None or attachment_asset_id is not None:
+        if (
+            workflow_started is not None or attachment_asset_id is not None
+            or settings.workflow_role_policy in {"consolidated", "collaborative"}
+        ):
             return await _send_workflow_message(
                 session_factory,
                 locks,

@@ -254,7 +254,7 @@ async def accept_requirements(
         and not re.fullmatch(r"(?:\s*\d+\s*[A-Za-z]\s*)+|\s*[A-Za-z]\s*", latest.content)
     ):
         result["texts"] = [latest.content.strip()]
-    if s03._explicit_text_choice(latest.content) is False:
+    if s03._explicit_text_choice(latest.content) is False or alignment.copy_cancelled(stored, latest.content):
         result["texts"] = []
         answered_fields.add("texts")
         sources["texts"] = {"status": "resolved", "evidence_ids": [latest.id]}
@@ -359,8 +359,18 @@ async def accept_requirements(
         )
         or any(a["field"] == q["field"] and a["requires_detail"] for a in answers)
     ]
-    generation_intent = alignment.intent(stored, latest.content, latest.id)
-    if output.conversation_only and generation_intent["status"] != "paused":
+    intent_state = {**stored, "data": result}
+    if stored.get("version") == 1 and not stored.get("generation_intent"):
+        # Migration may recover authority from an actual saved request, never
+        # from the version flag or from a model-filled brief alone.
+        request = next((
+            message for message in messages[:-1]
+            if alignment.grounded_request(message.content, previous)
+        ), None)
+        if request is not None:
+            intent_state["generation_intent"] = {"status": "requested", "message_id": request.id}
+    generation_intent = alignment.intent(intent_state, latest.content, latest.id)
+    if output.conversation_only and generation_intent["status"] not in {"paused", "requested"}:
         generation_intent = {"status": "discussion", "message_id": latest.id}
     all_questions = list(questions)
     questions, rounds = alignment.choose_questions(

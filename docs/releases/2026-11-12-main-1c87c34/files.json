@@ -1,0 +1,40 @@
+{
+  "files": [
+    {
+      "sha256": "21a2324943ca1e682e7095d0bf5405536531eeeee975bfd0176693e6e4969577",
+      "path": "main/RELEASE-MANIFEST.json",
+      "size": 35143
+    },
+    {
+      "sha256": "4e27411055ddba5a1d3326bbf7b7673496083a35fe2309c126ae7ce520bf0b4c",
+      "path": "main/SHA256SUMS",
+      "size": 20180
+    },
+    {
+      "sha256": "ecf34f68c695b44d7fb8005a32c38945b9541b0e183dc0c9fe7aa795f49c7eb8",
+      "path": "main/SECURITY-REPORT.md",
+      "size": 4613
+    },
+    {
+      "sha256": "a116ebc42ee30113cde3f6f22286ed73a9be0619e90dfd1eff71fd16086de6d8",
+      "path": "main/package-lock.json",
+      "size": 124689
+    },
+    {
+      "sha256": "4d26e411c20ab614b9bddefdda5118a6baa05ce90bc47098a817fd216ba48be7",
+      "path": "main/dist/assets/index-BrzP6BFC.js",
+      "size": 265880
+    },
+    {
+      "sha256": "87670da4c137542d6ea96cde87ff77d3e86f97d3951f77399968b301db215a14",
+      "path": "main/dist/assets/index-C3cb_Hwj.css",
+      "size": 88050
+    },
+    {
+      "sha256": "4fb1d9a6b8fcad9977732e6fa8c88f14bf672171295145924214dd94a9c89009",
+      "path": "main/dist/index.html",
+      "size": 472
+    }
+  ],
+  "source_commit": "1c87c34c45d74939d72293fddb7f7dd2c3c3128e"
+}

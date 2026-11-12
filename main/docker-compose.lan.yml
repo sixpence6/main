@@ -21,7 +21,7 @@ services:
   frontend:
     build:
       args:
-        NGINX_TEMPLATE: docker/nginx-tls.conf.template
+        NGINX_TEMPLATE: main/docker/nginx-tls.conf.template
     ports:
       - "${PUBLIC_BIND_ADDRESS:?PUBLIC_BIND_ADDRESS is required}:${PUBLIC_HTTPS_PORT:-8443}:443"
     environment:

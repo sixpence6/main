@@ -3,6 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } 
 import { RouterLink, useRoute } from 'vue-router'
 import ImageLightbox from '@/components/ImageLightbox.vue'
 import { assetUrl } from '@/api/client'
+import { sessionRevision } from '@/auth/session'
+import { hasPromptContent, hasValidPromptEdits } from '@/utils/promptContent'
 import type { WorkflowAction } from '@/api/workflow'
 import { useChatFlow } from '@/composables/useChatFlow'
 import { publishLiveStatus, type LiveStatusInput } from '@/composables/useLiveStatus'
@@ -85,9 +87,12 @@ interface PendingSend {
   text: string
   sentAt: string
   status: 'sending' | 'failed'
+  projectId: string | null
+  contextRevision: number
 }
 
 const pendingSend = ref<PendingSend | null>(null)
+let pageContextRevision = 0
 const retryingProject = ref(false)
 const requirementSubmitting = ref(false)
 const requirementConfirmed = ref(false)
@@ -103,6 +108,33 @@ let bottomFrame = 0
 let ignoreScrollUntil = 0
 let contentObserver: ResizeObserver | null = null
 let footerObserver: ResizeObserver | null = null
+
+function isCurrentPendingSend(id: string): boolean {
+  const pending = pendingSend.value
+  return Boolean(pending && pending.id === id && pending.contextRevision === pageContextRevision
+    && pending.projectId === projectParam.value)
+}
+
+function invalidatePageContext(projectId: string | null, allowCreatedProjectAdoption = true): void {
+  pageContextRevision += 1
+  const pending = pendingSend.value
+  const adoptingCreatedProject = allowCreatedProjectAdoption && Boolean(pending?.projectId === null && projectId
+    && currentProject.value?.id === projectId)
+  // The first send adopts its pending bubble when it creates the project.
+  pendingSend.value = adoptingCreatedProject && pending
+    ? { ...pending, projectId, contextRevision: pageContextRevision }
+    : null
+  retryingProject.value = false
+  requirementSubmitting.value = false
+  requirementConfirmed.value = false
+  taskActionPending.value = false
+  taskPendingLabel.value = ''
+  taskRecovered.value = false
+  taskRecoveredRunId = null
+  lightboxOpen.value = false
+  lightboxItem.value = null
+}
+
 const title = computed(() => currentProject.value ? displayProjectTitle(currentProject.value.title) : '新对话')
 const usageText = computed(() => {
   const usage = flow.workflow.view.value?.usage
@@ -117,8 +149,18 @@ const sendDisabled = computed(() =>
   !draft.value.trim()
 )
 const promptStateLabel = computed(() => {
-  if (!promptPreview.value) return ''
-  return promptPreview.value.can_confirm ? '' : '提示词正在检查，确认按钮暂不可用。'
+  const preview = promptPreview.value
+  if (!preview) return ''
+  if (preview.parse_warning || !hasValidPromptEdits(positivePrompt.value, negativePrompt.value)) {
+    return '提示词解析异常或缺少有效正文，原快照不能用于生成。请在卡片内编辑正文，检查后明确确认。'
+  }
+  if (!hasValidPromptEdits(promptEditPositive.value, promptEditNegative.value)) {
+    return '请填写有效提示词正文；空内容、仅标题或仅代码围栏不能确认。'
+  }
+  if (preview.can_confirm) return ''
+  return preview.can_edit
+    ? '当前快照不能确认；请编辑提示词，保存为新快照后再确认生成。'
+    : '提示词正在检查，确认按钮暂不可用。'
 })
 
 interface PromptCardSnapshot {
@@ -134,7 +176,31 @@ const promptEditNegative = ref('')
 const promptSnapshot = ref<PromptCardSnapshot | null>(null)
 const promptConfirmed = ref(false)
 const promptConfirming = ref(false)
-const promptConfirmedId = ref('')
+// Keep unsaved text per project and snapshot within this page's login session.
+const promptDrafts = new Map<string, { positive: string; negative: string }>()
+let activePromptDraftKey = ''
+let promptCardScope = 0
+const promptDraftKey = computed(() => {
+  const view = flow.workflow.view.value
+  const preview = promptPreview.value
+  return view?.project_id === projectParam.value && preview
+    ? JSON.stringify([sessionRevision.value, view.project_id, preview.id, preview.request_digest]) : ''
+})
+const promptEditsChanged = computed(() => promptEditPositive.value !== positivePrompt.value
+  || promptEditNegative.value !== negativePrompt.value)
+const promptCanEdit = computed(() => Boolean(promptPreview.value?.can_edit ?? promptPreview.value?.can_confirm)
+  && Boolean(flow.workflow.view.value?.available_actions.some((action) => action.id === 'edit_prepared_prompt')))
+const promptNeedsRepair = computed(() => Boolean(promptPreview.value?.parse_warning)
+  || !hasValidPromptEdits(positivePrompt.value, negativePrompt.value))
+const promptSourceAvailable = computed(() => hasPromptContent(promptPreview.value?.source_markdown))
+const promptSourceLoaded = ref(false)
+
+function useFullPromptSource(): void {
+  if (!promptSourceAvailable.value || !promptCanEdit.value || busy.value || promptConfirming.value) return
+  promptEditPositive.value = promptPreview.value!.source_markdown!
+  promptEditNegative.value = ''
+  promptSourceLoaded.value = true
+}
 
 function promptVersionFromRequest(request: Record<string, unknown> | undefined): string {
   const raw = request?.contract_version
@@ -153,27 +219,27 @@ const promptCardReference = computed(() => promptSnapshot.value?.reference ?? re
 const promptCardVisible = computed(() =>
   Boolean(promptPreview.value || promptSnapshot.value),
 )
-const promptStatus = computed<'pending' | 'checking' | 'confirmed'>(() => {
+const promptStatus = computed<'pending' | 'checking' | 'repair' | 'confirmed'>(() => {
   if (promptConfirmed.value) return 'confirmed'
+  if (promptNeedsRepair.value || (promptPreview.value?.can_confirm === false && promptCanEdit.value)) return 'repair'
   return promptPreview.value?.can_confirm === false ? 'checking' : 'pending'
 })
 const promptStatusLabel = computed(() => {
   if (promptStatus.value === 'confirmed') return '已确认'
+  if (promptStatus.value === 'repair') return '待修正'
   return promptStatus.value === 'checking' ? '检查中' : '待确认'
 })
 const promptCanConfirm = computed(() =>
-  Boolean(promptPreview.value?.can_confirm) &&
-  Boolean(flow.workflow.view.value?.available_actions.some((action) => action.id === 'confirm_prompt')) &&
-  Boolean(promptEditPositive.value.trim()) &&
+  Boolean(promptDraftKey.value) &&
+  (promptEditsChanged.value ? promptCanEdit.value : Boolean(promptPreview.value?.can_confirm) &&
+    Boolean(flow.workflow.view.value?.available_actions.some((action) => action.id === 'confirm_prompt'))) &&
+  hasValidPromptEdits(promptEditPositive.value, promptEditNegative.value) &&
   !promptConfirmed.value &&
   !promptConfirming.value &&
   !busy.value
 )
-const promptCtaLabel = computed(() =>
-  promptPreview.value && promptPreview.value.can_confirm === false
-    ? '提示词检查中…'
-    : '确认使用以上提示词生成'
-)
+const promptCtaLabel = computed(() => promptStatus.value === 'checking'
+  ? '提示词检查中…' : '确认使用以上提示词生成')
 const promptExecutionStatus = computed(() => taskStatusText.value || '已确认，正在执行…')
 
 type TaskVisualState = 'executing' | 'failed' | 'unknown' | 'recovered' | 'waiting'
@@ -255,6 +321,7 @@ function markTaskRecovered(): void {
 
 async function onTaskAction(action: WorkflowAction): Promise<void> {
   if (taskActionDisabled(action)) return
+  const contextAtStart = pageContextRevision
   const isRecovery = RECOVERY_ACTION_IDS.has(action.id) && !action.requires_text
   if (isRecovery) {
     taskRecovered.value = false
@@ -267,7 +334,7 @@ async function onTaskAction(action: WorkflowAction): Promise<void> {
   try {
     await runTaskAction(action)
   } finally {
-    if (isRecovery) {
+    if (isRecovery && contextAtStart === pageContextRevision) {
       taskActionPending.value = false
       taskPendingLabel.value = ''
       if (flow.workflow.view.value?.status === 'completed') markTaskRecovered()
@@ -279,15 +346,16 @@ function resetPromptCard(): void {
   promptSnapshot.value = null
   promptConfirmed.value = false
   promptConfirming.value = false
-  promptConfirmedId.value = ''
 }
 
 function onConfirmPrompt(): void {
-  if (promptConfirmed.value || promptConfirming.value) return
-  const preview = promptPreview.value
-  if (!preview?.can_confirm || busy.value) return
-  const hasAction = flow.workflow.view.value?.available_actions.some((item) => item.id === 'confirm_prompt')
-  if (!hasAction) return
+  if (!promptCanConfirm.value) return
+  const preview = promptPreview.value!
+  const projectAtStart = projectParam.value
+  const sessionAtStart = sessionRevision.value
+  const scopeAtStart = promptCardScope
+  const isCurrent = () => projectParam.value === projectAtStart && sessionRevision.value === sessionAtStart
+    && promptCardScope === scopeAtStart
   promptSnapshot.value = {
     positive: promptEditPositive.value,
     negative: promptEditNegative.value,
@@ -295,19 +363,18 @@ function onConfirmPrompt(): void {
     reference: referenceInfo.value,
     version: promptVersionLabel.value,
   }
-  promptConfirmedId.value = preview.id
   promptConfirmed.value = true
   promptConfirming.value = true
   // The confirmed card is a frozen receipt: keep it until the preview id
   // genuinely changes or the project resets, even when promptPreview clears.
   void confirmPrompt({ positive_prompt: promptEditPositive.value, negative_prompt: promptEditNegative.value }).then(
-    () => {
+    (ok) => {
+      if (!isCurrent()) return
       promptConfirming.value = false
-      if (flowError.value && promptPreview.value?.can_confirm) resetPromptCard()
+      if (!ok) resetPromptCard()
     },
     () => {
-      promptConfirming.value = false
-      resetPromptCard()
+      if (isCurrent()) resetPromptCard()
     },
   )
 }
@@ -462,26 +529,43 @@ watch(
 watch(
   () => projectParam.value,
   async () => {
+    promptCardScope += 1
     resetPromptCard()
     stickToBottom.value = true
     newContentAvailable.value = false
     await nextTick()
     scrollToLatest()
   },
-  { flush: 'post' },
+  { flush: 'sync' },
 )
 
-watch(
-  () => promptPreview.value?.id,
-  (id) => {
-    if (id && promptConfirmed.value && id !== promptConfirmedId.value && !promptConfirming.value) resetPromptCard()
-    if (id && !promptConfirming.value) {
-      promptEditPositive.value = positivePrompt.value
-      promptEditNegative.value = negativePrompt.value
-    }
-  },
-  { immediate: true },
-)
+watch(sessionRevision, () => {
+  invalidatePageContext(projectParam.value, false)
+  promptCardScope += 1
+  promptDrafts.clear()
+  activePromptDraftKey = ''
+  promptEditPositive.value = ''
+  promptEditNegative.value = ''
+  resetPromptCard()
+}, { flush: 'sync' })
+
+watch([promptEditPositive, promptEditNegative], ([positive, negative]) => {
+  if (activePromptDraftKey) promptDrafts.set(activePromptDraftKey, { positive, negative })
+}, { flush: 'sync' })
+
+watch(promptDraftKey, (key, oldKey) => {
+  activePromptDraftKey = ''
+  promptSourceLoaded.value = false
+  if (!key) return
+  if (promptConfirmed.value && key !== oldKey && !promptConfirming.value) resetPromptCard()
+  const saved = promptDrafts.get(key)
+  if (!promptConfirming.value) {
+    promptEditPositive.value = saved?.positive ?? positivePrompt.value
+    promptEditNegative.value = saved?.negative ?? negativePrompt.value
+  }
+  activePromptDraftKey = key
+  promptDrafts.set(key, { positive: promptEditPositive.value, negative: promptEditNegative.value })
+}, { immediate: true, flush: 'sync' })
 
 watch(
   () => route.hash,
@@ -515,6 +599,9 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  promptCardScope += 1
+  pageContextRevision += 1
+  pendingSend.value = null
   if (composerFrame) cancelAnimationFrame(composerFrame)
   if (bottomFrame) cancelAnimationFrame(bottomFrame)
   contentObserver?.disconnect()
@@ -544,37 +631,40 @@ async function submit(): Promise<void> {
     text: value,
     sentAt: new Date().toISOString(),
     status: 'sending',
+    projectId: projectParam.value,
+    contextRevision: pageContextRevision,
   }
   pendingSend.value = pending
   await nextTick()
+  if (!isCurrentPendingSend(pending.id)) return
   composerInput.value?.focus({ preventScroll: true })
   try {
     const result = await send(value, pending.id)
-    if (pendingSend.value?.id !== pending.id) return
+    if (!isCurrentPendingSend(pending.id)) return
     if (result.status === 'failed') {
-      pendingSend.value = { ...pending, status: 'failed' }
+      pendingSend.value = { ...pendingSend.value!, status: 'failed' }
     } else {
       pendingSend.value = null
     }
   } catch {
-    if (pendingSend.value?.id === pending.id) {
-      pendingSend.value = { ...pending, status: 'failed' }
+    if (isCurrentPendingSend(pending.id)) {
+      pendingSend.value = { ...pendingSend.value!, status: 'failed' }
     }
   }
 }
 
 async function retryPendingSend(): Promise<void> {
   const pending = pendingSend.value
-  if (!pending || pending.status !== 'failed' || busy.value) return
+  if (!pending || pending.status !== 'failed' || busy.value || !isCurrentPendingSend(pending.id)) return
   pendingSend.value = { ...pending, status: 'sending' }
   try {
     const result = await send(pending.text, pending.id)
-    if (pendingSend.value?.id !== pending.id) return
+    if (!isCurrentPendingSend(pending.id)) return
     if (result.status === 'sent') pendingSend.value = null
-    else pendingSend.value = { ...pending, status: 'failed' }
+    else pendingSend.value = { ...pendingSend.value!, status: 'failed' }
   } catch {
-    if (pendingSend.value?.id === pending.id) {
-      pendingSend.value = { ...pending, status: 'failed' }
+    if (isCurrentPendingSend(pending.id)) {
+      pendingSend.value = { ...pendingSend.value!, status: 'failed' }
     }
   }
 }
@@ -641,11 +731,12 @@ function applySuggestion(text: string): void {
 
 async function withBusyFlag(flag: Ref<boolean>, run: () => Promise<void>): Promise<void> {
   if (flag.value) return
+  const contextAtStart = pageContextRevision
   flag.value = true
   try {
     await run()
   } finally {
-    flag.value = false
+    if (contextAtStart === pageContextRevision) flag.value = false
   }
 }
 
@@ -655,10 +746,10 @@ async function retryProjectError(): Promise<void> {
 
 async function confirmRequirementCard(): Promise<void> {
   if (busy.value || requirementSubmitting.value) return
-  const projectAtStart = projectParam.value
+  const contextAtStart = pageContextRevision
   await withBusyFlag(requirementSubmitting, async () => {
     await confirmRequirements()
-    if (projectParam.value === projectAtStart && !flowError.value && !canConfirmRequirements.value) {
+    if (contextAtStart === pageContextRevision && !flowError.value && !canConfirmRequirements.value) {
       requirementConfirmed.value = true
     }
   })
@@ -681,9 +772,8 @@ watch(
 
 watch(
   () => projectParam.value,
-  () => {
-    requirementConfirmed.value = false
-    requirementSubmitting.value = false
+  (projectId) => {
+    invalidatePageContext(projectId)
   },
   { flush: 'sync' },
 )
@@ -692,7 +782,7 @@ watch(
   () => projectMessages.value.map((message) => message.id),
   (_ids, previousIds) => {
     const pending = pendingSend.value
-    if (!pending || pending.status !== 'sending') return
+    if (!pending || pending.status !== 'sending' || !isCurrentPendingSend(pending.id)) return
     const known = new Set(previousIds ?? [])
     const arrived = projectMessages.value.some(
       (message) =>
@@ -741,7 +831,7 @@ const liveStatusInput = computed<LiveStatusInput>(() => {
     return {
       ...base,
       label: '等待确认提示词',
-      detail: promptPreview.value.can_confirm ? '确认真实提示词后才会提交生成。' : '提示词仍在检查，请稍候。',
+      detail: promptStateLabel.value || '确认真实提示词后才会提交生成。',
       tone: 'waiting',
     }
   }
@@ -1089,6 +1179,14 @@ watch(
 
               <div class="prompt-card-body">
                 <p v-if="!promptConfirmed" class="prompt-edit-help">请检查提示词，可直接修改；点击确认后才会生成图片。</p>
+                <p v-if="!promptConfirmed && promptPreview?.parse_warning" class="prompt-parse-warning" role="status">
+                  {{ promptPreview.parse_warning }}
+                </p>
+                <div v-if="!promptConfirmed && promptSourceAvailable" class="prompt-source-recovery">
+                  <p class="prompt-edit-help">使用完整原文会将包含原文的全部内容填入正向提示词，并清空反向提示词以免重复。请检查、编辑后明确确认；此按钮不会保存或生成。</p>
+                  <button type="button" class="prompt-copy" :disabled="!promptCanEdit || promptConfirming || busy" @click="useFullPromptSource">使用完整原文编辑</button>
+                  <p v-if="promptSourceLoaded" class="prompt-edit-help" role="status">正向提示词已填入完整原文，反向已清空；尚未保存，请检查后确认。</p>
+                </div>
                 <label v-if="!promptConfirmed" class="prompt-edit-label">
                   正向提示词
                   <textarea v-model="promptEditPositive" class="prompt-edit-input" aria-label="正向提示词" rows="7" maxlength="12000" :disabled="promptConfirming || busy" />
@@ -1441,6 +1539,8 @@ watch(
 </template>
 
 <style scoped>
+.prompt-parse-warning { color: var(--state-danger); margin-bottom: var(--space-3); }
+.prompt-source-recovery { margin-bottom: var(--space-3); }
 .prompt-edit-help { color: var(--text-secondary); margin-bottom: var(--space-3); }
 .prompt-edit-label { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); }
 .prompt-edit-input { box-sizing: border-box; width: 100%; min-width: 0; resize: vertical; padding: var(--space-3); color: var(--text-primary); background: var(--surface-panel); border: 1px solid var(--line-control); border-radius: var(--radius-md); font: inherit; line-height: 1.6; }

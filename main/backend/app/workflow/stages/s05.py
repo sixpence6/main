@@ -699,7 +699,15 @@ async def _review_artifact(
                 issue_code="RUN_SUPERSEDED",
                 template_id="RUN_SUPERSEDED",
             )
-        elif exc.code in {"SERVICE_UNAVAILABLE", "REVIEW_UNAVAILABLE"}:
+        elif exc.code in {
+            "SERVICE_UNAVAILABLE",
+            "REVIEW_UNAVAILABLE",
+            "CAPABILITY_NOT_READY",
+            "LLM_TIMEOUT",
+            "LLM_RESPONSE_INVALID",
+        }:
+            # Role-call records and checkpoints retain the underlying failure.
+            # The review boundary exposes one outage code, distinct from 409s.
             await set_stage(
                 ctx,
                 STAGE,
@@ -707,6 +715,7 @@ async def _review_artifact(
                 issue_code="REVIEW_UNAVAILABLE",
                 template_id="REVIEW_UNAVAILABLE",
             )
+            raise _review_unavailable() from None
         elif exc.code in {"REVIEW_INVALID", "REVIEW_REJECTED"}:
             await set_stage(
                 ctx,

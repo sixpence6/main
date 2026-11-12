@@ -1,0 +1,18 @@
+
+> ecommerce-image-workspace-dev@0.1.0 build
+> npm --workspace main run build
+
+
+> ecommerce-image-workspace@0.1.0 build
+> vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 94 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.47 kB │ gzip:  0.32 kB
+dist/assets/index-B0k673dT.css   86.77 kB │ gzip: 12.91 kB
+dist/assets/index-HUEihu4i.js   262.44 kB │ gzip: 88.17 kB
+
+✓ built in 265ms

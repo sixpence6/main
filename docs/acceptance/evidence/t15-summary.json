@@ -1,0 +1,354 @@
+{
+  "generated_at": "2026-10-29T18:17:13.445Z",
+  "evidence_source": ".scratch/t15-acceptance/state.json",
+  "acceptance_phases": {
+    "llm": {
+      "completed_at": "2026-10-29T17:57:59+00:00",
+      "project_id": "64a44549-a929-4a26-8775-37744908b196"
+    },
+    "generate": {
+      "completed_at": "2026-10-29T18:00:28+00:00"
+    },
+    "reference": {
+      "completed_at": "2026-10-29T18:01:07+00:00"
+    },
+    "restart": {
+      "completed_at": "2026-10-29T18:01:22+00:00"
+    }
+  },
+  "checks": {
+    "total": 52,
+    "passed": 52,
+    "failed": 0
+  },
+  "project_id": "64a44549-a929-4a26-8775-37744908b196",
+  "recovery_project_id": "cdb1c805-4b22-4cdc-b49f-b00521c39922",
+  "editor_project_id": "52e396ec-7012-4ad1-a8f9-94028383ff48",
+  "generations": {
+    "v1": {
+      "id": "8e21bb4f-28f5-4b06-a075-6d78278dbeb7",
+      "version_no": 1,
+      "status": "succeeded",
+      "stage": "done",
+      "request_id": "b38d9dd5-4572-42d3-8c82-57e13d7e8ea4",
+      "reference_asset_id": null,
+      "result_asset_id": "0f9a89fd-8d5b-472e-9a74-ac61f4ddc86c",
+      "elapsed_s": 22.2,
+      "seen_statuses": [
+        "running",
+        "succeeded"
+      ],
+      "error": null
+    },
+    "v2": {
+      "id": "83ed1da1-688d-4e86-a128-3820c5ac4034",
+      "version_no": 2,
+      "status": "succeeded",
+      "stage": "done",
+      "request_id": "fdd6c679-4809-4cd2-9450-6c886287a3e0",
+      "reference_asset_id": null,
+      "result_asset_id": "4488805d-7158-42ba-9ee4-c9d29cabe7f0",
+      "elapsed_s": 41.5,
+      "seen_statuses": [
+        "queued",
+        "running",
+        "succeeded"
+      ],
+      "error": null
+    },
+    "v3": {
+      "id": "d596ae56-871f-4479-9f9f-2515d2a98491",
+      "version_no": 3,
+      "status": "succeeded",
+      "stage": "done",
+      "request_id": "9577ebff-3bef-4d06-a4e2-23bb5fcc5496",
+      "reference_asset_id": "6fda10c1-e072-4203-ba61-9a28c1d64034",
+      "result_asset_id": "c498db6c-3a3a-4c95-975f-de9b3692a563",
+      "elapsed_s": 22.3,
+      "seen_statuses": [
+        "running",
+        "succeeded"
+      ],
+      "error": null
+    },
+    "interrupted_after_restart": {
+      "id": "824146fb-1bf8-4a4d-b514-c4fe1101ad24",
+      "version_no": 1,
+      "status": "unknown",
+      "stage": "submitting",
+      "request_id": "15e82975-75ff-40ab-a1e8-99a2dadfd54f",
+      "reference_asset_id": null,
+      "result_asset_id": null,
+      "error": {
+        "code": "PROCESS_INTERRUPTED",
+        "message": "生成过程因服务重启中断，可稍后重新生成"
+      }
+    }
+  },
+  "assets": {
+    "asset-v1-download": {
+      "sha256": "265f9c65af2f19d1d29bfd6734932c29fc9a0367f51f77a15315218d23bedf7e",
+      "byte_size": 1084652,
+      "width": 1024,
+      "height": 1024,
+      "format": "PNG",
+      "content_type": "image/png",
+      "content_disposition": "attachment; filename=\"64a44549-a929-4a26-8775-37744908b196-v1.png\""
+    },
+    "asset-v2-download": {
+      "sha256": "3a59636a8ce6e97924e2c64256733c0ab75ea02feba1fba84ec12f97507e750f",
+      "byte_size": 1074333,
+      "width": 1024,
+      "height": 1024,
+      "format": "PNG",
+      "content_type": "image/png",
+      "content_disposition": "attachment; filename=\"64a44549-a929-4a26-8775-37744908b196-v2.png\""
+    },
+    "asset-v3-download": {
+      "sha256": "44f209eec5ffa9c7cd099f2a752a246b2619ca7985b71b883e1d093259e6736c",
+      "byte_size": 1086956,
+      "width": 1024,
+      "height": 1024,
+      "format": "PNG",
+      "content_type": "image/png",
+      "content_disposition": "attachment; filename=\"64a44549-a929-4a26-8775-37744908b196-v3.png\""
+    },
+    "asset-v1-after-restart": {
+      "sha256": "265f9c65af2f19d1d29bfd6734932c29fc9a0367f51f77a15315218d23bedf7e",
+      "byte_size": 1084652,
+      "width": 1024,
+      "height": 1024,
+      "format": "PNG",
+      "content_type": "image/png",
+      "content_disposition": "attachment; filename=\"64a44549-a929-4a26-8775-37744908b196-v1.png\""
+    },
+    "asset-v2-after-restart": {
+      "sha256": "3a59636a8ce6e97924e2c64256733c0ab75ea02feba1fba84ec12f97507e750f",
+      "byte_size": 1074333,
+      "width": 1024,
+      "height": 1024,
+      "format": "PNG",
+      "content_type": "image/png",
+      "content_disposition": "attachment; filename=\"64a44549-a929-4a26-8775-37744908b196-v2.png\""
+    },
+    "asset-v3-after-restart": {
+      "sha256": "44f209eec5ffa9c7cd099f2a752a246b2619ca7985b71b883e1d093259e6736c",
+      "byte_size": 1086956,
+      "width": 1024,
+      "height": 1024,
+      "format": "PNG",
+      "content_type": "image/png",
+      "content_disposition": "attachment; filename=\"64a44549-a929-4a26-8775-37744908b196-v3.png\""
+    }
+  },
+  "check_names": [
+    {
+      "name": "config llm/visual ready without verification",
+      "passed": true
+    },
+    {
+      "name": "visual capabilities declare text_to_image and reference_image",
+      "passed": true
+    },
+    {
+      "name": "project created in draft",
+      "passed": true
+    },
+    {
+      "name": "real LLM maps full reply to a brief status",
+      "passed": true
+    },
+    {
+      "name": "user message preserved verbatim",
+      "passed": true
+    },
+    {
+      "name": "assistant message persisted with snapshot",
+      "passed": true
+    },
+    {
+      "name": "review card carries all five fields",
+      "passed": true
+    },
+    {
+      "name": "review card carries prompt",
+      "passed": true
+    },
+    {
+      "name": "server owns image size",
+      "passed": true
+    },
+    {
+      "name": "LLM phase made zero generations",
+      "passed": true
+    },
+    {
+      "name": "message history keeps stable sequence",
+      "passed": true
+    },
+    {
+      "name": "confirmation pins the reviewed revision",
+      "passed": true
+    },
+    {
+      "name": "duplicate confirmation is idempotent",
+      "passed": true
+    },
+    {
+      "name": "brief edit increments revision and returns draft",
+      "passed": true
+    },
+    {
+      "name": "same-value brief save is a no-op",
+      "passed": true
+    },
+    {
+      "name": "confirm without a review is rejected",
+      "passed": true
+    },
+    {
+      "name": "generation accepted with request id",
+      "passed": true
+    },
+    {
+      "name": "text-to-image generation succeeded",
+      "passed": true
+    },
+    {
+      "name": "generation stage done",
+      "passed": true
+    },
+    {
+      "name": "succeeded result is not re-retrievable",
+      "passed": true
+    },
+    {
+      "name": "downloaded image is a real 1024x1024 PNG",
+      "passed": true
+    },
+    {
+      "name": "asset metadata matches bytes",
+      "passed": true
+    },
+    {
+      "name": "download uses attachment disposition",
+      "passed": true
+    },
+    {
+      "name": "inline preview omits attachment disposition",
+      "passed": true
+    },
+    {
+      "name": "same request id returns the original generation",
+      "passed": true
+    },
+    {
+      "name": "retrieve-result returns the original asset for a succeeded record",
+      "passed": true
+    },
+    {
+      "name": "feedback card carries all five fields",
+      "passed": true
+    },
+    {
+      "name": "feedback card carries a fresh prompt",
+      "passed": true
+    },
+    {
+      "name": "feedback generation succeeded",
+      "passed": true
+    },
+    {
+      "name": "versions increment without reuse",
+      "passed": true
+    },
+    {
+      "name": "second version is a distinct real image",
+      "passed": true
+    },
+    {
+      "name": "older version stays downloadable",
+      "passed": true
+    },
+    {
+      "name": "reference upload returns available asset",
+      "passed": true
+    },
+    {
+      "name": "reference bytes are stored unchanged",
+      "passed": true
+    },
+    {
+      "name": "reference-aware organizer returns review",
+      "passed": true
+    },
+    {
+      "name": "reference presence is exposed on the card",
+      "passed": true
+    },
+    {
+      "name": "reference generation keeps original reference asset",
+      "passed": true
+    },
+    {
+      "name": "in-flight refresh is read-only",
+      "passed": true
+    },
+    {
+      "name": "reference-image generation succeeded",
+      "passed": true
+    },
+    {
+      "name": "reference generation output is a real PNG",
+      "passed": true
+    },
+    {
+      "name": "reference removal clears the current reference",
+      "passed": true
+    },
+    {
+      "name": "old reference file stays readable",
+      "passed": true
+    },
+    {
+      "name": "interrupted generation becomes unknown",
+      "passed": true
+    },
+    {
+      "name": "no automatic resend after restart",
+      "passed": true
+    },
+    {
+      "name": "restart preserves project, messages and generations",
+      "passed": true
+    },
+    {
+      "name": "v1 download survives restart",
+      "passed": true
+    },
+    {
+      "name": "v2 download survives restart",
+      "passed": true
+    },
+    {
+      "name": "v3 download survives restart",
+      "passed": true
+    },
+    {
+      "name": "config status stays unverified after restart",
+      "passed": true
+    },
+    {
+      "name": "project pagination walks with cursors",
+      "passed": true
+    },
+    {
+      "name": "bad cursor is rejected",
+      "passed": true
+    },
+    {
+      "name": "OpenAPI matches every exercised response",
+      "passed": true
+    }
+  ]
+}

@@ -1,0 +1,3747 @@
+{
+  "ok": true,
+  "base": "http://127.0.0.1:8100",
+  "api": "http://127.0.0.1:8795",
+  "startedAt": "2026-11-08T13:06:19.931Z",
+  "screenshots": [
+    {
+      "file": "v5-320-results.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v5-320-results.png",
+      "bytes": 28157,
+      "sha256": "20880993f22271f79dc17ffbddf1fd9986d290fce18d54db1593cd250f4edd95",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v5-320-single.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v5-320-single.png",
+      "bytes": 28007,
+      "sha256": "dabdd49887b06803fdcdf4979622573604cd9afa6e470a018bc519ab099f8718",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v5-320-lightbox.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v5-320-lightbox.png",
+      "bytes": 30367,
+      "sha256": "ddef48f24a1a3e2bb602a660d4cd8d6df68d49b00bbee5b1e9de34b56cd6bd78",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "viewportLabel": "320x800",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v5-768-results.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v5-768-results.png",
+      "bytes": 53691,
+      "sha256": "d237ca3acba196ae3beaafc407ad16a24693b01c6ab6f72d896e4537254d233c",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "viewportLabel": "768x1024",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v5-768-single.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v5-768-single.png",
+      "bytes": 41790,
+      "sha256": "3eba27a009fcbc20b14d09557e9be1dc84a91b3d0568b727dd0e891b2976ed90",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "viewportLabel": "768x1024",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v5-1440-results.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v5-1440-results.png",
+      "bytes": 58447,
+      "sha256": "355e2e96f7b6d0f20cae1980d2531c7a01c94b3349855a29cf28bc5340c8db48",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "viewportLabel": "1440x900",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v5-1440-single.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v5-1440-single.png",
+      "bytes": 50491,
+      "sha256": "24096857024b53492a5a08fd2902dd06daceea412b4f6b503f25cbea06dab832",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "viewportLabel": "1440x900",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    },
+    {
+      "file": "v5-1440-lightbox.png",
+      "path": "D:\\Desktop\\新建文件夹\\docs\\acceptance\\evidence\\v5-1440-lightbox.png",
+      "bytes": 43616,
+      "sha256": "c740094627cae0f4b293d0919f49bba3ebe5ff83c53252f73299e07510fb8fbc",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "viewportLabel": "1440x900",
+      "deviceScaleFactor": 1,
+      "osScalePercent": 100
+    }
+  ],
+  "scenarios": {
+    "results-320": {
+      "exists": true,
+      "region": {
+        "rect": {
+          "x": 16,
+          "y": 76,
+          "top": 76,
+          "bottom": 2037,
+          "width": 278,
+          "height": 1961
+        },
+        "text": "智能生图助手\n\n图片和当时实际使用的提示词都按版本保留。默认继续使用最新版本，查看旧版本不会改变修改基准。\n\n该版本图片不可用\n\n历史版本\n版本 1 · 需求 v1\n\n已撤销的历史版本\n\n600×800\n\n该版本提示词不可用\n下载原图\n在结果页只读查看\n\n发布于 2026/11/8 18:00:00\n\n查看大图\n\n当前版本\n版本 2 · 需求 v2\n\n当前发布版本\n\n600×800\n\n图片已经生成，可以保存使用了。\n\n该版本提示词不可用\n下载原图\n在结果页只读查看\n\n发布于 2026/11/8 18:00:00\n\n查看大图\n\n最新已发布\n版本 3 · 需求 v3\n\n最新已发布版本\n\n600×800\n\n该版本提示词不可用\n下载原图\n在结果页只读查看\n\n发布于 2026/11/8 18:00:00"
+      },
+      "grid": {
+        "rect": {
+          "x": 16,
+          "y": 206,
+          "top": 206,
+          "bottom": 2037,
+          "width": 278,
+          "height": 1831
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "transform": "none",
+          "transition": "all",
+          "width": "278px",
+          "height": "1831px",
+          "aspectRatio": "auto",
+          "objectFit": "fill",
+          "gridTemplateColumns": "278px",
+          "gap": "16px"
+        },
+        "columns": "278px",
+        "gap": "16px",
+        "cards": 3
+      },
+      "cards": [
+        {
+          "label": "版本 1 结果",
+          "classes": "message-bubble result-card",
+          "rect": {
+            "x": 16,
+            "y": 206,
+            "top": 206,
+            "bottom": 794,
+            "width": 278,
+            "height": 588
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "border-color 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "width": "278px",
+            "height": "588px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          },
+          "badge": {
+            "text": "历史版本",
+            "rect": {
+              "x": 29,
+              "y": 567,
+              "top": 567,
+              "bottom": 587,
+              "width": 66,
+              "height": 20
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 8px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(74, 79, 87)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderColor": "rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "12px",
+              "lineHeight": "18px",
+              "fontWeight": "500",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "66px",
+              "height": "20px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "media": null,
+          "title": "已撤销的历史版本",
+          "caption": "600×800",
+          "download": {
+            "tag": "BUTTON",
+            "disabled": true,
+            "ariaDisabled": "true",
+            "rect": {
+              "x": 29,
+              "y": 705,
+              "top": 705,
+              "bottom": 749,
+              "width": 94,
+              "height": 44
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 18px",
+              "margin": "0px",
+              "background": "rgb(239, 237, 230)",
+              "color": "rgb(99, 104, 112)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderColor": "rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "94px",
+              "height": "44px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "unavailable": {
+            "text": "该版本图片不可用",
+            "rect": {
+              "x": 29,
+              "y": 219,
+              "top": 219,
+              "bottom": 555,
+              "width": 252,
+              "height": 336
+            },
+            "style": {
+              "display": "flex",
+              "padding": "12px",
+              "margin": "0px",
+              "background": "rgb(239, 237, 230)",
+              "color": "rgb(74, 79, 87)",
+              "border": "0px none rgb(74, 79, 87)",
+              "borderColor": "rgb(74, 79, 87)",
+              "borderRadius": "8px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "252px",
+              "height": "336px",
+              "aspectRatio": "3 / 4",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "8px"
+            }
+          },
+          "imageCount": 0
+        },
+        {
+          "label": "版本 2 结果",
+          "classes": "message-bubble result-card is-clickable",
+          "rect": {
+            "x": 16,
+            "y": 810,
+            "top": 810,
+            "bottom": 1433,
+            "width": 278,
+            "height": 623
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "border-color 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "width": "278px",
+            "height": "623px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          },
+          "badge": {
+            "text": "当前版本",
+            "rect": {
+              "x": 29,
+              "y": 1171,
+              "top": 1171,
+              "bottom": 1191,
+              "width": 66,
+              "height": 20
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 8px",
+              "margin": "0px",
+              "background": "rgb(236, 234, 227)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(201, 200, 194)",
+              "borderColor": "rgb(201, 200, 194)",
+              "borderRadius": "999px",
+              "fontSize": "12px",
+              "lineHeight": "18px",
+              "fontWeight": "500",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "66px",
+              "height": "20px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "media": {
+            "rect": {
+              "x": 29,
+              "y": 823,
+              "top": 823,
+              "bottom": 1159,
+              "width": 252,
+              "height": 336
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px",
+              "margin": "0px",
+              "background": "rgb(233, 230, 222)",
+              "color": "rgb(0, 0, 238)",
+              "border": "0px none rgb(0, 0, 238)",
+              "borderColor": "rgb(0, 0, 238)",
+              "borderRadius": "8px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "252px",
+              "height": "336px",
+              "aspectRatio": "3 / 4",
+              "objectFit": "cover",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            },
+            "src": "/api/assets/asset-v5-2",
+            "width": "600",
+            "height": "800"
+          },
+          "title": "当前发布版本",
+          "caption": "600×800",
+          "download": {
+            "tag": "BUTTON",
+            "disabled": true,
+            "ariaDisabled": "true",
+            "rect": {
+              "x": 29,
+              "y": 1344,
+              "top": 1344,
+              "bottom": 1388,
+              "width": 94,
+              "height": 44
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 18px",
+              "margin": "0px",
+              "background": "rgb(239, 237, 230)",
+              "color": "rgb(99, 104, 112)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderColor": "rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "94px",
+              "height": "44px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "unavailable": null,
+          "imageCount": 1
+        },
+        {
+          "label": "版本 3 结果",
+          "classes": "message-bubble result-card is-clickable",
+          "rect": {
+            "x": 16,
+            "y": 1449,
+            "top": 1449,
+            "bottom": 2037,
+            "width": 278,
+            "height": 588
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "border-color 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "width": "278px",
+            "height": "588px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          },
+          "badge": {
+            "text": "最新已发布",
+            "rect": {
+              "x": 29,
+              "y": 1810,
+              "top": 1810,
+              "bottom": 1830,
+              "width": 78,
+              "height": 20
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 8px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(201, 200, 194)",
+              "borderColor": "rgb(201, 200, 194)",
+              "borderRadius": "999px",
+              "fontSize": "12px",
+              "lineHeight": "18px",
+              "fontWeight": "500",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "78px",
+              "height": "20px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "media": {
+            "rect": {
+              "x": 29,
+              "y": 1462,
+              "top": 1462,
+              "bottom": 1798,
+              "width": 252,
+              "height": 336
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px",
+              "margin": "0px",
+              "background": "rgb(233, 230, 222)",
+              "color": "rgb(0, 0, 238)",
+              "border": "0px none rgb(0, 0, 238)",
+              "borderColor": "rgb(0, 0, 238)",
+              "borderRadius": "8px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "252px",
+              "height": "336px",
+              "aspectRatio": "3 / 4",
+              "objectFit": "cover",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            },
+            "src": "/api/assets/asset-v5-3",
+            "width": "600",
+            "height": "800"
+          },
+          "title": "最新已发布版本",
+          "caption": "600×800",
+          "download": {
+            "tag": "A",
+            "disabled": false,
+            "ariaDisabled": null,
+            "rect": {
+              "x": 29,
+              "y": 1948,
+              "top": 1948,
+              "bottom": 1992,
+              "width": 92,
+              "height": 44
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 18px",
+              "margin": "0px",
+              "background": "rgb(27, 29, 33)",
+              "color": "rgb(244, 241, 233)",
+              "border": "0px none rgb(244, 241, 233)",
+              "borderColor": "rgb(244, 241, 233)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "600",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "background-color 0.2s, transform 0.18s cubic-bezier(0.22, 0.8, 0.3, 1), opacity 0.2s",
+              "width": "92px",
+              "height": "44px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "unavailable": null,
+          "imageCount": 1
+        }
+      ],
+      "doc": {
+        "scrollWidth": 320,
+        "clientWidth": 320,
+        "scrollHeight": 800
+      }
+    },
+    "single-320": {
+      "exists": true,
+      "region": {
+        "rect": {
+          "x": 16,
+          "y": 76,
+          "top": 76,
+          "bottom": 829,
+          "width": 278,
+          "height": 753
+        },
+        "text": "智能生图助手\n\n图片和当时实际使用的提示词都按版本保留。默认继续使用最新版本，查看旧版本不会改变修改基准。\n\n查看大图\n\n当前版本\n版本 1 · 需求 v1\n\n单图结果\n\n600×800\n\n图片已经生成，可以保存使用了。\n\n该版本提示词不可用\n下载原图\n在结果页只读查看\n\n发布于 2026/11/8 18:00:00"
+      },
+      "grid": {
+        "rect": {
+          "x": 16,
+          "y": 206,
+          "top": 206,
+          "bottom": 829,
+          "width": 278,
+          "height": 623
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "transform": "none",
+          "transition": "all",
+          "width": "278px",
+          "height": "623px",
+          "aspectRatio": "auto",
+          "objectFit": "fill",
+          "gridTemplateColumns": "278px",
+          "gap": "16px"
+        },
+        "columns": "278px",
+        "gap": "16px",
+        "cards": 1
+      },
+      "cards": [
+        {
+          "label": "版本 1 结果",
+          "classes": "message-bubble result-card is-clickable",
+          "rect": {
+            "x": 16,
+            "y": 206,
+            "top": 206,
+            "bottom": 829,
+            "width": 278,
+            "height": 623
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "border-color 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "width": "278px",
+            "height": "623px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          },
+          "badge": {
+            "text": "当前版本",
+            "rect": {
+              "x": 29,
+              "y": 567,
+              "top": 567,
+              "bottom": 587,
+              "width": 66,
+              "height": 20
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 8px",
+              "margin": "0px",
+              "background": "rgb(236, 234, 227)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(201, 200, 194)",
+              "borderColor": "rgb(201, 200, 194)",
+              "borderRadius": "999px",
+              "fontSize": "12px",
+              "lineHeight": "18px",
+              "fontWeight": "500",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "66px",
+              "height": "20px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "media": {
+            "rect": {
+              "x": 29,
+              "y": 219,
+              "top": 219,
+              "bottom": 555,
+              "width": 252,
+              "height": 336
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px",
+              "margin": "0px",
+              "background": "rgb(233, 230, 222)",
+              "color": "rgb(0, 0, 238)",
+              "border": "0px none rgb(0, 0, 238)",
+              "borderColor": "rgb(0, 0, 238)",
+              "borderRadius": "8px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "252px",
+              "height": "336px",
+              "aspectRatio": "3 / 4",
+              "objectFit": "cover",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            },
+            "src": "/api/assets/asset-v5-single",
+            "width": "600",
+            "height": "800"
+          },
+          "title": "单图结果",
+          "caption": "600×800",
+          "download": {
+            "tag": "A",
+            "disabled": false,
+            "ariaDisabled": null,
+            "rect": {
+              "x": 29,
+              "y": 740,
+              "top": 740,
+              "bottom": 784,
+              "width": 92,
+              "height": 44
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 18px",
+              "margin": "0px",
+              "background": "rgb(27, 29, 33)",
+              "color": "rgb(244, 241, 233)",
+              "border": "0px none rgb(244, 241, 233)",
+              "borderColor": "rgb(244, 241, 233)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "600",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "background-color 0.2s, transform 0.18s cubic-bezier(0.22, 0.8, 0.3, 1), opacity 0.2s",
+              "width": "92px",
+              "height": "44px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "unavailable": null,
+          "imageCount": 1
+        }
+      ],
+      "doc": {
+        "scrollWidth": 320,
+        "clientWidth": 320,
+        "scrollHeight": 800
+      }
+    },
+    "empty-320": {
+      "exists": false,
+      "region": null,
+      "grid": null,
+      "cards": [],
+      "doc": {
+        "scrollWidth": 320,
+        "clientWidth": 320,
+        "scrollHeight": 800
+      }
+    },
+    "results-768": {
+      "exists": true,
+      "region": {
+        "rect": {
+          "x": 38,
+          "y": 48,
+          "top": 48,
+          "bottom": 1509,
+          "width": 681,
+          "height": 1461
+        },
+        "text": "智能生图助手\n\n图片和当时实际使用的提示词都按版本保留。默认继续使用最新版本，查看旧版本不会改变修改基准。\n\n该版本图片不可用\n\n历史版本\n版本 1 · 需求 v1\n\n已撤销的历史版本\n\n600×800\n\n该版本提示词不可用\n下载原图\n在结果页只读查看\n\n发布于 2026/11/8 18:00:00\n\n查看大图\n\n当前版本\n版本 2 · 需求 v2\n\n当前发布版本\n\n600×800\n\n图片已经生成，可以保存使用了。\n\n该版本提示词不可用\n下载原图\n在结果页只读查看\n\n发布于 2026/11/8 18:00:00\n\n查看大图\n\n最新已发布\n版本 3 · 需求 v3\n\n最新已发布版本\n\n600×800\n\n该版本提示词不可用\n下载原图\n在结果页只读查看\n\n发布于 2026/11/8 18:00:00"
+      },
+      "grid": {
+        "rect": {
+          "x": 38,
+          "y": 137,
+          "top": 137,
+          "bottom": 1509,
+          "width": 681,
+          "height": 1373
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "transform": "none",
+          "transition": "all",
+          "width": "681.219px",
+          "height": "1372.62px",
+          "aspectRatio": "auto",
+          "objectFit": "fill",
+          "gridTemplateColumns": "332.609px 332.609px",
+          "gap": "16px"
+        },
+        "columns": "332.609px 332.609px",
+        "gap": "16px",
+        "cards": 3
+      },
+      "cards": [
+        {
+          "label": "版本 1 结果",
+          "classes": "message-bubble result-card",
+          "rect": {
+            "x": 38,
+            "y": 137,
+            "top": 137,
+            "bottom": 833,
+            "width": 333,
+            "height": 696
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "border-color 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "width": "332.609px",
+            "height": "695.812px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          },
+          "badge": {
+            "text": "历史版本",
+            "rect": {
+              "x": 51,
+              "y": 571,
+              "top": 571,
+              "bottom": 591,
+              "width": 66,
+              "height": 20
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 8px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(74, 79, 87)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderColor": "rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "12px",
+              "lineHeight": "18px",
+              "fontWeight": "500",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "66px",
+              "height": "20px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "media": null,
+          "title": "已撤销的历史版本",
+          "caption": "600×800",
+          "download": {
+            "tag": "BUTTON",
+            "disabled": true,
+            "ariaDisabled": "true",
+            "rect": {
+              "x": 51,
+              "y": 709,
+              "top": 709,
+              "bottom": 753,
+              "width": 94,
+              "height": 44
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 18px",
+              "margin": "0px",
+              "background": "rgb(239, 237, 230)",
+              "color": "rgb(99, 104, 112)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderColor": "rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "94px",
+              "height": "44px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "unavailable": {
+            "text": "该版本图片不可用",
+            "rect": {
+              "x": 51,
+              "y": 150,
+              "top": 150,
+              "bottom": 559,
+              "width": 307,
+              "height": 409
+            },
+            "style": {
+              "display": "flex",
+              "padding": "12px",
+              "margin": "0px",
+              "background": "rgb(239, 237, 230)",
+              "color": "rgb(74, 79, 87)",
+              "border": "0px none rgb(74, 79, 87)",
+              "borderColor": "rgb(74, 79, 87)",
+              "borderRadius": "8px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "306.609px",
+              "height": "408.812px",
+              "aspectRatio": "3 / 4",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "8px"
+            }
+          },
+          "imageCount": 0
+        },
+        {
+          "label": "版本 2 结果",
+          "classes": "message-bubble result-card is-clickable",
+          "rect": {
+            "x": 387,
+            "y": 137,
+            "top": 137,
+            "bottom": 833,
+            "width": 333,
+            "height": 696
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "border-color 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "width": "332.609px",
+            "height": "695.812px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          },
+          "badge": {
+            "text": "当前版本",
+            "rect": {
+              "x": 400,
+              "y": 571,
+              "top": 571,
+              "bottom": 591,
+              "width": 66,
+              "height": 20
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 8px",
+              "margin": "0px",
+              "background": "rgb(236, 234, 227)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(201, 200, 194)",
+              "borderColor": "rgb(201, 200, 194)",
+              "borderRadius": "999px",
+              "fontSize": "12px",
+              "lineHeight": "18px",
+              "fontWeight": "500",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "66px",
+              "height": "20px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "media": {
+            "rect": {
+              "x": 400,
+              "y": 150,
+              "top": 150,
+              "bottom": 559,
+              "width": 307,
+              "height": 409
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px",
+              "margin": "0px",
+              "background": "rgb(233, 230, 222)",
+              "color": "rgb(0, 0, 238)",
+              "border": "0px none rgb(0, 0, 238)",
+              "borderColor": "rgb(0, 0, 238)",
+              "borderRadius": "8px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "306.609px",
+              "height": "408.812px",
+              "aspectRatio": "3 / 4",
+              "objectFit": "cover",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            },
+            "src": "/api/assets/asset-v5-2",
+            "width": "600",
+            "height": "800"
+          },
+          "title": "当前发布版本",
+          "caption": "600×800",
+          "download": {
+            "tag": "BUTTON",
+            "disabled": true,
+            "ariaDisabled": "true",
+            "rect": {
+              "x": 400,
+              "y": 744,
+              "top": 744,
+              "bottom": 788,
+              "width": 94,
+              "height": 44
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 18px",
+              "margin": "0px",
+              "background": "rgb(239, 237, 230)",
+              "color": "rgb(99, 104, 112)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderColor": "rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "94px",
+              "height": "44px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "unavailable": null,
+          "imageCount": 1
+        },
+        {
+          "label": "版本 3 结果",
+          "classes": "message-bubble result-card is-clickable",
+          "rect": {
+            "x": 38,
+            "y": 849,
+            "top": 849,
+            "bottom": 1509,
+            "width": 333,
+            "height": 661
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "border-color 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "width": "332.609px",
+            "height": "660.812px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          },
+          "badge": {
+            "text": "最新已发布",
+            "rect": {
+              "x": 51,
+              "y": 1282,
+              "top": 1282,
+              "bottom": 1302,
+              "width": 78,
+              "height": 20
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 8px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(201, 200, 194)",
+              "borderColor": "rgb(201, 200, 194)",
+              "borderRadius": "999px",
+              "fontSize": "12px",
+              "lineHeight": "18px",
+              "fontWeight": "500",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "78px",
+              "height": "20px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "media": {
+            "rect": {
+              "x": 51,
+              "y": 862,
+              "top": 862,
+              "bottom": 1270,
+              "width": 307,
+              "height": 409
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px",
+              "margin": "0px",
+              "background": "rgb(233, 230, 222)",
+              "color": "rgb(0, 0, 238)",
+              "border": "0px none rgb(0, 0, 238)",
+              "borderColor": "rgb(0, 0, 238)",
+              "borderRadius": "8px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "306.609px",
+              "height": "408.812px",
+              "aspectRatio": "3 / 4",
+              "objectFit": "cover",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            },
+            "src": "/api/assets/asset-v5-3",
+            "width": "600",
+            "height": "800"
+          },
+          "title": "最新已发布版本",
+          "caption": "600×800",
+          "download": {
+            "tag": "A",
+            "disabled": false,
+            "ariaDisabled": null,
+            "rect": {
+              "x": 51,
+              "y": 1420,
+              "top": 1420,
+              "bottom": 1464,
+              "width": 92,
+              "height": 44
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 18px",
+              "margin": "0px",
+              "background": "rgb(27, 29, 33)",
+              "color": "rgb(244, 241, 233)",
+              "border": "0px none rgb(244, 241, 233)",
+              "borderColor": "rgb(244, 241, 233)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "600",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "background-color 0.2s, transform 0.18s cubic-bezier(0.22, 0.8, 0.3, 1), opacity 0.2s",
+              "width": "92px",
+              "height": "44px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "unavailable": null,
+          "imageCount": 1
+        }
+      ],
+      "doc": {
+        "scrollWidth": 768,
+        "clientWidth": 768,
+        "scrollHeight": 1024
+      }
+    },
+    "single-768": {
+      "exists": true,
+      "region": {
+        "rect": {
+          "x": 38,
+          "y": 91,
+          "top": 91,
+          "bottom": 876,
+          "width": 681,
+          "height": 785
+        },
+        "text": "智能生图助手\n\n图片和当时实际使用的提示词都按版本保留。默认继续使用最新版本，查看旧版本不会改变修改基准。\n\n查看大图\n\n当前版本\n版本 1 · 需求 v1\n\n单图结果\n\n600×800\n\n图片已经生成，可以保存使用了。\n\n该版本提示词不可用\n下载原图\n在结果页只读查看\n\n发布于 2026/11/8 18:00:00"
+      },
+      "grid": {
+        "rect": {
+          "x": 38,
+          "y": 180,
+          "top": 180,
+          "bottom": 876,
+          "width": 681,
+          "height": 696
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "transform": "none",
+          "transition": "all",
+          "width": "681.219px",
+          "height": "695.812px",
+          "aspectRatio": "auto",
+          "objectFit": "fill",
+          "gridTemplateColumns": "332.609px 332.609px",
+          "gap": "16px"
+        },
+        "columns": "332.609px 332.609px",
+        "gap": "16px",
+        "cards": 1
+      },
+      "cards": [
+        {
+          "label": "版本 1 结果",
+          "classes": "message-bubble result-card is-clickable",
+          "rect": {
+            "x": 38,
+            "y": 180,
+            "top": 180,
+            "bottom": 876,
+            "width": 333,
+            "height": 696
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "border-color 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "width": "332.609px",
+            "height": "695.812px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          },
+          "badge": {
+            "text": "当前版本",
+            "rect": {
+              "x": 51,
+              "y": 614,
+              "top": 614,
+              "bottom": 634,
+              "width": 66,
+              "height": 20
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 8px",
+              "margin": "0px",
+              "background": "rgb(236, 234, 227)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(201, 200, 194)",
+              "borderColor": "rgb(201, 200, 194)",
+              "borderRadius": "999px",
+              "fontSize": "12px",
+              "lineHeight": "18px",
+              "fontWeight": "500",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "66px",
+              "height": "20px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "media": {
+            "rect": {
+              "x": 51,
+              "y": 193,
+              "top": 193,
+              "bottom": 602,
+              "width": 307,
+              "height": 409
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px",
+              "margin": "0px",
+              "background": "rgb(233, 230, 222)",
+              "color": "rgb(0, 0, 238)",
+              "border": "0px none rgb(0, 0, 238)",
+              "borderColor": "rgb(0, 0, 238)",
+              "borderRadius": "8px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "306.609px",
+              "height": "408.812px",
+              "aspectRatio": "3 / 4",
+              "objectFit": "cover",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            },
+            "src": "/api/assets/asset-v5-single",
+            "width": "600",
+            "height": "800"
+          },
+          "title": "单图结果",
+          "caption": "600×800",
+          "download": {
+            "tag": "A",
+            "disabled": false,
+            "ariaDisabled": null,
+            "rect": {
+              "x": 51,
+              "y": 787,
+              "top": 787,
+              "bottom": 831,
+              "width": 92,
+              "height": 44
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 18px",
+              "margin": "0px",
+              "background": "rgb(27, 29, 33)",
+              "color": "rgb(244, 241, 233)",
+              "border": "0px none rgb(244, 241, 233)",
+              "borderColor": "rgb(244, 241, 233)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "600",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "background-color 0.2s, transform 0.18s cubic-bezier(0.22, 0.8, 0.3, 1), opacity 0.2s",
+              "width": "92px",
+              "height": "44px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "unavailable": null,
+          "imageCount": 1
+        }
+      ],
+      "doc": {
+        "scrollWidth": 768,
+        "clientWidth": 768,
+        "scrollHeight": 1024
+      }
+    },
+    "empty-768": {
+      "exists": false,
+      "region": null,
+      "grid": null,
+      "cards": [],
+      "doc": {
+        "scrollWidth": 768,
+        "clientWidth": 768,
+        "scrollHeight": 1024
+      }
+    },
+    "results-1440": {
+      "exists": true,
+      "region": {
+        "rect": {
+          "x": 467,
+          "y": 48,
+          "top": 48,
+          "bottom": 1614,
+          "width": 760,
+          "height": 1566
+        },
+        "text": "智能生图助手\n\n图片和当时实际使用的提示词都按版本保留。默认继续使用最新版本，查看旧版本不会改变修改基准。\n\n该版本图片不可用\n\n历史版本\n版本 1 · 需求 v1\n\n已撤销的历史版本\n\n600×800\n\n该版本提示词不可用\n下载原图\n在结果页只读查看\n\n发布于 2026/11/8 18:00:00\n\n查看大图\n\n当前版本\n版本 2 · 需求 v2\n\n当前发布版本\n\n600×800\n\n图片已经生成，可以保存使用了。\n\n该版本提示词不可用\n下载原图\n在结果页只读查看\n\n发布于 2026/11/8 18:00:00\n\n查看大图\n\n最新已发布\n版本 3 · 需求 v3\n\n最新已发布版本\n\n600×800\n\n该版本提示词不可用\n下载原图\n在结果页只读查看\n\n发布于 2026/11/8 18:00:00"
+      },
+      "grid": {
+        "rect": {
+          "x": 467,
+          "y": 137,
+          "top": 137,
+          "bottom": 1614,
+          "width": 760,
+          "height": 1478
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "transform": "none",
+          "transition": "all",
+          "width": "760px",
+          "height": "1477.66px",
+          "aspectRatio": "auto",
+          "objectFit": "fill",
+          "gridTemplateColumns": "372px 372px",
+          "gap": "16px"
+        },
+        "columns": "372px 372px",
+        "gap": "16px",
+        "cards": 3
+      },
+      "cards": [
+        {
+          "label": "版本 1 结果",
+          "classes": "message-bubble result-card",
+          "rect": {
+            "x": 467,
+            "y": 137,
+            "top": 137,
+            "bottom": 885,
+            "width": 372,
+            "height": 748
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "border-color 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "width": "372px",
+            "height": "748.328px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          },
+          "badge": {
+            "text": "历史版本",
+            "rect": {
+              "x": 480,
+              "y": 623,
+              "top": 623,
+              "bottom": 643,
+              "width": 66,
+              "height": 20
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 8px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(74, 79, 87)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderColor": "rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "12px",
+              "lineHeight": "18px",
+              "fontWeight": "500",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "66px",
+              "height": "20px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "media": null,
+          "title": "已撤销的历史版本",
+          "caption": "600×800",
+          "download": {
+            "tag": "BUTTON",
+            "disabled": true,
+            "ariaDisabled": "true",
+            "rect": {
+              "x": 480,
+              "y": 761,
+              "top": 761,
+              "bottom": 805,
+              "width": 94,
+              "height": 44
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 18px",
+              "margin": "0px",
+              "background": "rgb(239, 237, 230)",
+              "color": "rgb(99, 104, 112)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderColor": "rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "94px",
+              "height": "44px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "unavailable": {
+            "text": "该版本图片不可用",
+            "rect": {
+              "x": 480,
+              "y": 150,
+              "top": 150,
+              "bottom": 611,
+              "width": 346,
+              "height": 461
+            },
+            "style": {
+              "display": "flex",
+              "padding": "12px",
+              "margin": "0px",
+              "background": "rgb(239, 237, 230)",
+              "color": "rgb(74, 79, 87)",
+              "border": "0px none rgb(74, 79, 87)",
+              "borderColor": "rgb(74, 79, 87)",
+              "borderRadius": "8px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "346px",
+              "height": "461.328px",
+              "aspectRatio": "3 / 4",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "8px"
+            }
+          },
+          "imageCount": 0
+        },
+        {
+          "label": "版本 2 结果",
+          "classes": "message-bubble result-card is-clickable",
+          "rect": {
+            "x": 855,
+            "y": 137,
+            "top": 137,
+            "bottom": 885,
+            "width": 372,
+            "height": 748
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "border-color 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "width": "372px",
+            "height": "748.328px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          },
+          "badge": {
+            "text": "当前版本",
+            "rect": {
+              "x": 868,
+              "y": 623,
+              "top": 623,
+              "bottom": 643,
+              "width": 66,
+              "height": 20
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 8px",
+              "margin": "0px",
+              "background": "rgb(236, 234, 227)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(201, 200, 194)",
+              "borderColor": "rgb(201, 200, 194)",
+              "borderRadius": "999px",
+              "fontSize": "12px",
+              "lineHeight": "18px",
+              "fontWeight": "500",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "66px",
+              "height": "20px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "media": {
+            "rect": {
+              "x": 868,
+              "y": 150,
+              "top": 150,
+              "bottom": 611,
+              "width": 346,
+              "height": 461
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px",
+              "margin": "0px",
+              "background": "rgb(233, 230, 222)",
+              "color": "rgb(0, 0, 238)",
+              "border": "0px none rgb(0, 0, 238)",
+              "borderColor": "rgb(0, 0, 238)",
+              "borderRadius": "8px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "346px",
+              "height": "461.328px",
+              "aspectRatio": "3 / 4",
+              "objectFit": "cover",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            },
+            "src": "/api/assets/asset-v5-2",
+            "width": "600",
+            "height": "800"
+          },
+          "title": "当前发布版本",
+          "caption": "600×800",
+          "download": {
+            "tag": "BUTTON",
+            "disabled": true,
+            "ariaDisabled": "true",
+            "rect": {
+              "x": 868,
+              "y": 796,
+              "top": 796,
+              "bottom": 840,
+              "width": 94,
+              "height": 44
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 18px",
+              "margin": "0px",
+              "background": "rgb(239, 237, 230)",
+              "color": "rgb(99, 104, 112)",
+              "border": "1px solid rgb(223, 221, 213)",
+              "borderColor": "rgb(223, 221, 213)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "94px",
+              "height": "44px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "unavailable": null,
+          "imageCount": 1
+        },
+        {
+          "label": "版本 3 结果",
+          "classes": "message-bubble result-card is-clickable",
+          "rect": {
+            "x": 467,
+            "y": 901,
+            "top": 901,
+            "bottom": 1614,
+            "width": 372,
+            "height": 713
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "border-color 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "width": "372px",
+            "height": "713.328px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          },
+          "badge": {
+            "text": "最新已发布",
+            "rect": {
+              "x": 480,
+              "y": 1387,
+              "top": 1387,
+              "bottom": 1407,
+              "width": 78,
+              "height": 20
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 8px",
+              "margin": "0px",
+              "background": "rgb(252, 251, 247)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(201, 200, 194)",
+              "borderColor": "rgb(201, 200, 194)",
+              "borderRadius": "999px",
+              "fontSize": "12px",
+              "lineHeight": "18px",
+              "fontWeight": "500",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "78px",
+              "height": "20px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "media": {
+            "rect": {
+              "x": 480,
+              "y": 914,
+              "top": 914,
+              "bottom": 1375,
+              "width": 346,
+              "height": 461
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px",
+              "margin": "0px",
+              "background": "rgb(233, 230, 222)",
+              "color": "rgb(0, 0, 238)",
+              "border": "0px none rgb(0, 0, 238)",
+              "borderColor": "rgb(0, 0, 238)",
+              "borderRadius": "8px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "346px",
+              "height": "461.328px",
+              "aspectRatio": "3 / 4",
+              "objectFit": "cover",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            },
+            "src": "/api/assets/asset-v5-3",
+            "width": "600",
+            "height": "800"
+          },
+          "title": "最新已发布版本",
+          "caption": "600×800",
+          "download": {
+            "tag": "A",
+            "disabled": false,
+            "ariaDisabled": null,
+            "rect": {
+              "x": 480,
+              "y": 1525,
+              "top": 1525,
+              "bottom": 1569,
+              "width": 92,
+              "height": 44
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 18px",
+              "margin": "0px",
+              "background": "rgb(27, 29, 33)",
+              "color": "rgb(244, 241, 233)",
+              "border": "0px none rgb(244, 241, 233)",
+              "borderColor": "rgb(244, 241, 233)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "600",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "background-color 0.2s, transform 0.18s cubic-bezier(0.22, 0.8, 0.3, 1), opacity 0.2s",
+              "width": "92px",
+              "height": "44px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "unavailable": null,
+          "imageCount": 1
+        }
+      ],
+      "doc": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 900
+      }
+    },
+    "single-1440": {
+      "exists": true,
+      "region": {
+        "rect": {
+          "x": 467,
+          "y": 48,
+          "top": 48,
+          "bottom": 885,
+          "width": 760,
+          "height": 837
+        },
+        "text": "智能生图助手\n\n图片和当时实际使用的提示词都按版本保留。默认继续使用最新版本，查看旧版本不会改变修改基准。\n\n查看大图\n\n当前版本\n版本 1 · 需求 v1\n\n单图结果\n\n600×800\n\n图片已经生成，可以保存使用了。\n\n该版本提示词不可用\n下载原图\n在结果页只读查看\n\n发布于 2026/11/8 18:00:00"
+      },
+      "grid": {
+        "rect": {
+          "x": 467,
+          "y": 137,
+          "top": 137,
+          "bottom": 885,
+          "width": 760,
+          "height": 748
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "transform": "none",
+          "transition": "all",
+          "width": "760px",
+          "height": "748.328px",
+          "aspectRatio": "auto",
+          "objectFit": "fill",
+          "gridTemplateColumns": "372px 372px",
+          "gap": "16px"
+        },
+        "columns": "372px 372px",
+        "gap": "16px",
+        "cards": 1
+      },
+      "cards": [
+        {
+          "label": "版本 1 结果",
+          "classes": "message-bubble result-card is-clickable",
+          "rect": {
+            "x": 467,
+            "y": 137,
+            "top": 137,
+            "bottom": 885,
+            "width": 372,
+            "height": 748
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(252, 251, 247)",
+            "color": "rgb(27, 29, 33)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "14px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "border-color 0.12s cubic-bezier(0.22, 0.8, 0.3, 1)",
+            "width": "372px",
+            "height": "748.328px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          },
+          "badge": {
+            "text": "当前版本",
+            "rect": {
+              "x": 480,
+              "y": 623,
+              "top": 623,
+              "bottom": 643,
+              "width": 66,
+              "height": 20
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 8px",
+              "margin": "0px",
+              "background": "rgb(236, 234, 227)",
+              "color": "rgb(27, 29, 33)",
+              "border": "1px solid rgb(201, 200, 194)",
+              "borderColor": "rgb(201, 200, 194)",
+              "borderRadius": "999px",
+              "fontSize": "12px",
+              "lineHeight": "18px",
+              "fontWeight": "500",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "66px",
+              "height": "20px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "media": {
+            "rect": {
+              "x": 480,
+              "y": 150,
+              "top": 150,
+              "bottom": 611,
+              "width": 346,
+              "height": 461
+            },
+            "style": {
+              "display": "block",
+              "padding": "0px",
+              "margin": "0px",
+              "background": "rgb(233, 230, 222)",
+              "color": "rgb(0, 0, 238)",
+              "border": "0px none rgb(0, 0, 238)",
+              "borderColor": "rgb(0, 0, 238)",
+              "borderRadius": "8px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "400",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "all",
+              "width": "346px",
+              "height": "461.328px",
+              "aspectRatio": "3 / 4",
+              "objectFit": "cover",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            },
+            "src": "/api/assets/asset-v5-single",
+            "width": "600",
+            "height": "800"
+          },
+          "title": "单图结果",
+          "caption": "600×800",
+          "download": {
+            "tag": "A",
+            "disabled": false,
+            "ariaDisabled": null,
+            "rect": {
+              "x": 480,
+              "y": 796,
+              "top": 796,
+              "bottom": 840,
+              "width": 92,
+              "height": 44
+            },
+            "style": {
+              "display": "flex",
+              "padding": "0px 18px",
+              "margin": "0px",
+              "background": "rgb(27, 29, 33)",
+              "color": "rgb(244, 241, 233)",
+              "border": "0px none rgb(244, 241, 233)",
+              "borderColor": "rgb(244, 241, 233)",
+              "borderRadius": "999px",
+              "fontSize": "14px",
+              "lineHeight": "22px",
+              "fontWeight": "600",
+              "opacity": "1",
+              "boxShadow": "none",
+              "transform": "none",
+              "transition": "background-color 0.2s, transform 0.18s cubic-bezier(0.22, 0.8, 0.3, 1), opacity 0.2s",
+              "width": "92px",
+              "height": "44px",
+              "aspectRatio": "auto",
+              "objectFit": "fill",
+              "gridTemplateColumns": "none",
+              "gap": "normal"
+            }
+          },
+          "unavailable": null,
+          "imageCount": 1
+        }
+      ],
+      "doc": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 900
+      }
+    },
+    "empty-1440": {
+      "exists": false,
+      "region": null,
+      "grid": null,
+      "cards": [],
+      "doc": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 900
+      }
+    }
+  },
+  "lightbox": {
+    "lightbox-320": {
+      "open": true,
+      "dialog": {
+        "role": "dialog",
+        "ariaModal": "true",
+        "label": "图片大图",
+        "text": "",
+        "rect": {
+          "x": 16,
+          "y": 211,
+          "top": 211,
+          "bottom": 589,
+          "width": 288,
+          "height": 379,
+          "centerX": 160
+        },
+        "style": {
+          "position": "relative",
+          "padding": "8px",
+          "background": "rgb(252, 251, 247)",
+          "borderRadius": "19px",
+          "boxShadow": "rgba(12, 14, 17, 0.24) 0px 24px 64px 0px",
+          "maxWidth": "288px",
+          "maxHeight": "none",
+          "width": "288px",
+          "height": "378.656px",
+          "objectFit": "fill",
+          "transition": "all"
+        }
+      },
+      "layer": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "top": 0,
+          "bottom": 800,
+          "width": 320,
+          "height": 800,
+          "centerX": 160
+        },
+        "style": {
+          "position": "fixed",
+          "padding": "16px",
+          "background": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "maxWidth": "none",
+          "maxHeight": "none",
+          "width": "320px",
+          "height": "800px",
+          "objectFit": "fill",
+          "transition": "opacity 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)"
+        }
+      },
+      "image": {
+        "rect": {
+          "x": 24,
+          "y": 219,
+          "top": 219,
+          "bottom": 581,
+          "width": 272,
+          "height": 363,
+          "centerX": 160
+        },
+        "style": {
+          "position": "static",
+          "padding": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "borderRadius": "8px",
+          "boxShadow": "none",
+          "maxWidth": "100%",
+          "maxHeight": "688px",
+          "width": "271.984px",
+          "height": "362.656px",
+          "objectFit": "contain",
+          "transition": "all"
+        },
+        "src": "/api/assets/asset-v5-2",
+        "alt": "当前发布版本"
+      },
+      "close": {
+        "rect": {
+          "x": 252,
+          "y": 219,
+          "top": 219,
+          "bottom": 263,
+          "width": 44,
+          "height": 44,
+          "centerX": 274
+        },
+        "style": {
+          "position": "absolute",
+          "padding": "0px",
+          "background": "rgb(252, 251, 247)",
+          "borderRadius": "8px",
+          "boxShadow": "none",
+          "maxWidth": "none",
+          "maxHeight": "none",
+          "width": "44px",
+          "height": "44px",
+          "objectFit": "fill",
+          "transition": "all"
+        },
+        "label": "关闭大图"
+      },
+      "scrim": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "top": 0,
+          "bottom": 800,
+          "width": 320,
+          "height": 800,
+          "centerX": 160
+        },
+        "style": {
+          "position": "absolute",
+          "padding": "0px",
+          "background": "rgba(12, 14, 17, 0.4)",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "maxWidth": "none",
+          "maxHeight": "none",
+          "width": "320px",
+          "height": "800px",
+          "objectFit": "fill",
+          "transition": "all"
+        }
+      },
+      "bodyOverflow": "hidden",
+      "appInert": true,
+      "active": {
+        "tag": "BUTTON",
+        "label": "关闭大图",
+        "cls": "lightbox-close"
+      },
+      "doc": {
+        "scrollWidth": 320,
+        "clientWidth": 320
+      }
+    },
+    "lightbox-1440": {
+      "open": true,
+      "dialog": {
+        "role": "dialog",
+        "ariaModal": "true",
+        "label": "图片大图",
+        "text": "",
+        "rect": {
+          "x": 418,
+          "y": 51,
+          "top": 51,
+          "bottom": 849,
+          "width": 605,
+          "height": 798,
+          "centerX": 720
+        },
+        "style": {
+          "position": "relative",
+          "padding": "12px",
+          "background": "rgb(252, 251, 247)",
+          "borderRadius": "19px",
+          "boxShadow": "rgba(12, 14, 17, 0.24) 0px 24px 64px 0px",
+          "maxWidth": "1408px",
+          "maxHeight": "none",
+          "width": "604.5px",
+          "height": "798px",
+          "objectFit": "fill",
+          "transition": "all"
+        }
+      },
+      "layer": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "top": 0,
+          "bottom": 900,
+          "width": 1440,
+          "height": 900,
+          "centerX": 720
+        },
+        "style": {
+          "position": "fixed",
+          "padding": "16px",
+          "background": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "maxWidth": "none",
+          "maxHeight": "none",
+          "width": "1440px",
+          "height": "900px",
+          "objectFit": "fill",
+          "transition": "opacity 0.18s cubic-bezier(0.22, 0.8, 0.3, 1)"
+        }
+      },
+      "image": {
+        "rect": {
+          "x": 430,
+          "y": 63,
+          "top": 63,
+          "bottom": 837,
+          "width": 581,
+          "height": 774,
+          "centerX": 720
+        },
+        "style": {
+          "position": "static",
+          "padding": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "borderRadius": "8px",
+          "boxShadow": "none",
+          "maxWidth": "1120px",
+          "maxHeight": "774px",
+          "width": "580.5px",
+          "height": "774px",
+          "objectFit": "contain",
+          "transition": "all"
+        },
+        "src": "/api/assets/asset-v5-2",
+        "alt": "当前发布版本"
+      },
+      "close": {
+        "rect": {
+          "x": 970,
+          "y": 59,
+          "top": 59,
+          "bottom": 103,
+          "width": 44,
+          "height": 44,
+          "centerX": 992
+        },
+        "style": {
+          "position": "absolute",
+          "padding": "0px",
+          "background": "rgb(252, 251, 247)",
+          "borderRadius": "8px",
+          "boxShadow": "none",
+          "maxWidth": "none",
+          "maxHeight": "none",
+          "width": "44px",
+          "height": "44px",
+          "objectFit": "fill",
+          "transition": "all"
+        },
+        "label": "关闭大图"
+      },
+      "scrim": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "top": 0,
+          "bottom": 900,
+          "width": 1440,
+          "height": 900,
+          "centerX": 720
+        },
+        "style": {
+          "position": "absolute",
+          "padding": "0px",
+          "background": "rgba(12, 14, 17, 0.4)",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "maxWidth": "none",
+          "maxHeight": "none",
+          "width": "1440px",
+          "height": "900px",
+          "objectFit": "fill",
+          "transition": "all"
+        }
+      },
+      "bodyOverflow": "hidden",
+      "appInert": true,
+      "active": {
+        "tag": "BUTTON",
+        "label": "关闭大图",
+        "cls": "lightbox-close"
+      },
+      "doc": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "results grid 320",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 16,
+          "y": 206,
+          "top": 206,
+          "bottom": 2037,
+          "width": 278,
+          "height": 1831
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "transform": "none",
+          "transition": "all",
+          "width": "278px",
+          "height": "1831px",
+          "aspectRatio": "auto",
+          "objectFit": "fill",
+          "gridTemplateColumns": "278px",
+          "gap": "16px"
+        },
+        "columns": "278px",
+        "gap": "16px",
+        "cards": 3
+      }
+    },
+    {
+      "name": "results columns 320",
+      "ok": true,
+      "detail": "278px"
+    },
+    {
+      "name": "results gap 320",
+      "ok": true,
+      "detail": "16px"
+    },
+    {
+      "name": "results card count 320",
+      "ok": true,
+      "detail": 3
+    },
+    {
+      "name": "results card padding 320",
+      "ok": true,
+      "detail": [
+        "12px",
+        "12px",
+        "12px"
+      ]
+    },
+    {
+      "name": "results media ratio 320",
+      "ok": true,
+      "detail": [
+        null,
+        {
+          "w": 252,
+          "h": 336
+        },
+        {
+          "w": 252,
+          "h": 336
+        }
+      ]
+    },
+    {
+      "name": "results badges 320",
+      "ok": true,
+      "detail": [
+        "历史版本",
+        "当前版本",
+        "最新已发布"
+      ]
+    },
+    {
+      "name": "results disabled 320",
+      "ok": true,
+      "detail": [
+        {
+          "tag": "BUTTON",
+          "disabled": true,
+          "ariaDisabled": "true",
+          "rect": {
+            "x": 29,
+            "y": 705,
+            "top": 705,
+            "bottom": 749,
+            "width": 94,
+            "height": 44
+          },
+          "style": {
+            "display": "flex",
+            "padding": "0px 18px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(99, 104, 112)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "all",
+            "width": "94px",
+            "height": "44px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        {
+          "tag": "BUTTON",
+          "disabled": true,
+          "ariaDisabled": "true",
+          "rect": {
+            "x": 29,
+            "y": 1344,
+            "top": 1344,
+            "bottom": 1388,
+            "width": 94,
+            "height": 44
+          },
+          "style": {
+            "display": "flex",
+            "padding": "0px 18px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(99, 104, 112)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "all",
+            "width": "94px",
+            "height": "44px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        {
+          "tag": "A",
+          "disabled": false,
+          "ariaDisabled": null,
+          "rect": {
+            "x": 29,
+            "y": 1948,
+            "top": 1948,
+            "bottom": 1992,
+            "width": 92,
+            "height": 44
+          },
+          "style": {
+            "display": "flex",
+            "padding": "0px 18px",
+            "margin": "0px",
+            "background": "rgb(27, 29, 33)",
+            "color": "rgb(244, 241, 233)",
+            "border": "0px none rgb(244, 241, 233)",
+            "borderColor": "rgb(244, 241, 233)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "600",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "background-color 0.2s, transform 0.18s cubic-bezier(0.22, 0.8, 0.3, 1), opacity 0.2s",
+            "width": "92px",
+            "height": "44px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        }
+      ]
+    },
+    {
+      "name": "results unavailable 320",
+      "ok": true,
+      "detail": [
+        {
+          "text": "该版本图片不可用",
+          "rect": {
+            "x": 29,
+            "y": 219,
+            "top": 219,
+            "bottom": 555,
+            "width": 252,
+            "height": 336
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderColor": "rgb(74, 79, 87)",
+            "borderRadius": "8px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "all",
+            "width": "252px",
+            "height": "336px",
+            "aspectRatio": "3 / 4",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "8px"
+          }
+        },
+        null,
+        null
+      ]
+    },
+    {
+      "name": "results no hscroll 320",
+      "ok": true,
+      "detail": {
+        "scrollWidth": 320,
+        "clientWidth": 320,
+        "scrollHeight": 800
+      }
+    },
+    {
+      "name": "single card 320",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 16,
+          "y": 206,
+          "top": 206,
+          "bottom": 829,
+          "width": 278,
+          "height": 623
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "transform": "none",
+          "transition": "all",
+          "width": "278px",
+          "height": "623px",
+          "aspectRatio": "auto",
+          "objectFit": "fill",
+          "gridTemplateColumns": "278px",
+          "gap": "16px"
+        },
+        "columns": "278px",
+        "gap": "16px",
+        "cards": 1
+      }
+    },
+    {
+      "name": "empty history 320",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "name": "lightbox dialog 320",
+      "ok": true,
+      "detail": {
+        "role": "dialog",
+        "ariaModal": "true",
+        "label": "图片大图",
+        "text": "",
+        "rect": {
+          "x": 16,
+          "y": 211,
+          "top": 211,
+          "bottom": 589,
+          "width": 288,
+          "height": 379,
+          "centerX": 160
+        },
+        "style": {
+          "position": "relative",
+          "padding": "8px",
+          "background": "rgb(252, 251, 247)",
+          "borderRadius": "19px",
+          "boxShadow": "rgba(12, 14, 17, 0.24) 0px 24px 64px 0px",
+          "maxWidth": "288px",
+          "maxHeight": "none",
+          "width": "288px",
+          "height": "378.656px",
+          "objectFit": "fill",
+          "transition": "all"
+        }
+      }
+    },
+    {
+      "name": "lightbox text 320",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lightbox close 320",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 252,
+          "y": 219,
+          "top": 219,
+          "bottom": 263,
+          "width": 44,
+          "height": 44,
+          "centerX": 274
+        },
+        "style": {
+          "position": "absolute",
+          "padding": "0px",
+          "background": "rgb(252, 251, 247)",
+          "borderRadius": "8px",
+          "boxShadow": "none",
+          "maxWidth": "none",
+          "maxHeight": "none",
+          "width": "44px",
+          "height": "44px",
+          "objectFit": "fill",
+          "transition": "all"
+        },
+        "label": "关闭大图"
+      }
+    },
+    {
+      "name": "lightbox scrim 320",
+      "ok": true,
+      "detail": "rgba(12, 14, 17, 0.4)"
+    },
+    {
+      "name": "lightbox centered 320",
+      "ok": true,
+      "detail": {
+        "x": 16,
+        "y": 211,
+        "top": 211,
+        "bottom": 589,
+        "width": 288,
+        "height": 379,
+        "centerX": 160
+      }
+    },
+    {
+      "name": "lightbox image bounds 320",
+      "ok": true,
+      "detail": {
+        "x": 24,
+        "y": 219,
+        "top": 219,
+        "bottom": 581,
+        "width": 272,
+        "height": 363,
+        "centerX": 160
+      }
+    },
+    {
+      "name": "lightbox focus 320",
+      "ok": true,
+      "detail": {
+        "tag": "BUTTON",
+        "label": "关闭大图",
+        "cls": "lightbox-close"
+      }
+    },
+    {
+      "name": "lightbox inert 320",
+      "ok": true,
+      "detail": {
+        "appInert": true,
+        "overflow": "hidden"
+      }
+    },
+    {
+      "name": "lightbox tab trap 320",
+      "ok": true,
+      "detail": "关闭大图"
+    },
+    {
+      "name": "lightbox esc 320",
+      "ok": true,
+      "detail": {
+        "open": false,
+        "focus": "result-media-link",
+        "overflow": "",
+        "inert": false
+      }
+    },
+    {
+      "name": "lightbox backdrop 320",
+      "ok": true,
+      "detail": {
+        "open": false,
+        "focus": "result-media-link"
+      }
+    },
+    {
+      "name": "lightbox button close 320",
+      "ok": true,
+      "detail": {
+        "open": false,
+        "focus": "result-media-link"
+      }
+    },
+    {
+      "name": "results grid 768",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 38,
+          "y": 137,
+          "top": 137,
+          "bottom": 1509,
+          "width": 681,
+          "height": 1373
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "transform": "none",
+          "transition": "all",
+          "width": "681.219px",
+          "height": "1372.62px",
+          "aspectRatio": "auto",
+          "objectFit": "fill",
+          "gridTemplateColumns": "332.609px 332.609px",
+          "gap": "16px"
+        },
+        "columns": "332.609px 332.609px",
+        "gap": "16px",
+        "cards": 3
+      }
+    },
+    {
+      "name": "results columns 768",
+      "ok": true,
+      "detail": "332.609px 332.609px"
+    },
+    {
+      "name": "results gap 768",
+      "ok": true,
+      "detail": "16px"
+    },
+    {
+      "name": "results card count 768",
+      "ok": true,
+      "detail": 3
+    },
+    {
+      "name": "results card padding 768",
+      "ok": true,
+      "detail": [
+        "12px",
+        "12px",
+        "12px"
+      ]
+    },
+    {
+      "name": "results media ratio 768",
+      "ok": true,
+      "detail": [
+        null,
+        {
+          "w": 307,
+          "h": 409
+        },
+        {
+          "w": 307,
+          "h": 409
+        }
+      ]
+    },
+    {
+      "name": "results badges 768",
+      "ok": true,
+      "detail": [
+        "历史版本",
+        "当前版本",
+        "最新已发布"
+      ]
+    },
+    {
+      "name": "results disabled 768",
+      "ok": true,
+      "detail": [
+        {
+          "tag": "BUTTON",
+          "disabled": true,
+          "ariaDisabled": "true",
+          "rect": {
+            "x": 51,
+            "y": 709,
+            "top": 709,
+            "bottom": 753,
+            "width": 94,
+            "height": 44
+          },
+          "style": {
+            "display": "flex",
+            "padding": "0px 18px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(99, 104, 112)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "all",
+            "width": "94px",
+            "height": "44px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        {
+          "tag": "BUTTON",
+          "disabled": true,
+          "ariaDisabled": "true",
+          "rect": {
+            "x": 400,
+            "y": 744,
+            "top": 744,
+            "bottom": 788,
+            "width": 94,
+            "height": 44
+          },
+          "style": {
+            "display": "flex",
+            "padding": "0px 18px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(99, 104, 112)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "all",
+            "width": "94px",
+            "height": "44px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        {
+          "tag": "A",
+          "disabled": false,
+          "ariaDisabled": null,
+          "rect": {
+            "x": 51,
+            "y": 1420,
+            "top": 1420,
+            "bottom": 1464,
+            "width": 92,
+            "height": 44
+          },
+          "style": {
+            "display": "flex",
+            "padding": "0px 18px",
+            "margin": "0px",
+            "background": "rgb(27, 29, 33)",
+            "color": "rgb(244, 241, 233)",
+            "border": "0px none rgb(244, 241, 233)",
+            "borderColor": "rgb(244, 241, 233)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "600",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "background-color 0.2s, transform 0.18s cubic-bezier(0.22, 0.8, 0.3, 1), opacity 0.2s",
+            "width": "92px",
+            "height": "44px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        }
+      ]
+    },
+    {
+      "name": "results unavailable 768",
+      "ok": true,
+      "detail": [
+        {
+          "text": "该版本图片不可用",
+          "rect": {
+            "x": 51,
+            "y": 150,
+            "top": 150,
+            "bottom": 559,
+            "width": 307,
+            "height": 409
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderColor": "rgb(74, 79, 87)",
+            "borderRadius": "8px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "all",
+            "width": "306.609px",
+            "height": "408.812px",
+            "aspectRatio": "3 / 4",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "8px"
+          }
+        },
+        null,
+        null
+      ]
+    },
+    {
+      "name": "results no hscroll 768",
+      "ok": true,
+      "detail": {
+        "scrollWidth": 768,
+        "clientWidth": 768,
+        "scrollHeight": 1024
+      }
+    },
+    {
+      "name": "single card 768",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 38,
+          "y": 180,
+          "top": 180,
+          "bottom": 876,
+          "width": 681,
+          "height": 696
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "transform": "none",
+          "transition": "all",
+          "width": "681.219px",
+          "height": "695.812px",
+          "aspectRatio": "auto",
+          "objectFit": "fill",
+          "gridTemplateColumns": "332.609px 332.609px",
+          "gap": "16px"
+        },
+        "columns": "332.609px 332.609px",
+        "gap": "16px",
+        "cards": 1
+      }
+    },
+    {
+      "name": "empty history 768",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "name": "results grid 1440",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 467,
+          "y": 137,
+          "top": 137,
+          "bottom": 1614,
+          "width": 760,
+          "height": 1478
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "transform": "none",
+          "transition": "all",
+          "width": "760px",
+          "height": "1477.66px",
+          "aspectRatio": "auto",
+          "objectFit": "fill",
+          "gridTemplateColumns": "372px 372px",
+          "gap": "16px"
+        },
+        "columns": "372px 372px",
+        "gap": "16px",
+        "cards": 3
+      }
+    },
+    {
+      "name": "results columns 1440",
+      "ok": true,
+      "detail": "372px 372px"
+    },
+    {
+      "name": "results gap 1440",
+      "ok": true,
+      "detail": "16px"
+    },
+    {
+      "name": "results card count 1440",
+      "ok": true,
+      "detail": 3
+    },
+    {
+      "name": "results card padding 1440",
+      "ok": true,
+      "detail": [
+        "12px",
+        "12px",
+        "12px"
+      ]
+    },
+    {
+      "name": "results media ratio 1440",
+      "ok": true,
+      "detail": [
+        null,
+        {
+          "w": 346,
+          "h": 461
+        },
+        {
+          "w": 346,
+          "h": 461
+        }
+      ]
+    },
+    {
+      "name": "results badges 1440",
+      "ok": true,
+      "detail": [
+        "历史版本",
+        "当前版本",
+        "最新已发布"
+      ]
+    },
+    {
+      "name": "results disabled 1440",
+      "ok": true,
+      "detail": [
+        {
+          "tag": "BUTTON",
+          "disabled": true,
+          "ariaDisabled": "true",
+          "rect": {
+            "x": 480,
+            "y": 761,
+            "top": 761,
+            "bottom": 805,
+            "width": 94,
+            "height": 44
+          },
+          "style": {
+            "display": "flex",
+            "padding": "0px 18px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(99, 104, 112)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "all",
+            "width": "94px",
+            "height": "44px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        {
+          "tag": "BUTTON",
+          "disabled": true,
+          "ariaDisabled": "true",
+          "rect": {
+            "x": 868,
+            "y": 796,
+            "top": 796,
+            "bottom": 840,
+            "width": 94,
+            "height": 44
+          },
+          "style": {
+            "display": "flex",
+            "padding": "0px 18px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(99, 104, 112)",
+            "border": "1px solid rgb(223, 221, 213)",
+            "borderColor": "rgb(223, 221, 213)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "all",
+            "width": "94px",
+            "height": "44px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        },
+        {
+          "tag": "A",
+          "disabled": false,
+          "ariaDisabled": null,
+          "rect": {
+            "x": 480,
+            "y": 1525,
+            "top": 1525,
+            "bottom": 1569,
+            "width": 92,
+            "height": 44
+          },
+          "style": {
+            "display": "flex",
+            "padding": "0px 18px",
+            "margin": "0px",
+            "background": "rgb(27, 29, 33)",
+            "color": "rgb(244, 241, 233)",
+            "border": "0px none rgb(244, 241, 233)",
+            "borderColor": "rgb(244, 241, 233)",
+            "borderRadius": "999px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "600",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "background-color 0.2s, transform 0.18s cubic-bezier(0.22, 0.8, 0.3, 1), opacity 0.2s",
+            "width": "92px",
+            "height": "44px",
+            "aspectRatio": "auto",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "normal"
+          }
+        }
+      ]
+    },
+    {
+      "name": "results unavailable 1440",
+      "ok": true,
+      "detail": [
+        {
+          "text": "该版本图片不可用",
+          "rect": {
+            "x": 480,
+            "y": 150,
+            "top": 150,
+            "bottom": 611,
+            "width": 346,
+            "height": 461
+          },
+          "style": {
+            "display": "flex",
+            "padding": "12px",
+            "margin": "0px",
+            "background": "rgb(239, 237, 230)",
+            "color": "rgb(74, 79, 87)",
+            "border": "0px none rgb(74, 79, 87)",
+            "borderColor": "rgb(74, 79, 87)",
+            "borderRadius": "8px",
+            "fontSize": "14px",
+            "lineHeight": "22px",
+            "fontWeight": "400",
+            "opacity": "1",
+            "boxShadow": "none",
+            "transform": "none",
+            "transition": "all",
+            "width": "346px",
+            "height": "461.328px",
+            "aspectRatio": "3 / 4",
+            "objectFit": "fill",
+            "gridTemplateColumns": "none",
+            "gap": "8px"
+          }
+        },
+        null,
+        null
+      ]
+    },
+    {
+      "name": "results no hscroll 1440",
+      "ok": true,
+      "detail": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 900
+      }
+    },
+    {
+      "name": "single card 1440",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 467,
+          "y": 137,
+          "top": 137,
+          "bottom": 885,
+          "width": 760,
+          "height": 748
+        },
+        "style": {
+          "display": "grid",
+          "padding": "0px",
+          "margin": "0px",
+          "background": "rgba(0, 0, 0, 0)",
+          "color": "rgb(27, 29, 33)",
+          "border": "0px none rgb(27, 29, 33)",
+          "borderColor": "rgb(27, 29, 33)",
+          "borderRadius": "0px",
+          "fontSize": "14px",
+          "lineHeight": "22px",
+          "fontWeight": "400",
+          "opacity": "1",
+          "boxShadow": "none",
+          "transform": "none",
+          "transition": "all",
+          "width": "760px",
+          "height": "748.328px",
+          "aspectRatio": "auto",
+          "objectFit": "fill",
+          "gridTemplateColumns": "372px 372px",
+          "gap": "16px"
+        },
+        "columns": "372px 372px",
+        "gap": "16px",
+        "cards": 1
+      }
+    },
+    {
+      "name": "empty history 1440",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "name": "lightbox dialog 1440",
+      "ok": true,
+      "detail": {
+        "role": "dialog",
+        "ariaModal": "true",
+        "label": "图片大图",
+        "text": "",
+        "rect": {
+          "x": 418,
+          "y": 51,
+          "top": 51,
+          "bottom": 849,
+          "width": 605,
+          "height": 798,
+          "centerX": 720
+        },
+        "style": {
+          "position": "relative",
+          "padding": "12px",
+          "background": "rgb(252, 251, 247)",
+          "borderRadius": "19px",
+          "boxShadow": "rgba(12, 14, 17, 0.24) 0px 24px 64px 0px",
+          "maxWidth": "1408px",
+          "maxHeight": "none",
+          "width": "604.5px",
+          "height": "798px",
+          "objectFit": "fill",
+          "transition": "all"
+        }
+      }
+    },
+    {
+      "name": "lightbox text 1440",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "lightbox close 1440",
+      "ok": true,
+      "detail": {
+        "rect": {
+          "x": 970,
+          "y": 59,
+          "top": 59,
+          "bottom": 103,
+          "width": 44,
+          "height": 44,
+          "centerX": 992
+        },
+        "style": {
+          "position": "absolute",
+          "padding": "0px",
+          "background": "rgb(252, 251, 247)",
+          "borderRadius": "8px",
+          "boxShadow": "none",
+          "maxWidth": "none",
+          "maxHeight": "none",
+          "width": "44px",
+          "height": "44px",
+          "objectFit": "fill",
+          "transition": "all"
+        },
+        "label": "关闭大图"
+      }
+    },
+    {
+      "name": "lightbox scrim 1440",
+      "ok": true,
+      "detail": "rgba(12, 14, 17, 0.4)"
+    },
+    {
+      "name": "lightbox centered 1440",
+      "ok": true,
+      "detail": {
+        "x": 418,
+        "y": 51,
+        "top": 51,
+        "bottom": 849,
+        "width": 605,
+        "height": 798,
+        "centerX": 720
+      }
+    },
+    {
+      "name": "lightbox image bounds 1440",
+      "ok": true,
+      "detail": {
+        "x": 430,
+        "y": 63,
+        "top": 63,
+        "bottom": 837,
+        "width": 581,
+        "height": 774,
+        "centerX": 720
+      }
+    },
+    {
+      "name": "lightbox focus 1440",
+      "ok": true,
+      "detail": {
+        "tag": "BUTTON",
+        "label": "关闭大图",
+        "cls": "lightbox-close"
+      }
+    },
+    {
+      "name": "lightbox inert 1440",
+      "ok": true,
+      "detail": {
+        "appInert": true,
+        "overflow": "hidden"
+      }
+    },
+    {
+      "name": "lightbox tab trap 1440",
+      "ok": true,
+      "detail": "关闭大图"
+    },
+    {
+      "name": "lightbox esc 1440",
+      "ok": true,
+      "detail": {
+        "open": false,
+        "focus": "result-media-link",
+        "overflow": "",
+        "inert": false
+      }
+    },
+    {
+      "name": "lightbox backdrop 1440",
+      "ok": true,
+      "detail": {
+        "open": false,
+        "focus": "result-media-link"
+      }
+    },
+    {
+      "name": "lightbox button close 1440",
+      "ok": true,
+      "detail": {
+        "open": false,
+        "focus": "result-media-link"
+      }
+    }
+  ],
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+    "platform": "Win32",
+    "language": "zh-CN",
+    "timezone": "Asia/Shanghai",
+    "dpr": 1,
+    "screen": {
+      "width": 800,
+      "height": 600
+    },
+    "fonts": "\"Noto Sans SC\""
+  },
+  "browser": {
+    "Browser": "Edg/156.0.4314.58",
+    "File-Path-Style": "windows",
+    "Protocol-Version": "1.3",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+    "V8-Version": "15.6.12.10",
+    "WebKit-Version": "537.36 (@7806b68d20d1c1273d5b07b4f4de18e8f5852581)",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:3419/devtools/browser/b2d7516e-4e4e-44ee-97c3-83408230e99e"
+  },
+  "stats": {
+    "detailGets": 26
+  },
+  "steps": [
+    "在 visual/v3 的 b261329 上执行生产构建（NODE_OPTIONS 使用 .scratch/v2-ui/no-exec.cjs 规避本机 Vite spawn EPERM）。",
+    "启动 .scratch/v5-ui/mock-api.mjs（8795）与 .scratch/v2-ui/serve.mjs（8100，代理 /api 到 8795）。",
+    "用 headless Edge + CDP 依次设置 320×800、768×1024、1440×900 视口。",
+    "加载多版本项目 77777777-bbbb-4bbb-8bbb-777777777777，核对 3 张结果卡、2 列/单列网格、版本徽标、不可用图与禁用下载，并截图 v5-{width}-results.png。",
+    "加载单版本项目 66666666-aaaa-4aaa-8aaa-666666666666，核对单卡占一个网格项并截图 v5-{width}-single.png。",
+    "加载空历史项目 88888888-cccc-4ccc-8ccc-888888888888，确认无图片历史区域。",
+    "在 320 与 1440 视口打开第一张结果图灯箱，核对 role=dialog、aria-modal、焦点、scrim、尺寸、背景 inert 与滚动锁，并截图 v5-{width}-lightbox.png。",
+    "分别用 Esc、遮罩和关闭按钮关闭灯箱，确认焦点返回触发链接。",
+    "记录 DOM 计算样式、grid 列宽/间距、卡片/图片/灯箱尺寸、页面 scrollWidth 和 mock detail GET 统计。",
+    "归档 v5-browser-result.json 与 8 张截图。"
+  ],
+  "notes": {
+    "acceptanceHead": "b261329",
+    "implementation": "267cbe3",
+    "merge": "f3e6935",
+    "base": "cb39004",
+    "app": "http://127.0.0.1:8100",
+    "mock": "http://127.0.0.1:8795",
+    "fontStack": "\"Noto Sans SC\"",
+    "detailGets": 26
+  }
+}

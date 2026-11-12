@@ -1,0 +1,42 @@
+
+> ecommerce-image-workspace-dev@0.1.0 check
+> node scripts/check.mjs
+
+
+[check] dependency graph
+[check] dependency graph: D:\Desktop\新建文件夹\node_modules\vue-router
+
+[check] typecheck
+
+> ecommerce-image-workspace-dev@0.1.0 typecheck
+> vue-tsc --noEmit -p tsconfig.json
+
+
+[check] frontend tests
+
+> ecommerce-image-workspace-dev@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.5 D:/Desktop/新建文件夹
+
+
+ Test Files  29 passed (29)
+      Tests  226 passed (226)
+   Start at  09:32:27
+   Duration  8.25s (tests 40%, environment 38%, setup 17%, import 4%, transform 1%, worker 1%)
+
+Environment  jsdom was created 29 times · 38.61s total, 38% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+
+[check] backend lint
+All checks passed!
+
+[check] backend tests
+........................................................................ [ 70%]
+..............................                                           [100%]
+102 passed in 97.95s (0:01:37)
+
+[check] all stages passed

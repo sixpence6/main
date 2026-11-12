@@ -105,6 +105,7 @@ async def _append_message(
     role: str,
     content: str,
     revision: int,
+    turn_kind: str = "workflow",
 ) -> Message:
     async with write_transaction(ctx.session_factory) as session:
         project = await session.get(Project, ctx.project_id)
@@ -124,7 +125,7 @@ async def _append_message(
             project_revision=revision,
             brief_snapshot_json=None,
             operation_id=None,
-            turn_kind="workflow",
+            turn_kind=turn_kind,
             created_at=format_timestamp(utc_now()),
         )
         session.add(message)
@@ -239,15 +240,38 @@ def _validate_review(output: RoleOutput, target_id: str) -> None:
 
 
 async def _route(ctx: WorkflowContext, text: str) -> None:
+    from app.workflow import alignment
+
+    if ctx.consolidated and ctx.prepared_requirements is None and (
+        alignment.conversational(text) or alignment.commentary(text) or alignment.STOP.search(alignment.speech_text(text))
+        or alignment.DELEGATION.fullmatch(text.strip())
+    ):
+        from app.workflow.consolidated import classify_message
+
+        decision = await classify_message(ctx, text, False)
+        if decision.kind == "conversation" and ctx.prepared_requirements is None:
+            await _append_message(ctx, role="user", content=text,
+                                  revision=ctx.project.revision, turn_kind="conversation")
+            await _append_message(ctx, role="assistant", content=ctx.natural_reply or templates.render("INTENT_UNCLEAR"),
+                                  revision=ctx.project.revision, turn_kind="conversation")
+            # Explicit historical submit_request discussions used this idle stage.
+            # No brief or authorization is created, and ordinary greetings stay S01.
+            if alignment.STOP.search(alignment.speech_text(text)):
+                await set_stage(ctx, "S03", "needs_input")
+            elif ctx.run.status == "active":
+                # A conversation response cannot leave an initial submit action
+                # looking as though requirements are actively being prepared.
+                await set_stage(ctx, ctx.run.stage, "needs_input")
+            return
     user_message, revision = await _record_user_turn(ctx, text)
     evidence_id = user_message.id
     if ctx.consolidated:
         from app.workflow.stages import s03
 
-        await set_intent(ctx, "image_request", "new_request")
         # Scope and extraction are one assistant call in S03. A reference must
         # be observed first; its completion returns to the same assistant.
         if ctx.project.reference_asset_id and await s02.approved_report_for_current_asset(ctx) is None:
+            await set_intent(ctx, "image_request", "new_request")
             await set_stage(ctx, "S02", "active")
             await s02.analyze(ctx)
             return

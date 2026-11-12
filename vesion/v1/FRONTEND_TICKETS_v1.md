@@ -1,6 +1,6 @@
 # 电商生图智能体 v1 前端任务拆分
 
-来源：[父 Issue #1](https://github.com/a13295877929-gif/main/issues/1)。日期：2026-10-29。
+来源：[父 Issue #1](https://github.com/sixpence6/main/issues/1)。日期：2026-10-29。
 
 状态：用户已确认拆分；12 张任务票已发布为父 Issue #1 的子 Issue（#2–#13），均带 ready-for-agent 标签。已核对 12 份正文、父子关系和 16 条原生阻塞关系。T01–T12 是本拆分的标识，对应实际 Issue 链接见下方。
 
@@ -18,62 +18,62 @@
 1. **T01：打开空配置工作台并查看只读模型状态**  
    **Blocked by：** 无，可立即开始。  
    **交付：** 三种视口下可打开的工作台、只读配置抽屉、诚实空态及首条工作台／HTTP 测试。  
-   [已发布 #2](https://github.com/a13295877929-gif/main/issues/2)
+   [已发布 #2](https://github.com/sixpence6/main/issues/2)
 
 2. **T02：浏览已有项目并只读恢复对话与需求**  
    **Blocked by：** T01。  
    **交付：** 项目分页、选中和链接恢复到保存的消息、需求及真实状态，导航不调用模型。  
-   [已发布 #3](https://github.com/a13295877929-gif/main/issues/3)
+   [已发布 #3](https://github.com/sixpence6/main/issues/3)
 
 3. **T03：首次描述创建项目并完成澄清与需求整理**  
    **Blocked by：** T02。  
    **交付：** 有效首消息才创建项目，经 LLM 完整回复形成问题或需求卡，失败保留原文并可读回。  
-   [已发布 #4](https://github.com/a13295877929-gif/main/issues/4)
+   [已发布 #4](https://github.com/sixpence6/main/issues/4)
 
 4. **T04：编辑需求卡、单独保存整理并确认**  
    **Blocked by：** T03。  
    **交付：** 本地编辑／取消、保存失效、主动重新整理、同版本确认；保存不调用 LLM，确认不生图。  
-   [已发布 #5](https://github.com/a13295877929-gif/main/issues/5)
+   [已发布 #5](https://github.com/sixpence6/main/issues/5)
 
 5. **T05：上传、替换与移除单张参考图**  
    **Blocked by：** T04。  
    **交付：** 单图验证、上传优先创建项目、真实保存状态和修订失效，失败保留旧图及无图退路。  
-   [已发布 #6](https://github.com/a13295877929-gif/main/issues/6)
+   [已发布 #6](https://github.com/sixpence6/main/issues/6)
 
 6. **T06：按已确认需求生成首图并预览下载**  
    **Blocked by：** T04。  
    **交付：** 已确认文字需求明确提交一次，经基本状态查询得到可预览下载资源，含防重与待核实安全阻塞。  
-   [已发布 #7](https://github.com/a13295877929-gif/main/issues/7)
+   [已发布 #7](https://github.com/sixpence6/main/issues/7)
 
 7. **T07：安全切换项目、保留草稿并处理版本冲突**  
    **Blocked by：** T04。  
    **交付：** 脏草稿离开确认、取消恢复 URL／输入、旧读写响应隔离，以及 409 后保留副本和主动加载最新。  
-   [已发布 #8](https://github.com/a13295877929-gif/main/issues/8)
+   [已发布 #8](https://github.com/sixpence6/main/issues/8)
 
 8. **T08：反馈重生、浏览历史版本并逐版下载**  
    **Blocked by：** T06。  
    **交付：** 首图后反馈、再次确认生成、新旧版本独立预览下载；旧图不恢复旧需求，新图不打断主动选择。  
-   [已发布 #9](https://github.com/a13295877929-gif/main/issues/9)
+   [已发布 #9](https://github.com/sixpence6/main/issues/9)
 
 9. **T09：断网刷新后核实并恢复原次生成提交**  
    **Blocked by：** T06。  
    **交付：** 最小会话凭据、只读核实和用户明确同 ID／同参数恢复，存储损坏或丢失不自动新生图。  
-   [已发布 #10](https://github.com/a13295877929-gif/main/issues/10)
+   [已发布 #10](https://github.com/sixpence6/main/issues/10)
 
 10. **T10：查询断连、页面隐藏与重启后的只读恢复**  
     **Blocked by：** T06。  
     **交付：** 自动查询单路、连续三次读取失败暂停、手动 GET 恢复及页面可见性／重启行为。  
-    [已发布 #11](https://github.com/a13295877929-gif/main/issues/11)
+    [已发布 #11](https://github.com/sixpence6/main/issues/11)
 
 11. **T11：未知结果确认后再生成与现有结果重取**  
     **Blocked by：** T06。  
     **交付：** 服务端 unknown 后明确风险确认的新生成，以及 RESULT_FETCH_FAILED 只重取同一结果的独立路径。  
-    [已发布 #12](https://github.com/a13295877929-gif/main/issues/12)
+    [已发布 #12](https://github.com/sixpence6/main/issues/12)
 
 12. **T12：真实 API 联调与浏览器完整闭环验收**  
     **Blocked by：** T05、T07、T08、T09、T10、T11。  
     **交付：** 真实文字／参考图／反馈闭环及文件、刷新／重启、键盘和三种视口验收，全部接口依赖有核验记录。  
-    [已发布 #13](https://github.com/a13295877929-gif/main/issues/13)
+    [已发布 #13](https://github.com/sixpence6/main/issues/13)
 
 ## 依赖图
 
@@ -162,6 +162,6 @@ flowchart TD
 
 已按 T01–T12 顺序创建 #2–#13，并通过 GitHub 读取接口核对父子关系、16 条原生依赖、ready-for-agent 标签和正文一致性。任务正文的交叉引用使用实际 Issue 链接；原生关系已表达阻塞，正文省去重复的 Blocked by 段。
 
-当前 frontier 只有 T01／[#2](https://github.com/a13295877929-gif/main/issues/2)。T04／#5 完成后，T05／#6、T06／#7、T07／#8 可分别推进；T06／#7 完成后，T08–T11／#9–#12 各自解锁。
+当前 frontier 只有 T01／[#2](https://github.com/sixpence6/main/issues/2)。T04／#5 完成后，T05／#6、T06／#7、T07／#8 可分别推进；T06／#7 完成后，T08–T11／#9–#12 各自解锁。
 
 T12 还有明确外部前提：运行后端、真实 OpenAPI、两类模型本机配置及支持参考图的生图能力。缺少这些条件时保留未验收状态，不能用现有 12 张前端票内部的依赖关系冒充外部条件已经满足。

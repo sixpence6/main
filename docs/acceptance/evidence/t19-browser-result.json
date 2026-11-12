@@ -1,0 +1,2421 @@
+{
+  "schema": "t19-evidence/v1",
+  "ok": true,
+  "totals": {
+    "criteria": 8,
+    "passed_criteria": 8,
+    "steps": 96,
+    "passed_steps": 96,
+    "failed_steps": 0,
+    "known_defects": 0
+  },
+  "run_id": "20261108-235556",
+  "started_at": "2026-11-08T15:55:56.886Z",
+  "finished_at": "2026-11-08T15:56:38.262Z",
+  "git": {
+    "branch": "visual/v3",
+    "commit": "5fc0dd5",
+    "dirty": true
+  },
+  "environment": {
+    "os": "win32",
+    "os_release": "10.0.19045",
+    "node": "v26.13.0",
+    "browser": "Edg/156.0.4314.58",
+    "edge_path": "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+    "app_url": "http://127.0.0.1:8105",
+    "mock_url": "http://127.0.0.1:8106",
+    "font_stack": "system-ui, -apple-system, \"Segoe UI\", \"Microsoft YaHei\", sans-serif",
+    "viewports": [
+      "1440x900@1",
+      "768x1024@1",
+      "320x800@1",
+      "720x450@2 (200% zoom)",
+      "1024x900@1",
+      "1023x900@1"
+    ],
+    "timezone": "UTC",
+    "reduced_motion": "prefers-reduced-motion: reduce"
+  },
+  "fixtures": {
+    "accounts": [
+      "acct-t19-a (sess-t19-a)",
+      "acct-t19-b (sess-t19-b)"
+    ],
+    "projects": {
+      "P1": "11111111-1111-4111-8111-111111111111",
+      "P3": "33333333-3333-4333-8333-333333333333",
+      "P4": "44444444-4444-4444-8444-444444444444",
+      "P5": "55555555-5555-4555-8555-555555555555",
+      "P6": "66666666-6666-4666-8666-666666666666",
+      "PB": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    },
+    "assets": {
+      "reference": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "result": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      "failure": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      "missing": "missing-asset-t19"
+    },
+    "run": "run-t19-1",
+    "failure_run": "run-t19-fail",
+    "unknown_run": "run-t19-unknown",
+    "message": "msg-user-t19-1",
+    "artifact": "art-final-brief-t19",
+    "snapshot": "snap-prompt-t19-v1",
+    "job": "job-t19-1",
+    "delivery": "del-t19-1"
+  },
+  "criteria": [
+    {
+      "id": "c1",
+      "title": "空状态：三个建议、点击填充不发、三档视口",
+      "status": "pass",
+      "step_count": 9,
+      "passed": 9,
+      "failed": 0,
+      "steps": [
+        {
+          "step_id": "S1.1",
+          "viewport": "1440x900",
+          "action": "load empty chat at 1440x900",
+          "expected": [
+            "把这张产品图换成秋日户外场景，保留包装质感",
+            "为这组新品生成一张极简台面主图，冷白背景",
+            "做一张 1:1 促销主视觉，石墨黑底，留出价格位置"
+          ],
+          "actual": "[\"把这张产品图换成秋日户外场景，保留包装质感\",\"为这组新品生成一张极简台面主图，冷白背景\",\"做一张 1:1 促销主视觉，石墨黑底，留出价格位置\"]",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S1.2",
+          "viewport": "1440x900",
+          "action": "measure welcome inner width / centering",
+          "expected": "width<=760 and centered in chat column",
+          "actual": "{\"width\":760,\"offset\":0,\"host_width\":1064}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S1.3",
+          "viewport": "1440x900",
+          "action": "measure suggestion grid",
+          "expected": "3 equal columns",
+          "actual": "{\"columns\":3}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S1.4",
+          "viewport": "1440x900",
+          "action": "active element on first paint",
+          "expected": "workspace-prompt",
+          "actual": "workspace-prompt",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S1.5",
+          "viewport": "1440x900",
+          "action": "capture canonical empty state",
+          "expected": "1440x900 PNG <=200KB",
+          "actual": "73022 bytes",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-empty.png",
+          "screenshot_sha256": "ca4dc0275695598decdd9e866a231fae0ddf0c40dd26d47fc55955c8f37eb38c",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S1.6",
+          "viewport": "1440x900",
+          "action": "click first suggestion",
+          "expected": "textarea filled with suggestion and focused",
+          "actual": "{\"value\":\"把这张产品图换成秋日户外场景，保留包装质感\",\"focused\":true}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S1.7",
+          "viewport": "1440x900",
+          "action": "wait 300ms after suggestion click",
+          "expected": "no POST /projects, /messages or actions",
+          "actual": "{\"auto_send_requests\":[]}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S1.8",
+          "viewport": "1440x900",
+          "action": "attach t19-reference.png",
+          "expected": "attachment preview 34x42 thumb",
+          "actual": "{\"shown\":true,\"thumb\":{\"x\":485,\"y\":725,\"width\":34,\"height\":42,\"top\":725,\"bottom\":767,\"left\":485,\"right\":519}}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "CANON.1",
+          "viewport": "1440x900",
+          "action": "verify canonical baseline set",
+          "expected": "exactly 9 png baselines, each <=200KB, total <2MB",
+          "actual": "{\"missing\":[],\"tooBig\":[],\"total\":519542,\"files\":[\"1440-empty.png\",\"1440-pending-confirmation.png\",\"1440-requirement-pending.png\",\"1440-result-lightbox.png\",\"320-composer.png\",\"320-empty.png\",\"320-lightbox.png\",\"768-drawer.png\",\"768-topbar.png\"]}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "主流程：需求卡→提示词检查/待确认/复制/确认→执行→结果",
+      "status": "pass",
+      "step_count": 26,
+      "passed": 26,
+      "failed": 0,
+      "steps": [
+        {
+          "step_id": "S2.1",
+          "viewport": "1440x900",
+          "action": "inspect user message row",
+          "expected": "thumbnail + meta 你 · 10:00",
+          "actual": "{\"meta\":\"你 · 10:00\",\"thumb\":true}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S2.2",
+          "viewport": "1440x900",
+          "action": "read requirement labels",
+          "expected": [
+            "商品",
+            "用途",
+            "创作方向",
+            "画面风格",
+            "构图",
+            "光线",
+            "文案",
+            "必须包含",
+            "必须保留",
+            "避免",
+            "尺寸"
+          ],
+          "actual": "[\"商品\",\"用途\",\"创作方向\",\"画面风格\",\"构图\",\"光线\",\"文案\",\"必须包含\",\"必须保留\",\"避免\",\"尺寸\"]",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S2.3",
+          "viewport": "1440x900",
+          "action": "requirement CTA enabled",
+          "expected": false,
+          "actual": "false",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S2.4",
+          "viewport": "1440x900",
+          "action": "capture canonical requirement pending",
+          "expected": "1440x900 PNG <=200KB",
+          "actual": "78967 bytes",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-requirement-pending.png",
+          "screenshot_sha256": "7daeee554a866c1ed4a352cc430dcb19f788dbb464a3d69ef7240edecf957f26",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S2.5",
+          "viewport": "1440x900",
+          "action": "count send network",
+          "expected": "one POST /projects, one message-attachments, one messages",
+          "actual": "{\"projects\":1,\"uploads\":1,\"messages\":1,\"paths\":[\"POST /api/projects 200\",\"POST /api/projects/11111111-1111-4111-8111-111111111111/message-attachments 200\",\"GET /api/projects/11111111-1111-4111-8111-111111111111/workflow 200\",\"POST /api/projects/11111111-1111-4111-8111-111111111111/messages 200\",\"GET /api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa 200\",\"GET /api/projects/11111111-1111-4111-8111-111111111111 200\",\"GET /favicon.ico 200\"]}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S2.6",
+          "viewport": "1440x900",
+          "action": "click requirement CTA",
+          "expected": "exactly one POST confirm_requirements",
+          "actual": "{\"count\":1,\"paths\":[\"POST /api/projects/11111111-1111-4111-8111-111111111111/workflow/actions/confirm_requirements 200\",\"GET /api/projects/11111111-1111-4111-8111-111111111111 200\"]}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S3.1",
+          "viewport": "1440x900",
+          "action": "prompt pill while checking",
+          "expected": "检查中",
+          "actual": "检查中",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S3.2",
+          "viewport": "1440x900",
+          "action": "prompt CTA disabled label",
+          "expected": {
+            "disabled": true,
+            "label": "提示词检查中…"
+          },
+          "actual": "{\"disabled\":true,\"label\":\"提示词检查中…\"}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S3.3",
+          "viewport": "1440x900",
+          "action": "copy button enabled",
+          "expected": false,
+          "actual": "false",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S3.4",
+          "viewport": "1440x900",
+          "action": "prompt card opacity",
+          "expected": "body/card not dimmed below 1",
+          "actual": "{\"opacity\":1}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S3.5",
+          "viewport": "1440x900",
+          "action": "prompt contract version",
+          "expected": "v3.0",
+          "actual": "v3.0",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S3.6",
+          "viewport": "1440x900",
+          "action": "capture checking evidence",
+          "expected": "off-repo screenshot",
+          "actual": "79194",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-prompt-checking.png",
+          "screenshot_sha256": "05e0d7f08317e449337ae0ca93331ff3e3ba4693a4e55079065a2a972b7ba459",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S3.7",
+          "viewport": "1440x900",
+          "action": "prompt pill after check completes",
+          "expected": "待确认",
+          "actual": "待确认",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S4.1",
+          "viewport": "1440x900",
+          "action": "pending CTA",
+          "expected": {
+            "disabled": false,
+            "label": "确认使用以上提示词生成"
+          },
+          "actual": "{\"disabled\":false,\"label\":\"确认使用以上提示词生成\"}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S4.2",
+          "viewport": "1440x900",
+          "action": "capture canonical pending confirmation",
+          "expected": "1440x900 PNG <=200KB",
+          "actual": "67925 bytes",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-pending-confirmation.png",
+          "screenshot_sha256": "34827dc7a41deacdf64c58d0cf00ec4bad4fd0d8f109ef8463e0e3b090ec052b",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S4.3",
+          "viewport": "1440x900",
+          "action": "click copy prompt",
+          "expected": "已复制",
+          "actual": "已复制",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S4.4",
+          "viewport": "1440x900",
+          "action": "read clipboard",
+          "expected": "clipboard equals positive prompt",
+          "actual": "{\"clipboard\":\"一只米色亚麻托特包放在秋日木质长桌上，午后侧逆光，周围散落落叶与牛皮纸包装，保留编织纹理与包装质感，暖色调，电商主图，1:1\",\"expected_prefix\":\"一只米色亚麻托特包放在秋日木质长桌上，午后侧逆光，周围散落落叶与牛皮纸包装，保留编织纹理与包装质感，暖色调，电商主图，1:1\"}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S4.5",
+          "viewport": "1440x900",
+          "action": "capture copied state",
+          "expected": "off-repo screenshot",
+          "actual": "67801",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-prompt-copied.png",
+          "screenshot_sha256": "1e63bba7646a079472364f348ca41b6d652c485bf720bbbbc1990460f853fc12",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S4.6",
+          "viewport": "1440x900",
+          "action": "copy label resets after hold",
+          "expected": "复制提示词",
+          "actual": "复制提示词",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S4.7",
+          "viewport": "1440x900",
+          "action": "confirm prompt network",
+          "expected": "exactly one POST confirm_prompt",
+          "actual": "{\"count\":1,\"paths\":[\"POST /api/projects/11111111-1111-4111-8111-111111111111/workflow/actions/confirm_prompt 200\",\"GET /api/projects/11111111-1111-4111-8111-111111111111 200\"]}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S4.8",
+          "viewport": "1440x900",
+          "action": "prompt execution block",
+          "expected": "visible non-empty execution text within 1.5s",
+          "actual": "{\"text\":\"已确认，正在执行…\"}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S4.9",
+          "viewport": "1440x900",
+          "action": "capture confirmed prompt",
+          "expected": "off-repo screenshot",
+          "actual": "66822",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-prompt-confirmed.png",
+          "screenshot_sha256": "5da5ebbb1bfacc9f27acc77c384e9cc7ebf43c1c67678c31f235396fbbbda9c3",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S5.1",
+          "viewport": "1440x900",
+          "action": "published result card",
+          "expected": "one card, current badge, title, download, no duplicate",
+          "actual": "{\"count\":1,\"badge\":\"当前版本\",\"title\":\"秋季亚麻托特包主图\",\"download\":\"/api/assets/dddddddd-dddd-4ddd-8ddd-dddddddddddd?download=true\",\"imageLoaded\":true}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S5.2",
+          "viewport": "1440x900",
+          "action": "load published asset",
+          "expected": "GET /api/assets/dddd... 200",
+          "actual": "[\"GET /api/assets/dddddddd-dddd-4ddd-8ddd-dddddddddddd 200\"]",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S5.3",
+          "viewport": "1440x900",
+          "action": "capture result card",
+          "expected": "off-repo screenshot",
+          "actual": "94183",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-result.png",
+          "screenshot_sha256": "8de5851f0f06a1e6228c60ded7422668189bca30018bfa9d21483580d0859ec5",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S5.4",
+          "viewport": "1440x900",
+          "action": "record fixture ids",
+          "expected": "message/artifact/snapshot/run/asset ids",
+          "actual": "{\"message\":\"msg-user-t19-1\",\"artifact\":\"art-final-brief-t19\",\"snapshot\":\"snap-prompt-t19-v1\",\"run\":\"run-t19-1\",\"asset\":\"dddddddd-dddd-4ddd-8ddd-dddddddddddd\",\"version_asset\":\"dddddddd-dddd-4ddd-8ddd-dddddddddddd\"}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": {
+            "run_id": "run-t19-1",
+            "delivery": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            "version": "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+          },
+          "error_codes": null,
+          "known_defect": null
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "结果大图：居中、Esc/遮罩/关闭、焦点陷阱与归还、aria-modal、body 锁定",
+      "status": "pass",
+      "step_count": 10,
+      "passed": 10,
+      "failed": 0,
+      "steps": [
+        {
+          "step_id": "S6.1",
+          "viewport": "1440x900",
+          "action": "open lightbox",
+          "expected": "role=dialog aria-modal=true focus close",
+          "actual": "{\"role\":\"dialog\",\"modal\":\"true\",\"active\":\"lightbox-close\",\"appInert\":true,\"overflow\":\"hidden\"}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S6.2",
+          "viewport": "1440x900",
+          "action": "lightbox image geometry",
+          "expected": "centered, max-width <= min(92vw,1120)",
+          "actual": "{\"img\":{\"left\":333,\"right\":1107,\"width\":774},\"panel\":{\"left\":321,\"right\":1119},\"inner\":1440,\"maxWidth\":1120,\"centered\":true}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S6.3",
+          "viewport": "1440x900",
+          "action": "Tab x4 keeps focus in dialog",
+          "expected": "focus stays lightbox-close",
+          "actual": "lightbox-close after 4 tabs",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S6.4",
+          "viewport": "1440x900",
+          "action": "Shift+Tab keeps focus",
+          "expected": "focus stays lightbox-close",
+          "actual": "lightbox-close",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S6.5",
+          "viewport": "1440x900",
+          "action": "capture canonical result lightbox",
+          "expected": "1440x900 PNG <=200KB",
+          "actual": "93159 bytes",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-result-lightbox.png",
+          "screenshot_sha256": "b09985f5c1a5ce0710350865294a0a69251e3838c8cba14e7b96003d2c63daeb",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S6.6",
+          "viewport": "1440x900",
+          "action": "Escape closes lightbox",
+          "expected": "focus returns to trigger, lock released",
+          "actual": "{\"active\":\"result-media-link\",\"overflow\":\"\",\"appInert\":false}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S6.7",
+          "viewport": "1440x900",
+          "action": "scrim click closes",
+          "expected": "lightbox gone and focus returned",
+          "actual": "result-media-link",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S6.8",
+          "viewport": "1440x900",
+          "action": "close button closes",
+          "expected": "lightbox gone",
+          "actual": "true",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S6.9",
+          "viewport": "320x800",
+          "action": "320 lightbox geometry",
+          "expected": "panel padding 8px, image max-width 100%, close 44x44",
+          "actual": "{\"padding\":\"8px\",\"maxWidth\":\"100%\",\"close\":{\"w\":44,\"h\":44}}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S6.10",
+          "viewport": "320x800",
+          "action": "capture canonical 320 lightbox",
+          "expected": "320x800 PNG <=200KB",
+          "actual": "37530 bytes",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\320-lightbox.png",
+          "screenshot_sha256": "14e42e7c4c9d238b51a556d4fd8b38ca41915af565b16ec713f6c7c626f4950c",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "title": "失败恢复：受控失败、仅服务端动作、unknown 仅核实/恢复、原地恢复",
+      "status": "pass",
+      "step_count": 17,
+      "passed": 17,
+      "failed": 0,
+      "steps": [
+        {
+          "step_id": "S7.1",
+          "viewport": "1440x900",
+          "action": "failure reason",
+          "expected": "combined visible reason text matches the exact failure message",
+          "actual": "{\"state\":\"failed\",\"visible\":\"技术故障\",\"label\":\"技术故障\",\"status_text\":null,\"reason_message\":\"图片生成失败：模拟服务返回 503，未产生可用图片。\"}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.2",
+          "viewport": "1440x900",
+          "action": "failure actions",
+          "expected": "only 安全恢复生成结果; no cancel/retry/regenerate",
+          "actual": "{\"labels\":[\"安全恢复生成结果\"]}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.3",
+          "viewport": "1440x900",
+          "action": "capture failure",
+          "expected": "off-repo screenshot",
+          "actual": "54348",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-failure.png",
+          "screenshot_sha256": "0b7899bdb6c53fe7aa6f06bba9a4892ba02b7d7fd28ddbf432a6d2c194fcbf4b",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.4",
+          "viewport": "1440x900",
+          "action": "recover count before click",
+          "expected": 0,
+          "actual": "0",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.5",
+          "viewport": "1440x900",
+          "action": "recover in flight",
+          "expected": "data-state=executing and pending note 正在恢复…",
+          "actual": "{\"state\":\"executing\",\"pending\":true}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.6",
+          "viewport": "1440x900",
+          "action": "capture recovering",
+          "expected": "off-repo screenshot",
+          "actual": "69077",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-recovering.png",
+          "screenshot_sha256": "5ff9dc688dcb999004a3b9345e4249b616ffd5cee5032d7439f1bc00de0b28f5",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.7",
+          "viewport": "1440x900",
+          "action": "recovered in place",
+          "expected": "heading 已恢复 + result card + one recover request",
+          "actual": "{\"heading\":\"已恢复\",\"cards\":1,\"recover_requests\":1}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.8",
+          "viewport": "1440x900",
+          "action": "capture recovered",
+          "expected": "off-repo screenshot",
+          "actual": "69080",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-recovered.png",
+          "screenshot_sha256": "cd9c8ea0825db07ef0694d526474ffb74c4aa817a59faf752a60a372c57f66e9",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.9",
+          "viewport": "1440x900",
+          "action": "unknown task copy and actions",
+          "expected": "结果未知，正在核实; only verify/recover; no 取消生成",
+          "actual": "{\"text\":\"结果未知，正在核实核实结果状态只读核实只核实原任务和远端状态，不创建新任务、不新增计数，也不会自动重发。只读核实不会新增受理计数。安全恢复生成结果可能调用模型只在原任务已有可找回结果时读取原结果，不提交新生成、不新增计数。\",\"labels\":[\"核实结果状态\",\"安全恢复生成结果\"]}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.10",
+          "viewport": "1440x900",
+          "action": "verify keeps unknown",
+          "expected": "state still unknown, updated_at changed, one verify request",
+          "actual": "{\"state\":\"unknown\",\"updated\":\"2026-11-08T10:00:09.000Z\",\"before\":\"2026-11-08T10:00:00.000Z\",\"verify_requests\":1}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.11",
+          "viewport": "1440x900",
+          "action": "capture unknown",
+          "expected": "off-repo screenshot",
+          "actual": "64202",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-unknown.png",
+          "screenshot_sha256": "494b9f91edde5258a7003ff543f1759a629f0d222dc43e004e723c8516516c95",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.12",
+          "viewport": "1440x900",
+          "action": "unavailable copy",
+          "expected": "当前交付图片已过期、文件缺失或未通过内容门禁，不能预览或下载；系统不会用其他版本替代。",
+          "actual": "当前交付图片已过期、文件缺失或未通过内容门禁，不能预览或下载；系统不会用其他版本替代。",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.13",
+          "viewport": "1440x900",
+          "action": "unavailable has no image or regenerate",
+          "expected": "no img.result-media, no regenerate button",
+          "actual": "{\"images\":0,\"buttons\":[]}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.14",
+          "viewport": "1440x900",
+          "action": "capture unavailable",
+          "expected": "off-repo screenshot",
+          "actual": "64710",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-unavailable.png",
+          "screenshot_sha256": "de51c874e8b4481afe92aed06728d39a0af993af4de7aa7634932aee3abc39dc",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.15",
+          "viewport": "1440x900",
+          "action": "read error alert",
+          "expected": "role=alert with retry",
+          "actual": "{\"role\":\"alert\",\"text\":\"项目读取失败，请稍后重试。 重试\",\"retry\":true}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.16",
+          "viewport": "1440x900",
+          "action": "capture read error",
+          "expected": "off-repo screenshot",
+          "actual": "42601",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-read-error.png",
+          "screenshot_sha256": "79c3a6895f95ea5dbd5e6bebd80c201a0dc15fb1de4786df0d1aab8efe6aed93",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S7.17",
+          "viewport": "1440x900",
+          "action": "retry read error",
+          "expected": "detail fetched again and messages render",
+          "actual": "{\"before\":12,\"after\":13,\"rows\":1,\"error_visible\":false}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": "App defect: retryProject() refreshes the detail but never clears projectError/projectErrorKind, so the read-error alert stays mounted after the retry succeeds (see main/src/composables/useWorkspace.ts adoptProjectDetail at ~1036 and retryProject at ~1449)."
+        }
+      ]
+    },
+    {
+      "id": "c5",
+      "title": "刷新、旧链接、账号切换",
+      "status": "pass",
+      "step_count": 8,
+      "passed": 8,
+      "failed": 0,
+      "steps": [
+        {
+          "step_id": "S8.1",
+          "viewport": "1440x900",
+          "action": "refresh published project",
+          "expected": "same messages, no duplicate POST",
+          "actual": "{\"beforeCount\":1,\"afterCount\":1,\"posts\":[]}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S8.2",
+          "viewport": "1440x900",
+          "action": "capture refresh",
+          "expected": "off-repo screenshot",
+          "actual": "94046",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-refresh.png",
+          "screenshot_sha256": "043a207dff0941cb280ff8eb4bed8f22956a13a5b6bc40752a8ad4a38bf67f23",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S8.3",
+          "viewport": "1440x900",
+          "action": "old P1 link as account B",
+          "expected": "not-found message, no P1 content",
+          "actual": "{\"error\":\"项目不存在或已被删除，请从项目列表重新选择。\",\"leaked\":false}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S8.4",
+          "viewport": "1440x900",
+          "action": "capture old link 404",
+          "expected": "off-repo screenshot",
+          "actual": "34168",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-old-link-404.png",
+          "screenshot_sha256": "cc55f5665a45b6caa16da4ab76ecf24d2e66bbbf9c2a630bcade2b8ea8ed7d52",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S8.5",
+          "viewport": "1440x900",
+          "action": "account B project list",
+          "expected": "only B 的空白项目",
+          "actual": "{\"sidebar\":\"↗电商生图工作台＋ 新对话 ⌕B 的空白项目需求已确认2026/11/8 10:00:00✎Tt19-b@example.test本地账号◔用量查看生成额度与记录数据使用说明描述和图片会发送给已配置的外部模型服务用于整理与生成。请勿提交密码、凭证或恢复链接。退出登录\",\"path\":\"/\"}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S8.6",
+          "viewport": "1440x900",
+          "action": "no session redirects to /login",
+          "expected": "/login without workspace topbar",
+          "actual": "{\"path\":\"/login\",\"topbar\":false}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S8.7",
+          "viewport": "1440x900",
+          "action": "capture login redirect",
+          "expected": "off-repo screenshot",
+          "actual": "97905",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\login-401.png",
+          "screenshot_sha256": "7f4c20decdd1661cab67817cefbe1cda423d48fd3b5fd6caac77c7a374b18521",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S8.8",
+          "viewport": "1440x900",
+          "action": "restore account A empty state",
+          "expected": "suggestions visible at /",
+          "actual": "true",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        }
+      ]
+    },
+    {
+      "id": "c6",
+      "title": "减少动态：抽屉/大图无位移，时长≤120ms",
+      "status": "pass",
+      "step_count": 5,
+      "passed": 5,
+      "failed": 0,
+      "steps": [
+        {
+          "step_id": "S10.1",
+          "viewport": "768x1024",
+          "action": "prefers-reduced-motion active",
+          "expected": "matchMedia true",
+          "actual": "true",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S10.2",
+          "viewport": "768x1024",
+          "action": "drawer motion reduced",
+          "expected": "transition duration 0s/none, zero running animations",
+          "actual": "{\"layer\":\"1e-05s\",\"panel\":\"1e-05s\",\"animations\":0}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S10.3",
+          "viewport": "768x1024",
+          "action": "capture reduced-motion drawer",
+          "expected": "off-repo screenshot",
+          "actual": "54320",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\reduced-motion-drawer.png",
+          "screenshot_sha256": "2fc77b8056ee23d3590286792e2bb9450494d06f69219c833558ab8fda64ca16",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S10.4",
+          "viewport": "1440x900",
+          "action": "lightbox motion reduced",
+          "expected": "no transform animation, zero running animations",
+          "actual": "{\"layer\":\"1e-05s\",\"panel\":\"1e-05s\",\"animations\":0,\"animationName\":\"none\"}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S10.5",
+          "viewport": "1440x900",
+          "action": "capture reduced-motion lightbox",
+          "expected": "off-repo screenshot",
+          "actual": "89610",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\reduced-motion-lightbox.png",
+          "screenshot_sha256": "9ec4c29f140da9a923ea3fae4d29561ba320ef491cf165b5c1ddfaa8d6397713",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        }
+      ]
+    },
+    {
+      "id": "c7",
+      "title": "响应式 320/768/1440：无横向滚动、单顶栏、抽屉 264、侧栏",
+      "status": "pass",
+      "step_count": 13,
+      "passed": 13,
+      "failed": 0,
+      "steps": [
+        {
+          "step_id": "S9.1",
+          "viewport": "768x1024",
+          "action": "capture canonical 768 topbar",
+          "expected": "768x1024 PNG <=200KB",
+          "actual": "43033 bytes",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\768-topbar.png",
+          "screenshot_sha256": "c0140f5ff6c5b90c72c1b0b9bfb67ad571e58e139a0f7295bb42f595fd448092",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S9.2",
+          "viewport": "768x1024",
+          "action": "768 layout",
+          "expected": "one topbar 48px, menu present, sidebar absent, 3 columns, capsule absent, no hscroll",
+          "actual": "{\"topbars\":1,\"topbarH\":48,\"menu\":true,\"sidebar\":false,\"cols\":3,\"capsule\":false,\"scrollW\":768}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S9.3",
+          "viewport": "768x1024",
+          "action": "capture canonical 768 drawer",
+          "expected": "768x1024 PNG <=200KB",
+          "actual": "54320 bytes",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\768-drawer.png",
+          "screenshot_sha256": "2fc77b8056ee23d3590286792e2bb9450494d06f69219c833558ab8fda64ca16",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S9.4",
+          "viewport": "768x1024",
+          "action": "drawer geometry/accessibility",
+          "expected": "264px wide, dialog aria-modal, inert app, body lock, close 44x44 focused",
+          "actual": "{\"width\":264,\"role\":\"dialog\",\"modal\":\"true\",\"inert\":true,\"overflow\":\"hidden\",\"close\":{\"w\":44,\"h\":44},\"active\":\"icon-button drawer-close\"}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S9.5",
+          "viewport": "768x1024",
+          "action": "drawer Escape returns focus",
+          "expected": "focus on .topbar-menu",
+          "actual": "topbar-menu",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S9.6",
+          "viewport": "320x800",
+          "action": "capture canonical 320 empty",
+          "expected": "320x800 PNG <=200KB",
+          "actual": "37971 bytes",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\320-empty.png",
+          "screenshot_sha256": "97c5f7f189846a87cd5a6ecc8248b3203cf3af267da4549d24624e5c89306392",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S9.7",
+          "viewport": "320x800",
+          "action": "320 layout",
+          "expected": "topbar 44, menu, no sidebar, capsule inline, 1 column, welcome<=288, no hscroll",
+          "actual": "{\"topbarH\":44,\"menu\":true,\"sidebar\":false,\"capsule\":true,\"cols\":1,\"welcomeW\":278,\"scrollW\":320}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S9.8",
+          "viewport": "320x800",
+          "action": "typing hides suggestions",
+          "expected": "suggestion list absent",
+          "actual": "true",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S9.9",
+          "viewport": "320x800",
+          "action": "320 composer",
+          "expected": "sticky/in viewport, textarea>=44, send 36x36, focus ring 2px offset 2, no hscroll",
+          "actual": "{\"shellTop\":692,\"shellBottom\":762,\"innerH\":800,\"minH\":\"44px\",\"taH\":44,\"send\":{\"w\":36,\"h\":36},\"outline\":\"2px\",\"offset\":\"2px\",\"scrollW\":320}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S9.10",
+          "viewport": "320x800",
+          "action": "capture canonical 320 composer",
+          "expected": "320x800 PNG <=200KB",
+          "actual": "33700 bytes",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\320-composer.png",
+          "screenshot_sha256": "0bdee9c8bba18df2fa8d260793ec0528ab356d20bc1c6a17604047cfc5c1cbb2",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S9.11",
+          "viewport": "1440x900",
+          "action": "1440 layout",
+          "expected": "sidebar present, menu absent, 3 columns, topbar 48, shell padding 32",
+          "actual": "{\"sidebar\":true,\"menu\":false,\"cols\":3,\"topbarH\":48,\"padLeft\":\"32px\"}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S9.12",
+          "viewport": "1024x900",
+          "action": "1024 layout",
+          "expected": "sidebar present, menu absent",
+          "actual": "{\"sidebar\":true,\"menu\":false}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S9.13",
+          "viewport": "1023x900",
+          "action": "1023 layout",
+          "expected": "menu present, sidebar absent",
+          "actual": "{\"sidebar\":false,\"menu\":true}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        }
+      ]
+    },
+    {
+      "id": "c8",
+      "title": "200% 缩放：不裁切不重叠、可见焦点环",
+      "status": "pass",
+      "step_count": 8,
+      "passed": 8,
+      "failed": 0,
+      "steps": [
+        {
+          "step_id": "S11.1",
+          "viewport": "720x450",
+          "action": "no horizontal scroll at 200%",
+          "expected": "scrollWidth <= innerWidth + 1",
+          "actual": "{\"scrollW\":720,\"inner\":720}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S11.2",
+          "viewport": "720x450",
+          "action": "no clipping/overlap in topbar, welcome, composer, suggestion",
+          "expected": "horizontal bounds respected, chrome non-overlapping, suggestion reachable by scroll",
+          "actual": "{\"topbar\":{\"left\":0,\"right\":720,\"top\":0,\"bottom\":44,\"w\":720,\"h\":44},\"composer\":{\"left\":0,\"right\":720,\"top\":332,\"bottom\":450,\"w\":720,\"h\":118},\"welcome\":{\"left\":16,\"right\":694,\"top\":100,\"bottom\":469.890625,\"w\":678,\"h\":369.890625},\"suggestion\":{\"left\":16,\"right\":694,\"top\":155.890625,\"bottom\":203.890625,\"w\":678,\"h\":48},\"visible\":true,\"scrollable\":true,\"chat\":{\"top\":76,\"bottom\":332,\"h\":256,\"scrollH\":410},\"innerW\":720,\"innerH\":450}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S11.3",
+          "viewport": "720x450",
+          "action": "typography minimum",
+          "expected": "visible text >=12px (mono 13px)",
+          "actual": "[{\"s\":\".welcome-title\",\"px\":null},{\"s\":\".welcome-note\",\"px\":15},{\"s\":\".suggestion-button\",\"px\":14},{\"s\":\".composer-hint\",\"px\":12}]",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S11.4",
+          "viewport": "720x450",
+          "action": "text contrast >= 4.5",
+          "expected": "suggestion + note contrast",
+          "actual": "{\".suggestion-button\":16.299034996362714,\".welcome-note\":7.500527325596265}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S11.5",
+          "viewport": "720x450",
+          "action": "Tab reaches suggestion with visible focus ring",
+          "expected": "outline 2px rgb(30,90,115), offset 2px, inside viewport",
+          "actual": "{\"outline\":\"2px\",\"color\":\"rgb(30, 90, 115)\",\"offset\":\"2px\",\"rect\":{\"left\":16,\"right\":694,\"top\":283.890625,\"bottom\":331.890625},\"inner\":720,\"innerH\":450}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S11.6",
+          "viewport": "720x450",
+          "action": "capture 200% focus",
+          "expected": "off-repo screenshot",
+          "actual": "94397",
+          "result": "pass",
+          "screenshot": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-zoom200-focus.png",
+          "screenshot_sha256": "d0ecf2710f88e4a4be8e5247ede1c78e8310ffffb034e07606d28d2e237a145c",
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S11.7",
+          "viewport": "720x450",
+          "action": "drawer at 200% zoom",
+          "expected": "264px wide, no clipping",
+          "actual": "{\"width\":264,\"left\":0,\"right\":264,\"inner\":720}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        },
+        {
+          "step_id": "S11.8",
+          "viewport": "720x450",
+          "action": "dark-shell focus ring visible",
+          "expected": "outline rgb(207,230,242) 2px",
+          "actual": "{\"cls\":\"new-chat-button\",\"outline\":\"2px\",\"color\":\"rgb(207, 230, 242)\"}",
+          "result": "pass",
+          "screenshot": null,
+          "screenshot_sha256": null,
+          "network": null,
+          "records": null,
+          "error_codes": null,
+          "known_defect": null
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "name": "1440-empty.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-empty.png",
+      "bytes": 73022,
+      "sha256": "ca4dc0275695598decdd9e866a231fae0ddf0c40dd26d47fc55955c8f37eb38c",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": true,
+      "baseline": "docs/acceptance/baselines/t19/1440-empty.png",
+      "baseline_sha256": "ca4dc0275695598decdd9e866a231fae0ddf0c40dd26d47fc55955c8f37eb38c",
+      "baseline_bytes": 73022
+    },
+    {
+      "name": "1440-requirement-pending.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-requirement-pending.png",
+      "bytes": 78967,
+      "sha256": "7daeee554a866c1ed4a352cc430dcb19f788dbb464a3d69ef7240edecf957f26",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": true,
+      "baseline": "docs/acceptance/baselines/t19/1440-requirement-pending.png",
+      "baseline_sha256": "86ed5662581689620791b4a1a224454f21bbe294721ef4bd7bfec5b4a49398bb",
+      "baseline_bytes": 78947
+    },
+    {
+      "name": "1440-prompt-checking.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-prompt-checking.png",
+      "bytes": 79194,
+      "sha256": "05e0d7f08317e449337ae0ca93331ff3e3ba4693a4e55079065a2a972b7ba459",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "1440-pending-confirmation.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-pending-confirmation.png",
+      "bytes": 67925,
+      "sha256": "34827dc7a41deacdf64c58d0cf00ec4bad4fd0d8f109ef8463e0e3b090ec052b",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": true,
+      "baseline": "docs/acceptance/baselines/t19/1440-pending-confirmation.png",
+      "baseline_sha256": "71a154eb80f4c406886ac6da972bda2622d8a7753e470a7293cced12c5dec3c2",
+      "baseline_bytes": 67930
+    },
+    {
+      "name": "1440-prompt-copied.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-prompt-copied.png",
+      "bytes": 67801,
+      "sha256": "1e63bba7646a079472364f348ca41b6d652c485bf720bbbbc1990460f853fc12",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "1440-prompt-confirmed.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-prompt-confirmed.png",
+      "bytes": 66822,
+      "sha256": "5da5ebbb1bfacc9f27acc77c384e9cc7ebf43c1c67678c31f235396fbbbda9c3",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "1440-result.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-result.png",
+      "bytes": 94183,
+      "sha256": "8de5851f0f06a1e6228c60ded7422668189bca30018bfa9d21483580d0859ec5",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "1440-result-lightbox.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-result-lightbox.png",
+      "bytes": 93159,
+      "sha256": "b09985f5c1a5ce0710350865294a0a69251e3838c8cba14e7b96003d2c63daeb",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": true,
+      "baseline": "docs/acceptance/baselines/t19/1440-result-lightbox.png",
+      "baseline_sha256": "a604312236caa582452c3a2258eebadef1831d5381a3950bd82f4cad76c27a82",
+      "baseline_bytes": 93089
+    },
+    {
+      "name": "320-lightbox.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\320-lightbox.png",
+      "bytes": 37530,
+      "sha256": "14e42e7c4c9d238b51a556d4fd8b38ca41915af565b16ec713f6c7c626f4950c",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "canonical": true,
+      "baseline": "docs/acceptance/baselines/t19/320-lightbox.png",
+      "baseline_sha256": "14e42e7c4c9d238b51a556d4fd8b38ca41915af565b16ec713f6c7c626f4950c",
+      "baseline_bytes": 37530
+    },
+    {
+      "name": "1440-failure.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-failure.png",
+      "bytes": 54348,
+      "sha256": "0b7899bdb6c53fe7aa6f06bba9a4892ba02b7d7fd28ddbf432a6d2c194fcbf4b",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "1440-recovering.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-recovering.png",
+      "bytes": 69077,
+      "sha256": "5ff9dc688dcb999004a3b9345e4249b616ffd5cee5032d7439f1bc00de0b28f5",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "1440-recovered.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-recovered.png",
+      "bytes": 69080,
+      "sha256": "cd9c8ea0825db07ef0694d526474ffb74c4aa817a59faf752a60a372c57f66e9",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "1440-unknown.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-unknown.png",
+      "bytes": 64202,
+      "sha256": "494b9f91edde5258a7003ff543f1759a629f0d222dc43e004e723c8516516c95",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "1440-unavailable.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-unavailable.png",
+      "bytes": 64710,
+      "sha256": "de51c874e8b4481afe92aed06728d39a0af993af4de7aa7634932aee3abc39dc",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "1440-read-error.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-read-error.png",
+      "bytes": 42601,
+      "sha256": "79c3a6895f95ea5dbd5e6bebd80c201a0dc15fb1de4786df0d1aab8efe6aed93",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "1440-refresh.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-refresh.png",
+      "bytes": 94046,
+      "sha256": "043a207dff0941cb280ff8eb4bed8f22956a13a5b6bc40752a8ad4a38bf67f23",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "1440-old-link-404.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-old-link-404.png",
+      "bytes": 34168,
+      "sha256": "cc55f5665a45b6caa16da4ab76ecf24d2e66bbbf9c2a630bcade2b8ea8ed7d52",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "login-401.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\login-401.png",
+      "bytes": 97905,
+      "sha256": "7f4c20decdd1661cab67817cefbe1cda423d48fd3b5fd6caac77c7a374b18521",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "768-topbar.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\768-topbar.png",
+      "bytes": 43033,
+      "sha256": "c0140f5ff6c5b90c72c1b0b9bfb67ad571e58e139a0f7295bb42f595fd448092",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "canonical": true,
+      "baseline": "docs/acceptance/baselines/t19/768-topbar.png",
+      "baseline_sha256": "c0140f5ff6c5b90c72c1b0b9bfb67ad571e58e139a0f7295bb42f595fd448092",
+      "baseline_bytes": 43033
+    },
+    {
+      "name": "768-drawer.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\768-drawer.png",
+      "bytes": 54320,
+      "sha256": "2fc77b8056ee23d3590286792e2bb9450494d06f69219c833558ab8fda64ca16",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "canonical": true,
+      "baseline": "docs/acceptance/baselines/t19/768-drawer.png",
+      "baseline_sha256": "2fc77b8056ee23d3590286792e2bb9450494d06f69219c833558ab8fda64ca16",
+      "baseline_bytes": 54320
+    },
+    {
+      "name": "320-empty.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\320-empty.png",
+      "bytes": 37971,
+      "sha256": "97c5f7f189846a87cd5a6ecc8248b3203cf3af267da4549d24624e5c89306392",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "canonical": true,
+      "baseline": "docs/acceptance/baselines/t19/320-empty.png",
+      "baseline_sha256": "97c5f7f189846a87cd5a6ecc8248b3203cf3af267da4549d24624e5c89306392",
+      "baseline_bytes": 37971
+    },
+    {
+      "name": "320-composer.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\320-composer.png",
+      "bytes": 33700,
+      "sha256": "0bdee9c8bba18df2fa8d260793ec0528ab356d20bc1c6a17604047cfc5c1cbb2",
+      "viewport": {
+        "width": 320,
+        "height": 800,
+        "dpr": 1
+      },
+      "canonical": true,
+      "baseline": "docs/acceptance/baselines/t19/320-composer.png",
+      "baseline_sha256": "0bdee9c8bba18df2fa8d260793ec0528ab356d20bc1c6a17604047cfc5c1cbb2",
+      "baseline_bytes": 33700
+    },
+    {
+      "name": "reduced-motion-drawer.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\reduced-motion-drawer.png",
+      "bytes": 54320,
+      "sha256": "2fc77b8056ee23d3590286792e2bb9450494d06f69219c833558ab8fda64ca16",
+      "viewport": {
+        "width": 768,
+        "height": 1024,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "reduced-motion-lightbox.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\reduced-motion-lightbox.png",
+      "bytes": 89610,
+      "sha256": "9ec4c29f140da9a923ea3fae4d29561ba320ef491cf165b5c1ddfaa8d6397713",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "canonical": false
+    },
+    {
+      "name": "1440-zoom200-focus.png",
+      "path": "D:\\Desktop\\新建文件夹\\.scratch\\t19-ui\\evidence\\run-20261108-235556\\screenshots\\1440-zoom200-focus.png",
+      "bytes": 94397,
+      "sha256": "d0ecf2710f88e4a4be8e5247ede1c78e8310ffffb034e07606d28d2e237a145c",
+      "viewport": {
+        "width": 720,
+        "height": 450,
+        "dpr": 2
+      },
+      "canonical": false
+    }
+  ],
+  "failures": [],
+  "known_defects": [],
+  "console_errors": [
+    {
+      "type": "log",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "url": "http://127.0.0.1:8105/api/projects/66666666-6666-4666-8666-666666666666"
+    },
+    {
+      "type": "log",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://127.0.0.1:8105/api/projects/11111111-1111-4111-8111-111111111111/workflow"
+    },
+    {
+      "type": "log",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://127.0.0.1:8105/api/projects/11111111-1111-4111-8111-111111111111"
+    },
+    {
+      "type": "log",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://127.0.0.1:8105/api/auth/session"
+    }
+  ],
+  "network_request_count": 222,
+  "mock_stats": {
+    "counts": {
+      "detail": 16,
+      "messages": 1,
+      "actions": 4,
+      "uploads": 1,
+      "duplicates": 0
+    },
+    "state": {
+      "11111111-1111-4111-8111-111111111111": "published",
+      "33333333-3333-4333-8333-333333333333": "recovered",
+      "44444444-4444-4444-8444-444444444444": "unknown",
+      "55555555-5555-4555-8555-555555555555": "unavailable"
+    },
+    "requests": [
+      {
+        "request_id": "req-000007",
+        "record_id": "rec-000001",
+        "method": "POST",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111/message-attachments",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000008",
+        "record_id": "rec-000002",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000009",
+        "record_id": "rec-000003",
+        "method": "POST",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111/messages",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000010",
+        "record_id": "rec-000004",
+        "method": "GET",
+        "path": "/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000011",
+        "record_id": "rec-000005",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000012",
+        "record_id": "rec-000006",
+        "method": "POST",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111/workflow/actions/confirm_requirements",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000013",
+        "record_id": "rec-000007",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000016",
+        "record_id": "rec-000008",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000020",
+        "record_id": "rec-000009",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000021",
+        "record_id": "rec-000010",
+        "method": "GET",
+        "path": "/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000022",
+        "record_id": "rec-000011",
+        "method": "POST",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111/workflow/actions/confirm_prompt",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000023",
+        "record_id": "rec-000012",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000026",
+        "record_id": "rec-000013",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000030",
+        "record_id": "rec-000014",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000031",
+        "record_id": "rec-000015",
+        "method": "GET",
+        "path": "/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000032",
+        "record_id": "rec-000016",
+        "method": "GET",
+        "path": "/api/assets/dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000033",
+        "record_id": "rec-000017",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000035",
+        "record_id": "rec-000018",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000038",
+        "record_id": "rec-000019",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000039",
+        "record_id": "rec-000020",
+        "method": "GET",
+        "path": "/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000040",
+        "record_id": "rec-000021",
+        "method": "GET",
+        "path": "/api/assets/dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000043",
+        "record_id": "rec-000022",
+        "method": "GET",
+        "path": "/api/projects/33333333-3333-4333-8333-333333333333/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000047",
+        "record_id": "rec-000023",
+        "method": "GET",
+        "path": "/api/projects/33333333-3333-4333-8333-333333333333",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000048",
+        "record_id": "rec-000024",
+        "method": "GET",
+        "path": "/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000049",
+        "record_id": "rec-000025",
+        "method": "GET",
+        "path": "/api/projects/33333333-3333-4333-8333-333333333333/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000050",
+        "record_id": "rec-000026",
+        "method": "POST",
+        "path": "/api/projects/33333333-3333-4333-8333-333333333333/workflow/actions/recover_generation",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000051",
+        "record_id": "rec-000027",
+        "method": "GET",
+        "path": "/api/projects/33333333-3333-4333-8333-333333333333",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000052",
+        "record_id": "rec-000028",
+        "method": "GET",
+        "path": "/api/assets/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000054",
+        "record_id": "rec-000029",
+        "method": "GET",
+        "path": "/api/projects/44444444-4444-4444-8444-444444444444/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000058",
+        "record_id": "rec-000030",
+        "method": "GET",
+        "path": "/api/projects/44444444-4444-4444-8444-444444444444",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000059",
+        "record_id": "rec-000031",
+        "method": "GET",
+        "path": "/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000060",
+        "record_id": "rec-000032",
+        "method": "GET",
+        "path": "/api/projects/44444444-4444-4444-8444-444444444444/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000061",
+        "record_id": "rec-000033",
+        "method": "POST",
+        "path": "/api/projects/44444444-4444-4444-8444-444444444444/workflow/actions/verify_generation",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000062",
+        "record_id": "rec-000034",
+        "method": "GET",
+        "path": "/api/projects/44444444-4444-4444-8444-444444444444",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000063",
+        "record_id": "rec-000035",
+        "method": "GET",
+        "path": "/api/projects/44444444-4444-4444-8444-444444444444/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000065",
+        "record_id": "rec-000036",
+        "method": "GET",
+        "path": "/api/projects/55555555-5555-4555-8555-555555555555/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000069",
+        "record_id": "rec-000037",
+        "method": "GET",
+        "path": "/api/projects/55555555-5555-4555-8555-555555555555",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000070",
+        "record_id": "rec-000038",
+        "method": "GET",
+        "path": "/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000073",
+        "record_id": "rec-000039",
+        "method": "GET",
+        "path": "/api/projects/66666666-6666-4666-8666-666666666666/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000077",
+        "record_id": "rec-000040",
+        "method": "GET",
+        "path": "/api/projects/66666666-6666-4666-8666-666666666666",
+        "status": 500,
+        "client_request_id": null,
+        "error_code": "MOCK_READ_FAILED"
+      },
+      {
+        "request_id": "req-000079",
+        "record_id": "rec-000041",
+        "method": "GET",
+        "path": "/api/projects/66666666-6666-4666-8666-666666666666/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000080",
+        "record_id": "rec-000042",
+        "method": "GET",
+        "path": "/api/projects/66666666-6666-4666-8666-666666666666",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000081",
+        "record_id": "rec-000043",
+        "method": "GET",
+        "path": "/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000084",
+        "record_id": "rec-000044",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000088",
+        "record_id": "rec-000045",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000089",
+        "record_id": "rec-000046",
+        "method": "GET",
+        "path": "/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000090",
+        "record_id": "rec-000047",
+        "method": "GET",
+        "path": "/api/assets/dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000092",
+        "record_id": "rec-000048",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000096",
+        "record_id": "rec-000049",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000097",
+        "record_id": "rec-000050",
+        "method": "GET",
+        "path": "/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000098",
+        "record_id": "rec-000051",
+        "method": "GET",
+        "path": "/api/assets/dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000100",
+        "record_id": "rec-000052",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111/workflow",
+        "status": 404,
+        "client_request_id": null,
+        "error_code": "PROJECT_NOT_FOUND"
+      },
+      {
+        "request_id": "req-000104",
+        "record_id": "rec-000053",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111",
+        "status": 404,
+        "client_request_id": null,
+        "error_code": "PROJECT_NOT_FOUND"
+      },
+      {
+        "request_id": "req-000109",
+        "record_id": "rec-000054",
+        "method": "GET",
+        "path": "/api/auth/session",
+        "status": 401,
+        "client_request_id": null,
+        "error_code": "AUTH_REQUIRED"
+      },
+      {
+        "request_id": "req-000133",
+        "record_id": "rec-000055",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111/workflow",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000137",
+        "record_id": "rec-000056",
+        "method": "GET",
+        "path": "/api/projects/11111111-1111-4111-8111-111111111111",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000138",
+        "record_id": "rec-000057",
+        "method": "GET",
+        "path": "/api/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      },
+      {
+        "request_id": "req-000139",
+        "record_id": "rec-000058",
+        "method": "GET",
+        "path": "/api/assets/dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "status": 200,
+        "client_request_id": null,
+        "error_code": null
+      }
+    ]
+  },
+  "notes": {
+    "0": "Drawer width assertion is 264px per ticket #151; the 272px value in plan.md is stale.",
+    "1": "Canonical baselines are written only with --update-baseline (or on first creation).",
+    "worktreeDirty": "The report was produced with only untracked acceptance baselines/evidence in the worktree. No application source was modified during the run.",
+    "drawerWidth": "Drawer was asserted at 264px per ticket #151; the 272px value in the older exploration plan is stale.",
+    "ports": "App 8105 and mock 8106 were used because 8090 was occupied by an unrelated Docker-forwarded server.",
+    "baselineVerification": "Canonical baselines were captured in run 20261108-235258. Verification run 20261108-235556 matches all functional assertions; four baseline files differ only in status-capsule animation pixels (max 42 px). 768-drawer is pixel-identical but PNG bytes differ."
+  }
+}

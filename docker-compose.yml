@@ -1,0 +1,5 @@
+# Development host entry. The only Compose definition lives in main/docker-compose.yml.
+# Relative paths in that file resolve against main/, so this stays a thin view.
+name: ecommerce-image-workspace
+include:
+  - path: main/docker-compose.yml

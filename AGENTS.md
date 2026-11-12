@@ -1,12 +1,16 @@
-### rule 
+### rule
 
-main 文件夹为项目本体，任何与项目无关的文件都不应该放在 main 文件夹中。如测试代码、文档、配置文件等都应该放在其他文件夹中。
+main 文件夹为项目本体，任何与项目无关的文件、脚手架、测试代码都不应该放在 main 文件夹中。后端依赖、代码、配置、数据库等要放入文件夹
+
+### Verification
+
+Run `npm run check` from the repo root before finishing. It checks the frontend dependency graph, typecheck, frontend tests, backend lint, and targeted backend tests; `npm run check:full` runs the full backend suite.
 
 ## Agent skills
 
 ### Issue tracker
 
-Issues live as GitHub issues in `a13295877929-gif/main`. See `docs/agents/issue-tracker.md`.
+Issues live as GitHub issues in `sixpence6/main`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -16,7 +20,8 @@ Five canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+### v3 architecture
 
-### pre-todo
+For v3 implementation, cleanup, or release work, read `docs/architecture/hld_v3.md`: R1 → R2 → R3 is serial and each stage has an acceptance gate. Read `docs/architecture/v3-refactor-plan.md` for candidate rationale only; neither document is evidence that v3 has shipped.
 
-v2 版本做门禁，设计好文档后把这一条删除
+For gate adjudication, prompt repair, execution snapshots, or chat/result handoffs, read `docs/architecture/workflow-gates-v3.md`; UI behavior stays in `docs/architecture/frontend-design-v3.md`. Audit findings are historical evidence: verify the current baseline before marking a fix or acceptance complete.

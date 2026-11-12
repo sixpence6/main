@@ -98,7 +98,9 @@ class WorkflowContext:
     @property
     def direct(self) -> bool:
         """Current four-role flow; other policies only replay historical workflows."""
-        return self.settings.workflow_role_policy == "collaborative"
+        return self.settings.workflow_role_policy == "collaborative" or (
+            self.run is not None and self.run.role_policy == "collaborative"
+        )
 
     @property
     def project_id(self) -> str:
@@ -150,6 +152,7 @@ async def load_context(
 
     adjudication.set_gate_mode(
         "off" if app.state.settings.workflow_role_policy == "collaborative"
+        or (run is not None and run.role_policy == "collaborative")
         else getattr(app.state.settings, "workflow_gate_mode", "strict")
     )
     return WorkflowContext(
@@ -1201,12 +1204,16 @@ async def build_workflow_view(ctx: WorkflowContext) -> WorkflowView:
             active_execution_snapshot = candidate_snapshot
 
     actions = dispatch.available_actions(ctx)
-    if preview is not None and preview["can_confirm"]:
-        # Keep the explicit repair and abandonment choices beside final
-        # confirmation; refreshing or reopening the page must not remove them.
-        actions = [dispatch.action_view("confirm_prompt"), dispatch.action_view("edit_prepared_prompt")] + [
-            view for view in actions if view.id != "confirm_prompt"
+    if preview is not None:
+        actions = [
+            view for view in actions if view.id not in {"confirm_prompt", "edit_prepared_prompt"}
         ]
+        prompt_actions = []
+        if preview["can_confirm"]:
+            prompt_actions.append(dispatch.action_view("confirm_prompt"))
+        if preview["can_edit"]:
+            prompt_actions.append(dispatch.action_view("edit_prepared_prompt"))
+        actions = prompt_actions + actions
     task_state = build_task_state(
         project=ctx.project,
         run=ctx.run,

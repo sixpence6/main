@@ -1,0 +1,38 @@
+[
+  {
+    "variant": "before",
+    "model": "deepseek-v4.1-flash",
+    "timeout_seconds": 60,
+    "request_chars": 67501,
+    "section_chars": {
+      "approved_inputs": 56579,
+      "capabilities": 33,
+      "input_data": 4090,
+      "repair_codes": 2,
+      "review_targets": 2,
+      "state": 57,
+      "task": 978
+    },
+    "status": "ready",
+    "defects": [],
+    "elapsed_seconds": 34.109
+  },
+  {
+    "variant": "after",
+    "model": "deepseek-v4.1-flash",
+    "timeout_seconds": 60,
+    "request_chars": 16519,
+    "section_chars": {
+      "approved_inputs": 5597,
+      "capabilities": 33,
+      "input_data": 4090,
+      "repair_codes": 2,
+      "review_targets": 2,
+      "state": 57,
+      "task": 978
+    },
+    "status": "ready",
+    "defects": [],
+    "elapsed_seconds": 41.5
+  }
+]

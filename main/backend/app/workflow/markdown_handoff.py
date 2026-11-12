@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from app.db import write_transaction
 from app.errors import ApiError, conflict
 from app.models import Project
+from app.prompt_content import extract_prompt, has_prompt_body
 from app.timeutil import format_timestamp, utc_now
 from app.workflow import alignment, requirements
 from app.workflow.contracts import BriefData, digest_payload
@@ -42,7 +43,9 @@ def system_prompt(role: str) -> str:
         "requirements_assistant": (
             "理解用途、主体与想要的感觉，累计已回答内容。信息不足时先提出一个关键问题，"
             "可给 A/B/C 至多三个具体选项，允许用户自由回答或委托。不要反复询问已回答项。"
-            "用户只咨询或暂停时正常交流。用途与方向明确或已委托时整理需求供视觉策划继续。"
+            "问候、感谢、询问能力、咨询或暂停时自然交流，不整理需求、不编造商品、不输出创作方案。"
+            "待回答的问题不意味着本轮一定是回答。你来定只委托当前审美问题，不能代填主体或文案。"
+            "用途与方向明确或已委托当前审美问题时整理需求供视觉策划继续。"
             "商品身份、准确文案和硬冲突仍不清楚时先问，不靠猜测补全。可用标题组织主体、用途、"
             "已确定方向、画面文字和限制，但无需固定标题或全部填写。"
         ),
@@ -231,7 +234,11 @@ def project_output(ctx, role: str, doc: str, payload: dict) -> dict:
         messages = data.get("user_messages") or []
         latest = messages[-1] if messages else {"message_id": "current_user_message", "text": data.get("pending_user_message") or data.get("user_text") or ""}
         text, message_id = str(latest.get("text", "")), str(latest.get("message_id", "current_user_message"))
-        discussion = bool(alignment.STOP.search(text) or (
+        discussion = bool(alignment.conversational(text)
+            or (alignment.commentary(text) and not alignment.free_text_answer(stored, text))
+            or alignment.STOP.search(alignment.speech_text(text)) or (
+            alignment.DELEGATION.fullmatch(text.strip()) and not alignment.deterministic_answer(stored, text)
+        ) or (
             alignment.FEEDBACK.search(text) and not alignment.REQUEST.search(text)
             and not stored.get("questions")
         ))
@@ -258,7 +265,7 @@ def project_output(ctx, role: str, doc: str, payload: dict) -> dict:
         brief["size"], brief["reference_asset_id"], brief["reference_usage"] = size, ctx.project.reference_asset_id, usage
         brief["unresolved"] = [q["field"] for q in parsed]
         envelope["status"] = "needs_input" if parsed else "ready"
-        envelope["data"] = {"scope": "image_request", "kind": kind, "reference_usage": usage,
+        envelope["data"] = {"scope": "image_request", "kind": kind, "reference_usage": "none" if discussion else usage,
                             "brief": None if discussion else brief, "updates": updates,
                             "clarifications": parsed, "reply": doc[:4000]}
     elif role == "reference_analyst":
@@ -281,11 +288,10 @@ def project_output(ctx, role: str, doc: str, payload: dict) -> dict:
                        "preservation_rules": [*brief.get("must_include", []), *brief.get("must_preserve", [])][:128]},
         }
     elif role == "generation_engineer":
-        positive = section(doc, "正向提示词", "生成提示词", "Positive Prompt")
-        negative = section(doc, "反向提示词", "负向提示词", "Negative Prompt")
-        if not positive:
-            positive = doc
-        positive = re.sub(r"^```[^\n]*\n|\n```$", "", positive.strip()).strip()
+        prompt = extract_prompt(doc)
+        positive, negative = prompt.positive_prompt, prompt.negative_prompt
+        if not has_prompt_body(positive):
+            raise ApiError(409, "PROMPT_EMPTY", "提示词没有可用正文，请重新整理后继续。")
         if len(positive) > 12000 or len(negative) > 6000:
             raise ApiError(409, "PROMPT_TOO_LONG", "提示词超过可编辑长度，原文已保存，请精简后继续。")
         envelope["data"] = {"positive_prompt": positive, "negative_prompt": negative,

@@ -1,0 +1,209 @@
+{
+  "ticket": "#111 / T25 runtime versions and real-environment release re-verification",
+  "batch": "P7 / T25 source-build-package-runtime consistency and release re-verification",
+  "status": "partial pass; ticket remains open because real-provider, controlled LAN HTTPS, physical device and real data-source conditions lack current evidence",
+  "code": {
+    "baseline_head": "f2df5aa (integration/v3 before T25)",
+    "app_code_head": "fafea37",
+    "branch": "ticket/111",
+    "integration_merge": "cd627ea",
+    "integration_head": "cd627ea15770b148c00b4b4a00be1871bb223a54",
+    "commits": [
+      "9e13ba8 fix(workflow): preserve legacy prompt coverage and retrieval bytes (#111)",
+      "fafea37 feat(release): derive package migration head from source (#111)"
+    ],
+    "rule_version": "v3.rules.2",
+    "prompt_version": "2.0.0",
+    "rule_catalog_version": "v3.rules.2",
+    "snapshot_schema_version": "1.1.0 (supported: 1.1.0 and 1.0.0)",
+    "contract_version": "1.0.0",
+    "migration_head": "0011_recovery_claims",
+    "release_version": "0.1.0",
+    "package_source_commit": "cd627ea15770b148c00b4b4a00be1871bb223a54",
+    "files": [
+      "tools/release_package.py",
+      "backend/tests/test_t78_production_entry.py",
+      "backend/tests/test_t79_release_package.py",
+      "main/backend/app/services/retrieval.py",
+      "main/backend/app/workflow/stages/s07.py",
+      "main/backend/app/workflow/stages/s08.py",
+      "main/backend/app/workflow/stages/s11_retrieval.py",
+      "backend/tests/test_v2_t12_quality.py",
+      "backend/tests/test_t15_contract.py"
+    ]
+  },
+  "environment": {
+    "os": "Windows 10.0.19045",
+    "python": "3.12.13 (backend/.venv)",
+    "node": "v26.12.1",
+    "npm": "11.20.0",
+    "vite": "8.3.5 win32-x64 node-v26.12.1",
+    "database": "temporary SQLite under release-artifacts/runtime-data; no backend/data or main/backend/data touched",
+    "network": "no provider network call; package runtime bound to loopback 127.0.0.1"
+  },
+  "source_build_runtime": {
+    "source_head": "cd627ea15770b148c00b4b4a00be1871bb223a54",
+    "package_source_commit": "cd627ea15770b148c00b4b4a00be1871bb223a54 (match)",
+    "package_version": "0.1.0 (match with main/package.json)",
+    "migration_head": "0011 (match with manifest, alembic head and runtime check)",
+    "entrypoint": "app.main:app (production entry backend/app/production.py)",
+    "static_build": {
+      "command": "npm run build",
+      "result": "vite 8.3.5; 1669 modules transformed; 876ms; exit 0",
+      "files": [
+        "main/dist/index.html 472 bytes sha256 0c998ae38618359ce17f3007bfeb0d9b3201e86b285e6cd02b2801185e3f6a07",
+        "main/dist/assets/index-B8Q_t_Sj.js 1,174,406 bytes sha256 2e06c9aba33c58aa834f1cda0ab8db7837f8c65c2d26db9e2bcb61d299d0bb6f",
+        "main/dist/assets/index-CQNG_L0h.css 437,164 bytes sha256 44696c4984225aa7dd33a7237e4a356efd029725e81ef1902f70f552be221846"
+      ],
+      "package_equality": "package dist/index.html, dist/assets/index-B8Q_t_Sj.js and dist/assets/index-CQNG_L0h.css are byte-identical to main/dist (same SHA256 and size)"
+    },
+    "package": {
+      "output_dir": "release-artifacts/ecommerce-image-workspace-0.1.0",
+      "zip": "release-artifacts/ecommerce-image-workspace-0.1.0.zip",
+      "zip_bytes": 1040844,
+      "zip_sha256": "a8ed82e8d8860e721abca25d147a966530e351bad40ddf9f33fcfee91dd751ec",
+      "file_count": 191,
+      "manifest_files": 189,
+      "dist_files": 3,
+      "manifest_created_at": "2026-11-02T15:18:39.971429+00:00",
+      "check": "ok=true; selected_tracked_files=185; dist_present=true; dist_files=3; required_files=24; issues=[]",
+      "secret_scan": "ok=true; markers=0; hits=[]"
+    },
+    "runtime_check": {
+      "script": "D:/Desktop/新建文件夹/.scratch/t25-runtime-check.py",
+      "result_file": "release-artifacts/runtime-check.json",
+      "production_check": "entrypoint app.main:app; migration_head 0011; database release-artifacts/runtime-data/app.db; web_dist_dir package/dist; import_root package/backend/app",
+      "migration": "fresh SQLite upgraded 0001..0010 then 0011_recovery_claims",
+      "health": "GET /api/health 200 {status: ok}",
+      "index": "GET / 200; 472 bytes; references /assets/index-B8Q_t_Sj.js",
+      "asset": "GET /assets/index-B8Q_t_Sj.js 200; 1,174,406 bytes",
+      "index_hash": "package_index_sha256 == served_index_sha256 == 0c998ae38618359ce17f3007bfeb0d9b3201e86b285e6cd02b2801185e3f6a07",
+      "openapi": "GET /api/openapi.json 401 Unauthorized; openapi_version not asserted because the route is auth-protected, not because it was absent",
+      "process_after_check": "no lingering release python/uvicorn process on port 18991"
+    }
+  },
+  "process_checks": {
+    "stale_before": "PID 32716 node vite --config main/vite.config.ts --host 127.0.0.1 --port 5173 served .worktrees/t108 (T22 run), not the release source; stopped before final runtime evidence",
+    "port_5173_after": "free; no listener",
+    "port_18991_after": "free; no listener",
+    "port_8000": "PID 17496 com.docker.backend.exe, unrelated to this project",
+    "conclusion": "no old project process remained to mask the source; package runtime was started and stopped explicitly for the check"
+  },
+  "scope": [
+    "T25 verifies source, actual production process, static build and release package versions/config separately; it does not treat a local test pass as real-environment release evidence.",
+    "The release tool now derives migration_head from source_root/backend/migrations/versions instead of hardcoding 0010; this was required because T08 added 0011_recovery_claims.",
+    "Regression fixes preserve existing R1/R2/R3 protections: retrieval byte unpacking, legacy prompt coverage for old pipe-separated prompts, and compatibility tests.",
+    "The release package is built only from main/ plus required metadata; tests, data, .env, .venv, node_modules, logs and databases remain excluded by the package tool.",
+    "No real provider request, no LAN HTTPS/trusted-certificate request, no physical mobile/keyboard interaction and no real data-root restore was performed because this session has no explicit authorization or device evidence for those conditions."
+  ],
+  "commands": [
+    "cd D:/Desktop/新建文件夹 && npm run build",
+    "cd D:/Desktop/新建文件夹 && backend/.venv/Scripts/python.exe tools/release_package.py --build --no-build --output-root D:/Desktop/新建文件夹/release-artifacts --json",
+    "cd D:/Desktop/新建文件夹 && backend/.venv/Scripts/python.exe tools/release_package.py --check --require-dist --json",
+    "cd D:/Desktop/新建文件夹 && backend/.venv/Scripts/python.exe tools/secret_scan.py --root release-artifacts/ecommerce-image-workspace-0.1.0 --zip release-artifacts/ecommerce-image-workspace-0.1.0.zip --json",
+    "cd D:/Desktop/新建文件夹/backend && backend/.venv/Scripts/python.exe -m pytest -q tests/test_t78_production_entry.py tests/test_t79_release_package.py",
+    "cd D:/Desktop/新建文件夹 && backend/.venv/Scripts/python.exe .scratch/t25-runtime-check.py",
+    "full backend regression split: non-v2 and v2 groups from .worktrees/t111/backend (result recorded below)"
+  ],
+  "commands_output": [
+    {
+      "command": "npm run build",
+      "result": "exit 0; 1669 modules; 876ms; main/dist index 472 bytes, JS 1,174,406 bytes, CSS 437,164 bytes"
+    },
+    {
+      "command": "release_package --build --no-build",
+      "result": "package ecommerce-image-workspace 0.1.0; source_commit cd627ea...; file_count 191; zip_bytes 1,040,844; migration_head 0011"
+    },
+    {
+      "command": "release_package --check --require-dist",
+      "result": "ok true; selected_tracked_files 185; dist_files 3; required_files 24; issues []"
+    },
+    {
+      "command": "secret_scan",
+      "result": "ok true; markers 0; hits []"
+    },
+    {
+      "command": "pytest test_t78 + test_t79",
+      "result": "8 passed in 12.12s"
+    },
+    {
+      "command": "t25-runtime-check",
+      "result": "health ok; index 200; asset 200; migration_tail ended 0011; index hashes equal; openapi 401 auth-protected"
+    },
+    {
+      "command": "full backend split",
+      "result": "non-v2 63 files: 573 passed, 1 xfailed, 2 warnings in 702.51s; v2 19 files: 257 passed, 1 warning in 483.58s; total 830 passed, 1 xfailed, 3 warnings; release guard 9 files: 55 passed in 48.13s; run from .worktrees/t111/backend on integration HEAD cd627ea"
+    },
+    {
+      "command": "release gate suite",
+      "result": "55 passed in 48.13s; R1/R2/R3/release-related backend files"
+    }
+  ],
+  "calls": {
+    "model_text": 0,
+    "model_vision": 0,
+    "image_generation": 0,
+    "provider_network": 0,
+    "note": "no authorized real-provider call; all runtime checks are local HTTP only"
+  },
+  "acceptance": [
+    {
+      "criterion": "source, running process, static build and release package versions/config consistency",
+      "result": "pass (local scope)",
+      "evidence": "git HEAD cd627ea == package source_commit; package version 0.1.0 == main/package.json; migration 0011 == tool/manifest/alembic; root and package dist hashes identical; production --check and /api/health/index/asset passed"
+    },
+    {
+      "criterion": "old process/static assets not masked by source or local tests",
+      "result": "pass for this workstation after explicit process check",
+      "evidence": "stale Vite PID 32716 from t108 was found and stopped; port 5173 free; no uvicorn/vite listener; package dist matches rebuilt root dist; package runtime on 18991 stopped after check"
+    },
+    {
+      "criterion": "prior integration, compatibility rollback and all matrices have no unresolved failure or unknown before expanding formal entry",
+      "result": "partial; local regression results recorded separately",
+      "evidence": "T23/T24 evidence plus final split backend 830 passed / 1 expected xfail and release guard 55 passed; no formal entry was expanded because later release conditions remain unpassed"
+    },
+    {
+      "criterion": "real-provider one confirmation, bounded repair, single image submission, independent image approval, delivery and resource access under explicit authorization",
+      "result": "not passed",
+      "evidence": "no explicit current authorization; no provider network call; calls are 0. Historical release docs and environment keys are not treated as authorization"
+    },
+    {
+      "criterion": "controlled LAN HTTPS/trusted certificate, another device access, multi-account isolation and physical desktop/mobile soft-keyboard interaction",
+      "result": "not passed",
+      "evidence": "no current trusted certificate/LAN listener or second physical device; T22 only used headless Edge at 320/768/1440 and explicitly defers physical mobile/soft keyboard"
+    },
+    {
+      "criterion": "real-environment navigation/refresh/history/download add zero calls, current publish jumps once, account switch/cross-tab/late callback leak no private image",
+      "result": "not passed in real environment",
+      "evidence": "T15-T23 jsdom/HTTP/flight-recorder evidence only; no real authorized deployment"
+    },
+    {
+      "criterion": "real data source, maintainer confirmation, backup restorable and migration scope separately verified",
+      "result": "not passed",
+      "evidence": "T24 restore drill used temporary SQLite and synthetic rows; no real data root, operator confirmation or production stop"
+    },
+    {
+      "criterion": "deliver actual changes, versions, commands, device steps, budget/calls/ledger/resource results, residuals and per-item release conclusion",
+      "result": "partial",
+      "evidence": "this JSON and p7-t25-runtime-release.md; real-provider/device/data items remain explicitly unpassed"
+    }
+  ],
+  "release_conditions": {
+    "V3-Release": "not passed; local package verification only",
+    "real_provider": "not passed; no provider call",
+    "lan_https_trusted_certificate": "not passed; no current evidence",
+    "second_device_multi_account": "not passed; no current evidence",
+    "physical_mobile_soft_keyboard": "not passed; no current evidence",
+    "real_data_source_backup_restore": "not passed; T24 is temporary-data only"
+  },
+  "residuals": [
+    "No real-provider call was made; no real model/image billing or quality evidence exists for this T25 run.",
+    "No controlled LAN HTTPS endpoint or trusted certificate was created for this T25 run.",
+    "No physical desktop/mobile device or soft keyboard was tested; headless Edge is not a substitute.",
+    "No real data root was read, backed up, restored or migrated; T24 remains a temporary-SQLite drill.",
+    "The full backend split result must be filled in when the background run completes; no full green suite is claimed before then.",
+    "The root package-lock working copy needed an LF normalization for the byte-for-byte test in this Windows checkout; the Git object hash was unchanged and no tracked diff was produced.",
+    "T25 does not claim formal V3 release completion; #111 stays open until all required evidence exists."
+  ],
+  "p7_entry": "T25 performs the final local package/runtime verification. Real-provider, TLS/device and real-data conditions remain unpassed; the ticket must stay open."
+}

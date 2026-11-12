@@ -2,6 +2,7 @@
 node_modules/
 
 # build output
+release-artifacts/
 dist/
 coverage/
 
@@ -22,3 +23,27 @@ playwright-report/
 Thumbs.db
 .DS_Store
 *.log
+
+# python
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+backend/data/
+main/backend/data/
+backend/backups/
+main/backend/backups/
+
+# local tool credentials/state and pytest temporary databases
+/.config/gh/
+/.local/
+/pytest-of-*/
+
+# Local migration archives and TLS material must never enter Git.
+/*.zip
+**/certs/
+*.key
+*.pem
+*.p12
+*.pfx

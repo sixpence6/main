@@ -1,0 +1,19 @@
+{
+  "name": "ecommerce-image-workspace-dev",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "main"
+  ],
+  "scripts": {
+    "dev": "npm --workspace main run dev",
+    "build": "npm --workspace main run build",
+    "preview": "npm --workspace main run preview",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "node scripts/check.mjs",
+    "check:full": "node scripts/check.mjs --full"
+  }
+}

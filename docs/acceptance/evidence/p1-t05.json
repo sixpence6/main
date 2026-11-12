@@ -1,0 +1,94 @@
+{
+  "ticket": "#91",
+  "batch": "P1 / T05 — image quality, delivery manifest and legacy history on the shared catalogue",
+  "code": {
+    "integration_head": "f3f5262",
+    "branch": "integration/v3",
+    "rule_version": "v3.rules.1",
+    "prompt_version": "2.0.0",
+    "files": [
+      "main/backend/app/workflow/adjudication.py",
+      "main/backend/app/workflow/stages/s09.py",
+      "main/backend/app/workflow/stages/s10.py",
+      "main/backend/app/workflow/stages/s11.py",
+      "backend/tests/test_v2_t12_quality.py",
+      "backend/tests/test_v2_t13_delivery.py",
+      "backend/tests/test_v3_p1_t05_image_delivery.py"
+    ]
+  },
+  "environment": {
+    "type": "isolated-temp-sqlite",
+    "backend_python": "backend/.venv/Scripts/python.exe",
+    "data_root": "temp",
+    "network": "stubbed"
+  },
+  "inputs": [
+    "S09 image quality report and image target review (normal + S12 replay)",
+    "S10 delivery manifest review",
+    "S11 legacy text, prompt, quality report, image and delivery manifest review"
+  ],
+  "commands": [
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests\\test_v3_p1_t05_image_delivery.py -q",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests\\test_v2_t12_quality.py tests\\test_v2_t13_delivery.py -q",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests\\test_v2_t49_legacy_review.py -q",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests\\test_t75_delivery_history.py -q",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests\\test_v3_p0_baseline.py tests\\test_v3_p1_t02_adjudication.py -q",
+    "cd backend && .\\.venv\\Scripts\\python.exe -m pytest tests\\test_v3_p1_t03_review_catalogue.py tests\\test_v3_p1_t04_production_reviews.py -q"
+  ],
+  "candidate_budget": {
+    "artifact": "quality_report / image / delivery_manifest / legacy targets",
+    "limit": 3,
+    "used": 1,
+    "note": "review defects stop at the candidate and never consume another artifact; recovery replays the same persisted review request"
+  },
+  "calls": {
+    "model_text": 4,
+    "model_vision": 2,
+    "image_generation": 0,
+    "note": "counting stubs per scenario; review and replay cases assert producer/reviewer call counts and zero extra image submissions"
+  },
+  "acceptance": {
+    "WG3-AC-02": "covered for S09/S10/S11: advisory pass/fail/unknown/not_applicable never changes a satisfied blocking gate and cannot rescue a blocking failure",
+    "WG3-AC-03": "covered: unknown rule, illegal evidence, wrong target, contradictory decision and duplicate instance are typed 409 REVIEW_INVALID; producer contract defects remain 502 CONTRACT_ERROR; substantive rejection is 409 REVIEW_REJECTED",
+    "WG3-AC-12": "covered for this batch: report approval may coexist with image failure/unknown while bytes stay denied; delivery approval does not publish; historical targets keep original snapshot isolation; A/B/admin resource matrix denied without bytes"
+  },
+  "probes": {
+    "file": "backend/tests/test_v3_p1_t05_image_delivery.py",
+    "unit_cases": 3,
+    "http_cases": 7,
+    "results": "10 passed"
+  },
+  "routing": {
+    "typed_issue_codes": [
+      "UNKNOWN_RULE",
+      "ILLEGAL_EVIDENCE",
+      "WRONG_TARGET",
+      "CONTRADICTION",
+      "DUPLICATE_INSTANCE",
+      "MISSING_RESULT"
+    ],
+    "public_errors": [
+      "409 REVIEW_INVALID",
+      "409 REVIEW_REJECTED",
+      "503 REVIEW_UNAVAILABLE (model call only)",
+      "502 CONTRACT_ERROR (producer contract only)"
+    ],
+    "retry_policy": "REVIEW_INVALID blocks the stage and preserves the candidate; REVIEW_REJECTED requires user action; only model-call failures are outages"
+  },
+  "unmigrated": {
+    "S06 field synthesis, strength layering and immutable snapshot": "#96-#98",
+    "available_actions leaks in failed state": "#93"
+  },
+  "known_red_baseline": [
+    "tests/test_t11_retrieve.py::test_failed_download_can_retrieve_same_version_and_downloads_real_file",
+    "tests/test_t11_retrieve.py::test_retrieval_stays_failed_while_waiting_and_blocks_other_write"
+  ],
+  "results": {
+    "ui": "not touched in this batch",
+    "resources": "no image generation calls; no provider network calls; temp SQLite per case; published byte checks use the local asset route"
+  },
+  "residual_unknowns": [
+    "frontend rendering of REVIEW_INVALID/REVIEW_REJECTED copy and typed-reason mapping is #93",
+    "S10 recovery has no dedicated S12 branch; a failed prepare_delivery can be re-run because it does not create an approval"
+  ]
+}

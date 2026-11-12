@@ -7,7 +7,7 @@ from dataclasses import replace
 from typing import Any
 
 from app.errors import ApiError
-from app.workflow import requirements, templates
+from app.workflow import alignment, requirements, templates
 from app.workflow.contracts import ConversationData, RequirementsAssistantData, VisualPlannerData
 from app.workflow.roles import RoleOutput, run_role
 from app.workflow.state import (
@@ -71,6 +71,25 @@ async def run_requirements(
     if output.data is None:
         return replace(output, role="requirements_consultant")
     data = RequirementsAssistantData.model_validate(output.data)
+    messages = await s03._user_messages(ctx)
+    stored = requirements.state_of(ctx)
+    if ctx.direct and messages and data.scope == "image_request" and data.kind != "conversation":
+        text = messages[-1].content
+        brief = data.brief.model_dump(mode="json") if data.brief else {}
+        field_answer = alignment.free_text_answer(stored, text)
+        grounded = (
+            alignment.grounded_request(text, brief)
+            or alignment.deterministic_answer(stored, text) or field_answer
+            or bool(stored.get("data") and alignment.revision_request(text))
+            or bool(input_data.get("reference_report") and (
+                stored.get("generation_intent", {}).get("status") == "requested"
+                or ctx.run.intent_route == "image_request"
+            ))
+        )
+        if alignment.conversational(text) or (alignment.commentary(text) and not field_answer) or not grounded:
+            await s03._append_assistant(ctx, conversation_reply(text), ctx.project.revision)
+            await set_stage(ctx, "S03", "needs_input")
+            return None
     if data.scope in {"out_of_scope", "mixed", "unclear"}:
         template = "SCOPE_REFUSAL" if data.scope != "unclear" else "INTENT_UNCLEAR"
         await set_intent(ctx, data.scope, "none")
@@ -83,7 +102,7 @@ async def run_requirements(
             template_id=template,
         )
         return None
-    if data.kind == "conversation" and data.brief is None:
+    if data.kind == "conversation":
         await s03._append_assistant(ctx, data.reply or templates.render("INTENT_UNCLEAR"), ctx.project.revision)
         await set_stage(ctx, "S03", "needs_input")
         return None
@@ -218,7 +237,7 @@ async def classify_message(
         "field_sources": stored.get("field_sources", {}),
         "structured_clarifications": stored.get("questions", []),
         "conversation": [
-            *(await s03._conversation_messages(ctx)),
+            *(await s03._conversation_messages(ctx, include_conversation=True)),
             {"role": "user", "text": content},
         ],
         "user_messages": [{"message_id": item.id, "text": item.content} for item in messages]
@@ -244,9 +263,49 @@ async def classify_message(
     data = RequirementsAssistantData.model_validate(output.data)
     ctx.natural_reply = data.reply
     if data.scope in {"out_of_scope", "mixed", "unclear"}:
+        if alignment.conversational(content) or alignment.DELEGATION.fullmatch(content.strip()):
+            ctx.natural_reply = conversation_reply(content)
+        else:
+            ctx.natural_reply = templates.render("INTENT_UNCLEAR" if data.scope == "unclear" else "SCOPE_REFUSAL")
+            ctx.prepared_requirements = (content, output)
         return ConversationData(kind="conversation", reference_usage="none", evidence_ids=[])
-    ctx.prepared_requirements = (content, output)
-    return ConversationData(kind=data.kind, reference_usage=data.reference_usage, evidence_ids=[])
+    kind = data.kind
+    known = bool(current and current.get("product_description"))
+    answer = alignment.deterministic_answer(stored, content)
+    brief = data.brief.model_dump(mode="json") if data.brief else None
+    answer = answer or alignment.free_text_answer(stored, content)
+    grounded = alignment.grounded_request(content, brief)
+    # Scope and fabricated defaults are not authority to start or revise a task.
+    if not has_reference_attachment and (
+        alignment.conversational(content)
+        or bool(alignment.STOP.search(alignment.speech_text(content)))
+        or (alignment.commentary(content) and not answer)
+        or (alignment.DELEGATION.fullmatch(content.strip()) and not answer)
+        or (not answer and not grounded and not (known and alignment.revision_request(content)))
+    ):
+        kind = "conversation"
+        if data.kind != "conversation":
+            ctx.natural_reply = conversation_reply(content)
+    if kind != "conversation":
+        ctx.prepared_requirements = (content, output)
+    return ConversationData(
+        kind=kind,
+        reference_usage="none" if kind == "conversation" else data.reference_usage,
+        evidence_ids=[],
+    )
+
+
+def conversation_reply(content: str) -> str:
+    """Fallback when the model tried to turn ordinary chat into a task."""
+    if alignment.SOCIAL.fullmatch(content.strip()):
+        if re.search(r"谢谢|多谢|感谢|thanks|thank you", content, re.I):
+            return "不客气，有想法随时聊。"
+        return "你好！很高兴和你聊聊。"
+    if alignment.DELEGATION.fullmatch(content.strip()):
+        return "审美方向可以交给我来选。先告诉我画面要展示什么主体，具体文案等事实还需要你提供。"
+    if alignment.STOP.search(content):
+        return "可以，我们先聊想法。你想先了解哪一部分？"
+    return "我可以和你讨论商品图片、海报的用途与视觉方向，也可以根据你的具体需求准备方案。你想了解什么？"
 
 
 async def plan_visual(
