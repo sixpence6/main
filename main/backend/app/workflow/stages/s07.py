@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.acceptance import (
     GenerationIntent,
@@ -1108,22 +1108,31 @@ async def _ensure_image_unsubmitted(
                 select(GenerationJob)
                 .where(
                     GenerationJob.run_id == ctx.run_id,
-                    GenerationJob.intent_id == intent.id,
+                    # Unlinked same-run tasks cannot prove this intent is unsubmitted.
+                    or_(
+                        GenerationJob.intent_id == intent.id,
+                        GenerationJob.intent_id.is_(None),
+                    ),
                 )
                 .order_by(GenerationJob.created_at.desc())
             )
         ).all()
     if not jobs:
         return
-    job = jobs[0]
-    proven_unsubmitted = (
-        job.submit_attempted == 0
-        and job.status in {"created", "submit_pending"}
-        and not job.remote_task_id
+    unsafe_job = next(
+        (
+            job
+            for job in jobs
+            if not (
+                job.submit_attempted == 0
+                and job.status in {"created", "submit_pending"}
+                and not job.remote_task_id
+            )
+            and not (allow_known_rejection and job.status in {"rejected", "failed"})
+        ),
+        None,
     )
-    if allow_known_rejection and job.status in {"rejected", "failed"}:
-        return
-    if proven_unsubmitted:
+    if unsafe_job is None:
         return
     await _record_transition(
         ctx,
@@ -1131,9 +1140,9 @@ async def _ensure_image_unsubmitted(
         "stop_auto_advance",
         intent_id=intent.id,
         detail={
-            "job_id": job.id,
-            "job_status": job.status,
-            "submit_attempted": job.submit_attempted,
+            "job_id": unsafe_job.id,
+            "job_status": unsafe_job.status,
+            "submit_attempted": unsafe_job.submit_attempted,
         },
     )
     await state.set_stage(

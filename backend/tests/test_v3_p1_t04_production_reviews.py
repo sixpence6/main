@@ -496,21 +496,39 @@ async def test_s06_card_protocol_defect_keeps_card_unconfirmed(llm_settings) -> 
         assert visual.submit_calls == []
 
 
-async def test_s05_recovery_replays_the_same_visual_candidate(llm_settings) -> None:
-    timeout = ProviderError("review timeout", evidence="uncertain", error_code="LLM_TIMEOUT")
-    script = Script(visual=[visual_payload()], reviews=[timeout, "pass"])
+@pytest.mark.parametrize(
+    ("error_code", "call_status"),
+    [
+        ("LLM_TIMEOUT", "timeout"),
+        ("LLM_NETWORK_ERROR", "error"),
+        ("LLM_UPSTREAM_ERROR", "error"),
+    ],
+)
+async def test_s05_recovery_replays_the_same_visual_candidate(
+    llm_settings, error_code: str, call_status: str
+) -> None:
+    failure = ProviderError("review unavailable", evidence="uncertain", error_code=error_code)
+    script = Script(visual=[visual_payload()], reviews=[failure, "pass"])
     async with _environment(llm_settings, script) as (application, client, stub, visual):
         project_id = await _create_project(client)
         await _seed_visual_inputs(application, project_id)
 
         failed = await _act(client, project_id, "plan_visual")
         assert failed.status_code == 503, failed.text
-        assert failed.json()["error"]["code"] in {"REVIEW_UNAVAILABLE", "SERVICE_UNAVAILABLE"}
+        assert failed.json()["error"]["code"] == "REVIEW_UNAVAILABLE"
         view = await _view(client, project_id)
         assert view["status"] == "blocked"
-        assert "continue_workflow" in [action["id"] for action in view["available_actions"]]
+        assert view["issue"]["code"] == "REVIEW_UNAVAILABLE"
+        assert [action["id"] for action in view["available_actions"]] == ["continue_workflow"]
         plan = [item for item in view["artifacts"] if item["kind"] == "visual_plan"]
         assert len(plan) == 1 and plan[0]["status"] == "candidate"
+        assert plan[0]["payload"] is None
+        calls = await _role_calls(application, view["run_id"])
+        assert [call.role for call in calls] == ["visual_director", "output_reviewer"]
+        failed_review = calls[-1]
+        assert failed_review.status == call_status
+        assert failed_review.error_code == error_code
+        assert visual.submit_calls == []
 
         resumed = await _act(client, project_id, "continue_workflow")
         assert resumed.status_code == 200, resumed.text
@@ -518,4 +536,41 @@ async def test_s05_recovery_replays_the_same_visual_candidate(llm_settings) -> N
         assert len(approved) == 1
         assert approved[0]["id"] == plan[0]["id"]
         assert approved[0]["status"] == "approved"
+        calls = await _role_calls(application, view["run_id"])
+        assert [call.role for call in calls] == [
+            "visual_director",
+            "output_reviewer",
+            "output_reviewer",
+        ]
+        assert calls[1].error_code == error_code
+        assert calls[-1].status == "ok"
+        assert calls[-1].request_json == failed_review.request_json
+        assert calls[-1].request_digest == failed_review.request_digest
+        assert visual.submit_calls == []
+
+
+async def test_s06_card_invalid_provider_response_is_a_review_outage(llm_settings) -> None:
+    failure = ProviderError(
+        "invalid provider response", evidence="uncertain", error_code="LLM_RESPONSE_INVALID"
+    )
+    script = Script(visual=[visual_payload()], reviews=["pass", failure])
+    async with _environment(llm_settings, script) as (application, client, stub, visual):
+        project_id = await _create_project(client)
+        await _seed_visual_inputs(application, project_id)
+        planned = await _act(client, project_id, "plan_visual")
+        assert planned.status_code == 200, planned.text
+
+        failed = await _act(client, project_id, "finalize_requirements")
+        assert failed.status_code == 503, failed.text
+        assert failed.json()["error"]["code"] == "REVIEW_UNAVAILABLE"
+        view = await _view(client, project_id)
+        assert view["status"] == "blocked"
+        assert view["issue"]["code"] == "REVIEW_UNAVAILABLE"
+        card = [item for item in view["artifacts"] if item["kind"] == "final_brief"]
+        assert len(card) == 1 and card[0]["status"] == "candidate"
+        assert card[0]["payload"] is None
+        calls = await _role_calls(application, view["run_id"])
+        assert calls[-1].role == "output_reviewer"
+        assert calls[-1].status == "invalid"
+        assert calls[-1].error_code == "LLM_RESPONSE_INVALID"
         assert visual.submit_calls == []

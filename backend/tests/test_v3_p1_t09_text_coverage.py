@@ -5,7 +5,6 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app.adapters.base import ProviderOutcome
 from app.workflow.reasons import ReasonCode
 from app.workflow.stages.s07 import _assess_requirement
 from app.workflow.tables import (
@@ -30,11 +29,11 @@ from tests.test_v2_t40_prompt_review import (
     candidate_data,
     engineer_response,
     environment,
-    png_bytes,
     review_response,
     setup_confirmed_project,
     workflow_action,
 )
+from tests.test_v3_p1_t07_text_repair import _assert_prepared_waiting
 
 
 def _brief_with(
@@ -99,7 +98,7 @@ async def _run_state(app, project_id: str):
                             [
                                 "prompt_transition",
                                 "prompt_candidate_reserved",
-                                "prompt_candidate_approved",
+                                "prompt_candidate_persisted",
                             ]
                         ),
                     )
@@ -111,7 +110,7 @@ async def _run_state(app, project_id: str):
     parsed = []
     for item in diags:
         detail = json.loads(item.detail_json)
-        if item.event in {"prompt_candidate_reserved", "prompt_candidate_approved"}:
+        if item.event in {"prompt_candidate_reserved", "prompt_candidate_persisted"}:
             detail = {"action": item.event, **detail}
         parsed.append(detail)
     return run, artifacts, budget, parsed
@@ -385,22 +384,18 @@ class _OmissionThenExact:
                 data["requirement_coverage"] = [
                     item
                     for item in data["requirement_coverage"]
-                    if item["rule_id"] != "hard:must_preserve"
+                    if item["rule_id"] != "hard:must_preserve:0"
                 ]
             return engineer_response(data)
         return _generation_engineer_responder()(request)
 
 
 @pytest.mark.asyncio
-async def test_true_omission_repairs_against_original_intent_and_reaches_image(
+async def test_true_omission_repairs_against_original_intent_and_waits_for_final_confirmation(
     full_settings,
 ) -> None:
     llm = LLMStub()
-    visual = VisualStub(
-        submit_outcome=ProviderOutcome(
-            state="succeeded", image_bytes=png_bytes(1024, 1024), image_count=1
-        )
-    )
+    visual = VisualStub()
     script = _OmissionThenExact()
     async with _environment(full_settings, llm, visual, responder=script) as (app, client):
         setup = await _setup_s06(app, client)
@@ -426,11 +421,15 @@ async def test_true_omission_repairs_against_original_intent_and_reaches_image(
         invalid = next(item for item in diags if item["action"] == "candidate_invalid")
         assert invalid["reason"] == ReasonCode.REPAIRABLE_COMPOSITION
         assert script.calls == 2
-        assert len(visual.submit_calls) == 1
-
-        workflow = (await client.get(f"/api/projects/{setup['project_id']}/workflow")).json()
-        assert workflow["stage"] == "S10"
-        assert workflow["intent"]["id"] == intents[0].id
+        persisted = next(item for item in diags if item["action"] == "prompt_candidate_persisted")
+        assert persisted["artifact_id"] == artifacts[0].id and persisted["attempt"] == 2
+        workflow = await _assert_prepared_waiting(
+            app, client, setup["project_id"],
+            intent_id=intents[0].id, artifact_id=artifacts[0].id,
+        )
+        assert "杯口金色描边" in workflow["prompt_preview"]["request"]["positive_prompt"]
+        assert intents[0].status == "accepted"
+        assert visual.submit_calls == []
 
 
 @pytest.mark.asyncio

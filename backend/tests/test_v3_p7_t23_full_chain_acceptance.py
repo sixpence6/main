@@ -11,6 +11,7 @@ from app.adapters.base import ProviderOutcome
 from app.db import read_session
 from app.workflow.tables import Delivery, GenerationJob, RevisionBudget, WorkflowRun
 from tests.support.adapters import LLMStub, VisualStub
+from tests.support.t02_prompt import final_click
 from tests.test_t65_generation_cycle import (
     _drain,
     _environment,
@@ -99,6 +100,24 @@ async def test_r3_full_chain_from_send_to_read_only_result_and_new_version(
 
         llm.gate = None
         gate.set()
+        await _drain(app)
+
+        waiting_response = await client.get(f"/api/projects/{project_id}/workflow")
+        assert waiting_response.status_code == 200, waiting_response.text
+        waiting = waiting_response.json()
+        assert waiting["stage"] == "S07"
+        assert waiting["status"] == "needs_input"
+        assert waiting["prompt_preview"] is not None
+        assert waiting["prompt_preview"]["status"] == "awaiting_confirmation"
+        assert waiting["prompt_preview"]["can_confirm"] is True
+        assert visual.submit_calls == []
+
+        clicked = await final_click(
+            client,
+            {"project_id": project_id, "workflow": waiting},
+            command_id=str(uuid.uuid4()),
+        )
+        assert clicked.status_code == 200, clicked.text
         await _drain(app)
 
         intents, usages, slots = await _rows(app, project_id)
@@ -260,6 +279,24 @@ async def test_r3_hard_quality_failure_keeps_no_downloadable_result(full_setting
         )
         assert confirmed.status_code == 200, confirmed.text
         gate.set()
+        await _drain(app)
+
+        waiting_response = await client.get(f"/api/projects/{project_id}/workflow")
+        assert waiting_response.status_code == 200, waiting_response.text
+        waiting = waiting_response.json()
+        assert waiting["stage"] == "S07"
+        assert waiting["status"] == "needs_input"
+        assert waiting["prompt_preview"] is not None
+        assert waiting["prompt_preview"]["status"] == "awaiting_confirmation"
+        assert waiting["prompt_preview"]["can_confirm"] is True
+        assert visual.submit_calls == []
+
+        clicked = await final_click(
+            client,
+            {"project_id": project_id, "workflow": waiting},
+            command_id=str(uuid.uuid4()),
+        )
+        assert clicked.status_code == 200, clicked.text
         await _drain(app)
 
         intents, usages, slots = await _rows(app, project_id)

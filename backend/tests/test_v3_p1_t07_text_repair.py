@@ -3,13 +3,14 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from datetime import timedelta
 
 import pytest
 from sqlalchemy import select
 
-from app.adapters.base import ProviderOutcome
+from app.acceptance import GenerationIntent
+from app.auth.models import Account, AuditEvent
 from app.db import write_transaction
-from app.auth.models import Account
 from app.models import Project
 from app.prompt_preparation import PreparedPrompt
 from app.timeutil import format_timestamp, utc_now
@@ -43,7 +44,7 @@ from tests.test_t66_replay_drift import (
     _confirmation_payload,
     _generation_engineer_responder,
 )
-from tests.test_v2_t40_prompt_review import candidate_data, engineer_response, png_bytes
+from tests.test_v2_t40_prompt_review import candidate_data, engineer_response
 
 
 def _defect(
@@ -149,7 +150,7 @@ async def _run_state(app, project_id: str):
                             [
                                 "prompt_transition",
                                 "prompt_candidate_reserved",
-                                "prompt_candidate_approved",
+                                "prompt_candidate_persisted",
                             ]
                         ),
                     )
@@ -159,10 +160,59 @@ async def _run_state(app, project_id: str):
     parsed = []
     for item in diags:
         detail = json.loads(item.detail_json)
-        if item.event in {"prompt_candidate_reserved", "prompt_candidate_approved"}:
+        if item.event in {"prompt_candidate_reserved", "prompt_candidate_persisted"}:
             detail = {"action": item.event, **detail}
         parsed.append(detail)
     return run, artifacts, budget, parsed
+
+
+async def _assert_prepared_waiting(
+    app, client, project_id: str, *, intent_id: str, artifact_id: str
+) -> dict:
+    async with app.state.session_factory() as session:
+        prepared = list(
+            (await session.scalars(select(PreparedPrompt).where(
+                PreparedPrompt.project_id == project_id
+            ))).all()
+        )
+        jobs = list(
+            (await session.scalars(select(GenerationJob).where(
+                GenerationJob.project_id == project_id
+            ))).all()
+        )
+        audits = list(
+            (await session.scalars(
+                select(AuditEvent)
+                .join(PreparedPrompt, AuditEvent.target_id == PreparedPrompt.id)
+                .where(
+                    PreparedPrompt.project_id == project_id,
+                    AuditEvent.target_kind == "prepared_prompt",
+                    AuditEvent.event_type == "prompt.prepared",
+                )
+            )).all()
+        )
+    assert len(prepared) == 1
+    snapshot = prepared[0]
+    assert snapshot.status == "awaiting_confirmation"
+    assert snapshot.intent_id == intent_id and snapshot.artifact_id == artifact_id
+    assert jobs == []
+    assert len(audits) == 1 and audits[0].result == "success"
+    assert audits[0].target_id == snapshot.id
+    assert json.loads(audits[0].after_json) == {
+        "status": "awaiting_confirmation",
+        "request_digest": snapshot.request_digest,
+    }
+    response = await client.get(f"/api/projects/{project_id}/workflow")
+    assert response.status_code == 200, response.text
+    workflow = response.json()
+    assert workflow["stage"] == "S07" and workflow["status"] == "needs_input"
+    assert workflow["intent"]["id"] == intent_id
+    assert workflow["generation_job"] is None
+    assert workflow["prompt_preview"]["id"] == snapshot.id
+    assert workflow["prompt_preview"]["status"] == "awaiting_confirmation"
+    assert workflow["prompt_preview"]["request_digest"] == snapshot.request_digest
+    assert workflow["prompt_preview"]["can_confirm"] is True
+    return workflow
 
 
 @pytest.mark.asyncio
@@ -170,11 +220,7 @@ async def test_budget_is_reserved_before_model_and_repair_keeps_original_intent(
     full_settings,
 ):
     llm = LLMStub()
-    visual = VisualStub(
-        submit_outcome=ProviderOutcome(
-            state="succeeded", image_bytes=png_bytes(1024, 1024), image_count=1
-        )
-    )
+    visual = VisualStub()
     script = _EngineerScript(fake_attempts=1)
     async with _environment(full_settings, llm, visual, responder=script) as (app, client):
         setup = await _setup_s06(app, client)
@@ -215,10 +261,17 @@ async def test_budget_is_reserved_before_model_and_repair_keeps_original_intent(
         assert "prompt_candidate_reserved" in actions
         assert "candidate_invalid" in actions
         assert "auto_repair" in actions
-        assert "prompt_candidate_approved" in actions
+        assert "prompt_candidate_persisted" in actions
         invalid = next(item for item in diags if item["action"] == "candidate_invalid")
         assert invalid["reason"] == ReasonCode.REPAIRABLE_COMPOSITION
-        assert visual.submit_calls and len(visual.submit_calls) == 1
+        persisted = next(item for item in diags if item["action"] == "prompt_candidate_persisted")
+        assert persisted["artifact_id"] == artifacts[0].id and persisted["attempt"] == 2
+        await _assert_prepared_waiting(
+            app, client, setup["project_id"],
+            intent_id=intents[0].id, artifact_id=artifacts[0].id,
+        )
+        assert intents[0].status == "accepted"
+        assert visual.submit_calls == []
         engineers = [
             item
             for item in llm.role_calls_received
@@ -477,8 +530,9 @@ async def test_prompt_reconfirmation_block_retries_without_new_acceptance(full_s
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("job_intent", ["current", "unlinked", "mixed"])
 async def test_unknown_image_submission_blocks_repair_before_another_model_call(
-    full_settings,
+    full_settings, job_intent,
 ):
     llm = LLMStub()
     visual = VisualStub()
@@ -498,21 +552,58 @@ async def test_unknown_image_submission_blocks_repair_before_another_model_call(
                 select(WorkflowRun).where(WorkflowRun.project_id == setup["project_id"])
             )
             assert run is not None
+            intent = await session.scalar(select(GenerationIntent).where(
+                GenerationIntent.run_id == run.id
+            ))
+            assert intent is not None
             now = format_timestamp(utc_now())
-            session.add(
-                GenerationJob(
-                    id=str(uuid.uuid4()),
-                    project_id=setup["project_id"],
-                    run_id=run.id,
-                    request_id=str(uuid.uuid4()),
-                    request_digest="a" * 64,
-                    confirmed_snapshot_digest="b" * 64,
-                    status="unknown",
-                    submit_attempted=1,
-                    created_at=now,
-                    updated_at=now,
+            if job_intent == "mixed":
+                session.add(
+                    GenerationJob(
+                        id=str(uuid.uuid4()),
+                        project_id=setup["project_id"],
+                        run_id=run.id,
+                        intent_id=None,
+                        request_id=str(uuid.uuid4()),
+                        request_digest="a" * 64,
+                        confirmed_snapshot_digest="b" * 64,
+                        status="unknown",
+                        submit_attempted=1,
+                        created_at=format_timestamp(utc_now() - timedelta(seconds=1)),
+                        updated_at=now,
+                    )
                 )
-            )
+                session.add(
+                    GenerationJob(
+                        id=str(uuid.uuid4()),
+                        project_id=setup["project_id"],
+                        run_id=run.id,
+                        intent_id=intent.id,
+                        request_id=str(uuid.uuid4()),
+                        request_digest="c" * 64,
+                        confirmed_snapshot_digest="d" * 64,
+                        status="created",
+                        submit_attempted=0,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+            else:
+                session.add(
+                    GenerationJob(
+                        id=str(uuid.uuid4()),
+                        project_id=setup["project_id"],
+                        run_id=run.id,
+                        intent_id=intent.id if job_intent == "current" else None,
+                        request_id=str(uuid.uuid4()),
+                        request_digest="a" * 64,
+                        confirmed_snapshot_digest="b" * 64,
+                        status="unknown",
+                        submit_attempted=1,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
             await session.commit()
 
         gate.set()
@@ -522,15 +613,103 @@ async def test_unknown_image_submission_blocks_repair_before_another_model_call(
         intents, _usages, slots = await _rows(app, setup["project_id"])
         assert len(intents) == 1 and intents[0].status == "accepted"
         assert all(slot.released_at is None for slot in slots)
-        run, artifacts, _budget, diags = await _run_state(app, setup["project_id"])
+        run, artifacts, budget, diags = await _run_state(app, setup["project_id"])
         assert run is not None and run.status == "blocked"
         assert run.issue_code == "GENERATION_UNKNOWN"
+        assert budget is not None and budget.used == 1
         assert artifacts == []
         assert any(
             item["action"] == "stop_auto_advance"
             and item["reason"] == ReasonCode.REMOTE_UNKNOWN
             for item in diags
         )
+        assert visual.submit_calls == []
+
+
+@pytest.mark.asyncio
+async def test_unknown_image_submission_for_other_intent_does_not_block_repair(full_settings):
+    llm = LLMStub()
+    visual = VisualStub()
+    script = _EngineerScript(fake_attempts=1)
+    async with _environment(full_settings, llm, visual, responder=script) as (app, client):
+        setup = await _setup_s06(app, client)
+        gate = asyncio.Event()
+        llm.gate = gate
+        response = await client.post(
+            f"/api/projects/{setup['project_id']}/workflow/actions/confirm_requirements",
+            json=_confirmation_payload(setup, str(uuid.uuid4())),
+        )
+        assert response.status_code == 200, response.text
+        await _wait_role_calls(llm, 1)
+        intents, _usages, _slots = await _rows(app, setup["project_id"])
+        assert len(intents) == 1
+        current = intents[0]
+        async with write_transaction(app.state.session_factory) as session:
+            now = format_timestamp(utc_now())
+            # A closed historical intent in the same run must not block this one.
+            other = GenerationIntent(
+                id=str(uuid.uuid4()),
+                project_id=current.project_id,
+                run_id=current.run_id,
+                owner_account_id=current.owner_account_id,
+                operator_account_id=current.operator_account_id,
+                approval_id=current.approval_id,
+                request_id=str(uuid.uuid4()),
+                request_digest="c" * 64,
+                requirement_revision=current.requirement_revision,
+                artifact_id=current.artifact_id,
+                artifact_digest=current.artifact_digest,
+                reference_asset_id=current.reference_asset_id,
+                reference_usage=current.reference_usage,
+                image_size=current.image_size,
+                status="closed",
+                created_at=format_timestamp(utc_now() - timedelta(days=1)),
+                updated_at=now,
+            )
+            session.add(other)
+            await session.flush()
+            job = GenerationJob(
+                id=str(uuid.uuid4()),
+                project_id=current.project_id,
+                run_id=current.run_id,
+                intent_id=other.id,
+                request_id=str(uuid.uuid4()),
+                request_digest="a" * 64,
+                confirmed_snapshot_digest="b" * 64,
+                status="unknown",
+                submit_attempted=1,
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(job)
+
+        gate.set()
+        await _drain(app)
+
+        intents, usages, slots = await _rows(app, setup["project_id"])
+        assert {intent.id: intent.status for intent in intents} == {
+            other.id: "closed", current.id: "accepted"
+        }
+        assert len(usages) == 1 and len(slots) == 3
+        assert all(slot.released_at is None for slot in slots)
+        run, artifacts, budget, diags = await _run_state(app, setup["project_id"])
+        assert run is not None and run.stage == "S07" and run.status == "needs_input"
+        assert run.issue_code is None
+        assert len(artifacts) == 1 and artifacts[0].status == "approved"
+        assert artifacts[0].revision_no == 2
+        assert budget is not None and budget.used == 2
+        actions = [item["action"] for item in diags]
+        assert "auto_repair" in actions and "stop_auto_advance" not in actions
+        async with app.state.session_factory() as session:
+            prepared = (await session.scalars(select(PreparedPrompt).where(
+                PreparedPrompt.intent_id == current.id
+            ))).all()
+            jobs = (await session.scalars(select(GenerationJob).where(
+                GenerationJob.run_id == current.run_id
+            ))).all()
+        assert len(prepared) == 1 and prepared[0].status == "awaiting_confirmation"
+        assert len(jobs) == 1 and jobs[0].id == job.id and jobs[0].status == "unknown"
+        assert script.calls == 2
         assert visual.submit_calls == []
 
 
