@@ -45,6 +45,8 @@ async def start_pending(app, client, project_id):
         "文案为‘新品上市’，先讨论",
         "先别生成，文案为‘新品上市’",
         "先讨论，文案为‘新品上市’",
+        "文案为‘新品上市’，我们先讨论一下背景",
+        "请先讨论背景，文案为‘新品上市’",
     ],
 )
 async def test_copy_declaration_does_not_swallow_pause(full_settings, text):
@@ -71,6 +73,12 @@ async def test_copy_declaration_does_not_swallow_pause(full_settings, text):
             "generation_intent"
         ]
         assert production_calls(llm) == []
+        concrete = await send(client, project_id, "冷白背景")
+        assert concrete.status_code == 200, concrete.text
+        await _drain(app)
+        assert (await persisted_requirements(app, project_id))["generation_intent"]["status"] == "paused"
+        assert production_calls(llm) == []
+        assert visual.submit_calls == []
 
 
 @pytest.mark.parametrize(
