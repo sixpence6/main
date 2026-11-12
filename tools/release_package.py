@@ -265,6 +265,15 @@ def materialize_standalone_layout(package_dir: Path) -> list[str]:
     text = compose.read_text(encoding="utf-8").replace("context: ..", "context: .")
     text = text.replace("dockerfile: main/docker/Dockerfile", "dockerfile: docker/Dockerfile")
     compose.write_text(text, encoding="utf-8")
+    # The LAN overlay shares the frontend context with the base compose file.
+    # Its template is rooted at main/ in development and at docker/ in the ZIP.
+    overlay = package_dir / "docker-compose.lan.yml"
+    if overlay.is_file():
+        text = overlay.read_text(encoding="utf-8").replace(
+            "NGINX_TEMPLATE: main/docker/nginx-tls.conf.template",
+            "NGINX_TEMPLATE: docker/nginx-tls.conf.template",
+        )
+        overlay.write_text(text, encoding="utf-8")
     (package_dir / ".gitignore").write_text(
         ".env\n.env.*\n!.env.example\n**/.env\n**/.env.*\n!**/.env.example\n"
         "node_modules/\n.venv/\n__pycache__/\n*.pyc\n*.log\n*.db*\n*.sqlite*\n"

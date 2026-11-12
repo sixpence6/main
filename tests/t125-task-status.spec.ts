@@ -249,10 +249,13 @@ describe('T13 轻量任务状态、失败与真实恢复动作', () => {
         effect: 'write',
       })],
     })
+    let finishAction!: () => void
+    const actionFinished = new Promise<void>((resolve) => { finishAction = resolve })
     await mountTask(pendingView, (fetch) => {
-      fetch.route('POST', ACTIONS_ROUTE, () => {
+      fetch.route('POST', ACTIONS_ROUTE, async () => {
         actionCalls += 1
-        return { delayMs: 160, body: pendingView }
+        await actionFinished
+        return { body: pendingView }
       })
     })
 
@@ -265,7 +268,8 @@ describe('T13 轻量任务状态、失败与真实恢复动作', () => {
     await harness!.user.type(textarea, '补充说明')
     expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
 
-    await new Promise((resolve) => setTimeout(resolve, 220))
+    finishAction()
+    await waitFor(() => expect(screen.getByRole('button', { name: '发送' })).toBeEnabled())
     expect(actionCalls).toBe(1)
   })
 

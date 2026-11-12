@@ -265,7 +265,7 @@ def project_output(ctx, role: str, doc: str, payload: dict) -> dict:
         brief["size"], brief["reference_asset_id"], brief["reference_usage"] = size, ctx.project.reference_asset_id, usage
         brief["unresolved"] = [q["field"] for q in parsed]
         envelope["status"] = "needs_input" if parsed else "ready"
-        envelope["data"] = {"scope": "image_request", "kind": kind, "reference_usage": usage,
+        envelope["data"] = {"scope": "image_request", "kind": kind, "reference_usage": "none" if discussion else usage,
                             "brief": None if discussion else brief, "updates": updates,
                             "clarifications": parsed, "reply": doc[:4000]}
     elif role == "reference_analyst":

@@ -16,7 +16,7 @@ STOP = re.compile(
 REQUEST = re.compile(
     r"生成|重做|重新做|制作|做.{0,12}(图|海报)|画.{0,8}(图|钢笔|商品)|直接做|开始做|帮我做|给我做"
 )
-PAUSE = re.compile(r"先别(?:做|生成|制作|开始|急|动手)|先不(?:做|生成|制作|开始)|不要生成|不生成|不需要.{0,4}生成|别生成|别做|暂不|暂停|先别重新生成")
+PAUSE = re.compile(r"先别(?:做|生成|制作|开始|急|动手)|先不(?:做|生成|制作|开始)|不要生成|不生成|不需要.{0,4}生成|别生成|别做|暂不|暂停|先别重新生成|(?:^|[，,。；;！!\n])\s*先讨论")
 FEEDBACK = re.compile(r"不好看|没.{0,3}感觉|太乱|不够高级|产品太小|背景太抢|太暗")
 DIRECT = re.compile(r"直接(做|生成|制作)|不用问|不必问|你(来定|决定|安排)|帮我选|不知道|随便")
 
@@ -31,6 +31,7 @@ GRATITUDE = re.compile(
     r"(?:你们|您们|你|您)?(?:了|的(?:帮助|解答|耐心|支持))?|"
     r"(?:你|您)?(?:真是|真的)?帮(?:了)?(?:我)?(?:大忙|很大(?:的)?忙)(?:了)?)[呀啊哦呢啦\s]*)+"
 )
+PREFERENCE = re.compile(r"^(?:我|我们)?(?:很|挺|更|比较)?(?:喜欢|满意|觉得|认为|感觉)(.+)")
 CONSULTATION = re.compile(r"你(?:能|可以|会|是|有什么|有啥)|能(?:做什么|帮.{0,6}什么)|可以做什么|支持什么|有什么功能|介绍一下|怎么|如何|为什么|区别|哪个好|讨论|咨询|聊聊|先聊|what can you|who are you|can you explain", re.I)
 
 
@@ -47,8 +48,14 @@ def substantive_text(text: str) -> str:
 
 def speech_text(text: str) -> str:
     """Interpret the instruction, keeping declared/quoted image copy as data."""
-    instruction = COPY_DECLARATION.split(text, maxsplit=1)[0]
-    return re.sub(r'“[^”]*”|「[^」]*」|"[^"\n]*"|‘[^’]*’', " ", instruction).strip()
+    quoted = r"“[^”]*”|「[^」]*」|\"[^\"\n]*\"|‘[^’]*’|'[^'\n]*'"
+    # A declaration owns its value, not the instructions after that value.
+    instruction = re.sub(
+        COPY_DECLARATION.pattern + rf"\s*(?:{quoted}|[^，,。；;！!？?\n]*)",
+        " ",
+        text,
+    )
+    return re.sub(quoted, " ", instruction).strip()
 
 
 def explicit_request(text: str) -> bool:
@@ -170,7 +177,7 @@ def free_text_answer(state: dict[str, Any], text: str) -> bool:
         return True
     for question in state.get("questions", []):
         if commentary(reply):
-            preference = re.match(r"^(?:我)?(?:(?:更|比较)?喜欢|觉得|认为)(.+)", reply)
+            preference = PREFERENCE.match(reply)
             if question["field"] not in SOFT_FIELDS or preference is None:
                 continue
             candidate = preference[1].strip()

@@ -35,6 +35,8 @@ const backendTests = full
       'tests/test_collaborative_revisions.py',
       'tests/test_conversation_alignment.py',
       'tests/test_chat_intent_routing.py',
+      'tests/test_review_intent_regressions.py',
+      'tests/test_review_deployment_regressions.py',
       'tests/test_delivery_publication_race.py',
       'tests/test_editable_prompt_confirmation.py',
       'tests/test_clarification_contract_compat.py',

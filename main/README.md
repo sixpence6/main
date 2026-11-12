@@ -1,14 +1,57 @@
-# 电商生图智能体（自包含发布包）
+# 电商生图智能体部署说明
 
-本目录是发布包的根：前端源码与构建产物、后端源码、数据库迁移、依赖锁、Docker 配置和
-空的数据目录都在这里，不依赖仓库根目录。目标机器只需要 Docker（含 Compose v2）即可
-运行；如果不用 Docker，也可以在本机用 Python 直接启动后端并由后端托管 `dist/`。
+本说明区分源码 workspace 与 standalone ZIP。**源码 checkout 的 `main/` 不是独立部署根，不能直接复制它替代发布包。** 本轮集成的验证状态见仓库中的 [2026-11-12 验收记录](../docs/acceptance/review-integration-2026-11-12.md)；该记录仅在源码仓库中提供，不要求随 ZIP 分发。
 
-此包为全新部署包：不包含旧机器的账号、会话、聊天、数据库、上传图片、生成图片、备份或密钥。
-旧数据如需迁移，应通过受控本地备份单独传输，不要上传 GitHub。
+## 源码 workspace 的目录与命令
 
-发布包由开发仓库的 `release/package-manifest.json` 白名单生成，根目录的
-`RELEASE-MANIFEST.json` 记录版本、源码提交和逐文件 SHA256，`SHA256SUMS` 可用于校验。
+源码仓库根包含 workspace `package.json`、`package-lock.json`、开发验证配置、`backend/` 和 `main/`。前端及后端应用源码分别在 `main/src/`、`main/backend/app/`。根 `backend/` 承担开发依赖、迁移及配置入口；当前配置加载以仓库根 `backend/.env` 为默认配置，以仓库根 `backend/data/` 为默认数据目录。不要因本文位于 `main/` 就把配置或数据放到另一份目录。
+
+在**源码仓库根**安装、构建和检查：
+
+```text
+npm ci
+npm run dev
+npm run build
+npm run check
+```
+
+前端构建写入 `main/dist/`；依赖安装使用根 workspace 锁文件。源码 Docker 构建也依赖完整仓库上下文；不能把 `main/` 当作 standalone ZIP，或直接套用 ZIP 的 Dockerfile / 锁文件布局。源码 Docker 从仓库根执行 `docker compose -f main/docker-compose.yml up -d --build`。先把 `main/backend/.env.example` 复制到 `main/backend/.env`；Compose 的 env_file 和持久卷相对 `main/docker-compose.yml` 解析，因此 Docker 使用 `main/backend/.env`、`main/backend/data/` 与 `main/backups/`。这与下文原生入口的根 `backend/` 配置目录不同。HTTPS 叠加层使用 `-f main/docker-compose.yml -f main/docker-compose.lan.yml`，公开地址与证书按 HTTPS 一节显式配置。本轮构建与隔离启动证据见验收记录。
+
+源码原生后端使用根 `backend/` 的环境和迁移入口，并须能导入 `main/backend/app/`。以下从**源码仓库根**执行；先复制 `backend/.env.example` 到 `backend/.env`，按下文配置节填写本机源（原生入口使用 8000），并先构建前端。
+
+Windows PowerShell：
+
+```powershell
+$env:PYTHONPATH = (Resolve-Path main/backend).Path
+Set-Location backend
+uv sync --frozen --no-dev
+uv run --no-dev alembic upgrade head
+uv run --no-dev python -m app.production --check --json
+uv run --no-dev python -m app.production --host 127.0.0.1 --port 8000
+```
+
+Linux：
+
+```bash
+export PYTHONPATH="$PWD/main/backend"
+cd backend
+uv sync --frozen --no-dev
+uv run --no-dev alembic upgrade head
+uv run --no-dev python -m app.production --check --json
+uv run --no-dev python -m app.production --host 127.0.0.1 --port 8000
+```
+
+管理员初始化在另一个终端使用相同 `PYTHONPATH`、根 `backend/` 工作目录和配置执行 `uv run --no-dev python -m app.auth.cli init-admin`。已有管理员时跳过。以上命令列明源码布局的操作方式，本轮原生启动和空库迁移结果仍待复验。
+
+## Standalone ZIP 的操作范围
+
+**从本节起，后续目录、Docker、原生启动与备份命令均以 standalone ZIP 解压根为工作目录。** ZIP 根直接包含 `backend/` 和 `docker-compose.yml`，不需要再进入 `main/`；不能把这些命令的相对路径直接解释为源码 workspace 根或源码 `main/`。
+
+Standalone 产物应包含前端源码与构建产物、后端源码、迁移、独立依赖锁和适配扁平布局的 Docker 配置。Docker 运行需要 Compose v2；原生运行需要 Python / uv，并由后端托管 ZIP 内的 `dist/`。本轮隔离产物的构建与空库启动结果见仓库验收记录；它们不代表生产环境已部署。
+
+发布流程以仓库的 `release/package-manifest.json` 和 `tools/release_package.py` 为入口；维护者须核对最终产物实际生成的 `RELEASE-MANIFEST.json`、`SHA256SUMS` 与源码版本。源码目录中遗留的旧 manifest、摘要或构建文件不代表当前产物；旧文件归档由集成负责人处理，本文不代替归档或重建。
+
+包内不得包含旧机器的账号、会话、聊天、数据库、上传图片、生成图片、备份或密钥。旧数据如需迁移，通过受控本地备份单独传输，不上传 GitHub。历史 tags / releases 保留用于追溯，其验收结论只适用于各自记录的版本。
 
 ## 目录结构
 
@@ -30,7 +73,7 @@
     backend/
       app/                       # 后端源码（唯一源码）
       pyproject.toml / uv.lock   # 后端依赖与锁
-      alembic.ini / migrations/  # 数据库迁移（0001 -> 0017 head）
+      alembic.ini / migrations/  # 数据库迁移（实际 head 以该包迁移链为准）
       .env.example               # 空配置模板（无密钥）
       data/                      # 空目录（.gitkeep 占位），运行时写入库与图片
     backups/                     # 运行后创建的备份目录，与 backend/ 同级
@@ -47,7 +90,7 @@
 
 ### 1. 下载并解压
 
-从 GitHub Release 下载 `ecommerce-image-workspace-0.1.0.zip`。Windows 可右键“全部解压”；Linux 可使用 `unzip`。打开终端，进入解压后包含 `docker-compose.yml` 的目录。以下命令均在此目录执行。
+从维护者指定的 GitHub tag / release 下载对应的 standalone ZIP，核对该版本的附件摘要。历史 `ecommerce-image-workspace-0.1.0.zip` 文件名本身不能证明包含本轮集成修复。Windows 可右键“全部解压”；Linux 可使用 `unzip`。打开终端，进入解压后包含 `docker-compose.yml` 的目录。以下命令均在此目录执行。
 
 Windows 请先安装并启动 Docker Desktop，使用 Linux 容器模式，并完成 Docker Desktop 提示的 WSL 2 / 虚拟化设置。Linux 需要 Docker Engine 和 Compose v2。
 
@@ -230,7 +273,7 @@ HTTPS、Secure Cookie 和受控代理来源。只开放防火墙上的 `PUBLIC_H
 
 ## 本地启动（不使用 Docker）
 
-需要安装 Python 3.12 或兼容版本以及 uv。发布包已带 `dist/`，正常启动不需要 Node。
+需要安装满足包内 `backend/pyproject.toml` 要求的 Python（当前最低 3.12）以及 uv。先确认该 ZIP 已带与本次源码对应的 `dist/`；正常启动不需要 Node。
 
 先从发布包根目录创建 `backend/.env`（见首次部署步骤），将本地访问源改为：
 
@@ -265,7 +308,7 @@ uv run --no-dev python -m app.production --host 127.0.0.1 --port 8000
 
 已有管理员时跳过初始化；日常使用保留单 worker 的生产入口。
 
-如需重新构建前端，安装 Node 24，回到**发布包根目录**执行：
+如需重新构建前端，安装包内依赖支持的 Node（Docker 构建基线为 Node 24），回到**发布包根目录**执行。该 ZIP 必须提供独立 `package-lock.json`；源码 checkout 应使用上文的根 workspace 命令：
 
     npm ci
     npm run build        # 产物写 dist/，后端直接托管

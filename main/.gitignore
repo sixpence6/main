@@ -29,3 +29,14 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 backend/data/
+
+# Keep standalone-style runtime files out of source control at any depth.
+*.pyc
+*.db*
+*.sqlite*
+backups/
+certs/
+*.key
+*.pem
+*.p12
+*.pfx

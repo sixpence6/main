@@ -444,7 +444,7 @@ async def _write_conversation_exchange(
     if ctx.direct and ctx.run is not None:
         from app.workflow import alignment, requirements
         state = requirements.state_of(ctx)
-        if alignment.PAUSE.search(content):
+        if alignment.PAUSE.search(alignment.speech_text(content)):
             state.update(version=2, revision=ctx.project.revision,
                          generation_intent=alignment.intent(state, content, user_message.id))
             encoded = json.dumps(state, ensure_ascii=False)

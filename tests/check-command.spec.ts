@@ -12,6 +12,7 @@ describe('npm run check', () => {
     const result = spawnSync(npm, npmArgs, {
       cwd: process.cwd(),
       encoding: 'utf8',
+      timeout: 20_000,
     })
 
     expect(result.status).toBe(0)
@@ -20,5 +21,5 @@ describe('npm run check', () => {
     expect(result.stdout).toContain('frontend tests')
     expect(result.stdout).toContain('backend lint')
     expect(result.stdout).toContain('backend tests')
-  })
+  }, 30_000)
 })

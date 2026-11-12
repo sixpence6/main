@@ -288,7 +288,11 @@ async def classify_message(
             ctx.natural_reply = conversation_reply(content)
     if kind != "conversation":
         ctx.prepared_requirements = (content, output)
-    return ConversationData(kind=kind, reference_usage=data.reference_usage, evidence_ids=[])
+    return ConversationData(
+        kind=kind,
+        reference_usage="none" if kind == "conversation" else data.reference_usage,
+        evidence_ids=[],
+    )
 
 
 def conversation_reply(content: str) -> str:
